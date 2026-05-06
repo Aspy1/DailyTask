@@ -1,0 +1,21 @@
+# User data — sensitive / volatile files only
+data/app.log
+data/backup/
+data/settings.ini
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+.claude/
+
+# OS
+Thumbs.db
+.DS_Store
