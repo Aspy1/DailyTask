@@ -1,0 +1,553 @@
+{
+  "_version": 2,
+  "semesters": [
+    {
+      "name": "2025-2026学年第二学期",
+      "period_count": 5,
+      "start_date": "2026-03-09",
+      "total_weeks": 16,
+      "week_type": "odd_even",
+      "id": "2025-2026学年第二学期"
+    }
+  ],
+  "current_semester": "2025-2026学年第二学期",
+  "courses": [
+    {
+      "day_of_week": 1,
+      "name": "并行计算",
+      "teacher": "汤善江",
+      "time_slots": [
+        {
+          "end": 1,
+          "location": "33楼211",
+          "start": 1
+        }
+      ],
+      "week_parity": "all",
+      "weeks": {
+        "end": 8,
+        "start": 1
+      },
+      "id": "c_001"
+    },
+    {
+      "day_of_week": 1,
+      "name": "机器学习与深度学习",
+      "teacher_schedule": [
+        {
+          "name": "王煜",
+          "weeks": {
+            "end": 7,
+            "start": 1
+          }
+        },
+        {
+          "name": "朱文成",
+          "weeks": {
+            "end": 15,
+            "start": 8
+          }
+        }
+      ],
+      "time_slots": [
+        {
+          "end": 2,
+          "location": "46楼A110",
+          "start": 2
+        }
+      ],
+      "week_parity": "all",
+      "weeks": {
+        "end": 15,
+        "start": 1
+      },
+      "id": "c_002"
+    },
+    {
+      "day_of_week": 1,
+      "name": "人工智能数学基础",
+      "teacher_schedule": [
+        {
+          "name": "杨雅君",
+          "weeks": {
+            "end": 8,
+            "start": 1
+          }
+        },
+        {
+          "name": "刘志磊",
+          "weeks": {
+            "end": 16,
+            "start": 9
+          }
+        }
+      ],
+      "time_slots": [
+        {
+          "end": 3,
+          "location": "45楼B308",
+          "start": 3
+        }
+      ],
+      "week_parity": "all",
+      "weeks": {
+        "end": 16,
+        "start": 1
+      },
+      "id": "c_003"
+    },
+    {
+      "day_of_week": 1,
+      "name": "知识工程",
+      "teacher_schedule": [
+        {
+          "name": "王鑫",
+          "weeks": {
+            "end": 7,
+            "start": 1
+          }
+        },
+        {
+          "name": "张小旺",
+          "weeks": {
+            "end": 15,
+            "start": 9
+          }
+        }
+      ],
+      "time_slots": [
+        {
+          "end": 4,
+          "location": "45楼B110",
+          "start": 4
+        }
+      ],
+      "week_parity": "odd",
+      "weeks": {
+        "end": 15,
+        "start": 1
+      },
+      "id": "c_004"
+    },
+    {
+      "day_of_week": 2,
+      "name": "算法设计与分析",
+      "teacher": "胡一涛",
+      "time_slots": [
+        {
+          "end": 1,
+          "start": 1,
+          "location": ""
+        }
+      ],
+      "week_parity": "all",
+      "weeks": {
+        "end": 14,
+        "start": 1
+      },
+      "id": "c_005"
+    },
+    {
+      "day_of_week": 2,
+      "name": "知识工程",
+      "teacher": "张小旺",
+      "time_slots": [
+        {
+          "end": 2,
+          "location": "45楼B110",
+          "start": 2
+        }
+      ],
+      "week_parity": "all",
+      "weeks": {
+        "end": 4,
+        "start": 4
+      },
+      "id": "c_006"
+    },
+    {
+      "day_of_week": 2,
+      "name": "知识工程",
+      "teacher": "张小旺",
+      "time_slots": [
+        {
+          "end": 2,
+          "location": "45楼B110",
+          "start": 2
+        }
+      ],
+      "week_parity": "all",
+      "weeks": {
+        "end": 16,
+        "start": 9
+      },
+      "id": "c_007"
+    },
+    {
+      "day_of_week": 2,
+      "name": "知识工程",
+      "teacher": "王鑫",
+      "time_slots": [
+        {
+          "end": 2,
+          "location": "45楼B110",
+          "start": 2
+        }
+      ],
+      "week_parity": "odd",
+      "weeks": {
+        "end": 3,
+        "start": 3
+      },
+      "id": "c_008"
+    },
+    {
+      "day_of_week": 2,
+      "name": "知识工程",
+      "teacher": "王鑫",
+      "time_slots": [
+        {
+          "end": 2,
+          "location": "45楼B110",
+          "start": 2
+        }
+      ],
+      "week_parity": "odd",
+      "weeks": {
+        "end": 8,
+        "start": 5
+      },
+      "id": "c_009"
+    },
+    {
+      "day_of_week": 2,
+      "name": "认知科学导论",
+      "teacher": "于强",
+      "time_slots": [
+        {
+          "end": 3,
+          "location": "55楼A区308",
+          "start": 3
+        }
+      ],
+      "week_parity": "all",
+      "weeks": {
+        "end": 13,
+        "start": 1
+      },
+      "id": "c_010"
+    },
+    {
+      "day_of_week": 2,
+      "name": "西方文化掠影",
+      "teacher": "葛莉莹",
+      "time_slots": [
+        {
+          "end": 4,
+          "location": "45楼B410",
+          "start": 4
+        }
+      ],
+      "week_parity": "odd",
+      "weeks": {
+        "end": 15,
+        "start": 1
+      },
+      "id": "c_011"
+    },
+    {
+      "day_of_week": 3,
+      "name": "人工智能数学基础",
+      "teacher_schedule": [
+        {
+          "name": "杨雅君",
+          "weeks": {
+            "end": 7,
+            "start": 1
+          }
+        },
+        {
+          "name": "刘志磊",
+          "weeks": {
+            "end": 15,
+            "start": 9
+          }
+        }
+      ],
+      "time_slots": [
+        {
+          "end": 1,
+          "location": "45楼B308",
+          "start": 1
+        }
+      ],
+      "week_parity": "odd",
+      "weeks": {
+        "end": 15,
+        "start": 1
+      },
+      "id": "c_012"
+    },
+    {
+      "day_of_week": 3,
+      "name": "并行计算",
+      "teacher": "汤善江",
+      "time_slots": [
+        {
+          "end": 2,
+          "location": "33楼211",
+          "start": 2
+        }
+      ],
+      "week_parity": "all",
+      "weeks": {
+        "end": 8,
+        "start": 1
+      },
+      "id": "c_013"
+    },
+    {
+      "day_of_week": 3,
+      "name": "中国传统典籍英译",
+      "teacher": "高树勋",
+      "time_slots": [
+        {
+          "end": 3,
+          "location": "45楼B201",
+          "start": 3
+        }
+      ],
+      "week_parity": "odd",
+      "weeks": {
+        "end": 15,
+        "start": 1
+      },
+      "id": "c_014"
+    },
+    {
+      "day_of_week": 3,
+      "name": "计算机网络",
+      "teacher": "王晓飞",
+      "time_slots": [
+        {
+          "end": 4,
+          "location": "50楼A122",
+          "start": 4
+        }
+      ],
+      "week_parity": "even",
+      "weeks": {
+        "end": 16,
+        "start": 2
+      },
+      "id": "c_015"
+    },
+    {
+      "day_of_week": 3,
+      "name": "机器学习与深度学习",
+      "teacher_schedule": [
+        {
+          "name": "王煜",
+          "weeks": {
+            "end": 7,
+            "start": 1
+          }
+        },
+        {
+          "name": "朱文成",
+          "weeks": {
+            "end": 15,
+            "start": 9
+          }
+        }
+      ],
+      "time_slots": [
+        {
+          "end": 4,
+          "location": "46楼A110",
+          "start": 4
+        }
+      ],
+      "week_parity": "odd",
+      "weeks": {
+        "end": 15,
+        "start": 1
+      },
+      "id": "c_016"
+    },
+    {
+      "day_of_week": 3,
+      "name": "毛概",
+      "teacher": "赵海波",
+      "time_slots": [
+        {
+          "end": 5,
+          "location": "46楼A120",
+          "start": 5
+        }
+      ],
+      "week_parity": "all",
+      "weeks": {
+        "end": 16,
+        "start": 1
+      },
+      "id": "c_017"
+    },
+    {
+      "day_of_week": 4,
+      "name": "知识工程",
+      "teacher_schedule": [
+        {
+          "name": "王鑫",
+          "weeks": {
+            "end": 8,
+            "start": 1
+          }
+        },
+        {
+          "name": "张小旺",
+          "weeks": {
+            "end": 16,
+            "start": 9
+          }
+        }
+      ],
+      "time_slots": [
+        {
+          "end": 1,
+          "location": "45楼B110",
+          "start": 1
+        }
+      ],
+      "week_parity": "all",
+      "weeks": {
+        "end": 16,
+        "start": 1
+      },
+      "id": "c_018"
+    },
+    {
+      "day_of_week": 4,
+      "name": "体育D-排球",
+      "teacher": "刘广鸿",
+      "time_slots": [
+        {
+          "end": 2,
+          "start": 2,
+          "location": ""
+        }
+      ],
+      "week_parity": "all",
+      "weeks": {
+        "end": 16,
+        "start": 1
+      },
+      "id": "c_019"
+    },
+    {
+      "day_of_week": 4,
+      "name": "机器学习与深度学习",
+      "teacher_schedule": [
+        {
+          "name": "王煜",
+          "weeks": {
+            "end": 7,
+            "start": 1
+          }
+        },
+        {
+          "name": "朱文成",
+          "weeks": {
+            "end": 15,
+            "start": 8
+          }
+        }
+      ],
+      "time_slots": [
+        {
+          "end": 3,
+          "location": "46楼A110",
+          "start": 3
+        }
+      ],
+      "week_parity": "all",
+      "weeks": {
+        "end": 15,
+        "start": 1
+      },
+      "id": "c_020"
+    },
+    {
+      "day_of_week": 4,
+      "name": "算法设计与分析",
+      "teacher": "胡一涛",
+      "time_slots": [
+        {
+          "end": 5,
+          "start": 5,
+          "location": ""
+        }
+      ],
+      "week_parity": "all",
+      "weeks": {
+        "end": 14,
+        "start": 1
+      },
+      "id": "c_021"
+    },
+    {
+      "day_of_week": 5,
+      "name": "认知科学导论",
+      "teacher": "于强",
+      "time_slots": [
+        {
+          "end": 1,
+          "location": "55楼B区316",
+          "start": 1
+        }
+      ],
+      "week_parity": "odd",
+      "weeks": {
+        "end": 13,
+        "start": 1
+      },
+      "id": "c_022"
+    },
+    {
+      "day_of_week": 5,
+      "name": "计算机网络",
+      "teacher": "王晓飞",
+      "time_slots": [
+        {
+          "end": 2,
+          "location": "50楼A122",
+          "start": 2
+        }
+      ],
+      "week_parity": "all",
+      "weeks": {
+        "end": 16,
+        "start": 1
+      },
+      "id": "c_023"
+    },
+    {
+      "day_of_week": 5,
+      "name": "并行计算",
+      "teacher": "汤善江",
+      "time_slots": [
+        {
+          "end": 5,
+          "location": "33楼114",
+          "start": 5
+        }
+      ],
+      "week_parity": "odd",
+      "weeks": {
+        "end": 7,
+        "start": 1
+      },
+      "id": "c_024"
+    }
+  ]
+}

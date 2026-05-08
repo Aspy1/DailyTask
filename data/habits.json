@@ -1,0 +1,38 @@
+{
+  "_version": 1,
+  "habits": [
+    {
+      "name": "洗澡",
+      "schedule": {
+        "type": "weekly",
+        "days": [
+          6
+        ]
+      },
+      "duration_minutes": 30,
+      "reminder_time": "21:30",
+      "attached_tasks": [],
+      "id": "h_001",
+      "streak": 0,
+      "longest_streak": 0,
+      "remind_enabled": true,
+      "postpone_until": null,
+      "canceled_on": [],
+      "created_at": "2026-06-03T09:51:00.678154"
+    }
+  ],
+  "logs": {
+    "2026-06-03": {
+      "h_004": {
+        "completed": true,
+        "completed_at": "2026-06-03T10:05:56.864301",
+        "note": ""
+      },
+      "h_005": {
+        "completed": true,
+        "completed_at": "2026-06-03T10:55:12.673079",
+        "note": ""
+      }
+    }
+  }
+}

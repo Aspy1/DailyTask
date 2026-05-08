@@ -1,0 +1,99 @@
+{
+  "_version": 1,
+  "logs": {},
+  "plans": {
+    "2026-06-01": [
+      {
+        "course_name": "算法设计与分析",
+        "date": "2026-06-01",
+        "time_slot": 5,
+        "title": "写完算法设计与分析大作业计划表（截止6/7 23:00）",
+        "type": "course_note"
+      }
+    ],
+    "2026-06-02": [
+      {
+        "course_name": "算法设计与分析",
+        "date": "2026-06-02",
+        "time_slot": 5,
+        "title": "开始做算法设计与分析大作业 + 计算机网络作业（均截止6/7 23:00）",
+        "type": "course_note"
+      },
+      {
+        "course_name": "西方文化掠影",
+        "date": "2026-06-02",
+        "time_slot": 4,
+        "title": "背ppt，准备小组pre",
+        "type": "course_note"
+      }
+    ],
+    "2026-06-03": [
+      {
+        "course_name": "算法设计与分析",
+        "date": "2026-06-03",
+        "time_slot": 5,
+        "title": "收尾算法大作业和计算机网络作业（均截止6/7 23:00）",
+        "type": "course_note"
+      },
+      {
+        "type": "custom",
+        "time_slot": 4,
+        "title": "出去练习排球",
+        "note": "17:30开始",
+        "course_name": "",
+        "date": "2026-06-03"
+      }
+    ],
+    "2026-06-04": [
+      {
+        "course_name": "认知科学导论",
+        "date": "2026-06-04",
+        "time_slot": 5,
+        "title": "开始认知科学导论第四次作业（截止6/9 23:00）",
+        "type": "course_note"
+      }
+    ],
+    "2026-06-05": [
+      {
+        "course_name": "认知科学导论",
+        "date": "2026-06-05",
+        "time_slot": 5,
+        "title": "继续认知第四次作业（截止6/9）+ 开始认知大作业（截止6/10 23:00）",
+        "type": "course_note"
+      }
+    ],
+    "2026-06-06": [
+      {
+        "course_name": "认知科学导论",
+        "date": "2026-06-06",
+        "time_slot": 3,
+        "title": "集中做认知大作业（截止6/10 23:00）",
+        "type": "course_note"
+      },
+      {
+        "course_name": "算法设计与分析",
+        "date": "2026-06-06",
+        "time_slot": 5,
+        "title": "有余力开始算法4个个人作业（截止6/11 23:00）",
+        "type": "course_note"
+      }
+    ],
+    "2026-06-07": [
+      {
+        "course_name": "算法设计与分析",
+        "date": "2026-06-07",
+        "time_slot": 1,
+        "title": "提交算法大作业和计网作业（截止今天23:00）",
+        "type": "course_note"
+      },
+      {
+        "course_name": "算法设计与分析",
+        "date": "2026-06-07",
+        "time_slot": 3,
+        "title": "开始做算法4个个人作业（截止6/11 23:00）",
+        "type": "course_note"
+      }
+    ]
+  },
+  "reminders": []
+}
