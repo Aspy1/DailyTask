@@ -297,11 +297,14 @@ class TaskPanel(QWidget):
                     days_left = (due_date - date.today()).days
                     c = get_colors()
                     lbl = QLabel()
+                    lbl.setFont(self._table.font())
                     lbl.setTextFormat(Qt.TextFormat.RichText)
                     lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                    lbl.setFixedWidth(self._table.columnWidth(1))
+                    lbl.setWordWrap(False)
                     lbl.setText(
-                        f'<span style="color:#e74856;">{due_display}</span>'
-                        f' <span style="color:{c["fg_secondary"]};">({days_left}天后)</span>'
+                        f'<span style="color:#e74856;font-size:11px;">{due_display}</span>'
+                        f' <span style="color:{c["fg_secondary"]};font-size:11px;">({days_left}天后)</span>'
                     )
                     lbl.setToolTip(due_display)
                     self._table.setCellWidget(i, 1, lbl)
