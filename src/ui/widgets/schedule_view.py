@@ -436,7 +436,12 @@ class ScheduleView(QWidget):
         layout.addLayout(btn_row)
 
         if dlg.exec() == QDialog.DialogCode.Accepted:
-            notify_time = dt.dateTime().toPython().isoformat()
+            from PySide6.QtWidgets import QMessageBox
+            selected = dt.dateTime().toPython()
+            if selected <= datetime.now():
+                QMessageBox.warning(self, "时间无效", "提醒时间不能是过去的时间。")
+                return
+            notify_time = selected.isoformat()
             self._dm.daily_logs.add_reminder(item_type, item_name, item_date, notify_time)
             self._dm.daily_logs.save()
 
