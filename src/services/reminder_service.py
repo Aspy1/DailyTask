@@ -287,6 +287,7 @@ class ReminderService(QObject):
             return
 
         to_delete: list[str] = []
+        stale_cutoff = now - timedelta(minutes=5)
         for r in reminders:
             rid = r.get("id", "")
             nt = r.get("notify_time", "")
@@ -299,7 +300,14 @@ class ReminderService(QObject):
                 to_delete.append(rid)
                 continue
 
+            # Stale reminder: notify_time is more than 5 min in the past → delete without sending
+            if notify_dt < stale_cutoff:
+                logger.info("Deleting stale reminder %s (notify=%s, now=%s)", rid, nt, now.isoformat())
+                to_delete.append(rid)
+                continue
+
             if now >= notify_dt and rid not in self._custom_reminded:
+                logger.info("Firing custom reminder %s: %s at %s", rid, r.get("item_name", ""), nt)
                 item_name = r.get("item_name", "")
                 item_date = r.get("item_date", "")
                 item_type = r.get("item_type", "")
