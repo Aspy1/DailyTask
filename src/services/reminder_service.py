@@ -55,6 +55,7 @@ class ReminderService(QObject):
         self._timer.start(60_000)
 
         self._catch_up()
+        self._check_ddl()
         self._check_balances()
 
     # ── Catch-up ──────────────────────────────────────────
