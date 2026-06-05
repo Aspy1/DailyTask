@@ -166,3 +166,31 @@ class CoursePanel(QWidget):
     @property
     def table(self) -> CourseTable:
         return self._table
+
+    def refresh_theme(self) -> None:
+        """Reapply dynamic styles on theme change."""
+        c = get_colors()
+        # generic button style for this panel
+        btn_qss = f"""
+            QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
+                border: 1px solid {c['border']}; border-radius: 6px; padding: 4px 12px; font-size: 11px; }}
+            QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; color: {c['btn_secondary_hover_fg']}; }}
+        """
+        for btn in self.findChildren(QPushButton):
+            try:
+                btn.setStyleSheet(btn_qss)
+            except Exception:
+                pass
+
+        # labels
+        try:
+            self._week_label.setStyleSheet("font-weight: 600; border: none; color: %s;" % c['fg_primary'])
+        except Exception:
+            pass
+
+        # propagate to course table if it supports refresh
+        if hasattr(self._table, 'refresh_theme') and callable(getattr(self._table, 'refresh_theme')):
+            try:
+                self._table.refresh_theme()
+            except Exception:
+                pass

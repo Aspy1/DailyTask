@@ -364,6 +364,34 @@ class TaskPanel(QWidget):
             self._page += 1
             self._refresh()
 
+    def refresh_theme(self) -> None:
+        c = get_colors()
+        # rebuild button qss based on colors
+        btn_qss = f"""
+            QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
+                border: 1px solid {c['border']}; border-radius: 6px; padding: 4px 12px; font-size: 11px; }}
+            QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; color: {c['btn_secondary_hover_fg']}; }}
+            QPushButton::menu-indicator {{ image: none; }}
+        """
+        for btn in self.findChildren(QPushButton):
+            try:
+                # accent buttons heuristic
+                txt = (btn.text() or "").strip()
+                if txt in ("添加", "记一笔", "开始", "保存", "打开") or txt == "+":
+                    btn.setStyleSheet(f"QPushButton {{ background-color: {c['accent']}; color: #fff; border: none; border-radius:6px; padding:4px 10px; font-weight:600; }}")
+                else:
+                    btn.setStyleSheet(btn_qss)
+            except Exception:
+                pass
+
+        # table styling - let QSS do heavy lifting; ensure header/footer labels use fg_primary
+        try:
+            for lbl in self.findChildren(QLabel):
+                if lbl.objectName() in ("taskCount",):
+                    lbl.setStyleSheet(f"color: {c['fg_hint']}; font-size: 11px;")
+        except Exception:
+            pass
+
     def _show_archive(self) -> None:
         archived = self._dm.tasks.archived
         if not archived:

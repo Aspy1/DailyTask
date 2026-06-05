@@ -122,3 +122,16 @@ class CourseDetailDialog(QDialog):
             item = QListWidgetItem("暂无作业")
             item.setForeground(Qt.GlobalColor.gray)
             self._task_list.addItem(item)
+
+    def refresh_theme(self) -> None:
+        c = get_colors()
+        try:
+            self.setStyleSheet(f"""
+                QDialog {{ background-color: {c['bg_root']}; }}
+                QListWidget {{ background-color: transparent; border: none; }}
+                QListWidget::item {{ padding: 8px 12px; border-radius: 6px; font-size: 12px; color: {c['fg_primary']}; }}
+                QListWidget::item:selected {{ background-color: {c['accent_bg']}; color: {c['fg_primary']}; }}
+                QListWidget::item:hover {{ background-color: {c['bg_surface_hi']}; }}
+            """)
+        except Exception:
+            pass

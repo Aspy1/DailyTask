@@ -273,6 +273,23 @@ class HabitPanel(QWidget):
         self._grid._layout_children()
         self._grid.update()
 
+    def refresh_theme(self) -> None:
+        # Rebuild grid and fab style according to new theme
+        c = get_colors()
+        try:
+            self._fab.setStyleSheet(f"""
+                QPushButton {{ background-color: {c['accent']}; color: #fff; border: none;
+                    border-radius: 24px; font-size: 24px; font-weight: 600; }}
+                QPushButton:hover {{ background-color: {c['accent_hover']}; }}
+            """)
+        except Exception:
+            pass
+        # Rebuild cards to pick up colors
+        try:
+            self._refresh()
+        except Exception:
+            pass
+
     def _toggle_habit(self, hid: str) -> None:
         done = self._dm.habits.is_done_today(hid)
         attached = self._dm.habits.log(hid, not done)
