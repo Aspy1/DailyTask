@@ -290,17 +290,39 @@ class TaskPanel(QWidget):
 
             due = t.get("due_date", "")
             due_display = due[:16].replace("T", " ") if due and due != "None" else "—"
-            due_item = QTableWidgetItem(due_display)
-            due_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            due_item.setToolTip(due_display)
-            # Highlight DDL within 3 days in red
+            # Highlight DDL within 3 days — use QLabel for mixed-color text
             if self._highlight_ddl and due and due != "None":
                 due_date = _parse_due(due)
                 if due_date and due_date <= date.today() + timedelta(days=3):
-                    due_item.setForeground(QBrush(QColor("#e74856")))
-                    font = due_item.font()
-                    font.setBold(True)
-                    due_item.setFont(font)
+                    days_left = (due_date - date.today()).days
+                    c = get_colors()
+                    lbl = QLabel()
+                    lbl.setTextFormat(Qt.TextFormat.RichText)
+                    lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                    lbl.setText(
+                        f'<span style="color:#e74856;font-weight:bold;">{due_display}</span>'
+                        f' <span style="color:{c["fg_secondary"]};">({days_left}天后)</span>'
+                    )
+                    lbl.setToolTip(due_display)
+                    self._table.setCellWidget(i, 1, lbl)
+                    # skip setItem below
+                    title_item = QTableWidgetItem(t.get("title", ""))
+                    title_item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
+                    title_item.setToolTip(t.get("title", ""))
+                    if t.get("status") == "completed":
+                        title_item.setForeground(QBrush(QColor("#6e6e73")))
+                    self._table.setItem(i, 2, title_item)
+                    # Checkbox
+                    cb = QCheckBox()
+                    cb.setChecked(t.get("status") == "completed")
+                    cb.setToolTip("标记完成" if t.get("status") != "completed" else "已完成的勾选仅作提示。右键可取消完成。")
+                    tid = t["id"]
+                    cb.toggled.connect(lambda checked, tid=tid: self._on_check(tid, checked))
+                    self._table.setCellWidget(i, 3, cb)
+                    continue
+            due_item = QTableWidgetItem(due_display)
+            due_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            due_item.setToolTip(due_display)
             self._table.setItem(i, 1, due_item)
 
             title_item = QTableWidgetItem(t.get("title", ""))
