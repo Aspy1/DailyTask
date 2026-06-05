@@ -8,41 +8,42 @@ FONT_MONO = "Consolas"
 
 SIZE_CAPTION = 10
 SIZE_BODY_S = 12
-SIZE_BODY = 13
-SIZE_BODY_L = 14
-SIZE_TITLE = 15
-SIZE_HEADING = 17
+SIZE_BODY = 14
+SIZE_BODY_L = 15
+SIZE_TITLE = 16
+SIZE_HEADING = 19
+SIZE_CAPTION = 11
 
 # ── PCL-inspired tokens ─────────────────────────────────────
 
 TOKENS = {
     "dark": {
-        "bg_root": "#0d1117", "bg_surface": "#161b22", "bg_card": "#1c2333",
+    "bg_root": "#0d1117", "bg_surface": "#161b22", "bg_card": "#171a21",
         "bg_surface_hi": "#21262d", "bg_elevated": "#30363d",
-        "fg_primary": "#c9d1d9", "fg_secondary": "#8b949e", "fg_hint": "#6e7681",
+    "fg_primary": "#dbe9ff", "fg_secondary": "#9aa9b8", "fg_hint": "#8a99a8",
         "fg_disabled": "#484f58",
-        "accent": "#1370f3", "accent_hover": "#1f6feb", "accent_dim": "#0d419d",
-        "accent_bg": "rgba(19,112,243,0.12)",
+    "accent": "#0f62fe", "accent_hover": "#3aa0ff", "accent_dim": "#0b4fc1",
+    "accent_bg": "rgba(15,98,254,0.12)",
         "border": "rgba(255,255,255,0.06)", "border_strong": "rgba(255,255,255,0.10)",
-        "divider": "rgba(255,255,255,0.04)",
-        "red": "#f85149", "green": "#3fb950", "yellow": "#d2991d", "orange": "#db6d28",
+    "divider": "rgba(255,255,255,0.05)",
+    "red": "#f85149", "green": "#3fb950", "yellow": "#d2991d", "orange": "#db6d28",
         "sidebar_bg": "#161b22", "chat_bg": "#0d1117",
         "input_bg": "#0d1117", "input_border": "rgba(255,255,255,0.08)",
         "btn_secondary_bg": "rgba(255,255,255,0.04)", "btn_secondary_fg": "#8b949e",
         "btn_secondary_hover": "rgba(255,255,255,0.08)", "btn_secondary_hover_fg": "#c9d1d9",
         "table_alt": "rgba(255,255,255,0.02)",
-        "card_bg": "rgba(255,255,255,0.03)", "card_border": "rgba(255,255,255,0.05)",
-        "section_heading": "rgba(19,112,243,0.65)",
+        "card_bg": "rgba(255,255,255,0.02)", "card_border": "rgba(255,255,255,0.08)",
+        "section_heading": "#58a6ff",
         "nav_bg": "#161b22", "nav_selected_bg": "rgba(19,112,243,0.12)",
         "nav_selected_fg": "#58a6ff",
     },
     "light": {
-        "bg_root": "#ffffff", "bg_surface": "#f6f8fa", "bg_card": "#ffffff",
+    "bg_root": "#ffffff", "bg_surface": "#f6f8fa", "bg_card": "#ffffff",
         "bg_surface_hi": "#eaeef2", "bg_elevated": "#d0d7de",
-        "fg_primary": "#1f2328", "fg_secondary": "#656d76", "fg_hint": "#8c959f",
+    "fg_primary": "#0f1720", "fg_secondary": "#55606a", "fg_hint": "#7b868f",
         "fg_disabled": "#afb8c1",
-        "accent": "#1370f3", "accent_hover": "#1f6feb", "accent_dim": "#0d419d",
-        "accent_bg": "rgba(19,112,243,0.08)",
+    "accent": "#0f62fe", "accent_hover": "#1f6feb", "accent_dim": "#0d419d",
+    "accent_bg": "rgba(15,98,254,0.08)",
         "border": "rgba(0,0,0,0.06)", "border_strong": "rgba(0,0,0,0.10)",
         "divider": "rgba(0,0,0,0.04)",
         "red": "#cf222e", "green": "#1a7f37", "yellow": "#9a6700", "orange": "#bc4c00",
@@ -52,7 +53,7 @@ TOKENS = {
         "btn_secondary_hover": "rgba(0,0,0,0.08)", "btn_secondary_hover_fg": "#1f2328",
         "table_alt": "rgba(0,0,0,0.02)",
         "card_bg": "#ffffff", "card_border": "rgba(0,0,0,0.06)",
-        "section_heading": "#1370f3",
+        "section_heading": "#0f62fe",
         "nav_bg": "#f6f8fa", "nav_selected_bg": "rgba(19,112,243,0.10)",
         "nav_selected_fg": "#1370f3",
     },
