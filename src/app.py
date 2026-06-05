@@ -138,13 +138,13 @@ class App(QApplication):
         self._window = MainWindow(self._settings, self._ai_service, self._data_manager)
         self._window.setWindowIcon(app_icon)
 
-        self._reminder.start()  # after _window exists so set_ddl_alert works
-
-        # Flash state
+        # Flash state (before reminder.start() — _on_ddl_alert uses _flash_timer)
         self._flash_timer = QTimer(self)
         self._flash_timer.timeout.connect(self._flash_tick)
         self._flash_on = False
         self._ddl_count = 0
+
+        self._reminder.start()  # after _window + _flash_timer exist
 
         self._setup_tray(app_icon)
 
