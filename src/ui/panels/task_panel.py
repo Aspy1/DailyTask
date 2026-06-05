@@ -122,7 +122,7 @@ class TaskPanel(QWidget):
         self._table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
         self._table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Fixed)
         self._table.setColumnWidth(0, 120)
-        self._table.setColumnWidth(1, 140)
+        self._table.setColumnWidth(1, 170)
         self._table.setColumnWidth(3, 50)
         self._table.horizontalHeader().setDefaultAlignment(Qt.AlignmentFlag.AlignCenter)
         self._table.verticalHeader().setVisible(False)
@@ -300,7 +300,7 @@ class TaskPanel(QWidget):
                     lbl.setTextFormat(Qt.TextFormat.RichText)
                     lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
                     lbl.setText(
-                        f'<span style="color:#e74856;font-weight:bold;">{due_display}</span>'
+                        f'<span style="color:#e74856;">{due_display}</span>'
                         f' <span style="color:{c["fg_secondary"]};">({days_left}天后)</span>'
                     )
                     lbl.setToolTip(due_display)

@@ -54,6 +54,8 @@ class ReminderService(QObject):
         self._timer.timeout.connect(self._check)
         self._timer.start(60_000)
 
+    def start(self) -> None:
+        """Run initial checks after signals are connected."""
         self._catch_up()
         self._check_ddl()
         self._check_balances()
