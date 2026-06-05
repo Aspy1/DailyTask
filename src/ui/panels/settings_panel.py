@@ -28,10 +28,14 @@ PROVIDERS = {
 
 
 class SettingsPanel(QWidget):
-    def __init__(self, settings: SettingsManager, ai_service: AIService, parent=None):
+    def __init__(self, settings: SettingsManager, ai_service: AIService, plugin_manager=None, data_manager=None, parent=None):
         super().__init__(parent)
         self._settings = settings
         self._ai_service = ai_service
+        self._plugin_manager = plugin_manager
+        self._data_manager = data_manager
+        # Keep references to opened plugin windows to avoid GC closing them
+        self._open_plugin_windows = []
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
@@ -48,6 +52,10 @@ class SettingsPanel(QWidget):
         layout.addWidget(self._build_email_card())
         layout.addWidget(self._section_heading("余额提醒"))
         layout.addWidget(self._build_balance_card())
+        # 插件管理
+        if self._plugin_manager is not None:
+            layout.addWidget(self._section_heading("插件"))
+            layout.addWidget(self._build_plugins_card())
         layout.addStretch()
         scroll.setWidget(container)
 
@@ -373,6 +381,108 @@ class SettingsPanel(QWidget):
         self._settings.set("Email", "smtp_pass", self._smtp_pass.text().strip())
         self._settings.save()
         QMessageBox.information(self, "设置", "邮件设置已保存。")
+
+    # ── 插件卡片 ────────────────────────────────────────────
+    def _build_plugins_card(self) -> QFrame:
+        c = self._c()
+        card = self._card()
+        layout = QVBoxLayout(card)
+        layout.setContentsMargins(6, 6, 6, 6)
+        layout.setSpacing(8)
+
+        self._plugins_container = QWidget()
+        pcl = QVBoxLayout(self._plugins_container)
+        pcl.setContentsMargins(6, 6, 6, 6)
+        pcl.setSpacing(6)
+
+        layout.addWidget(self._plugins_container)
+        self._refresh_plugins()
+        return card
+
+    def _refresh_plugins(self) -> None:
+        # rebuild plugins list
+        for i in reversed(range(self._plugins_container.layout().count())):
+            w = self._plugins_container.layout().itemAt(i).widget()
+            if w:
+                w.setParent(None)
+
+        if self._plugin_manager is None:
+            return
+
+        for pinfo in self._plugin_manager.list_plugins():
+            row = QWidget()
+            row.setStyleSheet(f"background-color: {self._c()['card_bg']}; border: 1px solid {self._c()['card_border']}; border-radius: 8px; padding: 6px;")
+            rl = QHBoxLayout(row)
+            rl.setContentsMargins(6, 6, 6, 6)
+            rl.setSpacing(8)
+            name_lbl = QLabel(pinfo.name)
+            name_lbl.setFixedWidth(180)
+            name_lbl.setStyleSheet("font-weight:600; font-size:14px; color: " + self._c()['fg_primary'] + "; background: transparent;")
+            rl.addWidget(name_lbl)
+            enabled_cb = QCheckBox("启用")
+            enabled_cb.setChecked(bool(pinfo.enabled))
+            enabled_cb.stateChanged.connect(lambda state, n=pinfo.name: self._toggle_plugin(n, state == 2))
+            rl.addWidget(enabled_cb)
+            panels = self._plugin_manager.get_panels(pinfo.name)
+            open_btn = QPushButton("打开面板")
+            open_btn.setEnabled(bool(panels) and pinfo.enabled)
+            open_btn.clicked.connect(lambda _=None, n=pinfo.name: self._open_plugin(n))
+            open_btn.setStyleSheet(f"background-color: {self._c()['accent']}; color: #fff; border-radius:6px; padding:6px 10px; font-weight:600;")
+            rl.addWidget(open_btn)
+            rl.addStretch()
+            self._plugins_container.layout().addWidget(row)
+
+    def _open_plugin(self, plugin_name: str) -> None:
+        if not self._plugin_manager:
+            return
+        panels = self._plugin_manager.get_panels(plugin_name)
+        if not panels:
+            QMessageBox.information(self, "插件", "插件未提供面板。")
+            return
+        # open the first registered panel
+        display_name, _ = panels[0]
+        widget = self._plugin_manager.create_panel(plugin_name, display_name, self._settings, self._ai_service, self._data_manager, None)
+        if widget is None:
+            QMessageBox.warning(self, "插件", "打开插件面板失败。")
+            return
+        widget.setWindowTitle(display_name)
+        widget.setAttribute(Qt.WA_DeleteOnClose, True)
+        # keep reference to avoid GC closing the window immediately
+        try:
+            self._open_plugin_windows.append(widget)
+            widget.destroyed.connect(lambda _, w=widget: self._open_plugin_windows.remove(w) if w in self._open_plugin_windows else None)
+        except Exception:
+            pass
+        widget.show()
+
+    def _toggle_plugin(self, plugin_name: str, enable: bool) -> None:
+        if not self._plugin_manager:
+            return
+        ok = self._plugin_manager.enable(plugin_name) if enable else self._plugin_manager.disable(plugin_name)
+        if not ok:
+            QMessageBox.warning(self, "插件", "设置失败，请检查文件权限。")
+        self._refresh_plugins()
+
+    def refresh_theme(self) -> None:
+        # Re-apply dynamic styles for settings panel widgets
+        c = get_colors()
+        try:
+            # inputs
+            for le in self.findChildren(QLineEdit):
+                le.setStyleSheet(self._input_qss())
+        except Exception:
+            pass
+        try:
+            for cb in self.findChildren(QComboBox):
+                cb.setStyleSheet(self._combo_qss())
+        except Exception:
+            pass
+        try:
+            # refresh plugin list styling
+            if self._plugin_manager is not None:
+                self._refresh_plugins()
+        except Exception:
+            pass
 
     # ── Balance card ───────────────────────────────────────
 

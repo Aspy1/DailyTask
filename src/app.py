@@ -18,6 +18,7 @@ from src.services.reminder_service import ReminderService
 from src.services.git_sync import GitSync
 from src.ui.styles.theme import init_theme
 from src.ui.main_window import MainWindow
+from src.services.plugin_manager import PluginManager
 
 
 DATA_DIR = Path(__file__).parent.parent / "data"
@@ -135,7 +136,12 @@ class App(QApplication):
         self._data_manager.data_changed.connect(self._git_sync.on_data_changed)
         self._git_sync.sync_status.connect(self._on_sync_status)
 
-        self._window = MainWindow(self._settings, self._ai_service, self._data_manager)
+        # 插件管理器：扫描 ./plugins 并加载可注册的面板工厂
+        plugins_dir = Path(__file__).parent.parent / "plugins"
+        self._plugin_manager = PluginManager(plugins_dir, self._settings, self._data_manager, self)
+        self._plugin_manager.load_plugins()
+
+        self._window = MainWindow(self._settings, self._ai_service, self._data_manager, self._plugin_manager)
         self._window.setWindowIcon(app_icon)
 
         # Flash state (before reminder.start() — _on_ddl_alert uses _flash_timer)
