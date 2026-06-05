@@ -2,39 +2,6 @@
   "_version": 1,
   "tasks": [
     {
-      "description": "小组pre展示，要求制作ppt，下次课（周三）完成",
-      "due_date": "2026-06-03T18:30:00",
-      "priority": "high",
-      "tags": [
-        "毛概",
-        "pre",
-        "小组作业"
-      ],
-      "title": "毛概小组pre展示 - 制作PPT",
-      "id": "t_001",
-      "status": "completed",
-      "created_at": "2026-06-01T17:22:24.826058",
-      "reminded": false,
-      "course_name": "毛概",
-      "completed_at": "2026-06-01T22:28:02.670247"
-    },
-    {
-      "description": "根据PPT完成实践，下次课（2026-06-05 周五）上课前统一上交。",
-      "due_date": "2026-06-05T10:25:00",
-      "priority": "high",
-      "tags": [
-        "作业",
-        "计算机网络"
-      ],
-      "title": "计算机网络作业：根据PPT完成实践",
-      "id": "t_002",
-      "status": "completed",
-      "created_at": "2026-06-01T17:30:07.328918",
-      "reminded": false,
-      "completed_at": "2026-06-01T22:27:58.084620",
-      "course_name": "计算机网络"
-    },
-    {
       "course_name": "算法设计与分析",
       "description": "",
       "due_date": "2026-06-07T23:00:00",
@@ -99,6 +66,41 @@
       "notes": "",
       "created_at": "2026-06-01T21:08:54.185468",
       "reminded": false
+    }
+  ],
+  "archived": [
+    {
+      "description": "小组pre展示，要求制作ppt，下次课（周三）完成",
+      "due_date": "2026-06-03T18:30:00",
+      "priority": "high",
+      "tags": [
+        "毛概",
+        "pre",
+        "小组作业"
+      ],
+      "title": "毛概小组pre展示 - 制作PPT",
+      "id": "t_001",
+      "status": "completed",
+      "created_at": "2026-06-01T17:22:24.826058",
+      "reminded": false,
+      "course_name": "毛概",
+      "completed_at": "2026-06-01T22:28:02.670247"
+    },
+    {
+      "description": "根据PPT完成实践，下次课（2026-06-05 周五）上课前统一上交。",
+      "due_date": "2026-06-05T10:25:00",
+      "priority": "high",
+      "tags": [
+        "作业",
+        "计算机网络"
+      ],
+      "title": "计算机网络作业：根据PPT完成实践",
+      "id": "t_002",
+      "status": "completed",
+      "created_at": "2026-06-01T17:30:07.328918",
+      "reminded": false,
+      "completed_at": "2026-06-01T22:27:58.084620",
+      "course_name": "计算机网络"
     }
   ]
 }
