@@ -131,13 +131,14 @@ class App(QApplication):
         self._reminder = ReminderService(self._settings, self._data_manager)
         self._reminder.reminder_notify.connect(self._show_reminder_notify)
         self._reminder.ddl_alert.connect(self._on_ddl_alert)
-        self._reminder.start()
         self._git_sync = GitSync(DATA_DIR.parent, DATA_DIR, self)
         self._data_manager.data_changed.connect(self._git_sync.on_data_changed)
         self._git_sync.sync_status.connect(self._on_sync_status)
 
         self._window = MainWindow(self._settings, self._ai_service, self._data_manager)
         self._window.setWindowIcon(app_icon)
+
+        self._reminder.start()  # after _window exists so set_ddl_alert works
 
         # Flash state
         self._flash_timer = QTimer(self)
