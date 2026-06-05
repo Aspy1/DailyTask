@@ -346,40 +346,36 @@ class ScheduleView(QWidget):
                         cl.addWidget(hab_card)
 
             # ── DDL markers for this slot ──────────────────────
-            slot_ddls = ddl_by_slot.get(period, [])
-            if slot_ddls:
-                # If no items in this slot, add "空闲" before DDL markers
-                if not slot_data.get(period, []):
-                    empty = QLabel("空闲")
-                    empty.setStyleSheet(f"color: {c['fg_disabled']}; font-size: 12px; padding: 4px 0;")
-                    cl.addWidget(empty)
-                for t in slot_ddls:
-                    due_str = t.get("due_date", "")
-                    try:
-                        due_dt = datetime.fromisoformat(due_str)
-                        due_time = due_dt.strftime("%H:%M")
-                    except (ValueError, TypeError):
-                        due_time = ""
-                    task_title = t.get("title", "")
-                    course_name = t.get("course_name", "") or ""
-                    ddl_divider = QFrame()
-                    ddl_divider.setStyleSheet(f"QFrame {{ border: none; background: transparent; }}")
-                    ddl_layout = QHBoxLayout(ddl_divider)
-                    ddl_layout.setContentsMargins(0, 4, 0, 4)
-                    ddl_label = QLabel()
-                    ddl_label.setTextFormat(Qt.TextFormat.RichText)
-                    ddl_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-                    ddl_label.setWordWrap(True)
-                    ddl_label.setText(
-                        f'<span style="color:{c["fg_hint"]};">——————————</span>'
-                        f'<a href="task" style="color:#e74856;font-weight:bold;text-decoration:none;">{task_title}</a>'
-                        f'<span style="color:{c["fg_hint"]};"> 在此时截止 ({due_time}) ——————————</span>'
-                    )
-                    ddl_label.linkActivated.connect(
-                        lambda cn=course_name: self.task_focus_requested.emit(cn)
-                    )
-                    ddl_layout.addWidget(ddl_label)
-                    cl.addWidget(ddl_divider)
+            for t in ddl_by_slot.get(period, []):
+                due_str = t.get("due_date", "")
+                try:
+                    due_dt = datetime.fromisoformat(due_str)
+                    due_time = due_dt.strftime("%H:%M")
+                except (ValueError, TypeError):
+                    due_time = ""
+                task_title = t.get("title", "")
+                course_name = t.get("course_name", "") or ""
+                ddl_divider = QFrame()
+                ddl_divider.setStyleSheet(f"QFrame {{ border: none; background: transparent; }}")
+                ddl_layout = QHBoxLayout(ddl_divider)
+                ddl_layout.setContentsMargins(0, 4, 0, 4)
+                ddl_label = QLabel()
+                ddl_label.setTextFormat(Qt.TextFormat.RichText)
+                ddl_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                ddl_label.setWordWrap(True)
+                ddl_label.setMaximumWidth(
+                    self._content.width() - 48
+                )
+                ddl_label.setText(
+                    f'<span style="color:{c["fg_hint"]};">——————————</span>'
+                    f'<a href="task" style="color:#e74856;font-weight:bold;text-decoration:none;">{task_title}</a>'
+                    f'<span style="color:{c["fg_hint"]};"> 在此时截止 ({due_time}) ——————————</span>'
+                )
+                ddl_label.linkActivated.connect(
+                    lambda cn=course_name: self.task_focus_requested.emit(cn)
+                )
+                ddl_layout.addWidget(ddl_label)
+                cl.addWidget(ddl_divider)
 
             self._content_layout.insertWidget(self._content_layout.count() - 1, card)
 
