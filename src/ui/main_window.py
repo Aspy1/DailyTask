@@ -18,7 +18,7 @@ from src.services.data_manager import DataManager
 from src.ui.components.main_workspace import MainWorkspace
 from src.ui.components.ai_panel import AIPanel
 
-NAV_HEIGHT = 46
+NAV_HEIGHT = 50
 
 
 class _ClickLabel(QLabel):
@@ -37,7 +37,7 @@ class NavButton(QPushButton):
 
 
 class MainWindow(QMainWindow):
-    def __init__(self, settings: SettingsManager, ai_service: AIService, data_manager: DataManager):
+    def __init__(self, settings: SettingsManager, ai_service: AIService, data_manager: DataManager, plugin_manager=None):
         super().__init__()
         self.setWindowTitle(tr("app.name"))
         self.setMinimumSize(900, 580)
@@ -46,6 +46,7 @@ class MainWindow(QMainWindow):
         self._settings = settings
         self._ai_service = ai_service
         self._data_manager = data_manager
+        self._plugin_manager = plugin_manager
         self._ai_visible = False
 
         self._setup_ui()
@@ -83,7 +84,7 @@ class MainWindow(QMainWindow):
         self._nav_group = QButtonGroup(self)
         self._nav_group.setExclusive(True)
 
-        tabs = [("学习", "study"), ("生活", "life"), ("设置", "settings"), ("更多", "more")]
+        tabs = [("学习", "study"), ("生活", "life"), ("小功能", "widgets"), ("设置", "settings"), ("更多", "more")]
         for label, tab_id in tabs:
             btn = NavButton(label)
             btn.clicked.connect(lambda checked, tid=tab_id: self._on_nav(tid))
@@ -103,7 +104,7 @@ class MainWindow(QMainWindow):
         root.addWidget(nav)
 
         # ── Content area ─────────────────────────────────────
-        self._workspace = MainWorkspace(self._settings, self._ai_service, self._data_manager)
+        self._workspace = MainWorkspace(self._settings, self._ai_service, self._data_manager, self._plugin_manager)
         self._ai_panel = AIPanel()
         self._ai_panel.hide()
 
@@ -195,8 +196,23 @@ class MainWindow(QMainWindow):
         from src.ui.styles.theme import switch_theme
         self._settings.set("General", "theme", mode)
         self._settings.save()
-        self.setStyleSheet(switch_theme(mode))
-        self._ai_panel.refresh_theme()
+        # Apply stylesheet on the QApplication so it cascades to all windows/widgets
+        from PySide6.QtWidgets import QApplication
+        qss = switch_theme(mode)
+        app = QApplication.instance()
+        if app is not None:
+            app.setStyleSheet(qss)
+
+        # Refresh theme-aware panels
+        try:
+            self._ai_panel.refresh_theme()
+        except Exception:
+            pass
+        try:
+            if hasattr(self, "_workspace") and hasattr(self._workspace, "refresh_theme"):
+                self._workspace.refresh_theme()
+        except Exception:
+            pass
 
     def _toggle_theme(self) -> None:
         current = self._settings.get("General", "theme", "dark")

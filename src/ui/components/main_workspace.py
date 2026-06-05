@@ -21,11 +21,12 @@ from src.ui.styles.theme import get_colors
 
 
 class MainWorkspace(QWidget):
-    def __init__(self, settings: SettingsManager, ai_service: AIService, dm: DataManager, parent=None):
+    def __init__(self, settings: SettingsManager, ai_service: AIService, dm: DataManager, plugin_manager=None, parent=None):
         super().__init__(parent)
         self._dm = dm
         self._settings = settings
         self._ai_service = ai_service
+        self._plugin_manager = plugin_manager
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -127,10 +128,15 @@ class MainWorkspace(QWidget):
 
         self._stack.addWidget(life)  # index 1: life
 
+        # ── Plugins tab ───────────────────────────────────────
+        from src.ui.panels.plugins_panel import PluginsPanel
+        self._plugins_panel = PluginsPanel(plugin_manager, settings, ai_service, dm)
+        self._stack.addWidget(self._plugins_panel)  # index 2
+
         # ── Settings tab ──────────────────────────────────────
-        self._stack.addWidget(SettingsPanel(settings, ai_service))  # index 2
+        self._stack.addWidget(SettingsPanel(settings, ai_service, plugin_manager, dm))  # index 3
         # ── More placeholder ──────────────────────────────────
-        self._stack.addWidget(self._placeholder("more"))  # index 3
+        self._stack.addWidget(self._placeholder("more"))  # index 4
 
         dm.data_changed.connect(self._on_data_changed)
 
@@ -144,7 +150,7 @@ class MainWorkspace(QWidget):
         return page
 
     def switch_to(self, tab_id: str) -> None:
-        mapping = {"study": 0, "life": 1, "settings": 2, "more": 3}
+        mapping = {"study": 0, "life": 1, "widgets": 2, "settings": 3, "more": 4}
         idx = mapping.get(tab_id, 0)
         self._stack.setCurrentIndex(idx)
 
@@ -190,6 +196,21 @@ class MainWorkspace(QWidget):
             self._expense_panel._refresh()
         if "habit" in action:
             self._habit_panel._refresh()
+
+    def refresh_theme(self) -> None:
+        # Call refresh hooks on child panels if they provide them
+        for attr in (
+            "_course_panel", "_task_panel", "_schedule_view",
+            "_habit_panel", "_expense_panel", "_plugins_panel",
+        ):
+            w = getattr(self, attr, None)
+            if w is None:
+                continue
+            if hasattr(w, "refresh_theme") and callable(getattr(w, "refresh_theme")):
+                try:
+                    w.refresh_theme()
+                except Exception:
+                    pass
 
     @property
     def course_panel(self):
