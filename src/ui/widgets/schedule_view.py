@@ -379,6 +379,13 @@ class ScheduleView(QWidget):
 
             self._content_layout.insertWidget(self._content_layout.count() - 1, card)
 
+    def refresh_theme(self) -> None:
+        """Re-render the schedule to pick up new theme colors."""
+        try:
+            self._refresh()
+        except Exception:
+            pass
+
     # ── Right-click menus ──────────────────────────────────
 
     def _add_email_reminder_dialog(self, item_type: str, item_name: str, item_date: str) -> None:

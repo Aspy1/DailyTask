@@ -383,3 +383,32 @@ class ExpensePanel(QWidget):
         else:
             self._time_btn.setText("时间筛选 ▼")
         self._refresh()
+
+    def refresh_theme(self) -> None:
+        c = get_colors()
+        # Update button styles
+        btn_qss = self._btn_qss()
+        for btn in self.findChildren(QPushButton):
+            try:
+                txt = (btn.text() or "").strip()
+                if txt in ("添加", "记一笔", "保存") or txt == "+":
+                    btn.setStyleSheet(f"QPushButton {{ background-color: {c['accent']}; color: #fff; border: none; border-radius:6px; padding:5px 12px; font-weight:600; }}")
+                else:
+                    btn.setStyleSheet(btn_qss)
+            except Exception:
+                pass
+
+        # Update inputs
+        try:
+            for le in self.findChildren(QLineEdit):
+                le.setStyleSheet(self._input_qss())
+            for cb in self.findChildren(QComboBox):
+                cb.setStyleSheet(self._combo_qss())
+        except Exception:
+            pass
+
+        # Refresh content to pick up any color changes
+        try:
+            self._refresh()
+        except Exception:
+            pass
