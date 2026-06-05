@@ -76,6 +76,7 @@ class TaskModel(BaseJsonModel):
             if task["id"] == task_id:
                 task["status"] = "completed"
                 task["completed_at"] = datetime.now().isoformat()
+                self._auto_archive()
                 return True
         return False
 
@@ -114,14 +115,14 @@ class TaskModel(BaseJsonModel):
         ]
 
     def _auto_archive(self) -> None:
-        """Move completed tasks to archive 24h after their deadline."""
+        """Move completed tasks to archive 3 days after completion."""
         now = datetime.now()
-        threshold = (now - timedelta(hours=24)).isoformat()
+        threshold = (now - timedelta(days=3)).isoformat()
         active = []
         for t in self._data.get("tasks", []):
             if t.get("status") == "completed":
-                due = t.get("due_date", "")
-                if due and due < threshold:
+                completed_at = t.get("completed_at", "")
+                if completed_at and completed_at < threshold:
                     self._data.setdefault("archived", []).append(t)
                     continue
             active.append(t)
