@@ -5,6 +5,7 @@ from PySide6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QSizePolicy
 from PySide6.QtGui import QFont
 
 from src.i18n.loader import tr
+from src.ui.styles.theme import FONT_CN, FONT_MONO, SIZE_CAPTION, SIZE_BODY_S, SIZE_BODY, SIZE_BODY_L, SIZE_SUBTITLE, SIZE_TITLE, SIZE_HEADING
 
 TAB_WIDTH = 52
 
@@ -48,7 +49,7 @@ class FunctionTabs(QWidget):
                     color: #9a9a9e;
                     padding: 4px 2px;
                     text-align: center;
-                    font-size: 10px;
+                    font-size: 13px;
                 }
                 QPushButton:hover {
                     background-color: rgba(255,255,255,0.04);

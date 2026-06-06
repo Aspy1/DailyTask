@@ -54,7 +54,7 @@ class MainWorkspace(QWidget):
             btn.setCheckable(True)
             btn.setStyleSheet(f"""
                 QPushButton {{ background-color: transparent; color: {c['fg_secondary']}; border: none;
-                    border-radius: 8px; padding: 4px 14px; font-size: 12px; }}
+                    border-radius: 8px; padding: 4px 14px; font-size: 13px; }}
                 QPushButton:hover {{ background-color: {c['accent_bg']}; }}
                 QPushButton:checked {{ background-color: {c['nav_selected_bg']}; color: {c['nav_selected_fg']}; font-weight: 600; }}
             """)
@@ -106,7 +106,7 @@ class MainWorkspace(QWidget):
             btn.setCheckable(True)
             btn.setStyleSheet(f"""
                 QPushButton {{ background-color: transparent; color: {c['fg_secondary']}; border: none;
-                    border-radius: 8px; padding: 4px 14px; font-size: 12px; }}
+                    border-radius: 8px; padding: 4px 14px; font-size: 13px; }}
                 QPushButton:hover {{ background-color: {c['accent_bg']}; }}
                 QPushButton:checked {{ background-color: {c['nav_selected_bg']}; color: {c['nav_selected_fg']}; font-weight: 600; }}
             """)

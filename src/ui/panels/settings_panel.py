@@ -93,7 +93,7 @@ class SettingsPanel(QWidget):
         rl = QHBoxLayout(row)
         rl.setContentsMargins(16, 12, 16, 12)
         lbl = QLabel(label)
-        lbl.setStyleSheet(f"color: {c['fg_primary']}; font-size: 12px; font-weight: 600; background: transparent;")
+        lbl.setStyleSheet(f"color: {c['fg_primary']}; font-size: 13px; font-weight: 600; background: transparent;")
         lbl.setFixedWidth(100)
         lbl.setAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignCenter)
         rl.addWidget(lbl)
@@ -120,7 +120,7 @@ class SettingsPanel(QWidget):
         c = self._c()
         return f"""
             QLineEdit {{ background-color: {c['input_bg']}; color: {c['fg_primary']};
-                border: 1px solid {c['input_border']}; border-radius: 8px; padding: 7px 10px; font-size: 12px; }}
+                border: 1px solid {c['input_border']}; border-radius: 8px; padding: 7px 10px; font-size: 13px; }}
             QLineEdit:focus {{ border-color: {c['accent']}; }}
         """
 
@@ -129,7 +129,7 @@ class SettingsPanel(QWidget):
         c = self._c()
         return f"""
             QComboBox {{ background-color: {c['input_bg']}; color: {c['fg_primary']};
-                border: 1px solid {c['input_border']}; border-radius: 8px; padding: 7px 10px; font-size: 12px; }}
+                border: 1px solid {c['input_border']}; border-radius: 8px; padding: 7px 10px; font-size: 13px; }}
             QComboBox:hover {{ border-color: {c['border_strong']}; }}
             QComboBox:focus {{ border-color: {c['accent']}; }}
             QComboBox::drop-down {{ border: none; width: 22px; }}
@@ -192,7 +192,7 @@ class SettingsPanel(QWidget):
         save_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         save_btn.setStyleSheet(f"""
             QPushButton {{ background-color: {c['accent']}; color: #fff; border: none;
-                border-radius: 6px; font-weight: 600; font-size: 11px; }}
+                border-radius: 6px; font-weight: 600; font-size: 13px; }}
             QPushButton:hover {{ background-color: {c['accent_hover']}; }}
             QPushButton:pressed {{ background-color: {c['accent_dim']}; }}
         """)
@@ -239,7 +239,7 @@ class SettingsPanel(QWidget):
         save_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         save_btn.setStyleSheet(f"""
             QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['fg_primary']}; border: none;
-                border-radius: 6px; font-weight: 600; font-size: 11px; }}
+                border-radius: 6px; font-weight: 600; font-size: 13px; }}
             QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; }}
         """)
         save_btn.clicked.connect(self._save_general_settings)
@@ -269,10 +269,10 @@ class SettingsPanel(QWidget):
     def _update_status(self) -> None:
         if self._ai_service.is_configured:
             self._status_label.setText("● " + tr("settings.status.configured"))
-            self._status_label.setStyleSheet("color: #4ec9b0; font-size: 11px; background: transparent;")
+            self._status_label.setStyleSheet("color: #4ec9b0; font-size: 13px; background: transparent;")
         else:
             self._status_label.setText("● " + tr("settings.status.not_configured"))
-            self._status_label.setStyleSheet("color: #f48771; font-size: 11px; background: transparent;")
+            self._status_label.setStyleSheet("color: #f48771; font-size: 13px; background: transparent;")
 
     def _save_ai_settings(self) -> None:
         self._settings.api_key = self._api_key_input.text().strip()
@@ -314,7 +314,7 @@ class SettingsPanel(QWidget):
         layout.addWidget(self._row("授权码", self._smtp_pass))
 
         help_lbl = QLabel("QQ邮箱: 设置 → 账户 → POP3/SMTP服务 → 开启 → 生成授权码")
-        help_lbl.setStyleSheet(f"color: {c['fg_hint']}; font-size: 10px; padding: 0 18px;")
+        help_lbl.setStyleSheet(f"color: {c['fg_hint']}; font-size: 13px; padding: 0 18px;")
         layout.addWidget(help_lbl)
 
         layout.addWidget(self._divider())
@@ -327,7 +327,7 @@ class SettingsPanel(QWidget):
         test_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         test_btn.setStyleSheet(f"""
             QPushButton {{ background-color: {c['accent']}; color: #fff; border: none;
-                border-radius: 6px; padding: 6px 12px; font-weight: 600; font-size: 11px; }}
+                border-radius: 6px; padding: 6px 12px; font-weight: 600; font-size: 13px; }}
             QPushButton:hover {{ background-color: {c['accent_hover']}; }}
         """)
         test_btn.clicked.connect(self._send_test_email)
@@ -346,7 +346,7 @@ class SettingsPanel(QWidget):
         save_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         save_btn.setStyleSheet(f"""
             QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['fg_primary']}; border: none;
-                border-radius: 6px; font-weight: 600; font-size: 11px; }}
+                border-radius: 6px; font-weight: 600; font-size: 13px; }}
             QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; }}
         """)
         save_btn.clicked.connect(self._save_email_settings)
@@ -524,7 +524,7 @@ class SettingsPanel(QWidget):
             rl = QHBoxLayout(row_w)
             rl.setContentsMargins(16, 8, 16, 8)
             lbl = QLabel(label)
-            lbl.setStyleSheet(f"color: {c['fg_primary']}; font-size: 12px; background: transparent;")
+            lbl.setStyleSheet(f"color: {c['fg_primary']}; font-size: 13px; background: transparent;")
             lbl.setFixedWidth(60)
             rl.addWidget(lbl)
             rl.addWidget(enabled_cb)
@@ -549,7 +549,7 @@ class SettingsPanel(QWidget):
         br.setContentsMargins(16, 12, 16, 12)
 
         hint = QLabel("电费数据可从学校缴费平台查询，或按每周充值 20-30 估算。")
-        hint.setStyleSheet(f"color: {c['fg_hint']}; font-size: 10px; background: transparent;")
+        hint.setStyleSheet(f"color: {c['fg_hint']}; font-size: 13px; background: transparent;")
         br.addWidget(hint)
 
         br.addStretch()
@@ -558,7 +558,7 @@ class SettingsPanel(QWidget):
         save_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         save_btn.setStyleSheet(f"""
             QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['fg_primary']}; border: none;
-                border-radius: 6px; font-weight: 600; font-size: 11px; }}
+                border-radius: 6px; font-weight: 600; font-size: 13px; }}
             QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; }}
         """)
         save_btn.clicked.connect(self._save_balance_settings)

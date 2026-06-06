@@ -81,7 +81,7 @@ class _HabitCard(QFrame):
         if rt:
             sched_text += f" {rt}"
         sched_lbl = QLabel(sched_text)
-        sched_lbl.setStyleSheet(f"color: {fg}; font-size: 10px; border: none; background: transparent;")
+        sched_lbl.setStyleSheet(f"color: {fg}; font-size: 13px; border: none; background: transparent;")
         top.addWidget(sched_lbl)
         top.addStretch()
 
@@ -111,7 +111,7 @@ class _HabitCard(QFrame):
         total_min = habit.get("duration_minutes", 30) + at_total
         time_lbl = QLabel(f"预计总用时 {total_min} 分钟")
         time_lbl.setStyleSheet(
-            f"color: {c['accent']}; font-size: 11px; font-weight: 600; border: none; background: transparent;"
+            f"color: {c['accent']}; font-size: 13px; font-weight: 600; border: none; background: transparent;"
         )
         layout.addWidget(time_lbl)
 
@@ -128,7 +128,7 @@ class _HabitCard(QFrame):
         at_lbl = QLabel(at_str)
         at_lbl.setWordWrap(True)
         at_lbl.setStyleSheet(
-            f"color: {fg}; font-size: 11px; border: none; background: transparent;"
+            f"color: {fg}; font-size: 13px; border: none; background: transparent;"
         )
         layout.addWidget(at_lbl)
         layout.addStretch()
@@ -249,7 +249,7 @@ class HabitPanel(QWidget):
         c = get_colors()
         return f"""
             QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
-                border: 1px solid {c['border']}; border-radius: 8px; padding: 4px 12px; font-size: 11px; }}
+                border: 1px solid {c['border']}; border-radius: 8px; padding: 4px 12px; font-size: 13px; }}
             QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; }}
         """
 
@@ -348,7 +348,7 @@ class HabitDialog(QDialog):
             QLabel {{ color: {c['fg_primary']}; }}
             QLineEdit, QComboBox {{
                 background-color: {c['input_bg']}; color: {c['fg_primary']};
-                border: 1px solid {c['input_border']}; border-radius: 8px; padding: 5px 8px; font-size: 12px;
+                border: 1px solid {c['input_border']}; border-radius: 8px; padding: 5px 8px; font-size: 13px;
             }}
         """)
 
@@ -429,7 +429,7 @@ class HabitDialog(QDialog):
         layout.addLayout(form)
 
         sep = QLabel("附加事项（完成后自动添加为待办）")
-        sep.setStyleSheet(f"color: {c['section_heading']}; font-weight: 600; font-size: 11px;")
+        sep.setStyleSheet(f"color: {c['section_heading']}; font-weight: 600; font-size: 13px;")
         layout.addWidget(sep)
 
         at_list = QListWidget()
@@ -447,7 +447,7 @@ class HabitDialog(QDialog):
             btn = QPushButton(text)
             btn.setStyleSheet(f"""
                 QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
-                    border: 1px solid {c['border']}; border-radius: 8px; padding: 4px 10px; font-size: 11px; }}
+                    border: 1px solid {c['border']}; border-radius: 8px; padding: 4px 10px; font-size: 13px; }}
                 QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; }}
             """)
             btn.clicked.connect(slot)
@@ -612,7 +612,7 @@ class _AttachedTaskDialog(QDialog):
 
         save_tpl = QPushButton("同时保存为模板（方便下次引用）")
         save_tpl.setStyleSheet(f"""
-            QPushButton {{ background-color: transparent; color: {c['accent']}; border: none; font-size: 11px; text-align: left; }}
+            QPushButton {{ background-color: transparent; color: {c['accent']}; border: none; font-size: 13px; text-align: left; }}
         """)
         self._save_template = False
         save_tpl.clicked.connect(lambda: setattr(self, '_save_template', True))

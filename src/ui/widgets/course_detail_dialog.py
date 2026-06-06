@@ -27,7 +27,7 @@ class CourseDetailDialog(QDialog):
         self.setStyleSheet(f"""
             QDialog {{ background-color: {c['bg_root']}; }}
             QListWidget {{ background-color: transparent; border: none; }}
-            QListWidget::item {{ padding: 8px 12px; border-radius: 8px; font-size: 12px; color: {c['fg_primary']}; }}
+            QListWidget::item {{ padding: 8px 12px; border-radius: 8px; font-size: 13px; color: {c['fg_primary']}; }}
             QListWidget::item:selected {{ background-color: {c['accent_bg']}; color: {c['fg_primary']}; }}
             QListWidget::item:hover {{ background-color: {c['bg_elevated']}; }}
         """)
@@ -43,7 +43,7 @@ class CourseDetailDialog(QDialog):
         tabs = QTabWidget()
         tabs.setStyleSheet(f"""
             QTabWidget::pane {{ border: none; background: transparent; }}
-            QTabBar::tab {{ padding: 6px 16px; font-size: 12px; color: {c['fg_secondary']}; border: none; }}
+            QTabBar::tab {{ padding: 6px 16px; font-size: 13px; color: {c['fg_secondary']}; border: none; }}
             QTabBar::tab:selected {{ color: {c['accent']}; font-weight: 600; border-bottom: 2px solid {c['accent']}; }}
         """)
 
@@ -68,7 +68,7 @@ class CourseDetailDialog(QDialog):
         close_btn = QPushButton("关闭")
         close_btn.setStyleSheet(f"""
             QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['fg_primary']};
-                border: 1px solid {c['border']}; border-radius: 8px; padding: 6px 20px; font-size: 12px; }}
+                border: 1px solid {c['border']}; border-radius: 8px; padding: 6px 20px; font-size: 13px; }}
             QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; }}
         """)
         close_btn.clicked.connect(self.accept)
@@ -129,7 +129,7 @@ class CourseDetailDialog(QDialog):
             self.setStyleSheet(f"""
                 QDialog {{ background-color: {c['bg_root']}; }}
                 QListWidget {{ background-color: transparent; border: none; }}
-                QListWidget::item {{ padding: 8px 12px; border-radius: 8px; font-size: 12px; color: {c['fg_primary']}; }}
+                QListWidget::item {{ padding: 8px 12px; border-radius: 8px; font-size: 13px; color: {c['fg_primary']}; }}
                 QListWidget::item:selected {{ background-color: {c['accent_bg']}; color: {c['fg_primary']}; }}
                 QListWidget::item:hover {{ background-color: {c['bg_elevated']}; }}
             """)

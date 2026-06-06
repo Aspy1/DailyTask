@@ -20,11 +20,11 @@ SIZE_HEADING  = 36   # hero / empty-state headings
 TOKENS = {
     "light": {
         # Backgrounds
-        "bg_root":          "#FBFAF7",
-        "bg_surface":       "#F3F1EC",
-        "bg_card":          "#FFFFFF",
-        "bg_elevated":      "#FFFFFF",
-        "bg_input":         "#F3F1EC",
+        "bg_root":          "#F2EFE9",
+        "bg_surface":       "#E8E5DE",
+        "bg_card":          "#FDFCFA",
+        "bg_elevated":      "#FDFCFA",
+        "bg_input":         "#F2EFE9",
         # Foregrounds
         "fg_primary":       "#2D2A26",
         "fg_secondary":     "#6E6B66",
@@ -36,8 +36,8 @@ TOKENS = {
         "accent_dim":       "#966C2E",
         "accent_bg":        "rgba(176,130,58,0.08)",
         # Borders
-        "border":           "rgba(0,0,0,0.06)",
-        "border_strong":    "rgba(0,0,0,0.10)",
+        "border":           "rgba(0,0,0,0.08)",
+        "border_strong":    "rgba(0,0,0,0.12)",
         "divider":          "rgba(0,0,0,0.04)",
         # Functional
         "red":              "#D14343",
@@ -45,19 +45,19 @@ TOKENS = {
         "yellow":           "#B0823A",
         "orange":           "#C5702A",
         # Navigation
-        "sidebar_bg":       "#F3F1EC",
-        "chat_bg":          "#FFFFFF",
-        "input_bg":         "#F3F1EC",
+        "sidebar_bg":       "#E8E5DE",
+        "chat_bg":          "#FDFCFA",
+        "input_bg":         "#F2EFE9",
         "input_border":     "rgba(0,0,0,0.10)",
         "btn_secondary_bg":       "rgba(0,0,0,0.04)",
         "btn_secondary_fg":       "#6E6B66",
         "btn_secondary_hover":    "rgba(0,0,0,0.06)",
         "btn_secondary_hover_fg": "#2D2A26",
         "table_alt":        "rgba(0,0,0,0.02)",
-        "card_bg":          "#FFFFFF",
+        "card_bg":          "#FDFCFA",
         "card_border":      "rgba(0,0,0,0.06)",
         "section_heading":  "#B0823A",
-        "nav_bg":           "#F3F1EC",
+        "nav_bg":           "#E8E5DE",
         "nav_selected_bg":  "rgba(176,130,58,0.10)",
         "nav_selected_fg":  "#966C2E",
     },
