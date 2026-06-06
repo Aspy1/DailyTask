@@ -327,6 +327,7 @@ class MainWindow(QMainWindow):
         )
 
     def _update_tomorrow_preview(self) -> None:
+        c = get_colors()
         from datetime import timedelta, datetime as dt, time as dt_time
 
         tomorrow = schedule_date() + timedelta(days=1)
