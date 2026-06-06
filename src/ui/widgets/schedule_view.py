@@ -44,7 +44,7 @@ class ScheduleView(QWidget):
         ct_btn = QPushButton("课程表")
         ct_btn.setStyleSheet(f"""
             QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
-                border: 1px solid {c['border']}; border-radius: 8px; padding: 3px 10px; font-size: 11px; }}
+                border: 1px solid {c['border']}; border-radius: 8px; padding: 3px 10px; font-size: 13px; }}
             QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; color: {c['btn_secondary_hover_fg']}; }}
         """)
         ct_btn.clicked.connect(self.course_table_requested.emit)
@@ -55,7 +55,7 @@ class ScheduleView(QWidget):
         refresh_btn = QPushButton("刷新")
         refresh_btn.setStyleSheet(f"""
             QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
-                border: 1px solid {c['border']}; border-radius: 8px; padding: 3px 10px; font-size: 11px; }}
+                border: 1px solid {c['border']}; border-radius: 8px; padding: 3px 10px; font-size: 13px; }}
             QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; color: {c['btn_secondary_hover_fg']}; }}
         """)
         refresh_btn.clicked.connect(self._refresh)
@@ -65,14 +65,14 @@ class ScheduleView(QWidget):
             btn = QPushButton(text)
             btn.setStyleSheet(f"""
                 QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
-                    border: 1px solid {c['border']}; border-radius: 8px; padding: 3px 10px; font-size: 11px; }}
+                    border: 1px solid {c['border']}; border-radius: 8px; padding: 3px 10px; font-size: 13px; }}
                 QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; color: {c['btn_secondary_hover_fg']}; }}
             """)
             btn.clicked.connect(slot)
             bl.addWidget(btn)
 
         self._date_label = QLabel()
-        self._date_label.setStyleSheet(f"color: {c['fg_secondary']}; font-size: 12px; min-width: 100px;")
+        self._date_label.setStyleSheet(f"color: {c['fg_secondary']}; font-size: 13px; min-width: 100px;")
         self._date_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         bl.addWidget(self._date_label)
 
@@ -238,7 +238,7 @@ class ScheduleView(QWidget):
 
             card = QFrame()
             card.setStyleSheet(f"""
-                QFrame {{ background-color: {c['card_bg']}; border: 1px solid {c['card_border']}; border-radius: 8px; }}
+                QFrame {{ background-color: {c['card_bg']}; border: 1px solid {c['border_strong']}; border-radius: 8px; }}
             """)
             cl = QVBoxLayout(card)
             cl.setContentsMargins(16, 12, 16, 8)
@@ -250,12 +250,12 @@ class ScheduleView(QWidget):
 
             if is_current:
                 arrow = QLabel("▶")
-                arrow.setStyleSheet(f"color: {c['accent']}; font-size: 12px; font-weight: bold; border: none;")
+                arrow.setStyleSheet(f"color: {c['accent']}; font-size: 13px; font-weight: bold; border: none;")
                 hdr.addWidget(arrow)
 
             time_label = QLabel(time_str)
             time_label.setStyleSheet(
-                f"color: {c['accent'] if is_current else c['fg_hint']}; font-size: 10px; font-weight: 600;"
+                f"color: {c['accent'] if is_current else c['fg_hint']}; font-size: 13px; font-weight: 600;"
             )
             hdr.addWidget(time_label)
             hdr.addStretch()
@@ -263,7 +263,7 @@ class ScheduleView(QWidget):
 
             if not items:
                 empty = QLabel("空闲")
-                empty.setStyleSheet(f"color: {c['fg_disabled']}; font-size: 12px; padding: 4px 0;")
+                empty.setStyleSheet(f"color: {c['fg_disabled']}; font-size: 13px; padding: 4px 0;")
                 cl.addWidget(empty)
             else:
                 for item in items:
@@ -280,18 +280,18 @@ class ScheduleView(QWidget):
                         ccl.setContentsMargins(8, 8, 8, 8)
                         ccl.setSpacing(2)
                         name_lbl = QLabel(f"📖 {item['name']}")
-                        name_lbl.setStyleSheet(f"color: {c['fg_primary']}; font-size: 12px; font-weight: 600;")
+                        name_lbl.setStyleSheet(f"color: {c['fg_primary']}; font-size: 13px; font-weight: 600;")
                         name_lbl.setWordWrap(True)
                         ccl.addWidget(name_lbl)
                         loc = item.get("location", "")
                         if loc:
                             loc_lbl = QLabel(loc)
-                            loc_lbl.setStyleSheet(f"color: {c['fg_hint']}; font-size: 11px;")
+                            loc_lbl.setStyleSheet(f"color: {c['fg_hint']}; font-size: 13px;")
                             ccl.addWidget(loc_lbl)
                         for plan in plans:
                             if plan.get("course_name") == item["name"] and plan.get("type") == "course_note":
                                 note_lbl = QLabel(f"📌 {plan.get('title', '')}")
-                                note_lbl.setStyleSheet(f"color: {c['accent']}; font-size: 11px; font-weight: 600;")
+                                note_lbl.setStyleSheet(f"color: {c['accent']}; font-size: 13px; font-weight: 600;")
                                 note_lbl.setWordWrap(True)
                                 ccl.addWidget(note_lbl)
                         cl.addWidget(course_card)
@@ -310,13 +310,13 @@ class ScheduleView(QWidget):
                         pcl.setSpacing(2)
                         prefix = "📅" if item.get("plan_type") == "custom" else "🔄"
                         title_lbl = QLabel(f"{prefix} {item['title']}")
-                        title_lbl.setStyleSheet(f"color: {c['fg_primary']}; font-size: 12px; font-weight: 600;")
+                        title_lbl.setStyleSheet(f"color: {c['fg_primary']}; font-size: 13px; font-weight: 600;")
                         title_lbl.setWordWrap(True)
                         pcl.addWidget(title_lbl)
                         note = item.get("note", "")
                         if note:
                             n = QLabel(note)
-                            n.setStyleSheet(f"color: {c['fg_secondary']}; font-size: 11px;")
+                            n.setStyleSheet(f"color: {c['fg_secondary']}; font-size: 13px;")
                             n.setWordWrap(True)
                             pcl.addWidget(n)
                         cl.addWidget(plan_card)
@@ -340,7 +340,7 @@ class ScheduleView(QWidget):
                         rt_str = f" {rt}" if rt else ""
                         name_lbl = QLabel(f"{status} {item['name']}{rt_str}  ({dur}分钟)")
                         name_lbl.setStyleSheet(
-                            f"color: {c['fg_hint'] if done else c['fg_primary']}; font-size: 12px;"
+                            f"color: {c['fg_hint'] if done else c['fg_primary']}; font-size: 13px;"
                         )
                         hcl.addWidget(name_lbl)
                         cl.addWidget(hab_card)
@@ -402,7 +402,7 @@ class ScheduleView(QWidget):
             QDateTimeEdit {{ background-color: {c['bg_elevated']}; color: {c['fg_primary']};
                 border: 1px solid {c['border']}; border-radius: 8px; padding: 6px 10px; font-size: 13px; }}
             QPushButton {{ background-color: {c['accent']}; color: white; border: none;
-                border-radius: 8px; padding: 6px 18px; font-size: 12px; font-weight: 600; }}
+                border-radius: 8px; padding: 6px 18px; font-size: 13px; font-weight: 600; }}
             QPushButton:hover {{ opacity: 0.9; }}
         """)
         layout = QVBoxLayout(dlg)
@@ -433,7 +433,7 @@ class ScheduleView(QWidget):
         cancel = QPushButton("取消")
         cancel.setStyleSheet(f"""
             QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
-                border: 1px solid {c['border']}; border-radius: 8px; padding: 6px 18px; font-size: 12px; }}
+                border: 1px solid {c['border']}; border-radius: 8px; padding: 6px 18px; font-size: 13px; }}
         """)
         cancel.clicked.connect(dlg.reject)
         btn_row.addWidget(cancel)

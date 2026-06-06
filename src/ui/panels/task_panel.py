@@ -161,7 +161,7 @@ class TaskPanel(QWidget):
         return """
             QPushButton { background-color: {c["btn_secondary_bg"]}; color: {c["fg_hint"]};
                 border: 1px solid {c["border"]}; border-radius: 8px;
-                padding: 4px 12px; font-size: 11px; }
+                padding: 4px 12px; font-size: 13px; }
             QPushButton:hover { background-color: {c["btn_secondary_hover"]}; color: {c["fg_secondary"]}; }
             QPushButton::menu-indicator { image: none; }
         """
@@ -305,8 +305,8 @@ class TaskPanel(QWidget):
                     lbl.setFixedWidth(self._table.columnWidth(1))
                     lbl.setWordWrap(False)
                     lbl.setText(
-                        f'<span style="color:#e74856;font-size:11px;">{due_display}</span>'
-                        f' <span style="color:{c["fg_secondary"]};font-size:11px;">({days_left}天后)</span>'
+                        f'<span style="color:#e74856;font-size: 13px;">{due_display}</span>'
+                        f' <span style="color:{c["fg_secondary"]};font-size: 13px;">({days_left}天后)</span>'
                     )
                     lbl.setToolTip(due_display)
                     self._table.setCellWidget(i, 1, lbl)
@@ -374,7 +374,7 @@ class TaskPanel(QWidget):
         # rebuild button qss based on colors
         btn_qss = f"""
             QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
-                border: 1px solid {c['border']}; border-radius: 8px; padding: 4px 12px; font-size: 11px; }}
+                border: 1px solid {c['border']}; border-radius: 8px; padding: 4px 12px; font-size: 13px; }}
             QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; color: {c['btn_secondary_hover_fg']}; }}
             QPushButton::menu-indicator {{ image: none; }}
         """
@@ -393,7 +393,7 @@ class TaskPanel(QWidget):
         try:
             for lbl in self.findChildren(QLabel):
                 if lbl.objectName() in ("taskCount",):
-                    lbl.setStyleSheet(f"color: {c['fg_hint']}; font-size: 11px;")
+                    lbl.setStyleSheet(f"color: {c['fg_hint']}; font-size: 13px;")
         except Exception:
             pass
 

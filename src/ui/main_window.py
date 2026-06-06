@@ -133,7 +133,7 @@ class MainWindow(QMainWindow):
         c = get_colors()
         self._ddl_alert_label.setStyleSheet(
             f"color: #fff; background-color: {c['red']}; border-radius: 4px; "
-            "padding: 1px 8px; font-weight: 600; font-size: 11px;"
+            "padding: 1px 8px; font-weight: 600; font-size: 13px;"
         )
         self._ddl_alert_label.setToolTip("点击查看即将截止的任务")
         self._ddl_alert_label.clicked.connect(self._on_ddl_alert_click)

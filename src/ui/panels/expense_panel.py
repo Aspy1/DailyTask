@@ -103,7 +103,7 @@ class ExpensePanel(QWidget):
         c = get_colors()
         add_btn.setStyleSheet(f"""
             QPushButton {{ background-color: {c['accent']}; color: #fff; border: none;
-                border-radius: 8px; padding: 5px 12px; font-weight: 600; font-size: 11px; }}
+                border-radius: 8px; padding: 5px 12px; font-weight: 600; font-size: 13px; }}
             QPushButton:hover {{ background-color: {c['accent_hover']}; }}
         """)
         add_btn.clicked.connect(self._add_expense)
@@ -130,7 +130,7 @@ class ExpensePanel(QWidget):
         sav_btn.setFixedWidth(56)
         sav_btn.setStyleSheet(f"""
             QPushButton {{ background-color: {c['accent']}; color: #fff; border: none;
-                border-radius: 8px; padding: 5px 12px; font-weight: 600; font-size: 11px; }}
+                border-radius: 8px; padding: 5px 12px; font-weight: 600; font-size: 13px; }}
             QPushButton:hover {{ background-color: {c['accent_hover']}; }}
         """)
         sav_btn.clicked.connect(self._add_saving)
@@ -176,7 +176,7 @@ class ExpensePanel(QWidget):
         c = get_colors()
         return f"""
             QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
-                border: 1px solid {c['border']}; border-radius: 8px; padding: 4px 12px; font-size: 11px; }}
+                border: 1px solid {c['border']}; border-radius: 8px; padding: 4px 12px; font-size: 13px; }}
             QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; color: {c['btn_secondary_hover_fg']}; }}
         """
 
@@ -184,14 +184,14 @@ class ExpensePanel(QWidget):
         c = get_colors()
         return f"""
             QLineEdit {{ background-color: {c['input_bg']}; color: {c['fg_primary']};
-                border: 1px solid {c['input_border']}; border-radius: 8px; padding: 5px 8px; font-size: 12px; }}
+                border: 1px solid {c['input_border']}; border-radius: 8px; padding: 5px 8px; font-size: 13px; }}
         """
 
     def _combo_qss(self) -> str:
         c = get_colors()
         return f"""
             QComboBox {{ background-color: {c['input_bg']}; color: {c['fg_primary']};
-                border: 1px solid {c['input_border']}; border-radius: 8px; padding: 5px 8px; font-size: 12px; }}
+                border: 1px solid {c['input_border']}; border-radius: 8px; padding: 5px 8px; font-size: 13px; }}
             QComboBox QAbstractItemView {{
                 background-color: {c['bg_elevated']}; color: {c['fg_primary']};
                 selection-background-color: {c['accent_bg']}; outline: none;
@@ -205,7 +205,7 @@ class ExpensePanel(QWidget):
         l = QVBoxLayout(w)
         l.setContentsMargins(16, 8, 16, 8)
         title = QLabel(label)
-        title.setStyleSheet(f"color: {c['fg_hint']}; font-size: 10px; border: none;")
+        title.setStyleSheet(f"color: {c['fg_hint']}; font-size: 13px; border: none;")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         l.addWidget(title)
         amount = QLabel("¥0")
