@@ -239,13 +239,7 @@ class AnthropicProvider:
             system=system_prompt,
             messages=messages,
         )
-        
-【格式规则】
-- 禁止使用多余换行。每句话结束后直接接下一句，不要空行。
-- 禁止使用 Markdown 格式。最多使用**加粗**表示重点，不要用代码块、列表、表格、标题。
-- 回复简洁直接。你是工具不是聊天机器人。
-
-return response.content[0].text
+        return response.content[0].text
 
 
 class DeepSeekProvider:
@@ -761,13 +755,7 @@ class AIService(QObject):
 假期/调休:
 {self._build_holiday_info()}
 """
-        return SYSTEM_PROMPT_BASE + "\n" + context + (
-        "\n【格式规则】\n"
-        "- 禁止多余换行，每句直接接下一句，不要空行。\n"
-        "- 禁止 Markdown 格式，最多用**加粗**表示强调。不要用代码块、列表、表格、标题。\n"
-        "- 回复简洁直接。你是工具不是聊天机器人。\n"
-        "- 执行操作后只说明做了什么，一行即可。"
-    )
+        return SYSTEM_PROMPT_BASE + "\n" + context + "\n【格式规则】\n- 禁止多余换行，直接下一句。\n- 禁用Markdown格式，最多用**加粗**。\n- 回复简洁。\n- 执行操作后一行说明即可。"
 
     def _build_expense_list(self) -> str:
         records = sorted(self._dm.expenses.records, key=lambda r: r.get("date", ""), reverse=True)[:20]
