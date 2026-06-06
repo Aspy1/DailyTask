@@ -39,7 +39,7 @@ class CoursePanel(QWidget):
         refresh_btn = QPushButton("刷新")
         refresh_btn.setStyleSheet(f"""
             QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
-                border: 1px solid {c['border']}; border-radius: 6px; padding: 4px 12px; font-size: 13px; }}
+                border: 1px solid {c['border']}; border-radius: 8px; padding: 4px 12px; font-size: 13px; }}
             QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; color: {c['btn_secondary_hover_fg']}; }}
         """)
         refresh_btn.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -52,7 +52,7 @@ class CoursePanel(QWidget):
             btn = QPushButton(text)
             btn.setStyleSheet(f"""
                 QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
-                    border: 1px solid {c['border']}; border-radius: 6px; padding: 4px 12px; font-size: 13px; }}
+                    border: 1px solid {c['border']}; border-radius: 8px; padding: 4px 12px; font-size: 13px; }}
                 QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; color: {c['btn_secondary_hover_fg']}; }}
             """)
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -173,7 +173,7 @@ class CoursePanel(QWidget):
         # generic button style for this panel
         btn_qss = f"""
             QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
-                border: 1px solid {c['border']}; border-radius: 6px; padding: 4px 12px; font-size: 13px; }}
+                border: 1px solid {c['border']}; border-radius: 8px; padding: 4px 12px; font-size: 13px; }}
             QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; color: {c['btn_secondary_hover_fg']}; }}
         """
         for btn in self.findChildren(QPushButton):

@@ -22,10 +22,10 @@
 
 | Token | 色值 | 用途 |
 |-------|------|------|
-| `bg_root` | `#FBFAF7` | 窗口根背景（暖纸白，非纯白 #FFF） |
-| `bg_surface` | `#F3F1EC` | 面板/侧边栏（淡灰米） |
-| `bg_card` | `#FFFFFF` | 卡片 |
-| `bg_elevated` | `#FFFFFF` | 浮层、弹窗、下拉菜单 |
+| `bg_root` | `#F2EFE9` | 窗口根背景（暖纸白，非纯白 #FFF） |
+| `bg_surface` | `#E8E5DE` | 面板/侧边栏（淡灰米） |
+| `bg_card` | `#FDFCFA` | 卡片 |
+| `bg_elevated` | `#FDFCFA` | 浮层、弹窗、下拉菜单 |
 | `bg_input` | `#F3F1EC` | 输入框背景 |
 | `fg_primary` | `#2D2A26` | 主文字（暖炭，非纯黑 #000） |
 | `fg_secondary` | `#6E6B66` | 次要文字、说明 |

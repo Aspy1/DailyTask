@@ -17,7 +17,7 @@ def _md_to_html(text: str) -> str:
     """Basic markdown to HTML: **bold**, *italic*, `code`, bullet lists."""
     text = re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', text)
     text = re.sub(r'(?<!\*)\*([^*\n]+?)\*(?!\*)', r'<i>\1</i>', text)
-    text = re.sub(r'`([^`\n]+?)`', r'<code style="background:#3a3a40;padding:1px 4px;border-radius:3px;">\1</code>', text)
+    text = re.sub(r'`([^`\n]+?)`', r'<code style="background:#3a3a40;padding:1px 4px;border-radius: 4px;">\1</code>', text)
     # Bullet points: lines starting with - or • become <li>
     lines = text.split('\n')
     in_list = False
