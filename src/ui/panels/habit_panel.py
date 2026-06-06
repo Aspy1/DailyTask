@@ -21,6 +21,8 @@ class _HabitCard(QWidget):
     """Warm-paper card — matches HTML preview §9 design."""
     toggled = Signal(str)
     edit_requested = Signal(str)
+    postpone_requested = Signal(str)
+    skip_requested = Signal(str)
 
     def __init__(self, habit: dict, active: bool, done: bool, parent=None):
         super().__init__(parent)
