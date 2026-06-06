@@ -56,7 +56,7 @@ class _HabitCard(QFrame):
         """)
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(14, 10, 14, 10)
+        layout.setContentsMargins(16, 10, 16, 8)
         layout.setSpacing(6)
 
         # Top: name + schedule
@@ -200,7 +200,7 @@ class HabitPanel(QWidget):
         bar = QWidget()
         bar.setObjectName("taskBar")
         bar_layout = QHBoxLayout(bar)
-        bar_layout.setContentsMargins(14, 8, 14, 8)
+        bar_layout.setContentsMargins(16, 8, 16, 8)
         title = QLabel("生活习惯")
         title.setFont(QFont(self.font().family(), 13))
         title.setStyleSheet("font-weight: 600; border: none;")
@@ -228,7 +228,7 @@ class HabitPanel(QWidget):
         self._fab.setFixedSize(48, 48)
         self._fab.setStyleSheet(f"""
             QPushButton {{ background-color: {c['accent']}; color: #fff; border: none;
-                border-radius: 24px; font-size: 24px; font-weight: 600; }}
+                border-radius: 12px; font-size: 24px; font-weight: 600; }}
             QPushButton:hover {{ background-color: {c['accent_hover']}; }}
         """)
         self._fab.clicked.connect(self._add_habit)
@@ -249,7 +249,7 @@ class HabitPanel(QWidget):
         c = get_colors()
         return f"""
             QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
-                border: 1px solid {c['border']}; border-radius: 6px; padding: 4px 12px; font-size: 11px; }}
+                border: 1px solid {c['border']}; border-radius: 8px; padding: 4px 12px; font-size: 11px; }}
             QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; }}
         """
 
@@ -279,7 +279,7 @@ class HabitPanel(QWidget):
         try:
             self._fab.setStyleSheet(f"""
                 QPushButton {{ background-color: {c['accent']}; color: #fff; border: none;
-                    border-radius: 24px; font-size: 24px; font-weight: 600; }}
+                    border-radius: 12px; font-size: 24px; font-weight: 600; }}
                 QPushButton:hover {{ background-color: {c['accent_hover']}; }}
             """)
         except Exception:
@@ -348,13 +348,13 @@ class HabitDialog(QDialog):
             QLabel {{ color: {c['fg_primary']}; }}
             QLineEdit, QComboBox {{
                 background-color: {c['input_bg']}; color: {c['fg_primary']};
-                border: 1px solid {c['input_border']}; border-radius: 6px; padding: 5px 8px; font-size: 12px;
+                border: 1px solid {c['input_border']}; border-radius: 8px; padding: 5px 8px; font-size: 12px;
             }}
         """)
 
         layout = QVBoxLayout(self)
         layout.setSpacing(12)
-        layout.setContentsMargins(20, 16, 20, 16)
+        layout.setContentsMargins(24, 16, 20, 16)
 
         form = QFormLayout()
         form.setSpacing(8)
@@ -435,7 +435,7 @@ class HabitDialog(QDialog):
         at_list = QListWidget()
         at_list.setMaximumHeight(100)
         at_list.setStyleSheet(f"""
-            QListWidget {{ background-color: {c['input_bg']}; border: 1px solid {c['input_border']}; border-radius: 6px; }}
+            QListWidget {{ background-color: {c['input_bg']}; border: 1px solid {c['input_border']}; border-radius: 8px; }}
             QListWidget::item {{ padding: 4px 8px; }}
         """)
         self._at_list = at_list
@@ -447,7 +447,7 @@ class HabitDialog(QDialog):
             btn = QPushButton(text)
             btn.setStyleSheet(f"""
                 QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
-                    border: 1px solid {c['border']}; border-radius: 6px; padding: 4px 10px; font-size: 11px; }}
+                    border: 1px solid {c['border']}; border-radius: 8px; padding: 4px 10px; font-size: 11px; }}
                 QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; }}
             """)
             btn.clicked.connect(slot)
@@ -499,7 +499,7 @@ class HabitDialog(QDialog):
         dl = QVBoxLayout(dialog)
         lst = QListWidget()
         lst.setStyleSheet(f"""
-            QListWidget {{ background-color: {c['input_bg']}; border: 1px solid {c['input_border']}; border-radius: 6px; }}
+            QListWidget {{ background-color: {c['input_bg']}; border: 1px solid {c['input_border']}; border-radius: 8px; }}
             QListWidget::item {{ padding: 6px 10px; }}
         """)
         for t in templates:
@@ -577,7 +577,7 @@ class _AttachedTaskDialog(QDialog):
             QLabel {{ color: {c['fg_primary']}; }}
             QLineEdit {{
                 background-color: {c['input_bg']}; color: {c['fg_primary']};
-                border: 1px solid {c['input_border']}; border-radius: 6px; padding: 5px 8px;
+                border: 1px solid {c['input_border']}; border-radius: 8px; padding: 5px 8px;
             }}
         """)
         layout = QVBoxLayout(self)

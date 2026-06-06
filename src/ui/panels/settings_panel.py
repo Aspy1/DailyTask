@@ -88,7 +88,7 @@ class SettingsPanel(QWidget):
         row = QWidget()
         row.setStyleSheet("background: transparent;")
         rl = QHBoxLayout(row)
-        rl.setContentsMargins(18, 10, 18, 10)
+        rl.setContentsMargins(16, 10, 16, 10)
         lbl = QLabel(label)
         lbl.setStyleSheet(f"color: {c['fg_primary']}; font-size: 12px; font-weight: 600; background: transparent;")
         lbl.setFixedWidth(100)
@@ -128,7 +128,7 @@ class SettingsPanel(QWidget):
             QComboBox:focus {{ border-color: {c['accent']}; }}
             QComboBox::drop-down {{ border: none; width: 22px; }}
             QComboBox QAbstractItemView {{
-                background-color: {c['bg_surface_hi']}; color: {c['fg_primary']};
+                background-color: {c['bg_elevated']}; color: {c['fg_primary']};
                 border: 1px solid {c['border_strong']}; border-radius: 6px;
                 selection-background-color: {c['accent_bg']}; outline: none;
             }}
@@ -176,7 +176,7 @@ class SettingsPanel(QWidget):
         status_row = QWidget()
         status_row.setStyleSheet("background: transparent;")
         sr = QHBoxLayout(status_row)
-        sr.setContentsMargins(18, 12, 18, 12)
+        sr.setContentsMargins(16, 12, 16, 12)
         self._status_label = QLabel()
         sr.addWidget(self._status_label)
         sr.addStretch()
@@ -224,7 +224,7 @@ class SettingsPanel(QWidget):
         btn_row = QWidget()
         btn_row.setStyleSheet("background: transparent;")
         br = QHBoxLayout(btn_row)
-        br.setContentsMargins(18, 12, 18, 12)
+        br.setContentsMargins(16, 12, 16, 12)
         br.addStretch()
         save_btn = QPushButton("保存")
         save_btn.setFixedSize(72, 30)
@@ -312,7 +312,7 @@ class SettingsPanel(QWidget):
         test_row = QWidget()
         test_row.setStyleSheet("background: transparent;")
         trl = QHBoxLayout(test_row)
-        trl.setContentsMargins(18, 8, 18, 8)
+        trl.setContentsMargins(16, 8, 16, 8)
         test_btn = QPushButton("发送测试邮件")
         test_btn.setFixedWidth(120)
         test_btn.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -330,7 +330,7 @@ class SettingsPanel(QWidget):
         btn_row = QWidget()
         btn_row.setStyleSheet("background: transparent;")
         br = QHBoxLayout(btn_row)
-        br.setContentsMargins(18, 12, 18, 12)
+        br.setContentsMargins(16, 12, 16, 12)
         br.addStretch()
         save_btn = QPushButton("保存")
         save_btn.setFixedSize(72, 30)
@@ -512,7 +512,7 @@ class SettingsPanel(QWidget):
             row_w = QWidget()
             row_w.setStyleSheet("background: transparent;")
             rl = QHBoxLayout(row_w)
-            rl.setContentsMargins(18, 8, 18, 8)
+            rl.setContentsMargins(16, 8, 16, 8)
             lbl = QLabel(label)
             lbl.setStyleSheet(f"color: {c['fg_primary']}; font-size: 12px; background: transparent;")
             lbl.setFixedWidth(60)
@@ -536,7 +536,7 @@ class SettingsPanel(QWidget):
         btn_row = QWidget()
         btn_row.setStyleSheet("background: transparent;")
         br = QHBoxLayout(btn_row)
-        br.setContentsMargins(18, 12, 18, 12)
+        br.setContentsMargins(16, 12, 16, 12)
 
         hint = QLabel("电费数据可从学校缴费平台查询，或按每周充值 20-30 估算。")
         hint.setStyleSheet(f"color: {c['fg_hint']}; font-size: 10px; background: transparent;")

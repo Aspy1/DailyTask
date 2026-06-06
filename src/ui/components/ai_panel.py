@@ -54,7 +54,7 @@ class _ChatInput(QTextEdit):
                 background-color: {c['input_bg']};
                 color: {c['fg_primary']};
                 border: 1px solid {c['input_border']};
-                border-radius: 10px;
+                border-radius: 8px;
                 padding: 6px 10px;
                 font-family: "Microsoft YaHei UI", "Consolas", sans-serif;
                 font-size: 12px;
@@ -90,7 +90,7 @@ class AIPanel(QWidget):
         header = QWidget()
         header.setObjectName("aiHeader")
         header_layout = QHBoxLayout(header)
-        header_layout.setContentsMargins(12, 10, 12, 10)
+        header_layout.setContentsMargins(12, 10, 12, 8)
         title = QLabel(tr("ai.title"))
         title.setFont(QFont(self.font().family(), 13))
         title.setStyleSheet(f"font-weight: 600; color: {c['fg_primary']}; border: none;")
@@ -174,7 +174,7 @@ class AIPanel(QWidget):
             align = "right"
             name = ""
         else:
-            bubble_bg = c["bg_surface_hi"]
+            bubble_bg = c["bg_elevated"]
             bubble_fg = c["fg_primary"]
             align = "left"
             name = ""

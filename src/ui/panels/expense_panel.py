@@ -30,7 +30,7 @@ class ExpensePanel(QWidget):
         bar = QWidget()
         bar.setObjectName("taskBar")
         bar_layout = QHBoxLayout(bar)
-        bar_layout.setContentsMargins(14, 8, 14, 8)
+        bar_layout.setContentsMargins(16, 8, 16, 8)
         bar_layout.setSpacing(8)
 
         title = QLabel("记账")
@@ -59,7 +59,7 @@ class ExpensePanel(QWidget):
         cards = QWidget()
         cards.setStyleSheet("background: transparent;")
         cl = QHBoxLayout(cards)
-        cl.setContentsMargins(14, 10, 14, 10)
+        cl.setContentsMargins(16, 10, 16, 8)
         cl.setSpacing(12)
         self._sum_month = self._summary_card("本月支出")
         self._sum_today = self._summary_card("今日支出")
@@ -76,7 +76,7 @@ class ExpensePanel(QWidget):
         add_row = QWidget()
         add_row.setStyleSheet("background: transparent;")
         al = QHBoxLayout(add_row)
-        al.setContentsMargins(14, 4, 14, 4)
+        al.setContentsMargins(16, 4, 16, 4)
         al.setSpacing(8)
 
         self._amount_input = QLineEdit()
@@ -103,7 +103,7 @@ class ExpensePanel(QWidget):
         c = get_colors()
         add_btn.setStyleSheet(f"""
             QPushButton {{ background-color: {c['accent']}; color: #fff; border: none;
-                border-radius: 6px; padding: 5px 12px; font-weight: 600; font-size: 11px; }}
+                border-radius: 8px; padding: 5px 12px; font-weight: 600; font-size: 11px; }}
             QPushButton:hover {{ background-color: {c['accent_hover']}; }}
         """)
         add_btn.clicked.connect(self._add_expense)
@@ -114,7 +114,7 @@ class ExpensePanel(QWidget):
         sav_row = QWidget()
         sav_row.setStyleSheet("background: transparent;")
         sl = QHBoxLayout(sav_row)
-        sl.setContentsMargins(14, 4, 14, 4)
+        sl.setContentsMargins(16, 4, 16, 4)
         sl.setSpacing(8)
         sl.addWidget(QLabel("存钱"))
         self._sav_amount = QLineEdit()
@@ -130,7 +130,7 @@ class ExpensePanel(QWidget):
         sav_btn.setFixedWidth(56)
         sav_btn.setStyleSheet(f"""
             QPushButton {{ background-color: {c['accent']}; color: #fff; border: none;
-                border-radius: 6px; padding: 5px 12px; font-weight: 600; font-size: 11px; }}
+                border-radius: 8px; padding: 5px 12px; font-weight: 600; font-size: 11px; }}
             QPushButton:hover {{ background-color: {c['accent_hover']}; }}
         """)
         sav_btn.clicked.connect(self._add_saving)
@@ -162,7 +162,7 @@ class ExpensePanel(QWidget):
         footer = QWidget()
         footer.setObjectName("taskFooter")
         fl = QHBoxLayout(footer)
-        fl.setContentsMargins(14, 4, 14, 4)
+        fl.setContentsMargins(16, 4, 16, 4)
         self._total_label = QLabel()
         self._total_label.setObjectName("taskCount")
         fl.addWidget(self._total_label)
@@ -176,7 +176,7 @@ class ExpensePanel(QWidget):
         c = get_colors()
         return f"""
             QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
-                border: 1px solid {c['border']}; border-radius: 6px; padding: 4px 12px; font-size: 11px; }}
+                border: 1px solid {c['border']}; border-radius: 8px; padding: 4px 12px; font-size: 11px; }}
             QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; color: {c['btn_secondary_hover_fg']}; }}
         """
 
@@ -184,16 +184,16 @@ class ExpensePanel(QWidget):
         c = get_colors()
         return f"""
             QLineEdit {{ background-color: {c['input_bg']}; color: {c['fg_primary']};
-                border: 1px solid {c['input_border']}; border-radius: 6px; padding: 5px 8px; font-size: 12px; }}
+                border: 1px solid {c['input_border']}; border-radius: 8px; padding: 5px 8px; font-size: 12px; }}
         """
 
     def _combo_qss(self) -> str:
         c = get_colors()
         return f"""
             QComboBox {{ background-color: {c['input_bg']}; color: {c['fg_primary']};
-                border: 1px solid {c['input_border']}; border-radius: 6px; padding: 5px 8px; font-size: 12px; }}
+                border: 1px solid {c['input_border']}; border-radius: 8px; padding: 5px 8px; font-size: 12px; }}
             QComboBox QAbstractItemView {{
-                background-color: {c['bg_surface_hi']}; color: {c['fg_primary']};
+                background-color: {c['bg_elevated']}; color: {c['fg_primary']};
                 selection-background-color: {c['accent_bg']}; outline: none;
             }}
         """
@@ -203,7 +203,7 @@ class ExpensePanel(QWidget):
         w = QWidget()
         w.setStyleSheet("background: transparent;")
         l = QVBoxLayout(w)
-        l.setContentsMargins(14, 8, 14, 8)
+        l.setContentsMargins(16, 8, 16, 8)
         title = QLabel(label)
         title.setStyleSheet(f"color: {c['fg_hint']}; font-size: 10px; border: none;")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -323,7 +323,7 @@ class ExpensePanel(QWidget):
         c = get_colors()
         menu = QMenu(self)
         menu.setStyleSheet(f"""
-            QMenu {{ background-color: {c['bg_surface_hi']}; color: {c['fg_primary']}; border: 1px solid {c['border_strong']}; border-radius: 8px; padding: 4px; }}
+            QMenu {{ background-color: {c['bg_elevated']}; color: {c['fg_primary']}; border: 1px solid {c['border_strong']}; border-radius: 8px; padding: 4px; }}
             QMenu::item {{ padding: 6px 24px 6px 12px; border-radius: 4px; }}
             QMenu::item:selected {{ background-color: {c['accent_bg']}; }}
         """)
@@ -348,7 +348,7 @@ class ExpensePanel(QWidget):
         c = get_colors()
         menu = QMenu(self)
         menu.setStyleSheet(f"""
-            QMenu {{ background-color: {c['bg_surface_hi']}; color: {c['fg_primary']}; border: 1px solid {c['border_strong']}; border-radius: 8px; padding: 4px; }}
+            QMenu {{ background-color: {c['bg_elevated']}; color: {c['fg_primary']}; border: 1px solid {c['border_strong']}; border-radius: 8px; padding: 4px; }}
             QMenu::item {{ padding: 6px 24px 6px 12px; border-radius: 4px; }}
             QMenu::item:selected {{ background-color: {c['accent_bg']}; }}
         """)
