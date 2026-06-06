@@ -32,7 +32,9 @@ class MainWorkspace(QWidget):
         self._plugin_manager = plugin_manager
 
         c = get_colors()
-        self.setStyleSheet(f"background-color: {c['bg_root']};")
+        self.setObjectName("workspace")
+        self.setStyleSheet(
+            f"#workspace {{ background-color: {c['bg_root']}; }}")
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
