@@ -53,7 +53,7 @@ class _HabitCard(QFrame):
         self.setStyleSheet(f"""
             _HabitCard {{ background-color: {bg}; border: 1px solid {border};
                 border-radius: 12px; }}
-            _HabitCard:hover {{ border-color: {c['accent']}; }}
+            _HabitCard:hover {{ background-color: {c['accent_bg']}; }}
         """)
 
         layout = QVBoxLayout(self)
@@ -250,7 +250,7 @@ class HabitPanel(QWidget):
         c = get_colors()
         return f"""
             QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
-                border: 1px solid {c['border']}; border-radius: 8px; padding: 4px 12px; font-size: 13px; }}
+                border-radius: 8px; padding: 4px 12px; font-size: 13px; }}
             QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; }}
         """
 
@@ -349,7 +349,7 @@ class HabitDialog(QDialog):
             QLabel {{ color: {c['fg_primary']}; }}
             QLineEdit, QComboBox {{
                 background-color: {c['input_bg']}; color: {c['fg_primary']};
-                border: 1px solid {c['input_border']}; border-radius: 8px; padding: 5px 8px; font-size: 13px;
+                border-radius: 8px; padding: 5px 8px; font-size: 13px;
             }}
         """)
 
@@ -436,7 +436,7 @@ class HabitDialog(QDialog):
         at_list = QListWidget()
         at_list.setMaximumHeight(100)
         at_list.setStyleSheet(f"""
-            QListWidget {{ background-color: {c['input_bg']}; border: 1px solid {c['input_border']}; border-radius: 8px; }}
+            QListWidget {{ background-color: {c['input_bg']}; border-radius: 8px; }}
             QListWidget::item {{ padding: 4px 8px; }}
         """)
         self._at_list = at_list
@@ -448,7 +448,7 @@ class HabitDialog(QDialog):
             btn = QPushButton(text)
             btn.setStyleSheet(f"""
                 QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
-                    border: 1px solid {c['border']}; border-radius: 8px; padding: 4px 10px; font-size: 13px; }}
+                    border-radius: 8px; padding: 4px 10px; font-size: 13px; }}
                 QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; }}
             """)
             btn.clicked.connect(slot)
@@ -470,7 +470,7 @@ class HabitDialog(QDialog):
         c = get_colors()
         return f"""
             QComboBox {{ background-color: {c['input_bg']}; color: {c['fg_primary']};
-                border: 1px solid {c['input_border']}; border-radius: 4px;
+                border-radius: 4px;
                 padding: 3px 4px; font-size: 13px; text-align: center; }}
             QComboBox::drop-down {{ border: none; width: 16px; }}
         """
@@ -500,7 +500,7 @@ class HabitDialog(QDialog):
         dl = QVBoxLayout(dialog)
         lst = QListWidget()
         lst.setStyleSheet(f"""
-            QListWidget {{ background-color: {c['input_bg']}; border: 1px solid {c['input_border']}; border-radius: 8px; }}
+            QListWidget {{ background-color: {c['input_bg']}; border-radius: 8px; }}
             QListWidget::item {{ padding: 6px 10px; }}
         """)
         for t in templates:
@@ -567,7 +567,7 @@ class _AttachedTaskDialog(QDialog):
         c = get_colors()
         num_qss = f"""
             QComboBox {{ background-color: {c['input_bg']}; color: {c['fg_primary']};
-                border: 1px solid {c['input_border']}; border-radius: 4px;
+                border-radius: 4px;
                 padding: 3px 4px; font-size: 13px; text-align: center; }}
             QComboBox::drop-down {{ border: none; width: 16px; }}
         """
@@ -578,7 +578,7 @@ class _AttachedTaskDialog(QDialog):
             QLabel {{ color: {c['fg_primary']}; }}
             QLineEdit {{
                 background-color: {c['input_bg']}; color: {c['fg_primary']};
-                border: 1px solid {c['input_border']}; border-radius: 8px; padding: 5px 8px;
+                border-radius: 8px; padding: 5px 8px;
             }}
         """)
         layout = QVBoxLayout(self)
