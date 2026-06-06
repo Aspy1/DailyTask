@@ -255,6 +255,6 @@ QToolTip {{ background-color: {t["bg_elevated"]}; color: {t["fg_primary"]}; bord
 #aiInputContainer {{ background-color: {t["sidebar_bg"]}; border-top: 1px solid {t["border"]}; }}
 #courseCount, #taskCount {{ color: {t["fg_hint"]}; font-size: 10px; border: none; }}
 #taskTable {{ background-color: {t["bg_root"]}; color: {t["fg_primary"]}; border: none; font-size: 12px; }}
-#taskTable::item {{ padding: 8px 6px; min-height: 32px; border-bottom: 1px solid {t["divider"]}; }}
+#taskTable::item {{ padding: 8px 12px; min-height: 32px; border-bottom: 1px solid {t["divider"]}; }}
 #taskTable::item:alternate {{ background-color: {t["table_alt"]}; }}
 """

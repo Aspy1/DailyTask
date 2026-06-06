@@ -488,7 +488,7 @@ class ScheduleView(QWidget):
         action_type, payload = chosen.data()
         course_id = item["course"].get("id", "")
         if action_type == "rename":
-            from src.ui.widgets.course_table import CourseTableWidget
+            from src.ui.widgets.course_table import build_course_context_menu
             # Simple rename dialog
             from PySide6.QtWidgets import QInputDialog
             name, ok = QInputDialog.getText(self, "重命名课程", "新名称:")
