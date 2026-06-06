@@ -27,9 +27,9 @@ class CourseDetailDialog(QDialog):
         self.setStyleSheet(f"""
             QDialog {{ background-color: {c['bg_root']}; }}
             QListWidget {{ background-color: transparent; border: none; }}
-            QListWidget::item {{ padding: 8px 12px; border-radius: 6px; font-size: 12px; color: {c['fg_primary']}; }}
+            QListWidget::item {{ padding: 8px 12px; border-radius: 8px; font-size: 12px; color: {c['fg_primary']}; }}
             QListWidget::item:selected {{ background-color: {c['accent_bg']}; color: {c['fg_primary']}; }}
-            QListWidget::item:hover {{ background-color: {c['bg_surface_hi']}; }}
+            QListWidget::item:hover {{ background-color: {c['bg_elevated']}; }}
         """)
 
         layout = QVBoxLayout(self)
@@ -68,7 +68,7 @@ class CourseDetailDialog(QDialog):
         close_btn = QPushButton("关闭")
         close_btn.setStyleSheet(f"""
             QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['fg_primary']};
-                border: 1px solid {c['border']}; border-radius: 6px; padding: 6px 20px; font-size: 12px; }}
+                border: 1px solid {c['border']}; border-radius: 8px; padding: 6px 20px; font-size: 12px; }}
             QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; }}
         """)
         close_btn.clicked.connect(self.accept)
@@ -129,9 +129,9 @@ class CourseDetailDialog(QDialog):
             self.setStyleSheet(f"""
                 QDialog {{ background-color: {c['bg_root']}; }}
                 QListWidget {{ background-color: transparent; border: none; }}
-                QListWidget::item {{ padding: 8px 12px; border-radius: 6px; font-size: 12px; color: {c['fg_primary']}; }}
+                QListWidget::item {{ padding: 8px 12px; border-radius: 8px; font-size: 12px; color: {c['fg_primary']}; }}
                 QListWidget::item:selected {{ background-color: {c['accent_bg']}; color: {c['fg_primary']}; }}
-                QListWidget::item:hover {{ background-color: {c['bg_surface_hi']}; }}
+                QListWidget::item:hover {{ background-color: {c['bg_elevated']}; }}
             """)
         except Exception:
             pass

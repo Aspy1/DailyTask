@@ -71,7 +71,7 @@ class MainWindow(QMainWindow):
         nav.setObjectName("topNav")
         nav.setFixedHeight(NAV_HEIGHT)
         nav_layout = QHBoxLayout(nav)
-        nav_layout.setContentsMargins(14, 6, 14, 6)
+        nav_layout.setContentsMargins(16, 6, 16, 6)
         nav_layout.setSpacing(4)
 
         # App name
@@ -113,6 +113,7 @@ class MainWindow(QMainWindow):
         self._content_splitter.addWidget(self._ai_panel)
         self._content_splitter.setSizes([800, 0])
         self._content_splitter.setHandleWidth(1)
+        c = get_colors()
         self._content_splitter.setStyleSheet(f"QSplitter::handle {{ background-color: {c['border']}; }}")
 
         root.addWidget(self._content_splitter, stretch=1)
@@ -170,7 +171,7 @@ class MainWindow(QMainWindow):
         c = get_colors()
         menu = QMenu(self)
         menu.setStyleSheet(f"""
-            QMenu {{ background-color: {c['bg_surface_hi']}; color: {c['fg_primary']};
+            QMenu {{ background-color: {c['bg_elevated']}; color: {c['fg_primary']};
                 border: 1px solid {c['border_strong']}; border-radius: 8px; padding: 4px; }}
             QMenu::item {{ padding: 6px 24px 6px 12px; border-radius: 4px; }}
             QMenu::item:selected {{ background-color: {c['accent_bg']}; }}

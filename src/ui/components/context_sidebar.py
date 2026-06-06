@@ -48,7 +48,7 @@ class ContextSidebar(QWidget):
         c = get_colors()
         page = QWidget()
         layout = QVBoxLayout(page)
-        layout.setContentsMargins(10, 12, 10, 12)
+        layout.setContentsMargins(8, 12, 10, 12)
         layout.setSpacing(6)
 
         heading = QLabel(tr(f"tab.{tab_id}"))

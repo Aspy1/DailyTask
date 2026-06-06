@@ -32,7 +32,7 @@ class ScheduleView(QWidget):
         bar = QWidget()
         bar.setObjectName("taskBar")
         bl = QHBoxLayout(bar)
-        bl.setContentsMargins(14, 8, 14, 8)
+        bl.setContentsMargins(16, 8, 16, 8)
         bl.setSpacing(6)
 
         title = QLabel("日程")
@@ -44,7 +44,7 @@ class ScheduleView(QWidget):
         ct_btn = QPushButton("课程表")
         ct_btn.setStyleSheet(f"""
             QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
-                border: 1px solid {c['border']}; border-radius: 6px; padding: 3px 10px; font-size: 11px; }}
+                border: 1px solid {c['border']}; border-radius: 8px; padding: 3px 10px; font-size: 11px; }}
             QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; color: {c['btn_secondary_hover_fg']}; }}
         """)
         ct_btn.clicked.connect(self.course_table_requested.emit)
@@ -55,7 +55,7 @@ class ScheduleView(QWidget):
         refresh_btn = QPushButton("刷新")
         refresh_btn.setStyleSheet(f"""
             QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
-                border: 1px solid {c['border']}; border-radius: 6px; padding: 3px 10px; font-size: 11px; }}
+                border: 1px solid {c['border']}; border-radius: 8px; padding: 3px 10px; font-size: 11px; }}
             QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; color: {c['btn_secondary_hover_fg']}; }}
         """)
         refresh_btn.clicked.connect(self._refresh)
@@ -65,7 +65,7 @@ class ScheduleView(QWidget):
             btn = QPushButton(text)
             btn.setStyleSheet(f"""
                 QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
-                    border: 1px solid {c['border']}; border-radius: 6px; padding: 3px 10px; font-size: 11px; }}
+                    border: 1px solid {c['border']}; border-radius: 8px; padding: 3px 10px; font-size: 11px; }}
                 QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; color: {c['btn_secondary_hover_fg']}; }}
             """)
             btn.clicked.connect(slot)
@@ -83,7 +83,7 @@ class ScheduleView(QWidget):
         scroll.setWidgetResizable(True)
         self._content = QWidget()
         self._content_layout = QVBoxLayout(self._content)
-        self._content_layout.setContentsMargins(14, 8, 14, 16)
+        self._content_layout.setContentsMargins(16, 8, 16, 16)
         self._content_layout.setSpacing(10)
         self._content_layout.addStretch()
         scroll.setWidget(self._content)
@@ -238,10 +238,10 @@ class ScheduleView(QWidget):
 
             card = QFrame()
             card.setStyleSheet(f"""
-                QFrame {{ background-color: {c['card_bg']}; border: 1px solid {c['card_border']}; border-radius: 10px; }}
+                QFrame {{ background-color: {c['card_bg']}; border: 1px solid {c['card_border']}; border-radius: 8px; }}
             """)
             cl = QVBoxLayout(card)
-            cl.setContentsMargins(14, 10, 14, 10)
+            cl.setContentsMargins(16, 10, 16, 8)
             cl.setSpacing(4)
 
             # Time header row with optional arrow indicator
@@ -270,14 +270,14 @@ class ScheduleView(QWidget):
                     if item["type"] == "course":
                         course_card = QFrame()
                         course_card.setStyleSheet(
-                            f"QFrame {{ background-color: {c['bg_surface_hi']}; border-radius: 6px; }}"
+                            f"QFrame {{ background-color: {c['bg_elevated']}; border-radius: 8px; }}"
                         )
                         course_card.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
                         course_card.customContextMenuRequested.connect(
                             lambda pos, ci=item: self._course_menu(pos, ci, course_card)
                         )
                         ccl = QVBoxLayout(course_card)
-                        ccl.setContentsMargins(10, 6, 10, 6)
+                        ccl.setContentsMargins(8, 6, 10, 6)
                         ccl.setSpacing(2)
                         name_lbl = QLabel(f"📖 {item['name']}")
                         name_lbl.setStyleSheet(f"color: {c['fg_primary']}; font-size: 12px; font-weight: 600;")
@@ -299,14 +299,14 @@ class ScheduleView(QWidget):
                     elif item["type"] == "plan":
                         plan_card = QFrame()
                         plan_card.setStyleSheet(
-                            f"QFrame {{ background-color: {c['accent_bg']}; border-radius: 6px; }}"
+                            f"QFrame {{ background-color: {c['accent_bg']}; border-radius: 8px; }}"
                         )
                         plan_card.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
                         plan_card.customContextMenuRequested.connect(
                             lambda pos, pi=item: self._plan_menu(pos, pi, plan_card)
                         )
                         pcl = QVBoxLayout(plan_card)
-                        pcl.setContentsMargins(10, 6, 10, 6)
+                        pcl.setContentsMargins(8, 6, 10, 6)
                         pcl.setSpacing(2)
                         prefix = "📅" if item.get("plan_type") == "custom" else "🔄"
                         title_lbl = QLabel(f"{prefix} {item['title']}")
@@ -324,14 +324,14 @@ class ScheduleView(QWidget):
                     elif item["type"] == "habit":
                         hab_card = QFrame()
                         hab_card.setStyleSheet(
-                            f"QFrame {{ background-color: {c['bg_surface_hi']}; border-radius: 6px; }}"
+                            f"QFrame {{ background-color: {c['bg_elevated']}; border-radius: 8px; }}"
                         )
                         hab_card.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
                         hab_card.customContextMenuRequested.connect(
                             lambda pos, hi=item: self._habit_menu(pos, hi, hab_card)
                         )
                         hcl = QVBoxLayout(hab_card)
-                        hcl.setContentsMargins(10, 6, 10, 6)
+                        hcl.setContentsMargins(8, 6, 10, 6)
                         hcl.setSpacing(2)
                         done = self._dm.habits.is_done_today(item["habit"]["id"])
                         status = "✓" if done else "○"
@@ -399,10 +399,10 @@ class ScheduleView(QWidget):
         dlg.setStyleSheet(f"""
             QDialog {{ background-color: {c['card_bg']}; }}
             QLabel {{ color: {c['fg_primary']}; font-size: 13px; }}
-            QDateTimeEdit {{ background-color: {c['bg_surface_hi']}; color: {c['fg_primary']};
-                border: 1px solid {c['border']}; border-radius: 6px; padding: 6px 10px; font-size: 13px; }}
+            QDateTimeEdit {{ background-color: {c['bg_elevated']}; color: {c['fg_primary']};
+                border: 1px solid {c['border']}; border-radius: 8px; padding: 6px 10px; font-size: 13px; }}
             QPushButton {{ background-color: {c['accent']}; color: white; border: none;
-                border-radius: 6px; padding: 6px 18px; font-size: 12px; font-weight: 600; }}
+                border-radius: 8px; padding: 6px 18px; font-size: 12px; font-weight: 600; }}
             QPushButton:hover {{ opacity: 0.9; }}
         """)
         layout = QVBoxLayout(dlg)
@@ -433,7 +433,7 @@ class ScheduleView(QWidget):
         cancel = QPushButton("取消")
         cancel.setStyleSheet(f"""
             QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
-                border: 1px solid {c['border']}; border-radius: 6px; padding: 6px 18px; font-size: 12px; }}
+                border: 1px solid {c['border']}; border-radius: 8px; padding: 6px 18px; font-size: 12px; }}
         """)
         cancel.clicked.connect(dlg.reject)
         btn_row.addWidget(cancel)
@@ -514,7 +514,7 @@ class ScheduleView(QWidget):
         c = get_colors()
         menu = QMenu()
         menu.setStyleSheet(f"""
-            QMenu {{ background-color: {c['bg_surface_hi']}; color: {c['fg_primary']};
+            QMenu {{ background-color: {c['bg_elevated']}; color: {c['fg_primary']};
                 border: 1px solid {c['border_strong']}; border-radius: 8px; padding: 4px; }}
             QMenu::item {{ padding: 6px 24px 6px 12px; border-radius: 4px; }}
             QMenu::item:selected {{ background-color: {c['accent_bg']}; }}
@@ -561,7 +561,7 @@ class ScheduleView(QWidget):
         c = get_colors()
         menu = QMenu()
         menu.setStyleSheet(f"""
-            QMenu {{ background-color: {c['bg_surface_hi']}; color: {c['fg_primary']};
+            QMenu {{ background-color: {c['bg_elevated']}; color: {c['fg_primary']};
                 border: 1px solid {c['border_strong']}; border-radius: 8px; padding: 4px; }}
             QMenu::item {{ padding: 6px 24px 6px 12px; border-radius: 4px; }}
             QMenu::item:selected {{ background-color: {c['accent_bg']}; }}

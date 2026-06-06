@@ -81,12 +81,12 @@ class TaskPanel(QWidget):
         bar = QWidget()
         bar.setObjectName("taskBar")
         bar_layout = QHBoxLayout(bar)
-        bar_layout.setContentsMargins(14, 6, 14, 6)
+        bar_layout.setContentsMargins(16, 6, 16, 6)
         bar_layout.setSpacing(8)
 
         title = QLabel("作业")
         title.setFont(QFont(self.font().family(), 13))
-        title.setStyleSheet("color: #e1e1e3; font-weight: 600; border: none;")
+        title.setStyleSheet(f"color: {c['fg_primary']}; font-weight: 600; border: none;")
         bar_layout.addWidget(title)
 
         bar_layout.addStretch()
@@ -139,7 +139,7 @@ class TaskPanel(QWidget):
         footer = QWidget()
         footer.setObjectName("taskFooter")
         fl = QHBoxLayout(footer)
-        fl.setContentsMargins(14, 4, 14, 4)
+        fl.setContentsMargins(16, 4, 16, 4)
 
         self._count_label = QLabel()
         self._count_label.setObjectName("taskCount")
@@ -157,10 +157,10 @@ class TaskPanel(QWidget):
 
     def _btn_qss(self) -> str:
         return """
-            QPushButton { background-color: rgba(255,255,255,0.04); color: #a0a0a6;
-                border: 1px solid rgba(255,255,255,0.06); border-radius: 6px;
+            QPushButton { background-color: {c["btn_secondary_bg"]}; color: {c["fg_hint"]};
+                border: 1px solid {c["border"]}; border-radius: 8px;
                 padding: 4px 12px; font-size: 11px; }
-            QPushButton:hover { background-color: rgba(255,255,255,0.08); color: #d4d4d4; }
+            QPushButton:hover { background-color: {c["btn_secondary_hover"]}; color: {c["fg_secondary"]}; }
             QPushButton::menu-indicator { image: none; }
         """
 
@@ -187,7 +187,7 @@ class TaskPanel(QWidget):
         c = get_colors()
         menu = QMenu(self)
         menu.setStyleSheet(f"""
-            QMenu {{ background-color: {c['bg_surface_hi']}; color: {c['fg_primary']}; border: 1px solid {c['border_strong']}; border-radius: 8px; padding: 4px; }}
+            QMenu {{ background-color: {c['bg_elevated']}; color: {c['fg_primary']}; border: 1px solid {c['border_strong']}; border-radius: 8px; padding: 4px; }}
             QMenu::item {{ padding: 6px 24px 6px 12px; border-radius: 4px; }}
             QMenu::item:selected {{ background-color: {c['accent_bg']}; }}
             QMenu::separator {{ height: 1px; background-color: {c['divider']}; margin: 4px 8px; }}
@@ -244,7 +244,7 @@ class TaskPanel(QWidget):
         c = get_colors()
         menu = QMenu(self)
         menu.setStyleSheet(f"""
-            QMenu {{ background-color: {c['bg_surface_hi']}; color: {c['fg_primary']}; border: 1px solid {c['border_strong']}; border-radius: 8px; padding: 4px; }}
+            QMenu {{ background-color: {c['bg_elevated']}; color: {c['fg_primary']}; border: 1px solid {c['border_strong']}; border-radius: 8px; padding: 4px; }}
             QMenu::item {{ padding: 6px 24px 6px 12px; border-radius: 4px; }}
             QMenu::item:selected {{ background-color: {c['accent_bg']}; }}
         """)
@@ -372,7 +372,7 @@ class TaskPanel(QWidget):
         # rebuild button qss based on colors
         btn_qss = f"""
             QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
-                border: 1px solid {c['border']}; border-radius: 6px; padding: 4px 12px; font-size: 11px; }}
+                border: 1px solid {c['border']}; border-radius: 8px; padding: 4px 12px; font-size: 11px; }}
             QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; color: {c['btn_secondary_hover_fg']}; }}
             QPushButton::menu-indicator {{ image: none; }}
         """

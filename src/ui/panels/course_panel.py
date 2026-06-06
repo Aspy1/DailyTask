@@ -29,7 +29,7 @@ class CoursePanel(QWidget):
         bar = QWidget()
         bar.setObjectName("courseBar")
         bar_layout = QHBoxLayout(bar)
-        bar_layout.setContentsMargins(14, 8, 14, 8)
+        bar_layout.setContentsMargins(16, 8, 16, 8)
 
         self._week_label = QLabel()
         self._week_label.setFont(QFont(self.font().family(), 13))
@@ -71,7 +71,7 @@ class CoursePanel(QWidget):
         footer = QWidget()
         footer.setObjectName("courseFooter")
         fl = QHBoxLayout(footer)
-        fl.setContentsMargins(14, 4, 14, 4)
+        fl.setContentsMargins(16, 4, 16, 4)
         self._count_label = QLabel()
         self._count_label.setObjectName("courseCount")
         fl.addWidget(self._count_label)

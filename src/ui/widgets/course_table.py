@@ -38,7 +38,7 @@ def build_course_context_menu(course: dict, parent=None) -> QMenu:
     c = get_colors()
     menu = QMenu(parent)
     menu.setStyleSheet(f"""
-        QMenu {{ background-color: {c['bg_surface_hi']}; color: {c['fg_primary']}; border: 1px solid {c['border_strong']}; border-radius: 8px; padding: 4px; }}
+        QMenu {{ background-color: {c['bg_elevated']}; color: {c['fg_primary']}; border: 1px solid {c['border_strong']}; border-radius: 8px; padding: 4px; }}
         QMenu::item {{ padding: 6px 24px 6px 12px; border-radius: 4px; }}
         QMenu::item:selected {{ background-color: {c['accent_bg']}; }}
         QMenu::separator {{ height: 1px; background-color: {c['divider']}; margin: 4px 8px; }}
@@ -193,7 +193,7 @@ class CourseTable(QTableWidget):
         c = get_colors()
         menu = QMenu(self)
         menu.setStyleSheet(f"""
-            QMenu {{ background-color: {c['bg_surface_hi']}; color: {c['fg_primary']}; border: 1px solid {c['border_strong']}; border-radius: 8px; padding: 4px; }}
+            QMenu {{ background-color: {c['bg_elevated']}; color: {c['fg_primary']}; border: 1px solid {c['border_strong']}; border-radius: 8px; padding: 4px; }}
             QMenu::item {{ padding: 6px 24px 6px 12px; border-radius: 4px; }}
             QMenu::item:selected {{ background-color: {c['accent_bg']}; }}
             QMenu::separator {{ height: 1px; background-color: {c['divider']}; margin: 4px 8px; }}
