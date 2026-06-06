@@ -69,6 +69,7 @@ class SettingsPanel(QWidget):
         return get_colors()
 
     def _section_heading(self, title: str) -> QLabel:
+        c = get_colors()
         c = self._c()
         lbl = QLabel(title)
         lbl.setFont(QFont(self.font().family(), 10))
@@ -76,6 +77,7 @@ class SettingsPanel(QWidget):
         return lbl
 
     def _card(self) -> QFrame:
+        c = get_colors()
         c = self._c()
         card = QFrame()
         card.setStyleSheet(
@@ -84,6 +86,7 @@ class SettingsPanel(QWidget):
         return card
 
     def _row(self, label: str, widget: QWidget, hint: QWidget | None = None) -> QWidget:
+        c = get_colors()
         c = self._c()
         row = QWidget()
         row.setStyleSheet("background: transparent;")
@@ -105,6 +108,7 @@ class SettingsPanel(QWidget):
         return row
 
     def _divider(self) -> QFrame:
+        c = get_colors()
         c = self._c()
         d = QFrame()
         d.setFrameShape(QFrame.Shape.HLine)
@@ -112,6 +116,7 @@ class SettingsPanel(QWidget):
         return d
 
     def _input_qss(self) -> str:
+        c = get_colors()
         c = self._c()
         return f"""
             QLineEdit {{ background-color: {c['input_bg']}; color: {c['fg_primary']};
@@ -120,6 +125,7 @@ class SettingsPanel(QWidget):
         """
 
     def _combo_qss(self) -> str:
+        c = get_colors()
         c = self._c()
         return f"""
             QComboBox {{ background-color: {c['input_bg']}; color: {c['fg_primary']};
@@ -137,6 +143,7 @@ class SettingsPanel(QWidget):
     # ── AI card ────────────────────────────────────────────
 
     def _build_ai_card(self) -> QFrame:
+        c = get_colors()
         c = self._c()
         card = self._card()
         layout = QVBoxLayout(card)
@@ -200,6 +207,7 @@ class SettingsPanel(QWidget):
     # ── General card ───────────────────────────────────────
 
     def _build_general_card(self) -> QFrame:
+        c = get_colors()
         c = self._c()
         card = self._card()
         layout = QVBoxLayout(card)
@@ -276,6 +284,7 @@ class SettingsPanel(QWidget):
         QMessageBox.information(self, "设置", "AI 设置已保存。")
 
     def _build_email_card(self) -> QFrame:
+        c = get_colors()
         c = self._c()
         card = self._card()
         layout = QVBoxLayout(card)
@@ -487,6 +496,7 @@ class SettingsPanel(QWidget):
     # ── Balance card ───────────────────────────────────────
 
     def _build_balance_card(self) -> QFrame:
+        c = get_colors()
         c = self._c()
         card = self._card()
         layout = QVBoxLayout(card)

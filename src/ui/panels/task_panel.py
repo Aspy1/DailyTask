@@ -66,6 +66,7 @@ def _match_time_bucket(due_str: str, bucket: str | None) -> bool:
 
 class TaskPanel(QWidget):
     def __init__(self, dm: DataManager, parent=None):
+        c = get_colors()
         super().__init__(parent)
         self._dm = dm
         self._page = 0
@@ -156,6 +157,7 @@ class TaskPanel(QWidget):
         self._refresh()
 
     def _btn_qss(self) -> str:
+        c = get_colors()
         return """
             QPushButton { background-color: {c["btn_secondary_bg"]}; color: {c["fg_hint"]};
                 border: 1px solid {c["border"]}; border-radius: 8px;

@@ -39,6 +39,7 @@ class PluginsPanel(QWidget):
         return get_colors()
 
     def refresh(self):
+        c = get_colors()
         # clear
         while self._list_layout.count():
             item = self._list_layout.takeAt(0)
