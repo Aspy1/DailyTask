@@ -7,7 +7,7 @@
 <style>
 :root {
     --bg-root: #F2EFE9;
-    --bg-surface: #E8E5DE;
+    --bg-surface: #D0CCC4;
     --bg-card: #FDFCFA;
     --bg-input: #F3F1EC;
     --fg-primary: #2D2A26;
@@ -78,19 +78,7 @@ body {
 .section-header:hover {
     background: var(--accent-bg);
 }
-.section-header .arrow {
-    display: inline-block;
-    width: 16px;
-    font-size: 10px;
-    margin-right: 4px;
-    transition: transform 0.25s ease;
-    color: var(--fg-hint);
-    transform-origin: center center;
-    text-align: center;
-}
-.section-header.expanded .arrow {
-    transform: rotate(90deg);
-}
+
 
 .section-items {
     overflow: hidden;
@@ -254,7 +242,7 @@ body {
 
         <!-- 功能 group -->
         <div class="section-header expanded" data-section="func" onclick="toggleSection('func')">
-            <span class="arrow">▶</span>功能
+            功能
         </div>
         <div class="section-items open" id="items-func">
             <div class="nav-item active" data-tab="schedule" onclick="selectTab('schedule', this)">日程总览</div>
@@ -264,7 +252,7 @@ body {
 
         <!-- 生活 group -->
         <div class="section-header" data-section="life" onclick="toggleSection('life')">
-            <span class="arrow">▶</span>生活
+            生活
         </div>
         <div class="section-items" id="items-life">
             <div class="nav-item" data-tab="daily" onclick="selectTab('daily', this)">日常</div>
