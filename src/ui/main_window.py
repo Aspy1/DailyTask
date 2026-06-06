@@ -165,7 +165,6 @@ class MainWindow(QMainWindow):
             QDialog {{
                 background-color: {c['bg_card']};
                 border: 1px solid {c['border']};
-                border-radius: 12px;
             }}
             QLabel {{ background: transparent; border: none; }}
         """)

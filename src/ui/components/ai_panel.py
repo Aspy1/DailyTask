@@ -166,29 +166,33 @@ class AIPanel(QWidget):
         self.set_status(True, thinking=True)
         self.message_sent.emit(text)
 
-    def append_message(self, role: str, text: str) -> None:
+    def append_message(self, role: str, text: str, is_placeholder: bool = False) -> None:
         c = get_colors()
         if role == "user":
             bubble_bg = c["accent"]
             bubble_fg = "#fff"
             align = "right"
             prefix = ''
-            # User: rounded accent box
             bubble_style = f'background-color:{bubble_bg};color:{bubble_fg};border-radius:12px;padding:8px 14px;'
+        elif is_placeholder:
+            bubble_bg = "transparent"
+            bubble_fg = c["fg_hint"]
+            align = "left"
+            prefix = ''
+            bubble_style = f'color:{bubble_fg};padding:4px 0;border-left:2px solid {c["accent"]};padding-left:12px;font-style:italic;'
         else:
             bubble_bg = "transparent"
             bubble_fg = c["fg_primary"]
             align = "left"
             prefix = ''
-            # AI: plain text, no box, subtle left border
             bubble_style = f'color:{bubble_fg};padding:4px 0;border-left:2px solid {c["border"]};padding-left:12px;'
-            # Convert markdown for AI messages
             text = _md_to_html(text)
 
         escaped = text.replace("\n", "<br>")
         margin_dir = "margin-left" if align == "right" else "margin-right"
+        marker = "<!--ph-->" if is_placeholder else ""
         msg = (
-            f'<div style="margin-bottom:12px;{margin_dir}:24px;">'
+            f'{marker}<div style="margin-bottom:12px;{margin_dir}:24px;">'
             f'<div style="display:inline-block;max-width:100%;'
             f'{bubble_style}font-size:13px;text-align:left;word-wrap:break-word;">'
             f'{escaped}'
@@ -196,6 +200,22 @@ class AIPanel(QWidget):
             f'</div>'
         )
         current = self._chat_label.text()
+        # Replace placeholder if real AI message arrives
+        if role == "ai" and not is_placeholder:
+            ph = "<!--ph-->"
+            if ph in current:
+                # Find and remove the placeholder block
+                idx_ph = current.rfind(ph)
+                # Find the end of this div block (next </div></div> pair)
+                end_ph = current.find("</div></div>", idx_ph)
+                if end_ph > 0:
+                    # Find the closing </div> (there might be nested divs in placeholder)
+                    # Simple: remove from <!--ph--> to next </div> after the block
+                    nest_end = current.find("</div></div>", end_ph + 13)
+                    if nest_end > 0:
+                        current = current[:idx_ph] + current[nest_end + 13:]
+                    else:
+                        current = current[:idx_ph] + current[end_ph + 13:]
         self._chat_label.setText(current + msg)
         sb = self._scroll.verticalScrollBar()
         sb.setValue(sb.maximum())

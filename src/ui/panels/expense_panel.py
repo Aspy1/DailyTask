@@ -128,7 +128,7 @@ class ExpensePanel(QWidget):
         self._sav_note.setStyleSheet(self._input_qss())
         sl.addWidget(self._sav_note)
         sav_btn = QPushButton("记一笔")
-        sav_btn.setFixedWidth(56)
+        sav_btn.setFixedWidth(70)
         sav_btn.setStyleSheet(f"""
             QPushButton {{ background-color: {c['accent']}; color: #fff; border: none;
                 border-radius: 8px; padding: 5px 12px; font-weight: 600; font-size: 13px; }}
