@@ -80,6 +80,7 @@ class MainWorkspace(QWidget):
         self._schedule_view.course_table_requested.connect(
             lambda: self.switch_to("courses"))
         self._schedule_view.task_focus_requested.connect(self._on_task_focus)
+        self._schedule_view.quick_adjust_requested.connect(self._on_quick_adjust)
 
         dm.data_changed.connect(self._on_data_changed)
 
@@ -117,6 +118,13 @@ class MainWorkspace(QWidget):
     def _on_view_course_tasks(self, course_name: str) -> None:
         dlg = CourseDetailDialog(self._dm, course_name, self)
         dlg.exec()
+
+    def _on_quick_adjust(self, prompt: str) -> None:
+        """Forward quick-adjust prompt to AI panel."""
+        # Trigger AI panel via the main window
+        mw = self.window()
+        if mw and hasattr(mw, 'ai_panel'):
+            mw.ai_panel.fill_input(prompt)
 
     def _on_task_focus(self, course_name: str) -> None:
         self.switch_to("tasks")

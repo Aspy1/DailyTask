@@ -123,8 +123,8 @@ class TaskPanel(QWidget):
         self._table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Interactive)
         self._table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
         self._table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Fixed)
-        self._table.setColumnWidth(0, 80)
-        self._table.setColumnWidth(1, 170)
+        self._table.setColumnWidth(0, 120)
+        self._table.setColumnWidth(1, 130)
         self._table.setColumnWidth(3, 50)
         self._table.horizontalHeader().setStretchLastSection(False)
         self._table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
@@ -328,7 +328,7 @@ class TaskPanel(QWidget):
                     cb = QCheckBox()
                     cb.setChecked(t.get("status") == "completed")
                     tid = t["id"]
-                    cb.toggled.connect(lambda checked, tid=tid: self._on_check(tid, checked))
+                    cb.clicked.connect(lambda checked, tid=tid: self._on_check(tid, checked))
                     self._table.setCellWidget(i, 3, cb)
                     continue
             due_item = QTableWidgetItem(due_display)
@@ -345,7 +345,7 @@ class TaskPanel(QWidget):
             cb = QCheckBox()
             cb.setChecked(t.get("status") == "completed")
             tid = t["id"]
-            cb.toggled.connect(lambda checked, tid=tid: self._on_check(tid, checked))
+            cb.clicked.connect(lambda checked, tid=tid: self._on_check(tid, checked))
             self._table.setCellWidget(i, 3, cb)
 
         self._table.setSortingEnabled(True)

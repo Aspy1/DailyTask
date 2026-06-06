@@ -54,7 +54,7 @@ TOKENS = {
         "btn_secondary_hover":    "rgba(0,0,0,0.06)",
         "btn_secondary_hover_fg": "#2D2A26",
         "table_alt":        "rgba(0,0,0,0.02)",
-        "card_bg":          "#FDFCFA",
+        "card_bg":          "#F9F6F0",
         "card_border":      "rgba(0,0,0,0.06)",
         "section_heading":  "#B0823A",
         "nav_bg":           "#D0CCC4",

@@ -130,6 +130,16 @@ def build_digest(data_dir: Path) -> str:
 
     lines = [f"【每日日程】{today_str} {weekday}", ""]
 
+    # Quick stats
+    pending = [t for t in tasks_data.get("tasks", []) if t.get("status") != "completed"]
+    threshold_3d = (today + timedelta(days=3)).isoformat()
+    urgent_ddl = len([t for t in pending if t.get("due_date", "") and t["due_date"] < threshold_3d])
+    active_h = [h for h in habits_data.get("habits", []) if is_habit_active_today(h, today)]
+    done_h = sum(1 for h, _ in [(h, is_habit_done_today(h, habits_data.get("logs", {}), today)) for h in active_h])
+    lines.append(f"📋 {len(get_courses_for_date(courses_data, today))}节课 | {done_h}/{len(active_h)}项日常"
+                 f"{' | ⚠ ' + str(urgent_ddl) + '项DDL' if urgent_ddl else ''}")
+    lines.append("")
+
     # ── Courses ──────────────────────────────────────────
     courses = get_courses_for_date(courses_data, today)
     lines.append("── 今日课程 ──")
@@ -245,6 +255,40 @@ def build_digest(data_dir: Path) -> str:
             lines.append("")
             lines.append("── 余额 ──")
             lines.extend(bal_lines)
+    except Exception:
+        pass
+
+    # ── Today's spending ───────────────────────────────────
+    try:
+        expenses_data = load_json(data_dir / "expenses.json")
+        today_records = [r for r in expenses_data.get("records", [])
+                         if (r.get("date", "") or "")[:10] == today_str]
+        if today_records:
+            today_total = sum(r.get("amount", 0) for r in today_records)
+            month_records = [r for r in expenses_data.get("records", [])
+                             if (r.get("date", "") or "")[:7] == today_str[:7]]
+            month_total = sum(r.get("amount", 0) for r in month_records)
+            budget = expenses_data.get("budget", {}).get("monthly", 0)
+            lines.append("")
+            lines.append("── 支出 ──")
+            lines.append(f"  今日: ¥{today_total:.1f}（{len(today_records)}笔）")
+            budget_str = f" / 预算 ¥{budget:.0f}" if budget else ""
+            lines.append(f"  本月: ¥{month_total:.1f}{budget_str}")
+    except Exception:
+        pass
+
+    # ── Shopping needs ─────────────────────────────────────
+    try:
+        inventory_data = load_json(data_dir / "inventory.json")
+        items = inventory_data.get("items", [])
+        needs = [i for i in items if i.get("status") == "need"]
+        if needs:
+            lines.append("")
+            lines.append("── 购物需求 ──")
+            for i in needs:
+                cat = i.get("category", "")
+                cat_str = f" [{cat}]" if cat else ""
+                lines.append(f"  • {i.get('name', '')}{cat_str}")
     except Exception:
         pass
 

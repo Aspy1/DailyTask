@@ -16,7 +16,8 @@ from src.ui.styles.theme import get_colors, FONT_CN, SIZE_SUBTITLE
 
 class ScheduleView(QWidget):
     course_table_requested = Signal()
-    task_focus_requested = Signal(str)  # course_name to filter tasks by
+    task_focus_requested = Signal(str)
+    quick_adjust_requested = Signal(str)  # AI prompt for schedule optimization
 
     def __init__(self, dm: DataManager, parent=None):
         super().__init__(parent)
