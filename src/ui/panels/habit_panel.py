@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtGui import QFont
 
 from src.services.data_manager import DataManager
-from src.ui.styles.theme import get_colors
+from src.ui.styles.theme import get_colors, FONT_CN, SIZE_SUBTITLE
 
 CARD_MIN_WIDTH = 210
 CARD_HEIGHT = 135

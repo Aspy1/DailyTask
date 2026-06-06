@@ -11,7 +11,7 @@ from PySide6.QtGui import QFont
 from src.i18n.loader import tr
 from src.services.settings_manager import SettingsManager
 from src.services.ai_service import AIService
-from src.ui.styles.theme import get_colors
+from src.ui.styles.theme import get_colors, FONT_CN, SIZE_SUBTITLE, SIZE_TITLE
 
 PROVIDERS = {
     "deepseek": {
