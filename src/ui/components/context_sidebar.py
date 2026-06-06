@@ -5,7 +5,7 @@ from PySide6.QtWidgets import QStackedWidget, QWidget, QVBoxLayout, QLabel, QLis
 from PySide6.QtGui import QFont
 
 from src.i18n.loader import tr
-from src.ui.styles.theme import get_colors
+from src.ui.styles.theme import get_colors, FONT_CN, SIZE_SUBTITLE
 
 
 class ContextSidebar(QWidget):

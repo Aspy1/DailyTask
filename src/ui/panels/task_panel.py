@@ -86,7 +86,7 @@ class TaskPanel(QWidget):
         bar_layout.setSpacing(8)
 
         title = QLabel("作业")
-        title.setFont(QFont(self.font().family(), 13))
+        title.setFont(QFont(FONT_CN, SIZE_SUBTITLE))
         title.setStyleSheet(f"color: {c['fg_primary']}; font-weight: 600; border: none;")
         bar_layout.addWidget(title)
 

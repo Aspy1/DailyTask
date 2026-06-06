@@ -10,7 +10,7 @@ from PySide6.QtGui import QFont
 
 from src.models.course import PERIOD_TIMES, schedule_date
 from src.services.data_manager import DataManager
-from src.ui.styles.theme import get_colors
+from src.ui.styles.theme import get_colors, FONT_CN, SIZE_SUBTITLE
 
 
 class ScheduleView(QWidget):
@@ -36,7 +36,7 @@ class ScheduleView(QWidget):
         bl.setSpacing(6)
 
         title = QLabel("日程")
-        title.setFont(QFont(self.font().family(), 13))
+        title.setFont(QFont(FONT_CN, SIZE_SUBTITLE))
         title.setStyleSheet("font-weight: 600; border: none;")
         bl.addWidget(title)
 
@@ -84,7 +84,7 @@ class ScheduleView(QWidget):
         self._content = QWidget()
         self._content_layout = QVBoxLayout(self._content)
         self._content_layout.setContentsMargins(16, 8, 16, 16)
-        self._content_layout.setSpacing(10)
+        self._content_layout.setSpacing(12)
         self._content_layout.addStretch()
         scroll.setWidget(self._content)
         layout.addWidget(scroll, stretch=1)
@@ -242,7 +242,7 @@ class ScheduleView(QWidget):
             """)
             cl = QVBoxLayout(card)
             cl.setContentsMargins(16, 12, 16, 8)
-            cl.setSpacing(4)
+            cl.setSpacing(8)
 
             # Time header row with optional arrow indicator
             hdr = QHBoxLayout()
@@ -250,12 +250,12 @@ class ScheduleView(QWidget):
 
             if is_current:
                 arrow = QLabel("▶")
-                arrow.setStyleSheet(f"color: {c['accent']}; font-size: 13px; font-weight: bold; border: none;")
+                arrow.setStyleSheet(f"color: {c['accent']}; font-size: 16px; font-weight: bold; border: none;")
                 hdr.addWidget(arrow)
 
             time_label = QLabel(time_str)
             time_label.setStyleSheet(
-                f"color: {c['accent'] if is_current else c['fg_hint']}; font-size: 13px; font-weight: 600;"
+                f"color: {c['accent'] if is_current else c['fg_hint']}; font-size: 16px; font-weight: 600;"
             )
             hdr.addWidget(time_label)
             hdr.addStretch()
@@ -277,8 +277,8 @@ class ScheduleView(QWidget):
                             lambda pos, ci=item: self._course_menu(pos, ci, course_card)
                         )
                         ccl = QVBoxLayout(course_card)
-                        ccl.setContentsMargins(8, 8, 8, 8)
-                        ccl.setSpacing(2)
+                        ccl.setContentsMargins(12, 8, 12, 8)
+                        ccl.setSpacing(4)
                         name_lbl = QLabel(f"📖 {item['name']}")
                         name_lbl.setStyleSheet(f"color: {c['fg_primary']}; font-size: 13px; font-weight: 600;")
                         name_lbl.setWordWrap(True)
@@ -291,7 +291,7 @@ class ScheduleView(QWidget):
                         for plan in plans:
                             if plan.get("course_name") == item["name"] and plan.get("type") == "course_note":
                                 note_lbl = QLabel(f"📌 {plan.get('title', '')}")
-                                note_lbl.setStyleSheet(f"color: {c['accent']}; font-size: 13px; font-weight: 600;")
+                                note_lbl.setStyleSheet(f"color: {c['accent']}; font-size: 16px; font-weight: 600;")
                                 note_lbl.setWordWrap(True)
                                 ccl.addWidget(note_lbl)
                         cl.addWidget(course_card)
@@ -306,8 +306,8 @@ class ScheduleView(QWidget):
                             lambda pos, pi=item: self._plan_menu(pos, pi, plan_card)
                         )
                         pcl = QVBoxLayout(plan_card)
-                        pcl.setContentsMargins(8, 8, 8, 8)
-                        pcl.setSpacing(2)
+                        pcl.setContentsMargins(12, 8, 12, 8)
+                        pcl.setSpacing(4)
                         prefix = "📅" if item.get("plan_type") == "custom" else "🔄"
                         title_lbl = QLabel(f"{prefix} {item['title']}")
                         title_lbl.setStyleSheet(f"color: {c['fg_primary']}; font-size: 13px; font-weight: 600;")
@@ -331,8 +331,8 @@ class ScheduleView(QWidget):
                             lambda pos, hi=item: self._habit_menu(pos, hi, hab_card)
                         )
                         hcl = QVBoxLayout(hab_card)
-                        hcl.setContentsMargins(8, 8, 8, 8)
-                        hcl.setSpacing(2)
+                        hcl.setContentsMargins(12, 8, 12, 8)
+                        hcl.setSpacing(4)
                         done = self._dm.habits.is_done_today(item["habit"]["id"])
                         status = "✓" if done else "○"
                         dur = item.get("duration", 30)
@@ -368,7 +368,7 @@ class ScheduleView(QWidget):
                 )
                 ddl_label.setText(
                     f'<span style="color:{c["fg_hint"]};">——————————</span>'
-                    f'<a href="task" style="color:#e74856;font-weight:bold;text-decoration:none;">{task_title}</a>'
+                    f'<a href="task" style="color:{c['red']};font-weight:bold;text-decoration:none;">{task_title}</a>'
                     f'<span style="color:{c["fg_hint"]};"> 在此时截止 ({due_time}) ——————————</span>'
                 )
                 ddl_label.linkActivated.connect(
