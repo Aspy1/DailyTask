@@ -2,6 +2,7 @@
 
 from PySide6.QtCore import Qt, Signal, QRect, QSize
 from PySide6.QtWidgets import (
+    QFrame,
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QListWidget, QListWidgetItem, QDialog, QLineEdit, QComboBox,
     QFormLayout, QDialogButtonBox, QMessageBox, QCheckBox,
@@ -101,6 +102,7 @@ class _HabitCard(QFrame):
 
         # Divider
         div = QFrame()
+        div.setFrameShape(QFrame.Shape.NoFrame)
         div.setFrameShape(QFrame.Shape.HLine)
         div.setStyleSheet(f"border: none; background-color: {c['divider']}; max-height: 1px;")
         layout.addWidget(div)
