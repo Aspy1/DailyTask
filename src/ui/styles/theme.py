@@ -58,6 +58,7 @@ TOKENS = {
         "card_border":      "rgba(0,0,0,0.06)",
         "section_heading":  "#B0823A",
         "nav_bg":           "#E8E5DE",
+        "status_bar_bg":    "#E3E0D9",
         "nav_selected_bg":  "rgba(176,130,58,0.10)",
         "nav_selected_fg":  "#966C2E",
     },
@@ -101,6 +102,7 @@ TOKENS = {
         "card_border":      "rgba(255,255,255,0.08)",
         "section_heading":  "#D4A853",
         "nav_bg":           "#242320",
+        "status_bar_bg":    "#2A2925",
         "nav_selected_bg":  "rgba(212,168,83,0.12)",
         "nav_selected_fg":  "#D4A853",
     },
@@ -220,7 +222,7 @@ QSplitter::handle {{ background-color: {t["bg_surface"]}; }}
 QSplitter::handle:horizontal {{ width: 1px; }}
 
 /* ── Status bar ──────────────────────────── */
-QStatusBar {{ background-color: {t["bg_surface"]}; color: {t["fg_secondary"]}; font-size: {SIZE_BODY_S}px; padding: 4px 16px; border-top: 1px solid {t["border_strong"]}; }}
+QStatusBar {{ background-color: {t["status_bar_bg"]}; color: {t["fg_primary"]}; font-size: {SIZE_BODY_S}px; padding: 4px 16px; border-top: 1px solid {t["border_strong"]}; }}
 QStatusBar::item {{ border: none; }}
 QStatusBar QLabel {{ color: {t["fg_secondary"]}; padding: 0; }}
 
