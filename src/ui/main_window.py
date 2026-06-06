@@ -263,7 +263,7 @@ class MainWindow(QMainWindow):
                 pass
         day_names = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
         self._date_label.setText(
-            f"{week_str}{day_names[now.weekday()]} {now.strftime('%H:%M')}  |  {dt_date.today().isoformat()}")
+            f"{week_str}{day_names[now.weekday()]} {now.strftime('%H:%M')}  |  {date.today().isoformat()}")
 
     def _update_next_course(self) -> None:
         if self._showing_tomorrow:
