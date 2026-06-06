@@ -17,6 +17,7 @@ from src.ui.styles.theme import get_colors, FONT_CN, SIZE_SUBTITLE
 class ExpensePanel(QWidget):
     def __init__(self, dm: DataManager, parent=None):
         super().__init__(parent)
+        c = get_colors()
         self._dm = dm
         self._filter_category: str = ""
         self._filter_start: str = ""
