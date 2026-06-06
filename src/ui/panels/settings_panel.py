@@ -80,8 +80,7 @@ class SettingsPanel(QWidget):
     def _card(self) -> QFrame:
         c = get_colors()
         c = self._c()
-        card = QFrame()
-        card.setAttribute(Qt.WA_StyledBackground, True)
+        card = QWidget()
         card.setStyleSheet(
             f"QFrame {{ background-color: {c['card_bg']}; border: 1px solid {c['card_border']}; border-radius: 14px; }}"
         )
@@ -112,8 +111,7 @@ class SettingsPanel(QWidget):
     def _divider(self) -> QFrame:
         c = get_colors()
         c = self._c()
-        d = QFrame()
-        d.setAttribute(Qt.WA_StyledBackground, True)
+        d = QWidget()
         d.setFrameShape(QFrame.Shape.HLine)
         d.setStyleSheet(f"border: none; background-color: {c['divider']}; max-height: 1px; margin: 0 18px;")
         return d
