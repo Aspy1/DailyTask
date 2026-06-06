@@ -97,6 +97,22 @@
       "notes": "",
       "created_at": "2026-06-06T21:28:02.969684",
       "reminded": false
+    },
+    {
+      "id": "t_010",
+      "title": "知识工程 作业",
+      "course_name": "知识工程",
+      "description": "",
+      "due_date": "2026-06-12T23:00:00",
+      "priority": "medium",
+      "tags": [
+        "作业"
+      ],
+      "status": "pending",
+      "notes": "",
+      "created_at": "2026-06-06T23:44:42.083999",
+      "reminded": false,
+      "completed_at": null
     }
   ],
   "archived": [
