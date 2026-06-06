@@ -113,7 +113,7 @@ class MainWindow(QMainWindow):
         self._content_splitter.addWidget(self._ai_panel)
         self._content_splitter.setSizes([800, 0])
         self._content_splitter.setHandleWidth(1)
-        self._content_splitter.setStyleSheet(f"QSplitter::handle {{ background-color: {c['border']}; }}")
+        self._content_splitter.setStyleSheet("QSplitter::handle { background-color: rgba(255,255,255,0.06); }")
 
         root.addWidget(self._content_splitter, stretch=1)
 
@@ -129,9 +129,8 @@ class MainWindow(QMainWindow):
 
         self._ddl_alert_label = _ClickLabel()
         self._ddl_alert_label.setCursor(Qt.CursorShape.PointingHandCursor)
-        c = get_colors()
         self._ddl_alert_label.setStyleSheet(
-            f"color: #fff; background-color: {c['red']}; border-radius: 4px; "
+            "color: #fff; background-color: #e74856; border-radius: 4px; "
             "padding: 1px 8px; font-weight: 600; font-size: 11px;"
         )
         self._ddl_alert_label.setToolTip("点击查看即将截止的任务")
@@ -357,7 +356,7 @@ class MainWindow(QMainWindow):
         prefix = f"⏎ 明日({day_name}): {len(courses)}节课  |  "
         if is_early:
             text = (
-                f'{prefix}<span style="color:{c['red']};">需要早起</span>'
+                f'{prefix}<span style="color:#ff6b6b;">需要早起</span>'
                 f"  最早{first_start}  建议{wake_time}起床{ddl_text}  ▸"
             )
         else:

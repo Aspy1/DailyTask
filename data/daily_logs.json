@@ -102,14 +102,5 @@
       }
     ]
   },
-  "reminders": [
-    {
-      "id": "rem_0001",
-      "item_type": "plan",
-      "item_name": "优化认知大作业的代码发给组员",
-      "item_date": "2026-06-05",
-      "notify_time": "2026-06-05T18:30:02.653000",
-      "created_at": "2026-06-05T17:31:10.736150"
-    }
-  ]
+  "reminders": []
 }
