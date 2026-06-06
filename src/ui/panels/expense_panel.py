@@ -74,7 +74,7 @@ class ExpensePanel(QWidget):
 
         # ── Add row ──────────────────────────────────────────
         add_row = QWidget()
-        add_row.setStyleSheet("background: transparent;")
+        add_row.setStyleSheet(f"background-color: {c['card_bg']}; border: 1px solid {c['card_border']}; border-radius: 8px;")
         al = QHBoxLayout(add_row)
         al.setContentsMargins(16, 4, 16, 4)
         al.setSpacing(8)
@@ -112,7 +112,7 @@ class ExpensePanel(QWidget):
 
         # ── Savings row ───────────────────────────────────────
         sav_row = QWidget()
-        sav_row.setStyleSheet("background: transparent;")
+        sav_row.setStyleSheet(f"background-color: {c['card_bg']}; border: 1px solid {c['card_border']}; border-radius: 8px;")
         sl = QHBoxLayout(sav_row)
         sl.setContentsMargins(16, 4, 16, 4)
         sl.setSpacing(8)
@@ -201,7 +201,7 @@ class ExpensePanel(QWidget):
     def _summary_card(self, label: str) -> QWidget:
         c = get_colors()
         w = QWidget()
-        w.setStyleSheet("background: transparent;")
+        w.setStyleSheet(f"background-color: {c['card_bg']}; border: 1px solid {c['card_border']}; border-radius: 8px;")
         l = QVBoxLayout(w)
         l.setContentsMargins(16, 8, 16, 8)
         title = QLabel(label)
