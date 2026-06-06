@@ -60,8 +60,17 @@ class TaskModel(BaseJsonModel):
 
     def add(self, task: dict) -> str:
         tasks = self._data.setdefault("tasks", [])
-        task_id = task.get("id", f"t_{len(tasks) + 1:03d}")
-        task["id"] = task_id
+        # Generate unique ID — check existing tasks + archived
+        existing_ids = {t["id"] for t in tasks}
+        existing_ids.update(t["id"] for t in self._data.get("archived", []))
+        if "id" in task and task["id"] in existing_ids:
+            task["id"] = ""  # Force regeneration
+        if not task.get("id"):
+            n = 1
+            while f"t_{n:03d}" in existing_ids:
+                n += 1
+            task["id"] = f"t_{n:03d}"
+        task_id = task["id"]
         task.setdefault("status", "pending")
         task.setdefault("priority", "medium")
         task.setdefault("course_name", "")
