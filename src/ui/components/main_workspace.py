@@ -141,11 +141,12 @@ class MainWorkspace(QWidget):
         dm.data_changed.connect(self._on_data_changed)
 
     def _placeholder(self, tab_id: str) -> QWidget:
+        c = get_colors()
         page = QWidget()
         layout = QVBoxLayout(page)
         label = QLabel(tr(f"tab.{tab_id}") if tab_id != "more" else "更多")
         label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        label.setStyleSheet("color: #888; font-size: 18px;")
+        label.setStyleSheet(f"color: {c['fg_hint']}; font-size: 18px;")
         layout.addWidget(label)
         return page
 

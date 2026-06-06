@@ -36,7 +36,7 @@ class CourseDetailDialog(QDialog):
         layout.setContentsMargins(16, 12, 16, 16)
 
         title = QLabel(f"《{course_name}》")
-        title.setFont(QFont(self.font().family(), 15))
+        title.setFont(QFont(FONT_CN, SIZE_TITLE))
         title.setStyleSheet(f"font-weight: 700; color: {c['fg_primary']};")
         layout.addWidget(title)
 

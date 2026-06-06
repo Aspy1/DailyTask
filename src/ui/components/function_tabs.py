@@ -1,13 +1,13 @@
-"""Column 1: Function tab icon bar — Pure Live NavigationRail style."""
+"""Sidebar navigation — function tab bar."""
 
 from PySide6.QtCore import Signal, Qt
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QSizePolicy
 from PySide6.QtGui import QFont
 
 from src.i18n.loader import tr
-from src.ui.styles.theme import FONT_CN, FONT_MONO, SIZE_CAPTION, SIZE_BODY_S, SIZE_BODY, SIZE_BODY_L, SIZE_SUBTITLE, SIZE_TITLE, SIZE_HEADING
+from src.ui.styles.theme import get_colors, FONT_CN, SIZE_BODY_S
 
-TAB_WIDTH = 52
+TAB_WIDTH = 56
 
 
 class FunctionTabs(QWidget):
@@ -15,6 +15,7 @@ class FunctionTabs(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        c = get_colors()
         self.setObjectName("fnTabs")
         self.setFixedWidth(TAB_WIDTH)
         self.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Expanding)
@@ -23,8 +24,8 @@ class FunctionTabs(QWidget):
         self._current_tab: str = "study"
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(4, 8, 4, 8)
-        layout.setSpacing(2)
+        layout.setContentsMargins(8, 12, 8, 12)
+        layout.setSpacing(4)
 
         tabs = [
             ("study", tr("tab.study")),
@@ -34,32 +35,33 @@ class FunctionTabs(QWidget):
             ("about", tr("tab.about")),
         ]
 
+        btn_w = TAB_WIDTH - 16
         for tab_id, label in tabs:
             btn = QPushButton(label)
             btn.setCheckable(True)
             btn.setChecked(tab_id == "study")
-            btn.setFixedSize(TAB_WIDTH - 8, 42)
-            btn.setFont(QFont(self.font().family(), 10))
+            btn.setFixedSize(btn_w, 44)
+            btn.setFont(QFont(FONT_CN, SIZE_BODY_S))
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
-            btn.setStyleSheet("""
-                QPushButton {
+            btn.setStyleSheet(f"""
+                QPushButton {{
                     background-color: transparent;
                     border: none;
                     border-radius: 8px;
-                    color: #9a9a9e;
-                    padding: 4px 2px;
+                    color: {c['fg_hint']};
+                    padding: 8px 4px;
                     text-align: center;
-                    font-size: 13px;
-                }
-                QPushButton:hover {
-                    background-color: rgba(255,255,255,0.04);
-                    color: #c0c0c4;
-                }
-                QPushButton:checked {
-                    background-color: rgba(0,120,212,0.12);
-                    color: #4daaf5;
-                    font-weight: 600;
-                }
+                    font-size: {SIZE_BODY_S}px;
+                }}
+                QPushButton:hover {{
+                    background-color: {c['btn_secondary_bg']};
+                    color: {c['fg_secondary']};
+                }}
+                QPushButton:checked {{
+                    background-color: {c['accent_bg']};
+                    color: {c['accent']};
+                    font-weight: 500;
+                }}
             """)
             btn.clicked.connect(lambda checked, tid=tab_id: self._on_tab_clicked(tid))
             self._tabs.append(btn)

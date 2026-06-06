@@ -72,7 +72,7 @@ class SettingsPanel(QWidget):
         c = get_colors()
         c = self._c()
         lbl = QLabel(title)
-        lbl.setFont(QFont(self.font().family(), 10))
+        lbl.setFont(QFont(FONT_CN, SIZE_SUBTITLE))
         lbl.setStyleSheet(f"color: {c['section_heading']}; font-weight: 600; padding: 0 2px;")
         return lbl
 

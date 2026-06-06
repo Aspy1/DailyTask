@@ -34,7 +34,7 @@ class ExpensePanel(QWidget):
         bar_layout.setSpacing(8)
 
         title = QLabel("记账")
-        title.setFont(QFont(self.font().family(), 13))
+        title.setFont(QFont(FONT_CN, SIZE_SUBTITLE))
         title.setStyleSheet("font-weight: 600; border: none;")
         bar_layout.addWidget(title)
         bar_layout.addStretch()

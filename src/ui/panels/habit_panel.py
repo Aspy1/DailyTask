@@ -64,7 +64,7 @@ class _HabitCard(QFrame):
         top.setSpacing(6)
         name_lbl = QLabel(habit.get("name", ""))
         name_lbl.setFont(QFont(self.font().family(), 12))
-        name_lbl.setStyleSheet(f"font-weight: 700; color: {name_color}; border: none; background: transparent;")
+        name_lbl.setStyleSheet(f"font-weight: 600; color: {name_color}; border: none; background: transparent;")
         name_lbl.setMinimumWidth(60)
         name_lbl.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self._name_lbl = name_lbl
@@ -202,7 +202,7 @@ class HabitPanel(QWidget):
         bar_layout = QHBoxLayout(bar)
         bar_layout.setContentsMargins(16, 8, 16, 8)
         title = QLabel("生活习惯")
-        title.setFont(QFont(self.font().family(), 13))
+        title.setFont(QFont(FONT_CN, SIZE_SUBTITLE))
         title.setStyleSheet("font-weight: 600; border: none;")
         bar_layout.addWidget(title)
         bar_layout.addStretch()
