@@ -184,7 +184,7 @@ QMainWindow {{ background-color: {t["bg_root"]}; }}
 QMenuBar {{ background-color: {t["bg_surface"]}; color: {t["fg_primary"]}; border-bottom: 1px solid {t["border"]}; padding: 2px 0; font-size: {SIZE_BODY_S}px; }}
 QMenuBar::item:selected {{ background-color: {t["bg_elevated"]}; border-radius: 4px; }}
 QMenu {{ background-color: {t["bg_elevated"]}; color: {t["fg_primary"]}; border: 1px solid {t["border_strong"]}; padding: 4px; }}
-QMenu::item {{ padding: 6px 32px 6px 12px; border-radius: 4px; }}
+QMenu::item {{ padding: 6px 32px 6px 12px; }}
 QMenu::item:selected {{ background-color: {t["accent_bg"]}; color: {t["fg_primary"]}; }}
 QMenu::separator {{ height: 1px; background-color: {t["divider"]}; margin: 4px 8px; }}
 
@@ -236,7 +236,7 @@ QComboBox {{ background-color: {t["input_bg"]}; color: {t["fg_primary"]}; border
 QComboBox:hover {{ border-color: {t["border_strong"]}; }}
 QComboBox:focus {{ border-color: {t["accent"]}; }}
 QComboBox::drop-down {{ border: none; width: 24px; }}
-QComboBox QAbstractItemView {{ background-color: {t["bg_elevated"]}; color: {t["fg_primary"]}; border: 1px solid {t["border_strong"]}; border-radius: 8px; selection-background-color: {t["accent_bg"]}; outline: none; }}
+QComboBox QAbstractItemView {{ background-color: {t["bg_elevated"]}; color: {t["fg_primary"]}; border: 1px solid {t["border_strong"]}; selection-background-color: {t["accent_bg"]}; outline: none; }}
 
 /* ── Scroll area ─────────────────────────── */
 QScrollArea {{ border: none; background: transparent; }}

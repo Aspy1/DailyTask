@@ -172,12 +172,16 @@ class AIPanel(QWidget):
             bubble_bg = c["accent"]
             bubble_fg = "#fff"
             align = "right"
-            prefix = '<div style="font-size:11px;opacity:0.7;margin-bottom:2px;">你</div>'
+            prefix = ''
+            # User: rounded accent box
+            bubble_style = f'background-color:{bubble_bg};color:{bubble_fg};border-radius:12px;padding:8px 14px;'
         else:
-            bubble_bg = c["bg_elevated"]
+            bubble_bg = "transparent"
             bubble_fg = c["fg_primary"]
             align = "left"
-            prefix = '<div style="font-size:11px;opacity:0.6;margin-bottom:2px;">AI</div>'
+            prefix = ''
+            # AI: plain text, no box, subtle left border
+            bubble_style = f'color:{bubble_fg};padding:4px 0;border-left:2px solid {c["border"]};padding-left:12px;'
             # Convert markdown for AI messages
             text = _md_to_html(text)
 
@@ -186,10 +190,8 @@ class AIPanel(QWidget):
         msg = (
             f'<div style="margin-bottom:12px;{margin_dir}:24px;">'
             f'<div style="display:inline-block;max-width:100%;'
-            f'background-color:{bubble_bg};color:{bubble_fg};'
-            f'border-radius:12px;padding:8px 14px;font-size: 13px;'
-            f'text-align:left;word-wrap:break-word;">'
-            f'{prefix}{escaped}'
+            f'{bubble_style}font-size:13px;text-align:left;word-wrap:break-word;">'
+            f'{escaped}'
             f'</div>'
             f'</div>'
         )
