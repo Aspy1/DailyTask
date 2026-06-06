@@ -90,7 +90,7 @@ class AIPanel(QWidget):
         header = QWidget()
         header.setObjectName("aiHeader")
         header_layout = QHBoxLayout(header)
-        header_layout.setContentsMargins(12, 10, 12, 8)
+        header_layout.setContentsMargins(12, 12, 12, 8)
         title = QLabel(tr("ai.title"))
         title.setFont(QFont(self.font().family(), 13))
         title.setStyleSheet(f"font-weight: 600; color: {c['fg_primary']}; border: none;")

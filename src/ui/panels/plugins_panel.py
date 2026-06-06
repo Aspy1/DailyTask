@@ -27,7 +27,7 @@ class PluginsPanel(QWidget):
         self._scroll.setWidgetResizable(True)
         container = QWidget()
         self._list_layout = QVBoxLayout(container)
-        self._list_layout.setContentsMargins(6, 6, 6, 6)
+        self._list_layout.setContentsMargins(8, 8, 8, 8)
         self._list_layout.setSpacing(8)
         self._scroll.setWidget(container)
 
@@ -54,7 +54,7 @@ class PluginsPanel(QWidget):
             row = QWidget()
             row.setStyleSheet(f"background-color: {c['card_bg']}; border: 1px solid {c['card_border']}; border-radius:8px; padding:8px;")
             rl = QHBoxLayout(row)
-            rl.setContentsMargins(8, 6, 8, 6)
+            rl.setContentsMargins(8, 8, 8, 8)
             rl.setSpacing(10)
             name = QLabel(pinfo.name)
             name.setStyleSheet(f"font-weight:600; color: {c['fg_primary']}; font-size:14px;")

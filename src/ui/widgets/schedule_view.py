@@ -241,7 +241,7 @@ class ScheduleView(QWidget):
                 QFrame {{ background-color: {c['card_bg']}; border: 1px solid {c['card_border']}; border-radius: 8px; }}
             """)
             cl = QVBoxLayout(card)
-            cl.setContentsMargins(16, 10, 16, 8)
+            cl.setContentsMargins(16, 12, 16, 8)
             cl.setSpacing(4)
 
             # Time header row with optional arrow indicator
@@ -277,7 +277,7 @@ class ScheduleView(QWidget):
                             lambda pos, ci=item: self._course_menu(pos, ci, course_card)
                         )
                         ccl = QVBoxLayout(course_card)
-                        ccl.setContentsMargins(8, 6, 10, 6)
+                        ccl.setContentsMargins(8, 8, 8, 8)
                         ccl.setSpacing(2)
                         name_lbl = QLabel(f"📖 {item['name']}")
                         name_lbl.setStyleSheet(f"color: {c['fg_primary']}; font-size: 12px; font-weight: 600;")
@@ -306,7 +306,7 @@ class ScheduleView(QWidget):
                             lambda pos, pi=item: self._plan_menu(pos, pi, plan_card)
                         )
                         pcl = QVBoxLayout(plan_card)
-                        pcl.setContentsMargins(8, 6, 10, 6)
+                        pcl.setContentsMargins(8, 8, 8, 8)
                         pcl.setSpacing(2)
                         prefix = "📅" if item.get("plan_type") == "custom" else "🔄"
                         title_lbl = QLabel(f"{prefix} {item['title']}")
@@ -331,7 +331,7 @@ class ScheduleView(QWidget):
                             lambda pos, hi=item: self._habit_menu(pos, hi, hab_card)
                         )
                         hcl = QVBoxLayout(hab_card)
-                        hcl.setContentsMargins(8, 6, 10, 6)
+                        hcl.setContentsMargins(8, 8, 8, 8)
                         hcl.setSpacing(2)
                         done = self._dm.habits.is_done_today(item["habit"]["id"])
                         status = "✓" if done else "○"

@@ -45,7 +45,7 @@ class MainWorkspace(QWidget):
         sub_bar = QWidget()
         sub_bar.setObjectName("taskBar")
         sbl = QHBoxLayout(sub_bar)
-        sbl.setContentsMargins(12, 6, 12, 6)
+        sbl.setContentsMargins(12, 8, 12, 8)
         sbl.setSpacing(4)
         self._study_sub_btns = []
         self._study_sub_map: dict[str, int] = {"schedule": 0, "courses": 1, "tasks": 2}
@@ -96,7 +96,7 @@ class MainWorkspace(QWidget):
         lbar = QWidget()
         lbar.setObjectName("taskBar")
         lblayout = QHBoxLayout(lbar)
-        lblayout.setContentsMargins(12, 6, 12, 6)
+        lblayout.setContentsMargins(12, 8, 12, 8)
         lblayout.setSpacing(4)
         self._life_sub_btns = []
         self._life_sub_map: dict[str, int] = {}

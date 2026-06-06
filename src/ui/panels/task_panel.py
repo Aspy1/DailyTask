@@ -81,7 +81,7 @@ class TaskPanel(QWidget):
         bar = QWidget()
         bar.setObjectName("taskBar")
         bar_layout = QHBoxLayout(bar)
-        bar_layout.setContentsMargins(16, 6, 16, 6)
+        bar_layout.setContentsMargins(16, 8, 16, 8)
         bar_layout.setSpacing(8)
 
         title = QLabel("作业")

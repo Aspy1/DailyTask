@@ -56,7 +56,7 @@ class _HabitCard(QFrame):
         """)
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(16, 10, 16, 8)
+        layout.setContentsMargins(16, 12, 16, 8)
         layout.setSpacing(6)
 
         # Top: name + schedule
@@ -354,7 +354,7 @@ class HabitDialog(QDialog):
 
         layout = QVBoxLayout(self)
         layout.setSpacing(12)
-        layout.setContentsMargins(24, 16, 20, 16)
+        layout.setContentsMargins(24, 16, 24, 16)
 
         form = QFormLayout()
         form.setSpacing(8)
