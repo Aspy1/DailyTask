@@ -45,7 +45,7 @@ class ScheduleView(QWidget):
         ct_btn = QPushButton("课程表")
         ct_btn.setStyleSheet(f"""
             QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
-                border: 1px solid {c['border']}; border-radius: 8px; padding: 3px 10px; font-size: 13px; }}
+                border-radius: 8px; padding: 3px 10px; font-size: 13px; }}
             QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; color: {c['btn_secondary_hover_fg']}; }}
         """)
         ct_btn.clicked.connect(self.course_table_requested.emit)
@@ -56,7 +56,7 @@ class ScheduleView(QWidget):
         refresh_btn = QPushButton("刷新")
         refresh_btn.setStyleSheet(f"""
             QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
-                border: 1px solid {c['border']}; border-radius: 8px; padding: 3px 10px; font-size: 13px; }}
+                border-radius: 8px; padding: 3px 10px; font-size: 13px; }}
             QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; color: {c['btn_secondary_hover_fg']}; }}
         """)
         refresh_btn.clicked.connect(self._refresh)
@@ -66,7 +66,7 @@ class ScheduleView(QWidget):
             btn = QPushButton(text)
             btn.setStyleSheet(f"""
                 QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
-                    border: 1px solid {c['border']}; border-radius: 8px; padding: 3px 10px; font-size: 13px; }}
+                    border-radius: 8px; padding: 3px 10px; font-size: 13px; }}
                 QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; color: {c['btn_secondary_hover_fg']}; }}
             """)
             btn.clicked.connect(slot)
@@ -239,7 +239,7 @@ class ScheduleView(QWidget):
 
             card = QWidget()
             card.setStyleSheet(f"""
-                QFrame {{ background-color: {c['card_bg']}; border: 1px solid {c['border_strong']}; border-radius: 8px; }}
+                QFrame {{ background-color: {c['card_bg']}; border-radius: 8px; }}
             """)
             cl = QVBoxLayout(card)
             cl.setContentsMargins(16, 12, 16, 8)
@@ -402,7 +402,7 @@ class ScheduleView(QWidget):
             QDialog {{ background-color: {c['card_bg']}; }}
             QLabel {{ color: {c['fg_primary']}; font-size: 13px; }}
             QDateTimeEdit {{ background-color: {c['bg_elevated']}; color: {c['fg_primary']};
-                border: 1px solid {c['border']}; border-radius: 8px; padding: 6px 10px; font-size: 13px; }}
+                border-radius: 8px; padding: 6px 10px; font-size: 13px; }}
             QPushButton {{ background-color: {c['accent']}; color: white; border: none;
                 border-radius: 8px; padding: 6px 18px; font-size: 13px; font-weight: 600; }}
             QPushButton:hover {{ opacity: 0.9; }}
@@ -435,7 +435,7 @@ class ScheduleView(QWidget):
         cancel = QPushButton("取消")
         cancel.setStyleSheet(f"""
             QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
-                border: 1px solid {c['border']}; border-radius: 8px; padding: 6px 18px; font-size: 13px; }}
+                border-radius: 8px; padding: 6px 18px; font-size: 13px; }}
         """)
         cancel.clicked.connect(dlg.reject)
         btn_row.addWidget(cancel)
@@ -517,7 +517,7 @@ class ScheduleView(QWidget):
         menu = QMenu()
         menu.setStyleSheet(f"""
             QMenu {{ background-color: {c['bg_elevated']}; color: {c['fg_primary']};
-                border: 1px solid {c['border_strong']}; border-radius: 8px; padding: 4px; }}
+                border-radius: 8px; padding: 4px; }}
             QMenu::item {{ padding: 6px 24px 6px 12px; border-radius: 4px; }}
             QMenu::item:selected {{ background-color: {c['accent_bg']}; }}
         """)
@@ -564,7 +564,7 @@ class ScheduleView(QWidget):
         menu = QMenu()
         menu.setStyleSheet(f"""
             QMenu {{ background-color: {c['bg_elevated']}; color: {c['fg_primary']};
-                border: 1px solid {c['border_strong']}; border-radius: 8px; padding: 4px; }}
+                border-radius: 8px; padding: 4px; }}
             QMenu::item {{ padding: 6px 24px 6px 12px; border-radius: 4px; }}
             QMenu::item:selected {{ background-color: {c['accent_bg']}; }}
         """)

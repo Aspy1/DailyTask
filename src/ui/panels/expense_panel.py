@@ -75,7 +75,7 @@ class ExpensePanel(QWidget):
 
         # ── Add row ──────────────────────────────────────────
         add_row = QWidget()
-        add_row.setStyleSheet(f"background-color: {c['card_bg']}; border: 1px solid {c['card_border']}; border-radius: 8px;")
+        add_row.setStyleSheet(f"background-color: {c['card_bg']}; border-radius: 8px;")
         al = QHBoxLayout(add_row)
         al.setContentsMargins(16, 4, 16, 4)
         al.setSpacing(8)
@@ -113,7 +113,7 @@ class ExpensePanel(QWidget):
 
         # ── Savings row ───────────────────────────────────────
         sav_row = QWidget()
-        sav_row.setStyleSheet(f"background-color: {c['card_bg']}; border: 1px solid {c['card_border']}; border-radius: 8px;")
+        sav_row.setStyleSheet(f"background-color: {c['card_bg']}; border-radius: 8px;")
         sl = QHBoxLayout(sav_row)
         sl.setContentsMargins(16, 4, 16, 4)
         sl.setSpacing(8)
@@ -177,7 +177,7 @@ class ExpensePanel(QWidget):
         c = get_colors()
         return f"""
             QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
-                border: 1px solid {c['border']}; border-radius: 8px; padding: 4px 12px; font-size: 13px; }}
+                border-radius: 8px; padding: 4px 12px; font-size: 13px; }}
             QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; color: {c['btn_secondary_hover_fg']}; }}
         """
 
@@ -185,14 +185,14 @@ class ExpensePanel(QWidget):
         c = get_colors()
         return f"""
             QLineEdit {{ background-color: {c['input_bg']}; color: {c['fg_primary']};
-                border: 1px solid {c['input_border']}; border-radius: 8px; padding: 5px 8px; font-size: 13px; }}
+                border-radius: 8px; padding: 5px 8px; font-size: 13px; }}
         """
 
     def _combo_qss(self) -> str:
         c = get_colors()
         return f"""
             QComboBox {{ background-color: {c['input_bg']}; color: {c['fg_primary']};
-                border: 1px solid {c['input_border']}; border-radius: 8px; padding: 5px 8px; font-size: 13px; }}
+                border-radius: 8px; padding: 5px 8px; font-size: 13px; }}
             QComboBox QAbstractItemView {{
                 background-color: {c['bg_elevated']}; color: {c['fg_primary']};
                 selection-background-color: {c['accent_bg']}; outline: none;
@@ -202,7 +202,7 @@ class ExpensePanel(QWidget):
     def _summary_card(self, label: str) -> QWidget:
         c = get_colors()
         w = QWidget()
-        w.setStyleSheet(f"background-color: {c['card_bg']}; border: 1px solid {c['card_border']}; border-radius: 8px;")
+        w.setStyleSheet(f"background-color: {c['card_bg']}; border-radius: 8px;")
         l = QVBoxLayout(w)
         l.setContentsMargins(16, 8, 16, 8)
         title = QLabel(label)
@@ -324,7 +324,7 @@ class ExpensePanel(QWidget):
         c = get_colors()
         menu = QMenu(self)
         menu.setStyleSheet(f"""
-            QMenu {{ background-color: {c['bg_elevated']}; color: {c['fg_primary']}; border: 1px solid {c['border_strong']}; border-radius: 8px; padding: 4px; }}
+            QMenu {{ background-color: {c['bg_elevated']}; color: {c['fg_primary']}; border-radius: 8px; padding: 4px; }}
             QMenu::item {{ padding: 6px 24px 6px 12px; border-radius: 4px; }}
             QMenu::item:selected {{ background-color: {c['accent_bg']}; }}
         """)
@@ -349,7 +349,7 @@ class ExpensePanel(QWidget):
         c = get_colors()
         menu = QMenu(self)
         menu.setStyleSheet(f"""
-            QMenu {{ background-color: {c['bg_elevated']}; color: {c['fg_primary']}; border: 1px solid {c['border_strong']}; border-radius: 8px; padding: 4px; }}
+            QMenu {{ background-color: {c['bg_elevated']}; color: {c['fg_primary']}; border-radius: 8px; padding: 4px; }}
             QMenu::item {{ padding: 6px 24px 6px 12px; border-radius: 4px; }}
             QMenu::item:selected {{ background-color: {c['accent_bg']}; }}
         """)

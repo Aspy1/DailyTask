@@ -82,7 +82,7 @@ class SettingsPanel(QWidget):
         c = self._c()
         card = QWidget()
         card.setStyleSheet(
-            f"QFrame {{ background-color: {c['card_bg']}; border: 1px solid {c['card_border']}; border-radius: 14px; }}"
+            f"QFrame {{ background-color: {c['card_bg']}; border-radius: 14px; }}"
         )
         return card
 
@@ -121,7 +121,7 @@ class SettingsPanel(QWidget):
         c = self._c()
         return f"""
             QLineEdit {{ background-color: {c['input_bg']}; color: {c['fg_primary']};
-                border: 1px solid {c['input_border']}; border-radius: 8px; padding: 7px 10px; font-size: 13px; }}
+                border-radius: 8px; padding: 7px 10px; font-size: 13px; }}
             QLineEdit:focus {{ border-color: {c['accent']}; }}
         """
 
@@ -130,13 +130,13 @@ class SettingsPanel(QWidget):
         c = self._c()
         return f"""
             QComboBox {{ background-color: {c['input_bg']}; color: {c['fg_primary']};
-                border: 1px solid {c['input_border']}; border-radius: 8px; padding: 7px 10px; font-size: 13px; }}
+                border-radius: 8px; padding: 7px 10px; font-size: 13px; }}
             QComboBox:hover {{ border-color: {c['border_strong']}; }}
             QComboBox:focus {{ border-color: {c['accent']}; }}
             QComboBox::drop-down {{ border: none; width: 22px; }}
             QComboBox QAbstractItemView {{
                 background-color: {c['bg_elevated']}; color: {c['fg_primary']};
-                border: 1px solid {c['border_strong']}; border-radius: 6px;
+                border-radius: 6px;
                 selection-background-color: {c['accent_bg']}; outline: none;
             }}
         """
