@@ -25,6 +25,14 @@ class DataManager(QObject):
         self.expenses = ExpenseModel(data_dir / "expenses.json")
         self.daily_logs = DailyLogModel(data_dir / "daily_logs.json")
 
+        # Auto-reload: check file mtimes every 3s, reload if changed externally
+        from PySide6.QtCore import QTimer
+        self._file_mtimes: dict[str, float] = {}
+        self._capture_mtimes()
+        self._reload_timer = QTimer(self)
+        self._reload_timer.timeout.connect(self._auto_reload)
+        self._reload_timer.start(3000)  # 3 seconds
+
     def reload_all(self) -> None:
         """Re-read all data files from disk."""
         self.courses.reload()
@@ -32,6 +40,38 @@ class DataManager(QObject):
         self.habits.reload()
         self.expenses.reload()
         self.daily_logs.reload()
+        self._capture_mtimes()
+
+    def _capture_mtimes(self) -> None:
+        """Record current file modification times."""
+        for model, name in [
+            (self.courses, "courses"), (self.tasks, "tasks"),
+            (self.habits, "habits"), (self.expenses, "expenses"),
+            (self.daily_logs, "daily_logs"),
+        ]:
+            try:
+                self._file_mtimes[name] = model.file_path.stat().st_mtime
+            except OSError:
+                pass
+
+    def _auto_reload(self) -> None:
+        """Check if any data file was modified externally and reload."""
+        changed = False
+        for model, name in [
+            (self.courses, "courses"), (self.tasks, "tasks"),
+            (self.habits, "habits"), (self.expenses, "expenses"),
+            (self.daily_logs, "daily_logs"),
+        ]:
+            try:
+                mtime = model.file_path.stat().st_mtime
+                if abs(mtime - self._file_mtimes.get(name, 0)) > 0.1:
+                    model.reload()
+                    self._file_mtimes[name] = mtime
+                    changed = True
+            except OSError:
+                pass
+        if changed:
+            self.data_changed.emit("external")
 
     def save_all(self) -> None:
         self.courses.save()
