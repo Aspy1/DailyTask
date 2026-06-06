@@ -72,12 +72,20 @@ class TaskModel(BaseJsonModel):
         return task_id
 
     def complete(self, task_id: str) -> bool:
-        for task in self._data.get("tasks", []):
+        tasks_list = self._data.get("tasks", [])
+        print(f"[TaskModel] complete({task_id}) — {len(tasks_list)} tasks in list")
+        for task in tasks_list:
             if task["id"] == task_id:
                 task["status"] = "completed"
                 task["completed_at"] = datetime.now().isoformat()
+                print(f"[TaskModel] ✓ {task.get('title','')} marked completed, calling _auto_archive")
                 self._auto_archive()
+                print(f"[TaskModel] _auto_archive done, now {len(self._data.get('tasks',[]))} tasks")
                 return True
+        print(f"[TaskModel] ✗ task {task_id} NOT FOUND in {len(tasks_list)} tasks")
+        # Debug: list all IDs
+        ids = [t.get('id','?') for t in tasks_list]
+        print(f"[TaskModel] Available IDs: {ids}")
         return False
 
     def uncomplete(self, task_id: str) -> bool:
