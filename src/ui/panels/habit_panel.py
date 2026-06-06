@@ -202,7 +202,7 @@ class HabitPanel(QWidget):
         bar.setObjectName("taskBar")
         bar_layout = QHBoxLayout(bar)
         bar_layout.setContentsMargins(16, 8, 16, 8)
-        title = QLabel("生活习惯")
+        title = QLabel("日常")
         title.setFont(QFont(FONT_CN, SIZE_SUBTITLE))
         title.setStyleSheet("font-weight: 600; border: none;")
         bar_layout.addWidget(title)

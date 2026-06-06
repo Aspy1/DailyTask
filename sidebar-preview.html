@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>侧边栏预览 — 生活助手</title>
+<style>
+:root {
+    --bg-root: #F2EFE9;
+    --bg-surface: #E8E5DE;
+    --bg-card: #FDFCFA;
+    --bg-input: #F3F1EC;
+    --fg-primary: #2D2A26;
+    --fg-secondary: #6E6B66;
+    --fg-hint: #9E9B96;
+    --accent: #B0823A;
+    --accent-hover: #C99845;
+    --accent-bg: rgba(176,130,58,0.08);
+    --border: rgba(0,0,0,0.06);
+    --border-strong: rgba(0,0,0,0.10);
+    --s-header: 13px;
+    --s-item: 13px;
+    --sp-4: 4px; --sp-8: 8px; --sp-12: 12px; --sp-16: 16px; --sp-24: 24px;
+    --radius: 8px;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+    font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+    font-size: 14px;
+    color: var(--fg-primary);
+    background: var(--bg-root);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+}
+
+/* ── App container ── */
+.app {
+    width: 900px; height: 600px;
+    display: flex;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+}
+
+/* ── Sidebar ── */
+.sidebar {
+    width: 180px;
+    background: var(--bg-surface);
+    display: flex;
+    flex-direction: column;
+    padding: var(--sp-16) 0;
+    user-select: none;
+}
+
+.sidebar-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--fg-primary);
+    padding: 0 var(--sp-16);
+    margin-bottom: var(--sp-16);
+    letter-spacing: 0.5px;
+}
+
+/* ── Section ── */
+.section-header {
+    display: flex;
+    align-items: center;
+    padding: 6px var(--sp-16);
+    font-size: var(--s-header);
+    font-weight: 600;
+    color: var(--fg-secondary);
+    cursor: pointer;
+    border-radius: 0;
+    transition: background 0.15s;
+}
+.section-header:hover {
+    background: var(--accent-bg);
+}
+.section-header .arrow {
+    display: inline-block;
+    width: 16px;
+    font-size: 10px;
+    margin-right: 4px;
+    transition: transform 0.25s ease;
+    color: var(--fg-hint);
+    transform-origin: center center;
+    text-align: center;
+}
+.section-header.expanded .arrow {
+    transform: rotate(90deg);
+}
+
+.section-items {
+    overflow: hidden;
+    max-height: 0;
+    transition: max-height 0.25s ease;
+}
+.section-items.open {
+    max-height: 300px;
+}
+
+/* ── Nav item ── */
+.nav-item {
+    display: block;
+    padding: 6px var(--sp-16) 6px 36px;
+    font-size: var(--s-item);
+    color: var(--fg-secondary);
+    cursor: pointer;
+    border-radius: 0;
+    transition: all 0.15s;
+    text-decoration: none;
+}
+.nav-item:hover {
+    background: var(--accent-bg);
+    color: var(--fg-primary);
+}
+.nav-item.active {
+    background: var(--accent-bg);
+    color: var(--accent);
+    font-weight: 600;
+}
+
+/* ── Bottom ── */
+.sidebar-spacer {
+    flex: 1;
+}
+.sidebar-bottom {
+    border-top: 1px solid var(--border-strong);
+    padding-top: var(--sp-8);
+}
+.sidebar-bottom .nav-item {
+    padding-left: var(--sp-16);
+    font-size: 12px;
+    color: var(--fg-hint);
+}
+.sidebar-bottom .nav-item:hover {
+    color: var(--fg-secondary);
+}
+
+/* ── Content area ── */
+.content {
+    flex: 1;
+    background: var(--bg-root);
+    display: flex;
+    flex-direction: column;
+}
+
+.content-header {
+    padding: var(--sp-16) var(--sp-24);
+    border-bottom: 1px solid var(--border);
+}
+.content-header h2 {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--fg-primary);
+}
+.content-header .sub {
+    font-size: 12px;
+    color: var(--fg-hint);
+    margin-top: 2px;
+}
+
+.content-body {
+    flex: 1;
+    padding: var(--sp-24);
+    display: flex;
+    gap: var(--sp-16);
+    flex-wrap: wrap;
+    align-content: flex-start;
+}
+
+/* ── Card demo ── */
+.card {
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    padding: var(--sp-16);
+    flex: 1 1 220px;
+    min-width: 180px;
+    max-width: 260px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+.card h3 {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: var(--sp-4);
+}
+.card p {
+    font-size: 12px;
+    color: var(--fg-secondary);
+    line-height: 1.6;
+}
+.tag {
+    display: inline-block;
+    font-size: 11px;
+    padding: 1px 8px;
+    border-radius: 10px;
+    font-weight: 500;
+}
+.tag-accent { background: var(--accent-bg); color: var(--accent); }
+.tag-red { background: rgba(200,60,40,0.08); color: #C83C28; }
+.tag-green { background: rgba(40,140,80,0.08); color: #288C50; }
+
+/* ── Status bar ── */
+.status-bar {
+    padding: 8px var(--sp-24);
+    font-size: 12px;
+    color: var(--fg-hint);
+    border-top: 1px solid var(--border);
+    display: flex;
+    gap: var(--sp-16);
+    align-items: center;
+}
+.status-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    display: inline-block;
+}
+.status-dot.red { background: #C83C28; }
+.status-dot.accent { background: var(--accent); }
+
+/* ── AI toggle ── */
+.ai-toggle {
+    padding: 6px var(--sp-16);
+    margin-top: var(--sp-4);
+    font-size: 12px;
+    color: var(--fg-hint);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: color 0.15s;
+}
+.ai-toggle:hover { color: var(--accent); }
+.ai-toggle.on { color: var(--accent); font-weight: 600; }
+.ai-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--fg-hint);
+}
+.ai-toggle.on .ai-dot {
+    background: var(--accent);
+}
+</style>
+</head>
+<body>
+
+<div class="app">
+    <!-- ═══ Sidebar ═══ -->
+    <div class="sidebar" id="sidebar">
+
+        <div class="sidebar-title">生活助手</div>
+
+        <!-- 功能 group -->
+        <div class="section-header expanded" data-section="func" onclick="toggleSection('func')">
+            <span class="arrow">▶</span>功能
+        </div>
+        <div class="section-items open" id="items-func">
+            <div class="nav-item active" data-tab="schedule" onclick="selectTab('schedule', this)">日程总览</div>
+            <div class="nav-item" data-tab="courses" onclick="selectTab('courses', this)">课程表</div>
+            <div class="nav-item" data-tab="tasks" onclick="selectTab('tasks', this)">作业管理</div>
+        </div>
+
+        <!-- 生活 group -->
+        <div class="section-header" data-section="life" onclick="toggleSection('life')">
+            <span class="arrow">▶</span>生活
+        </div>
+        <div class="section-items" id="items-life">
+            <div class="nav-item" data-tab="daily" onclick="selectTab('daily', this)">日常</div>
+            <div class="nav-item" data-tab="expenses" onclick="selectTab('expenses', this)">记账</div>
+            <div class="nav-item" data-tab="inventory" onclick="selectTab('inventory', this)">有什么</div>
+            <div class="nav-item" data-tab="meals" onclick="selectTab('meals', this)">吃什么</div>
+        </div>
+
+        <!-- Spacer -->
+        <div class="sidebar-spacer"></div>
+
+        <!-- Bottom -->
+        <div class="sidebar-bottom">
+            <div class="nav-item" data-tab="settings" onclick="selectTab('settings', this)">设置</div>
+            <div class="nav-item" data-tab="about" onclick="selectTab('about', this)">关于</div>
+        </div>
+
+        <!-- AI toggle -->
+        <div class="ai-toggle" id="aiToggle" onclick="toggleAI()">
+            <span class="ai-dot"></span>AI 助手
+        </div>
+    </div>
+
+    <!-- ═══ Content ═══ -->
+    <div class="content" id="content">
+        <div class="content-header" id="contentHeader">
+            <h2 id="contentTitle">日程总览</h2>
+            <div class="sub" id="contentSub">查看近期日程安排与截止提醒</div>
+        </div>
+        <div class="content-body" id="contentBody">
+            <!-- Dynamic cards -->
+        </div>
+        <div class="status-bar">
+            <span>今天(周五): 4节课 | 下一节: 大学物理 10:15</span>
+            <span style="margin-left:auto">今日支出: &yen;24.50</span>
+            <span class="status-dot red"></span><span>2项DDL</span>
+            <span>2025-06-06</span>
+        </div>
+    </div>
+</div>
+
+<script>
+const contentMap = {
+    schedule: { title: '日程总览', sub: '查看近期日程安排与截止提醒', cards: [
+        { title: '晨间阅读', tag: '每日', tagClass: 'tag-accent', desc: '每天早上 7:00–7:30。已连续 12 天。', btn: '完成打卡', btnClass: 'btn-primary' },
+        { title: '晚间复习', tag: '将逾期', tagClass: 'tag-red', desc: '每晚 21:00–22:00。今日未完成，剩余 3h。', btn: '推迟', btn2: '跳过' }
+    ]},
+    courses: { title: '课程表', sub: '当前学期课程安排', cards: [
+        { title: '高等数学', tag: '08:30–10:00', tagClass: 'tag-green', desc: '教一 301 · 第1-16周', btn: '', btnClass: '' },
+        { title: '大学物理', tag: '10:15–11:45', tagClass: 'tag-accent', desc: '理学院 102 · 进行中', btn: '', btnClass: '' },
+        { title: '线性代数', tag: '14:00–15:30', tagClass: '', desc: '教三 205 · 第1-16周', btn: '', btnClass: '' }
+    ]},
+    tasks: { title: '作业管理', sub: '待完成与已提交的作业', cards: [
+        { title: '高数作业 #5', tag: '明天截止', tagClass: 'tag-red', desc: '第三章 微分中值定理习题', btn: '', btnClass: '' },
+        { title: '物理报告', tag: '下周一', tagClass: '', desc: '光的干涉衍射实验报告', btn: '', btnClass: '' }
+    ]},
+    daily: { title: '日常', sub: '生活习惯打卡', cards: [
+        { title: '晨跑', tag: '连续8天', tagClass: 'tag-green', desc: '每天早上 6:30 跑步 30 分钟', btn: '打卡', btnClass: 'btn-primary' },
+        { title: '阅读', tag: '今日未打卡', tagClass: 'tag-red', desc: '每天阅读 30 分钟', btn: '打卡', btnClass: 'btn-primary' }
+    ]},
+    expenses: { title: '记账', sub: '收支明细与预算管理', cards: [
+        { title: '本月支出', tag: '', tagClass: '', desc: '¥1,247.50 / 预算 ¥3,000', btn: '', btnClass: '' },
+        { title: '今日', tag: '午餐', tagClass: 'tag-accent', desc: '¥18.00 · 食堂', btn: '', btnClass: '' }
+    ]},
+    inventory: { title: '有什么', sub: '物品统计与分类管理', cards: [
+        { title: '洗面奶', tag: '日用品', tagClass: 'tag-accent', desc: '剩余约 2 周量 · 6月3日购入', btn: '', btnClass: '' },
+        { title: '黑色T恤 ×3', tag: '衣物', tagClass: '', desc: '均码 · 去年购入', btn: '', btnClass: '' }
+    ]},
+    meals: { title: '吃什么', sub: '菜品记录与智能推荐', cards: [
+        { title: '🍳 番茄炒蛋', tag: '★★★★☆', tagClass: 'tag-green', desc: '家常菜 · 上次做: 3天前', btn: '推荐', btnClass: 'btn-primary' },
+        { title: '🆕 尝试新菜', tag: '随机', tagClass: 'tag-accent', desc: '抽一个还没做过的菜谱', btn: '试试', btnClass: 'btn-primary' }
+    ]},
+    settings: { title: '设置', sub: '应用配置与偏好', cards: [] },
+    about: { title: '关于', sub: '版本信息', cards: [{ title: '生活助手 v0.5.0', tag: '', tagClass: '', desc: '基于 PySide6 · 暖纸书房设计系统', btn: '', btnClass: '' }]}
+};
+
+function selectTab(tabId, el) {
+    // Update active state
+    document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+    el.classList.add('active');
+
+    // Update content
+    const data = contentMap[tabId];
+    document.getElementById('contentTitle').textContent = data.title;
+    document.getElementById('contentSub').textContent = data.sub;
+
+    const body = document.getElementById('contentBody');
+    if (data.cards.length === 0) {
+        body.innerHTML = '<div style="color:var(--fg-hint);padding:40px 0">暂无内容</div>';
+    } else {
+        body.innerHTML = data.cards.map(c => {
+            const tagHtml = c.tag ? `<span class="tag ${c.tagClass}">${c.tag}</span>` : '';
+            const btnHtml = c.btn ? `<button class="btn" style="margin-top:12px;font-size:11px;padding:4px 12px;border-radius:6px;border:1px solid var(--accent);background:var(--accent);color:#fff;cursor:pointer">${c.btn}</button>` : '';
+            const btn2Html = c.btn2 ? ` <button class="btn" style="margin-top:12px;font-size:11px;padding:4px 12px;border-radius:6px;border:1px solid var(--border-strong);background:transparent;color:var(--fg-secondary);cursor:pointer">${c.btn2}</button>` : '';
+            return `<div class="card"><h3>${c.title} ${tagHtml}</h3><p>${c.desc}</p>${btnHtml}${btn2Html}</div>`;
+        }).join('');
+    }
+}
+
+let aiOn = false;
+function toggleAI() {
+    aiOn = !aiOn;
+    const toggle = document.getElementById('aiToggle');
+    toggle.classList.toggle('on', aiOn);
+}
+
+function toggleSection(section) {
+    const header = document.querySelector(`[data-section="${section}"]`);
+    const items = document.getElementById(`items-${section}`);
+    const isOpen = items.classList.contains('open');
+
+    // Close all sections first (accordion)
+    document.querySelectorAll('.section-items').forEach(s => s.classList.remove('open'));
+    document.querySelectorAll('.section-header').forEach(h => h.classList.remove('expanded'));
+
+    // Open clicked section if it was closed
+    if (!isOpen) {
+        items.classList.add('open');
+        header.classList.add('expanded');
+    }
+}
+</script>
+
+</body>
+</html>
