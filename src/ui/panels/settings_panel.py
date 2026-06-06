@@ -82,7 +82,7 @@ class SettingsPanel(QWidget):
         c = self._c()
         card = QWidget()
         card.setStyleSheet(
-            f"QFrame {{ background-color: {c['card_bg']}; border-radius: 14px; }}"
+            f"QWidget {{ background-color: {c['card_bg']}; border-radius: 14px; }}"
         )
         return card
 

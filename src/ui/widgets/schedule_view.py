@@ -239,7 +239,7 @@ class ScheduleView(QWidget):
 
             card = QWidget()
             card.setStyleSheet(f"""
-                QFrame {{ background-color: {c['card_bg']}; border-radius: 8px; }}
+                QWidget {{ background-color: {c['card_bg']}; border-radius: 8px; }}
             """)
             cl = QVBoxLayout(card)
             cl.setContentsMargins(16, 12, 16, 8)
@@ -271,7 +271,7 @@ class ScheduleView(QWidget):
                     if item["type"] == "course":
                         course_card = QWidget()
                         course_card.setStyleSheet(
-                            f"QFrame {{ background-color: {c['bg_elevated']}; border-radius: 8px; }}"
+                            f"QWidget {{ background-color: {c['bg_elevated']}; border-radius: 8px; }}"
                         )
                         course_card.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
                         course_card.customContextMenuRequested.connect(
@@ -300,7 +300,7 @@ class ScheduleView(QWidget):
                     elif item["type"] == "plan":
                         plan_card = QWidget()
                         plan_card.setStyleSheet(
-                            f"QFrame {{ background-color: {c['accent_bg']}; border-radius: 8px; }}"
+                            f"QWidget {{ background-color: {c['accent_bg']}; border-radius: 8px; }}"
                         )
                         plan_card.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
                         plan_card.customContextMenuRequested.connect(
@@ -325,7 +325,7 @@ class ScheduleView(QWidget):
                     elif item["type"] == "habit":
                         hab_card = QWidget()
                         hab_card.setStyleSheet(
-                            f"QFrame {{ background-color: {c['bg_elevated']}; border-radius: 8px; }}"
+                            f"QWidget {{ background-color: {c['bg_elevated']}; border-radius: 8px; }}"
                         )
                         hab_card.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
                         hab_card.customContextMenuRequested.connect(
@@ -357,7 +357,7 @@ class ScheduleView(QWidget):
                 task_title = t.get("title", "")
                 course_name = t.get("course_name", "") or ""
                 ddl_divider = QWidget()
-                ddl_divider.setStyleSheet(f"QFrame {{ border: none; background: transparent; }}")
+                ddl_divider.setStyleSheet(f"QWidget {{ border: none; background: transparent; }}")
                 ddl_layout = QHBoxLayout(ddl_divider)
                 ddl_layout.setContentsMargins(0, 4, 0, 4)
                 ddl_label = QLabel()
