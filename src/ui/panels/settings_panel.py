@@ -42,7 +42,7 @@ class SettingsPanel(QWidget):
         container = QWidget()
         container.setStyleSheet("background: transparent;")
         layout = QVBoxLayout(container)
-        layout.setContentsMargins(24, 20, 24, 20)
+        layout.setContentsMargins(24, 24, 24, 24)
         layout.setSpacing(28)
         layout.addWidget(self._section_heading("AI 设置"))
         layout.addWidget(self._build_ai_card())
@@ -88,7 +88,7 @@ class SettingsPanel(QWidget):
         row = QWidget()
         row.setStyleSheet("background: transparent;")
         rl = QHBoxLayout(row)
-        rl.setContentsMargins(16, 10, 16, 10)
+        rl.setContentsMargins(16, 12, 16, 12)
         lbl = QLabel(label)
         lbl.setStyleSheet(f"color: {c['fg_primary']}; font-size: 12px; font-weight: 600; background: transparent;")
         lbl.setFixedWidth(100)
@@ -140,7 +140,7 @@ class SettingsPanel(QWidget):
         c = self._c()
         card = self._card()
         layout = QVBoxLayout(card)
-        layout.setContentsMargins(0, 6, 0, 6)
+        layout.setContentsMargins(0, 8, 0, 8)
         layout.setSpacing(0)
 
         current = self._settings.get("AI", "provider", "deepseek")
@@ -203,7 +203,7 @@ class SettingsPanel(QWidget):
         c = self._c()
         card = self._card()
         layout = QVBoxLayout(card)
-        layout.setContentsMargins(0, 6, 0, 6)
+        layout.setContentsMargins(0, 8, 0, 8)
         layout.setSpacing(0)
 
         self._auto_start = QCheckBox()
@@ -279,7 +279,7 @@ class SettingsPanel(QWidget):
         c = self._c()
         card = self._card()
         layout = QVBoxLayout(card)
-        layout.setContentsMargins(0, 6, 0, 6)
+        layout.setContentsMargins(0, 8, 0, 8)
         layout.setSpacing(0)
 
         self._smtp_host = QLineEdit(self._settings.get("Email", "smtp_host", fallback="smtp.qq.com"))
@@ -387,12 +387,12 @@ class SettingsPanel(QWidget):
         c = self._c()
         card = self._card()
         layout = QVBoxLayout(card)
-        layout.setContentsMargins(6, 6, 6, 6)
+        layout.setContentsMargins(8, 8, 8, 8)
         layout.setSpacing(8)
 
         self._plugins_container = QWidget()
         pcl = QVBoxLayout(self._plugins_container)
-        pcl.setContentsMargins(6, 6, 6, 6)
+        pcl.setContentsMargins(8, 8, 8, 8)
         pcl.setSpacing(6)
 
         layout.addWidget(self._plugins_container)
@@ -413,7 +413,7 @@ class SettingsPanel(QWidget):
             row = QWidget()
             row.setStyleSheet(f"background-color: {self._c()['card_bg']}; border: 1px solid {self._c()['card_border']}; border-radius: 8px; padding: 6px;")
             rl = QHBoxLayout(row)
-            rl.setContentsMargins(6, 6, 6, 6)
+            rl.setContentsMargins(8, 8, 8, 8)
             rl.setSpacing(8)
             name_lbl = QLabel(pinfo.name)
             name_lbl.setFixedWidth(180)
@@ -490,7 +490,7 @@ class SettingsPanel(QWidget):
         c = self._c()
         card = self._card()
         layout = QVBoxLayout(card)
-        layout.setContentsMargins(0, 6, 0, 6)
+        layout.setContentsMargins(0, 8, 0, 8)
         layout.setSpacing(0)
 
         self._balance_widgets: dict[str, dict] = {}

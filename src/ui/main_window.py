@@ -71,7 +71,7 @@ class MainWindow(QMainWindow):
         nav.setObjectName("topNav")
         nav.setFixedHeight(NAV_HEIGHT)
         nav_layout = QHBoxLayout(nav)
-        nav_layout.setContentsMargins(16, 6, 16, 6)
+        nav_layout.setContentsMargins(16, 8, 16, 8)
         nav_layout.setSpacing(4)
 
         # App name

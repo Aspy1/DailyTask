@@ -59,7 +59,7 @@ class ExpensePanel(QWidget):
         cards = QWidget()
         cards.setStyleSheet("background: transparent;")
         cl = QHBoxLayout(cards)
-        cl.setContentsMargins(16, 10, 16, 8)
+        cl.setContentsMargins(16, 12, 16, 8)
         cl.setSpacing(12)
         self._sum_month = self._summary_card("本月支出")
         self._sum_today = self._summary_card("今日支出")
