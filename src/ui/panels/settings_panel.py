@@ -2,6 +2,7 @@
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
+    QFrame,
     QWidget, QVBoxLayout, QHBoxLayout,
     QLineEdit, QComboBox, QPushButton, QLabel, QCheckBox,
     QScrollArea, QMessageBox, QFrame,
@@ -80,6 +81,7 @@ class SettingsPanel(QWidget):
         c = get_colors()
         c = self._c()
         card = QFrame()
+        card.setFrameShape(QFrame.Shape.NoFrame)
         card.setStyleSheet(
             f"QFrame {{ background-color: {c['card_bg']}; border: 1px solid {c['card_border']}; border-radius: 14px; }}"
         )
@@ -111,6 +113,7 @@ class SettingsPanel(QWidget):
         c = get_colors()
         c = self._c()
         d = QFrame()
+        d.setFrameShape(QFrame.Shape.NoFrame)
         d.setFrameShape(QFrame.Shape.HLine)
         d.setStyleSheet(f"border: none; background-color: {c['divider']}; max-height: 1px; margin: 0 18px;")
         return d
