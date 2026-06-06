@@ -158,7 +158,7 @@ def build_theme(mode: str) -> str:
 * {{ font-family: "{FONT_CN}", "Microsoft YaHei", sans-serif; }}
 
 /* ── Base ────────────────────────────────── */
-QFrame { border: none; background: transparent; outline: none; }
+QFrame {{ border: none; background: transparent; outline: none; }}
 
 QMainWindow {{ background-color: {t["bg_root"]}; }}
 
