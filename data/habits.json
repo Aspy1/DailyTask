@@ -13,8 +13,8 @@
       "reminder_time": "21:30",
       "attached_tasks": [],
       "id": "h_001",
-      "streak": 0,
-      "longest_streak": 0,
+      "streak": 1,
+      "longest_streak": 1,
       "remind_enabled": true,
       "postpone_until": null,
       "canceled_on": [],
@@ -31,6 +31,13 @@
       "h_005": {
         "completed": true,
         "completed_at": "2026-06-03T10:55:12.673079",
+        "note": ""
+      }
+    },
+    "2026-06-06": {
+      "h_001": {
+        "completed": true,
+        "completed_at": "2026-06-06T18:14:21.315231",
         "note": ""
       }
     }
