@@ -63,46 +63,46 @@ TOKENS = {
         "nav_selected_fg":  "#966C2E",
     },
     "dark": {
-        # Backgrounds
-        "bg_root":          "#1C1B18",
-        "bg_surface":       "#242320",
-        "bg_card":          "#2A2925",
-        "bg_elevated":      "#302F2B",
-        "bg_input":         "#1C1B18",
-        # Foregrounds
-        "fg_primary":       "#E6E3DD",
-        "fg_secondary":     "#9E9B94",
-        "fg_hint":          "#6E6B66",
-        "fg_disabled":      "#484540",
-        # Accent
+        # Backgrounds — warm dark paper tones
+        "bg_root":          "#1E1D1A",
+        "bg_surface":       "#252421",
+        "bg_card":          "#2C2B27",
+        "bg_elevated":      "#33322E",
+        "bg_input":         "#252421",
+        # Foregrounds — warm off-white, never pure #FFF
+        "fg_primary":       "#E8E5DF",
+        "fg_secondary":     "#A8A59F",
+        "fg_hint":          "#706D68",
+        "fg_disabled":      "#504D48",
+        # Accent — warmer amber for dark bg
         "accent":           "#D4A853",
         "accent_hover":     "#E0BC6B",
-        "accent_dim":       "#B8923D",
+        "accent_dim":       "#C49840",
         "accent_bg":        "rgba(212,168,83,0.10)",
-        # Borders
-        "border":           "rgba(255,255,255,0.06)",
-        "border_strong":    "rgba(255,255,255,0.10)",
-        "divider":          "rgba(255,255,255,0.04)",
-        # Functional
-        "red":              "#E05555",
-        "green":            "#5BA87D",
+        # Borders — subtle
+        "border":           "rgba(255,255,255,0.05)",
+        "border_strong":    "rgba(255,255,255,0.09)",
+        "divider":          "rgba(255,255,255,0.03)",
+        # Functional — softened
+        "red":              "#E06060",
+        "green":            "#5FA87A",
         "yellow":           "#D4A853",
-        "orange":           "#D4863A",
-        # Navigation
-        "sidebar_bg":       "#242320",
-        "chat_bg":          "#1C1B18",
-        "input_bg":         "#1C1B18",
-        "input_border":     "rgba(255,255,255,0.08)",
-        "btn_secondary_bg":       "rgba(255,255,255,0.04)",
-        "btn_secondary_fg":       "#9E9B94",
-        "btn_secondary_hover":    "rgba(255,255,255,0.08)",
-        "btn_secondary_hover_fg": "#E6E3DD",
-        "table_alt":        "rgba(255,255,255,0.02)",
-        "card_bg":          "rgba(255,255,255,0.02)",
-        "card_border":      "rgba(255,255,255,0.08)",
+        "orange":           "#D48A40",
+        # Navigation — darker sidebar, distinct
+        "sidebar_bg":       "#1A1917",
+        "chat_bg":          "#1E1D1A",
+        "input_bg":         "#252421",
+        "input_border":     "rgba(255,255,255,0.07)",
+        "btn_secondary_bg":       "rgba(255,255,255,0.03)",
+        "btn_secondary_fg":       "#A8A59F",
+        "btn_secondary_hover":    "rgba(255,255,255,0.06)",
+        "btn_secondary_hover_fg": "#E8E5DF",
+        "table_alt":        "rgba(255,255,255,0.015)",
+        "card_bg":          "#2C2B27",
+        "card_border":      "rgba(255,255,255,0.06)",
         "section_heading":  "#D4A853",
-        "nav_bg":           "#242320",
-        "status_bar_bg":    "#2A2925",
+        "nav_bg":           "#1A1917",
+        "status_bar_bg":    "#2C2B27",
         "nav_selected_bg":  "rgba(212,168,83,0.12)",
         "nav_selected_fg":  "#D4A853",
     },
@@ -247,8 +247,8 @@ QHeaderView::section {{ background-color: {t["bg_surface"]}; color: {t["fg_secon
 QToolTip {{ background-color: {t["bg_elevated"]}; color: {t["fg_primary"]}; border: 1px solid {t["border_strong"]}; border-radius: 8px; padding: 6px 10px; font-size: {SIZE_CAPTION}px; }}
 
 /* ── Named widgets ───────────────────────── */
-#fnTabs, #aiPanel, #courseBar, #courseFooter, #taskBar, #taskFooter {{ background-color: {t["sidebar_bg"]}; }}
-#courseBar, #taskBar {{ border-bottom: 1px solid {t["divider"]}; }}
+#fnTabs, #aiPanel, #courseBar, #courseFooter, #taskBar, #taskFooter {{ background-color: transparent; }}
+#courseBar, #taskBar {{ background-color: {t["bg_surface"]}; border-bottom: 1px solid {t["divider"]}; }}
 #courseFooter, #taskFooter {{ border-top: 1px solid {t["divider"]}; }}
 #aiChat {{ background-color: {t["chat_bg"]}; border: none; }}
 #aiHeader {{ background-color: {t["sidebar_bg"]}; border-bottom: 1px solid {t["border"]}; }}

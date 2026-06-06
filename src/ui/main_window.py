@@ -156,17 +156,52 @@ class MainWindow(QMainWindow):
             pass
 
     def _show_about(self) -> None:
-        msg = QMessageBox(self)
-        msg.setWindowTitle(tr("menu.help.about"))
-        msg.setTextFormat(Qt.TextFormat.RichText)
-        msg.setText(
-            f"<b>{tr('app.name')} v{tr('app.version')}</b><br><br>"
-            f"AI 驱动的学生时间管理与生活助手<br><br>"
-            f"<a href='https://github.com/Aspy1/DailyTask'>GitHub 仓库</a><br>"
-            f"<a href='https://github.com/Aspy1/DailyTask/commits/master'>"
-            f"开发日志（GitHub）</a>"
-        )
-        msg.exec()
+        from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout
+        c = get_colors()
+        dlg = QDialog(self)
+        dlg.setWindowTitle("关于")
+        dlg.setFixedSize(360, 240)
+        dlg.setStyleSheet(f"""
+            QDialog {{
+                background-color: {c['bg_card']};
+                border: 1px solid {c['border']};
+                border-radius: 12px;
+            }}
+            QLabel {{ background: transparent; border: none; }}
+        """)
+        layout = QVBoxLayout(dlg)
+        layout.setContentsMargins(32, 28, 32, 24)
+        layout.setSpacing(8)
+
+        name = QLabel(tr("app.name"))
+        name.setStyleSheet(
+            f"font-size: 20px; font-weight: 700; color: {c['fg_primary']};")
+        layout.addWidget(name)
+
+        ver = QLabel(f"v{tr('app.version')}")
+        ver.setStyleSheet(
+            f"font-size: 13px; color: {c['fg_hint']};")
+        layout.addWidget(ver)
+
+        layout.addSpacing(12)
+
+        desc = QLabel("AI 驱动的学生时间管理与生活助手")
+        desc.setStyleSheet(
+            f"font-size: 13px; color: {c['fg_secondary']};")
+        desc.setWordWrap(True)
+        layout.addWidget(desc)
+
+        layout.addStretch()
+
+        link = QLabel(
+            '<a href="https://github.com/Aspy1/DailyTask" '
+            f'style="color:{c["accent"]};text-decoration:none;">'
+            'GitHub 仓库</a>')
+        link.setOpenExternalLinks(True)
+        link.setStyleSheet("font-size: 12px;")
+        layout.addWidget(link)
+
+        dlg.exec()
 
     # ── Status bar ─────────────────────────────────────────────
 
@@ -210,6 +245,20 @@ class MainWindow(QMainWindow):
         sep2.setStyleSheet(f"color: {c['border_strong']}; margin: 0 8px;")
         self._statusbar.addPermanentWidget(sep2)
 
+        self._habit_count_label = QLabel()
+        self._statusbar.addPermanentWidget(self._habit_count_label)
+
+        sep3 = QLabel("|")
+        sep3.setStyleSheet(f"color: {c['border_strong']}; margin: 0 8px;")
+        self._statusbar.addPermanentWidget(sep3)
+
+        self._shopping_label = QLabel()
+        self._statusbar.addPermanentWidget(self._shopping_label)
+
+        sep4 = QLabel("|")
+        sep4.setStyleSheet(f"color: {c['border_strong']}; margin: 0 8px;")
+        self._statusbar.addPermanentWidget(sep4)
+
         self._date_label = QLabel()
         self._statusbar.addPermanentWidget(self._date_label)
 
@@ -246,6 +295,8 @@ class MainWindow(QMainWindow):
         self._update_date()
         self._update_next_course()
         self._update_expense()
+        self._update_habit_count()
+        self._update_shopping()
 
     def _update_date(self) -> None:
         now = datetime.now()
@@ -359,6 +410,30 @@ class MainWindow(QMainWindow):
     def _update_expense(self) -> None:
         total = self._data_manager.expenses.today_total()
         self._expense_label.setText(f"今日支出: ¥{total:.2f}")
+
+    
+    def _update_habit_count(self) -> None:
+        """Show active daily habits count."""
+        today_habits = [h for h in self._data_manager.habits.habits
+                        if self._data_manager.habits.is_active_today(h["id"])]
+        done = sum(1 for h in today_habits
+                   if self._data_manager.habits.is_done_today(h["id"]))
+        total = len(today_habits)
+        self._habit_count_label.setText(f"{done}/{total}项日常")
+
+    def _update_shopping(self) -> None:
+        """Show shopping needs summary."""
+        # Check if there are items marked as needing restock
+        has_inventory = hasattr(self._data_manager, 'inventory')
+        if has_inventory:
+            items = getattr(self._data_manager.inventory, 'items', [])
+            needs = [i for i in items if i.get('status') == 'need']
+            if needs:
+                self._shopping_label.setText(f"需购{len(needs)}项")
+            else:
+                self._shopping_label.setText("无购物需求")
+        else:
+            self._shopping_label.setText("无购物需求")
 
     def _on_ddl_alert_click(self) -> None:
         self._workspace.show_ddl_tasks()

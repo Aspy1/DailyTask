@@ -4,6 +4,7 @@ from datetime import date, datetime, timedelta
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
+    QHeaderView,
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
     QCheckBox, QMenu, QMessageBox,
@@ -122,9 +123,11 @@ class TaskPanel(QWidget):
         self._table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Interactive)
         self._table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
         self._table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Fixed)
-        self._table.setColumnWidth(0, 100)
-        self._table.setColumnWidth(1, 140)
-        self._table.setColumnWidth(3, 60)
+        self._table.setColumnWidth(0, 80)
+        self._table.setColumnWidth(1, 170)
+        self._table.setColumnWidth(3, 50)
+        self._table.horizontalHeader().setStretchLastSection(False)
+        self._table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
         self._table.horizontalHeader().setDefaultAlignment(Qt.AlignmentFlag.AlignCenter)
         self._table.setSortingEnabled(False)
         self._table.horizontalHeader().setSortIndicatorShown(False)
@@ -308,7 +311,7 @@ class TaskPanel(QWidget):
                     lbl.setFont(self._table.font())
                     lbl.setTextFormat(Qt.TextFormat.RichText)
                     lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-                    lbl.setFixedWidth(self._table.columnWidth(1))
+                    lbl.setMinimumWidth(self._table.columnWidth(1) - 10)
                     lbl.setWordWrap(False)
                     lbl.setText(
                         f'<span style="color:#e74856;font-size: 13px;">{due_display}</span>'
