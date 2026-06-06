@@ -98,12 +98,20 @@ class HabitModel(BaseJsonModel):
         if today_str in habit.get("canceled_on", []):
             return False
 
-        schedule = habit.get("schedule", {"type": "interval", "value": 1, "unit": "day"})
-        if schedule.get("type") == "weekly":
+        schedule = habit.get("schedule", {"type": "daily", "times_per_day": 1})
+        st = schedule.get("type", "daily")
+        if st == "weekly":
             days = schedule.get("days", [])
-            return today.isoweekday() in days  # 1=Mon, 7=Sun
-        else:
-            # Interval: check if today is a multiple of value days from start
+            return today.isoweekday() in days
+        elif st == "monthly":
+            # Active if monthly completions not yet met
+            this_month = today.strftime("%Y-%m")
+            monthly_logs = [
+                ts for hid, ts in self.logs.items()
+                if hid == habit_id and ts[:7] == this_month
+            ]
+            return len(monthly_logs) < schedule.get("value", 4)
+        elif st == "interval":
             if "start_date" in schedule and schedule["start_date"]:
                 try:
                     start = date.fromisoformat(schedule["start_date"])
@@ -113,7 +121,10 @@ class HabitModel(BaseJsonModel):
                     return delta % schedule.get("value", 1) == 0
                 except (ValueError, TypeError):
                     pass
-            return True  # No start date → active every day
+            return True
+        else:
+            # daily — always active
+            return True
 
     def get_pending_today(self) -> list[dict]:
         return [h for h in self.habits

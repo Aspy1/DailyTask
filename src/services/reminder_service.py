@@ -241,12 +241,19 @@ class ReminderService(QObject):
     # ── DDL red dot ───────────────────────────────────────
 
     def _check_ddl(self) -> None:
-        threshold = (schedule_date() + timedelta(days=3)).isoformat()
+        threshold_dt = datetime.now() + timedelta(days=3)
         pending = self._dm.tasks.pending
-        urgent_count = sum(
-            1 for t in pending
-            if t.get("due_date", "") and t["due_date"] < threshold
-        )
+        urgent_count = 0
+        for t in pending:
+            due_str = t.get("due_date", "")
+            if not due_str:
+                continue
+            try:
+                due_dt = datetime.fromisoformat(due_str.replace("Z", "+00:00"))
+                if due_dt <= threshold_dt:
+                    urgent_count += 1
+            except (ValueError, TypeError):
+                pass
         self.ddl_alert.emit(urgent_count)
 
     # ── Balance ───────────────────────────────────────────

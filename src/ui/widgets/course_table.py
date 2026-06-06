@@ -1,6 +1,7 @@
 """Course schedule grid widget — time labels, context menu, signals."""
 
 from datetime import date, timedelta
+import re
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
@@ -14,13 +15,19 @@ from src.ui.styles.theme import get_colors
 
 DAY_LABELS = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
 
-COURSE_COLORS = [
-    "#4a9eff", "#5cb8a5", "#c97d60", "#b896d6",
-    "#7dae82", "#d69d6c", "#6ba8c7", "#c47d8f",
-    "#5e9ec4", "#ae8bcf", "#6eaa78", "#c4a35e",
+# Warm-paper course tints — subtle, readable with dark text
+COURSE_BG_TINTS = [
+    "rgba(176,130,58,0.12)",   # amber
+    "rgba(90,140,110,0.10)",   # sage
+    "rgba(160,110,80,0.10)",   # terracotta
+    "rgba(100,130,170,0.10)",  # slate blue
+    "rgba(140,120,90,0.10)",   # warm taupe
+    "rgba(80,150,130,0.10)",   # teal
+    "rgba(170,100,120,0.10)",  # rose
+    "rgba(110,140,100,0.10)",  # olive
 ]
 
-CELL_TEXT = "#ffffff"
+CELL_TEXT = "#2D2A26"
 
 # Right-click menu actions — extensible: just add a label
 COURSE_ACTIONS = [
@@ -119,12 +126,38 @@ class CourseTable(QTableWidget):
 
         self.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
-        self.setShowGrid(True)
+        self.setShowGrid(False)
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.customContextMenuRequested.connect(self._on_context_menu)
 
         # Store course ref per cell for context lookups
         self._cell_courses: dict[tuple[int, int], dict] = {}
+
+        c = get_colors()
+        self.setStyleSheet(f"""
+            QTableWidget {{
+                background-color: {c['bg_root']};
+                border: none;
+                gridline-color: {c['divider']};
+            }}
+            QTableWidget::item {{
+                padding: 8px 6px;
+                border: 1px solid {c['divider']};
+            }}
+            QHeaderView::section {{
+                background-color: {c['bg_surface']};
+                color: {c['fg_secondary']};
+                border: none;
+                border-bottom: 2px solid {c['border_strong']};
+                padding: 8px 4px;
+                font-size: 13px;
+                font-weight: 600;
+            }}
+            QTableWidget::item:selected {{
+                background-color: {c['accent_bg']};
+                color: {c['fg_primary']};
+            }}
+        """)
 
     def _build_labels(self) -> list[str]:
         labels = []
@@ -171,13 +204,19 @@ class CourseTable(QTableWidget):
 
     def _set_cell(self, row: int, col: int, course: dict, location: str, week: int | None = None) -> None:
         cid = course.get("id", course.get("name", ""))
-        color_idx = hash(cid) % len(COURSE_COLORS)
-        bg = COURSE_COLORS[color_idx]
+        color_idx = hash(cid) % len(COURSE_BG_TINTS)
+        tint = COURSE_BG_TINTS[color_idx]
+        c = get_colors()
         item = QTableWidgetItem(self._format_cell(course, location, week))
         item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-        item.setFont(QFont("Microsoft YaHei", 10))
-        item.setBackground(QBrush(QColor(bg)))
-        item.setForeground(QBrush(QColor(CELL_TEXT)))
+        item.setFont(QFont("Microsoft YaHei", 10, QFont.Weight.Medium))
+        # Parse rgba for QColor
+        m = re.match(r'rgba\((\d+),(\d+),(\d+),([\d.]+)\)', tint)
+        if m:
+            r, g, b, a = int(m.group(1)), int(m.group(2)), int(m.group(3)), float(m.group(4))
+            bg_color = QColor(r, g, b, int(a * 255))
+            item.setBackground(QBrush(bg_color))
+        item.setForeground(QBrush(QColor(c["fg_primary"])))
         self.setItem(row, col, item)
 
     def _on_context_menu(self, pos) -> None:

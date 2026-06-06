@@ -38,7 +38,7 @@ class _HabitCard(QWidget):
 
         # Determine habit type
         sched = habit.get("schedule", {})
-        is_daily = sched.get("type") == "interval" and sched.get("value", 1) == 1
+        is_daily = sched.get("type") in ("daily", "interval")
         is_weekly = sched.get("type") == "weekly"
 
         # Card background: dim when done or inactive
@@ -186,14 +186,19 @@ class _HabitCard(QWidget):
 
 
 def _describe_schedule(sched: dict) -> str:
-    if sched.get("type") == "weekly":
+    st = sched.get("type", "daily")
+    if st == "weekly":
         days = sched.get("days", [])
         dn = ["一", "二", "三", "四", "五", "六", "日"]
         return "每周" + "".join(dn[d - 1] for d in sorted(days))
-    val = sched.get("value", 1)
-    if val == 1:
-        return "每日"
-    return f"每{val}天"
+    elif st == "monthly":
+        return f"每月{sched.get('value', 4)}次"
+    elif st == "interval":
+        val = sched.get("value", 1)
+        return "每日" if val == 1 else f"每{val}天"
+    else:  # daily
+        tpd = sched.get("times_per_day", 1)
+        return "每日" if tpd == 1 else f"每日{tpd}次"
 
 
 def _build_description(habit: dict, is_daily: bool, is_weekly: bool) -> str:
@@ -425,52 +430,58 @@ class HabitDialog(QDialog):
         self._attached: list[dict] = list(habit.get("attached_tasks", [])) if habit else []
 
         c = get_colors()
-        self.setWindowTitle("定义生活习惯")
-        self.setMinimumWidth(420)
+        editing = habit is not None
+        self.setWindowTitle("编辑日常事项" if editing else "新增日常事项")
+        self.setMinimumWidth(440)
         self.setStyleSheet(f"""
-            QDialog {{ background-color: {c['bg_surface']}; color: {c['fg_primary']}; }}
-            QLabel {{ color: {c['fg_primary']}; }}
+            QDialog {{ background-color: {c['bg_card']}; color: {c['fg_primary']}; }}
+            QLabel {{ color: {c['fg_primary']}; background: transparent; border: none; }}
             QLineEdit, QComboBox {{
-                background-color: {c['input_bg']}; color: {c['fg_primary']};
-                border-radius: 8px; padding: 5px 8px; font-size: 13px;
+                background-color: {c['bg_input']}; color: {c['fg_primary']};
+                border: 1px solid {c['border']}; padding: 5px 8px; font-size: 13px;
             }}
+            QCheckBox {{ color: {c['fg_primary']}; spacing: 2px; }}
         """)
 
         layout = QVBoxLayout(self)
         layout.setSpacing(12)
-        layout.setContentsMargins(24, 16, 24, 16)
+        layout.setContentsMargins(24, 20, 24, 16)
 
         form = QFormLayout()
-        form.setSpacing(8)
+        form.setSpacing(10)
 
         self._name_input = QLineEdit(habit.get("name", "") if habit else "")
-        self._name_input.setPlaceholderText("如：洗衣服")
+        self._name_input.setPlaceholderText("如：刷牙、跑步")
         form.addRow("名称:", self._name_input)
 
+        # ── Schedule type ──
         sched = habit.get("schedule", {}) if habit else {}
-        sched_type = sched.get("type", "interval")
+        sched_type = sched.get("type", "daily")
 
         self._sched_type_combo = QComboBox()
-        self._sched_type_combo.addItems(["每N天", "每周固定日"])
-        self._sched_type_combo.setCurrentIndex(0 if sched_type == "interval" else 1)
+        self._sched_type_combo.addItems(["每日", "每周几", "每月N次"])
+        type_map = {"daily": 0, "weekly": 1, "monthly": 2, "interval": 0}
+        self._sched_type_combo.setCurrentIndex(type_map.get(sched_type, 0))
         self._sched_type_combo.currentIndexChanged.connect(self._on_sched_type_changed)
 
-        self._interval_widget = QWidget()
-        il = QHBoxLayout(self._interval_widget)
-        il.setContentsMargins(0, 0, 0, 0)
-        il.setSpacing(4)
-        il.addWidget(QLabel("每"))
-        self._freq_value = QComboBox()
-        self._freq_value.setEditable(True)
-        self._freq_value.setFixedWidth(70)
-        self._freq_value.setStyleSheet(self._num_combo_qss())
-        self._freq_value.addItems(["1", "2", "3", "4", "5", "6", "7", "10", "14", "21", "30"])
-        if sched_type == "interval":
-            self._freq_value.setCurrentText(str(sched.get("value", 1)))
-        il.addWidget(self._freq_value)
-        il.addWidget(QLabel("天一次"))
-        il.addStretch()
+        # Daily: times per day
+        self._daily_widget = QWidget()
+        dl = QHBoxLayout(self._daily_widget)
+        dl.setContentsMargins(0, 0, 0, 0)
+        dl.setSpacing(4)
+        dl.addWidget(QLabel("每天"))
+        self._times_per_day = QComboBox()
+        self._times_per_day.setEditable(True)
+        self._times_per_day.setFixedWidth(60)
+        self._times_per_day.addItems(["1", "2", "3"])
+        if sched_type in ("daily", "interval"):
+            val = sched.get("times_per_day") or sched.get("value", 1)
+            self._times_per_day.setCurrentText(str(val))
+        dl.addWidget(self._times_per_day)
+        dl.addWidget(QLabel("次"))
+        dl.addStretch()
 
+        # Weekly: day checkboxes
         self._weekly_widget = QWidget()
         wl = QHBoxLayout(self._weekly_widget)
         wl.setContentsMargins(0, 0, 0, 0)
@@ -485,18 +496,35 @@ class HabitDialog(QDialog):
             self._day_checks.append(cb)
         wl.addStretch()
 
-        freq_row = QHBoxLayout()
-        freq_row.addWidget(self._sched_type_combo)
-        freq_row.addWidget(self._interval_widget)
-        freq_row.addWidget(self._weekly_widget)
-        freq_row.addStretch()
-        self._on_sched_type_changed()
-        form.addRow("周期:", freq_row)
+        # Monthly: N times
+        self._monthly_widget = QWidget()
+        ml = QHBoxLayout(self._monthly_widget)
+        ml.setContentsMargins(0, 0, 0, 0)
+        ml.setSpacing(4)
+        ml.addWidget(QLabel("每月完成"))
+        self._monthly_times = QComboBox()
+        self._monthly_times.setEditable(True)
+        self._monthly_times.setFixedWidth(60)
+        self._monthly_times.addItems(["1", "2", "3", "4", "5", "8", "10", "15", "20", "30"])
+        if sched_type == "monthly":
+            self._monthly_times.setCurrentText(str(sched.get("value", 4)))
+        ml.addWidget(self._monthly_times)
+        ml.addWidget(QLabel("次"))
+        ml.addStretch()
 
+        sched_row = QHBoxLayout()
+        sched_row.addWidget(self._sched_type_combo)
+        sched_row.addWidget(self._daily_widget)
+        sched_row.addWidget(self._weekly_widget)
+        sched_row.addWidget(self._monthly_widget)
+        sched_row.addStretch()
+        self._on_sched_type_changed()
+        form.addRow("周期:", sched_row)
+
+        # Duration
         self._duration = QComboBox()
         self._duration.setEditable(True)
         self._duration.setFixedWidth(80)
-        self._duration.setStyleSheet(self._num_combo_qss())
         self._duration.addItems(["15", "30", "45", "60", "90", "120", "180"])
         self._duration.setCurrentText(str(habit.get("duration_minutes", 30) if habit else "30"))
         dur_layout = QHBoxLayout()
@@ -505,13 +533,15 @@ class HabitDialog(QDialog):
         dur_layout.addStretch()
         form.addRow("用时:", dur_layout)
 
+        # Reminder
         self._reminder_time = QLineEdit()
         self._reminder_time.setPlaceholderText("如 22:30（可选）")
         self._reminder_time.setText(habit.get("reminder_time", "") if habit else "")
-        form.addRow("提醒时间:", self._reminder_time)
+        form.addRow("提醒:", self._reminder_time)
 
         layout.addLayout(form)
 
+        # Attached tasks section
         sep = QLabel("附加事项（完成后自动添加为待办）")
         sep.setStyleSheet(f"color: {c['section_heading']}; font-weight: 600; font-size: 13px;")
         layout.addWidget(sep)
@@ -519,7 +549,7 @@ class HabitDialog(QDialog):
         at_list = QListWidget()
         at_list.setMaximumHeight(100)
         at_list.setStyleSheet(f"""
-            QListWidget {{ background-color: {c['input_bg']}; border-radius: 8px; }}
+            QListWidget {{ background-color: {c['bg_input']}; border: 1px solid {c['border']}; }}
             QListWidget::item {{ padding: 4px 8px; }}
         """)
         self._at_list = at_list
@@ -527,11 +557,11 @@ class HabitDialog(QDialog):
         layout.addWidget(at_list)
 
         at_btns = QHBoxLayout()
-        for text, slot in [("+ 添加", self._add_attached), ("引用已有", self._use_existing), ("移除选中", self._remove_attached)]:
+        for text, slot in [("+ 添加", self._add_attached), ("引用已有", self._use_existing), ("移除", self._remove_attached)]:
             btn = QPushButton(text)
             btn.setStyleSheet(f"""
                 QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
-                    border-radius: 8px; padding: 4px 10px; font-size: 13px; }}
+                    border: none; border-radius: 4px; padding: 4px 10px; font-size: 12px; }}
                 QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; }}
             """)
             btn.clicked.connect(slot)
@@ -545,16 +575,16 @@ class HabitDialog(QDialog):
         layout.addWidget(buttons)
 
     def _on_sched_type_changed(self) -> None:
-        is_interval = self._sched_type_combo.currentIndex() == 0
-        self._interval_widget.setVisible(is_interval)
-        self._weekly_widget.setVisible(not is_interval)
+        idx = self._sched_type_combo.currentIndex()
+        self._daily_widget.setVisible(idx == 0)
+        self._weekly_widget.setVisible(idx == 1)
+        self._monthly_widget.setVisible(idx == 2)
 
     def _num_combo_qss(self) -> str:
         c = get_colors()
         return f"""
-            QComboBox {{ background-color: {c['input_bg']}; color: {c['fg_primary']};
-                border-radius: 4px;
-                padding: 3px 4px; font-size: 13px; text-align: center; }}
+            QComboBox {{ background-color: {c['bg_input']}; color: {c['fg_primary']};
+                border: 1px solid {c['border']}; padding: 3px 4px; font-size: 13px; }}
             QComboBox::drop-down {{ border: none; width: 16px; }}
         """
 
@@ -573,17 +603,17 @@ class HabitDialog(QDialog):
     def _use_existing(self) -> None:
         templates = self._dm.habits.attached_task_templates
         if not templates:
-            QMessageBox.information(self, "提示", "暂无可用模板，请先创建。")
+            QMessageBox.information(self, "提示", "暂无可用模板。")
             return
         c = get_colors()
         dialog = QDialog(self)
-        dialog.setWindowTitle("选择已有附加事项")
+        dialog.setWindowTitle("选择附加事项")
         dialog.setMinimumWidth(300)
-        dialog.setStyleSheet(f"background-color: {c['bg_surface']}; color: {c['fg_primary']};")
+        dialog.setStyleSheet(f"background-color: {c['bg_card']}; color: {c['fg_primary']};")
         dl = QVBoxLayout(dialog)
         lst = QListWidget()
         lst.setStyleSheet(f"""
-            QListWidget {{ background-color: {c['input_bg']}; border-radius: 8px; }}
+            QListWidget {{ background-color: {c['bg_input']}; border: 1px solid {c['border']}; }}
             QListWidget::item {{ padding: 6px 10px; }}
         """)
         for t in templates:
@@ -613,7 +643,7 @@ class HabitDialog(QDialog):
 
     def _validate_and_accept(self) -> None:
         if not self._name_input.text().strip():
-            QMessageBox.warning(self, "错误", "请输入习惯名称。")
+            QMessageBox.warning(self, "错误", "请输入事项名称。")
             return
 
         try:
@@ -621,18 +651,25 @@ class HabitDialog(QDialog):
         except ValueError:
             dur_val = 30
 
-        if self._sched_type_combo.currentIndex() == 0:
+        idx = self._sched_type_combo.currentIndex()
+        if idx == 0:  # daily
             try:
-                freq_val = int(self._freq_value.currentText())
+                tpd = int(self._times_per_day.currentText())
             except ValueError:
-                freq_val = 1
-            schedule = {"type": "interval", "value": freq_val, "unit": "day"}
-        else:
+                tpd = 1
+            schedule = {"type": "daily", "times_per_day": tpd}
+        elif idx == 1:  # weekly
             days = [i + 1 for i, cb in enumerate(self._day_checks) if cb.isChecked()]
             if not days:
                 QMessageBox.warning(self, "错误", "请至少选择一个工作日。")
                 return
             schedule = {"type": "weekly", "days": days}
+        else:  # monthly
+            try:
+                mval = int(self._monthly_times.currentText())
+            except ValueError:
+                mval = 4
+            schedule = {"type": "monthly", "value": mval}
 
         self.result_data = {
             "name": self._name_input.text().strip(),
@@ -642,6 +679,7 @@ class HabitDialog(QDialog):
             "attached_tasks": list(self._attached),
         }
         self.accept()
+
 
 
 class _AttachedTaskDialog(QDialog):
