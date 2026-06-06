@@ -42,6 +42,7 @@ AI 驱动的 PySide6 桌面日程管理应用。通过自然语言交互管理�
 - 系统托盘（右键退出/同步/切换主题）、开机自启动（Windows 注册表）
 - 单实例锁（QLocalServer）
 - 深色 / 浅色全局主题切换（QApplication 级 `setStyleSheet`，所有面板 `refresh_theme()`）
+- 统一设计系统：暖纸白浅色主题、琥珀金强调色、4px 间距网格、三级圆角、四态按钮
 - 凌晨 0-1 点按前一天计算（`schedule_date()`）
 - Git 自动同步（30 秒防抖 + 手动同步按钮）+ SSH 签名提交
 - 假期/调休系统（AI 识别 → `excluded` 跳过课表 + `makeup` 映射）
@@ -64,6 +65,8 @@ python main.py
 ├── main.py                      # 入口
 ├── requirements.txt
 ├── README.md
+├── DESIGN_TOKENS.md             # 设计标准规范（配色/字体/间距/圆角/按钮/阴影）
+├── design-showcase.html         # 设计标准可视化展示页
 ├── PLUGINS.md                   # 插件开发文档
 ├── 规划书.md                     # 项目总结与路线图
 ├── 接口文档.md                   # 类依赖关系、信号流、初始化顺序
@@ -104,6 +107,8 @@ python main.py
 
 ## 相关文档
 
+- [DESIGN_TOKENS.md](DESIGN_TOKENS.md) — 设计标准规范：配色/字体/间距/圆角/按钮/阴影/动效
+- [design-showcase.html](design-showcase.html) — 设计标准可视化展示（浏览器打开）
 - [规划书.md](规划书.md) — 32 项已实现功能、11 个开发问题、三段式路线图
 - [接口文档.md](接口文档.md) — 初始化顺序约束、信号流向图、类依赖矩阵、常见崩溃场景
 - [PLUGINS.md](PLUGINS.md) — 插件目录规范、API、示例
