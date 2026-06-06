@@ -59,6 +59,8 @@ class ReminderService(QObject):
         self._catch_up()
         self._check_ddl()
         self._check_balances()
+        # Refresh DDL count on task changes
+        self._dm.data_changed.connect(self._on_data_changed)
 
     # ── Catch-up ──────────────────────────────────────────
 
@@ -255,6 +257,11 @@ class ReminderService(QObject):
             except (ValueError, TypeError):
                 pass
         self.ddl_alert.emit(urgent_count)
+
+    def _on_data_changed(self, action: str) -> None:
+        """Refresh DDL count when tasks change."""
+        if "task" in action:
+            self._check_ddl()
 
     # ── Balance ───────────────────────────────────────────
 
