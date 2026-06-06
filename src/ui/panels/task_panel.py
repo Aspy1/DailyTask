@@ -383,7 +383,7 @@ class TaskPanel(QWidget):
                 # accent buttons heuristic
                 txt = (btn.text() or "").strip()
                 if txt in ("添加", "记一笔", "开始", "保存", "打开") or txt == "+":
-                    btn.setStyleSheet(f"QPushButton {{ background-color: {c['accent']}; color: #fff; border: none; border-radius:6px; padding:4px 10px; font-weight:600; }}")
+                    btn.setStyleSheet(f"QPushButton {{ background-color: {c['accent']}; color: #fff; border: none; border-radius: 8px; padding:4px 10px; font-weight:600; }}")
                 else:
                     btn.setStyleSheet(btn_qss)
             except Exception:

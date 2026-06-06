@@ -82,7 +82,7 @@ class SettingsPanel(QWidget):
         c = self._c()
         card = QWidget()
         card.setStyleSheet(
-            f"QWidget {{ background-color: {c['card_bg']}; border-radius: 14px; }}"
+            f"QWidget {{ background-color: {c['card_bg']}; border-radius: 12px; }}"
         )
         return card
 
@@ -136,7 +136,7 @@ class SettingsPanel(QWidget):
             QComboBox::drop-down {{ border: none; width: 22px; }}
             QComboBox QAbstractItemView {{
                 background-color: {c['bg_elevated']}; color: {c['fg_primary']};
-                border-radius: 6px;
+                border-radius: 8px;
                 selection-background-color: {c['accent_bg']}; outline: none;
             }}
         """
@@ -193,7 +193,7 @@ class SettingsPanel(QWidget):
         save_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         save_btn.setStyleSheet(f"""
             QPushButton {{ background-color: {c['accent']}; color: #fff; border: none;
-                border-radius: 6px; font-weight: 600; font-size: 13px; }}
+                border-radius: 8px; font-weight: 600; font-size: 13px; }}
             QPushButton:hover {{ background-color: {c['accent_hover']}; }}
             QPushButton:pressed {{ background-color: {c['accent_dim']}; }}
         """)
@@ -240,7 +240,7 @@ class SettingsPanel(QWidget):
         save_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         save_btn.setStyleSheet(f"""
             QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['fg_primary']}; border: none;
-                border-radius: 6px; font-weight: 600; font-size: 13px; }}
+                border-radius: 8px; font-weight: 600; font-size: 13px; }}
             QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; }}
         """)
         save_btn.clicked.connect(self._save_general_settings)
@@ -328,7 +328,7 @@ class SettingsPanel(QWidget):
         test_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         test_btn.setStyleSheet(f"""
             QPushButton {{ background-color: {c['accent']}; color: #fff; border: none;
-                border-radius: 6px; padding: 6px 12px; font-weight: 600; font-size: 13px; }}
+                border-radius: 8px; padding: 6px 12px; font-weight: 600; font-size: 13px; }}
             QPushButton:hover {{ background-color: {c['accent_hover']}; }}
         """)
         test_btn.clicked.connect(self._send_test_email)
@@ -347,7 +347,7 @@ class SettingsPanel(QWidget):
         save_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         save_btn.setStyleSheet(f"""
             QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['fg_primary']}; border: none;
-                border-radius: 6px; font-weight: 600; font-size: 13px; }}
+                border-radius: 8px; font-weight: 600; font-size: 13px; }}
             QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; }}
         """)
         save_btn.clicked.connect(self._save_email_settings)
@@ -437,7 +437,7 @@ class SettingsPanel(QWidget):
             open_btn = QPushButton("打开面板")
             open_btn.setEnabled(bool(panels) and pinfo.enabled)
             open_btn.clicked.connect(lambda _=None, n=pinfo.name: self._open_plugin(n))
-            open_btn.setStyleSheet(f"background-color: {self._c()['accent']}; color: #fff; border-radius:6px; padding:6px 10px; font-weight:600;")
+            open_btn.setStyleSheet(f"background-color: {self._c()['accent']}; color: #fff; border-radius: 8px; padding:6px 10px; font-weight:600;")
             rl.addWidget(open_btn)
             rl.addStretch()
             self._plugins_container.layout().addWidget(row)
@@ -559,7 +559,7 @@ class SettingsPanel(QWidget):
         save_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         save_btn.setStyleSheet(f"""
             QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['fg_primary']}; border: none;
-                border-radius: 6px; font-weight: 600; font-size: 13px; }}
+                border-radius: 8px; font-weight: 600; font-size: 13px; }}
             QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; }}
         """)
         save_btn.clicked.connect(self._save_balance_settings)

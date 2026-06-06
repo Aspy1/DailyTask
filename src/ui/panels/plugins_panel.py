@@ -76,7 +76,7 @@ class PluginsPanel(QWidget):
             panels = self._pm.get_panels(pinfo.name)
             open_btn = QPushButton("打开")
             open_btn.setEnabled(bool(panels) and pinfo.enabled)
-            open_btn.setStyleSheet(f"background-color: {c['accent']}; color:#fff; border-radius:6px; padding:6px 10px;")
+            open_btn.setStyleSheet(f"background-color: {c['accent']}; color:#fff; border-radius: 8px; padding:6px 10px;")
             open_btn.clicked.connect(lambda _=None, n=pinfo.name: self._open(n))
             rl.addWidget(open_btn)
 
