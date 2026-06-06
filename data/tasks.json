@@ -40,7 +40,8 @@
       "status": "pending",
       "notes": "",
       "created_at": "2026-06-01T21:08:54.185463",
-      "reminded": false
+      "reminded": false,
+      "completed_at": null
     },
     {
       "course_name": "认知科学导论",
@@ -53,7 +54,8 @@
       "status": "pending",
       "notes": "",
       "created_at": "2026-06-01T21:08:54.185466",
-      "reminded": false
+      "reminded": false,
+      "completed_at": null
     },
     {
       "course_name": "认知科学导论",
@@ -66,7 +68,8 @@
       "status": "pending",
       "notes": "",
       "created_at": "2026-06-01T21:08:54.185468",
-      "reminded": false
+      "reminded": false,
+      "completed_at": null
     },
     {
       "course_name": "中国传统典籍英译",
