@@ -136,7 +136,7 @@ class AIPanel(QWidget):
         input_layout.addWidget(self._input)
 
         self._send_btn = QPushButton(tr("ai.send"))
-        self._send_btn.setFixedSize(52, 36)
+        self._send_btn.setFixedSize(64, 36)
         self._send_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._send_btn.setStyleSheet(f"""
             QPushButton {{
@@ -145,7 +145,7 @@ class AIPanel(QWidget):
             }}
             QPushButton:hover {{ background-color: {c['accent_hover']}; }}
             QPushButton:pressed {{ background-color: {c['accent_dim']}; }}
-            QPushButton:disabled {{ background-color: #3a3a40; color: #6e6e73; }}
+            QPushButton:disabled {{ background-color: {c['fg_disabled']}; color: #fff; }}
         """)
         self._send_btn.clicked.connect(self._on_send)
         input_layout.addWidget(self._send_btn)
@@ -172,24 +172,24 @@ class AIPanel(QWidget):
             bubble_bg = c["accent"]
             bubble_fg = "#fff"
             align = "right"
-            name = ""
+            prefix = '<div style="font-size:11px;opacity:0.7;margin-bottom:2px;">你</div>'
         else:
             bubble_bg = c["bg_elevated"]
             bubble_fg = c["fg_primary"]
             align = "left"
-            name = ""
+            prefix = '<div style="font-size:11px;opacity:0.6;margin-bottom:2px;">AI</div>'
             # Convert markdown for AI messages
             text = _md_to_html(text)
 
         escaped = text.replace("\n", "<br>")
         margin_dir = "margin-left" if align == "right" else "margin-right"
         msg = (
-            f'<div style="margin-bottom:10px;{margin_dir}:40px;">'
+            f'<div style="margin-bottom:12px;{margin_dir}:24px;">'
             f'<div style="display:inline-block;max-width:100%;'
             f'background-color:{bubble_bg};color:{bubble_fg};'
             f'border-radius:12px;padding:8px 14px;font-size: 13px;'
             f'text-align:left;word-wrap:break-word;">'
-            f'{escaped}'
+            f'{prefix}{escaped}'
             f'</div>'
             f'</div>'
         )
