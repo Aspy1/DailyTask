@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>设计标准展示 — 暖纸书房</title>
+<style>
+  :root {
+    --bg-root: #FBFAF7; --bg-surface: #F3F1EC; --bg-card: #FFFFFF;
+    --fg-primary: #2D2A26; --fg-secondary: #6E6B66; --fg-hint: #9E9B96; --fg-disabled: #C6C4BF;
+    --accent: #B0823A; --accent-hover: #C99845; --accent-dim: #966C2E;
+    --accent-bg: rgba(176,130,58,0.08); --border: rgba(0,0,0,0.06);
+    --border-strong: rgba(0,0,0,0.10); --divider: rgba(0,0,0,0.04);
+    --red: #D14343; --green: #4A8B5F;
+    --radius-sm: 4px; --radius-md: 8px; --radius-lg: 12px;
+    --shadow-1: 0 1px 3px rgba(0,0,0,0.04);
+    --shadow-2: 0 2px 8px rgba(0,0,0,0.06);
+    --shadow-3: 0 4px 16px rgba(0,0,0,0.08);
+    --font-cn: "Microsoft YaHei","PingFang SC",sans-serif;
+    --font-mono: "Consolas","JetBrains Mono",monospace;
+    --s-caption: 11px; --s-body-s: 13px; --s-body: 14px;
+    --s-body-l: 16px; --s-subtitle: 20px; --s-title: 28px; --s-heading: 36px;
+    --sp-4: 4px; --sp-8: 8px; --sp-12: 12px; --sp-16: 16px;
+    --sp-24: 24px; --sp-32: 32px; --sp-48: 48px; --sp-64: 64px;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:var(--font-cn);font-size:var(--s-body);line-height:1.6;color:var(--fg-primary);background:var(--bg-root)}
+  .page{max-width:960px;margin:0 auto;padding:var(--sp-48) var(--sp-24)}
+  .section{margin-bottom:var(--sp-64)}
+  .section-title{font-size:var(--s-title);font-weight:600;margin-bottom:var(--sp-8);line-height:1.3}
+  .section-desc{font-size:var(--s-body-l);color:var(--fg-secondary);margin-bottom:var(--sp-32)}
+  .subsection-title{font-size:var(--s-subtitle);font-weight:600;margin:var(--sp-32) 0 var(--sp-16) 0;padding-bottom:var(--sp-8);border-bottom:1px solid var(--border)}
+  .page-header{margin-bottom:var(--sp-48);padding-bottom:var(--sp-32);border-bottom:1px solid var(--border-strong)}
+  .page-header h1{font-size:var(--s-heading);font-weight:300;line-height:1.2;margin-bottom:var(--sp-8)}
+  .page-header p{font-size:var(--s-body-l);color:var(--fg-secondary)}
+  .swatch-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:var(--sp-12)}
+  .swatch{border-radius:var(--radius-md);overflow:hidden;background:var(--bg-card);border:1px solid var(--border)}
+  .swatch-color{height:60px}
+  .swatch-info{padding:var(--sp-8) var(--sp-12);font-size:var(--s-caption)}
+  .swatch-name{font-weight:500}.swatch-hex{color:var(--fg-hint);font-family:var(--font-mono);font-size:var(--s-caption)}.swatch-role{color:var(--fg-secondary);margin-top:2px;font-size:var(--s-caption)}
+  .type-sample{margin-bottom:var(--sp-16);padding:var(--sp-12) 0}
+  .type-label{font-family:var(--font-mono);font-size:var(--s-caption);color:var(--fg-hint);margin-bottom:var(--sp-4)}
+  .type-label span{color:var(--accent)}
+  .space-bar{display:flex;align-items:center;margin-bottom:var(--sp-8);height:20px}
+  .space-bar-fill{background:var(--accent-bg);border-radius:var(--radius-sm);height:12px;position:relative}
+  .space-bar-fill::after{content:attr(data-label);position:absolute;right:-40px;top:-2px;font-size:var(--s-caption);font-family:var(--font-mono);color:var(--fg-hint)}
+  .radius-demo{display:flex;gap:var(--sp-16);align-items:flex-end}
+  .radius-box{width:80px;height:80px;background:var(--bg-surface);border:1px solid var(--border-strong);display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-size:var(--s-caption);color:var(--fg-secondary)}
+  .radius-label{text-align:center;margin-top:var(--sp-8);font-size:var(--s-caption);color:var(--fg-hint)}
+  .btn-row{display:flex;gap:var(--sp-12);align-items:center;margin-bottom:var(--sp-12);flex-wrap:wrap}
+  .btn{font-family:var(--font-cn);font-size:var(--s-body);font-weight:500;padding:var(--sp-8) var(--sp-16);border-radius:var(--radius-md);cursor:pointer;transition:background 150ms ease-out,color 150ms ease-out,border-color 150ms ease-out;border:1px solid transparent;min-height:32px;display:inline-flex;align-items:center;white-space:nowrap}
+  .btn-primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .btn-primary:hover{background:var(--accent-hover);border-color:var(--accent-hover)}
+  .btn-primary:active{background:var(--accent-dim);border-color:var(--accent-dim);transform:scale(0.98)}
+  .btn-primary.disabled{background:var(--fg-disabled);color:#fff;border-color:var(--fg-disabled);cursor:not-allowed}
+  .btn-secondary{background:transparent;color:var(--fg-primary);border-color:var(--border-strong)}
+  .btn-secondary:hover{background:rgba(0,0,0,0.04)}.btn-secondary:active{background:rgba(0,0,0,0.08)}
+  .btn-secondary.disabled{color:var(--fg-disabled);border-color:var(--divider);cursor:not-allowed}
+  .btn-text{background:transparent;color:var(--accent);border-color:transparent}
+  .btn-text:hover{color:var(--accent-hover);background:rgba(0,0,0,0.02)}.btn-text:active{color:var(--accent-dim)}
+  .btn-text.disabled{color:var(--fg-disabled);cursor:not-allowed}
+  .btn-danger{background:var(--red);color:#fff;border-color:var(--red)}
+  .btn-danger:hover{background:#c03a3a}.btn-danger:active{background:#a83232}
+  .btn-label{font-size:var(--s-caption);color:var(--fg-hint);font-family:var(--font-mono);margin-bottom:var(--sp-4);letter-spacing:0.5px}
+  .shadow-demo{display:flex;gap:var(--sp-16)}
+  .shadow-card{width:160px;height:100px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-md);display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-size:var(--s-caption);color:var(--fg-secondary);text-align:center;line-height:1.4}
+  .elevation-0{box-shadow:none}.elevation-1{box-shadow:var(--shadow-1)}.elevation-2{box-shadow:var(--shadow-2)}.elevation-3{box-shadow:var(--shadow-3)}
+  .input-row{display:flex;gap:var(--sp-16);align-items:flex-end;flex-wrap:wrap}
+  .input-group{display:flex;flex-direction:column;gap:var(--sp-4)}
+  .input-group label{font-size:var(--s-body-s);font-weight:500;color:var(--fg-secondary)}
+  .input{font-family:var(--font-cn);font-size:var(--s-body);padding:var(--sp-8) var(--sp-12);border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-surface);color:var(--fg-primary);min-height:36px;outline:none;transition:border-color 150ms}
+  .input:focus{border-color:var(--accent)}.input::placeholder{color:var(--fg-hint)}.input:disabled{color:var(--fg-disabled);cursor:not-allowed}
+  textarea.input{min-width:300px;min-height:60px;resize:vertical}
+  .checkbox-group{display:flex;align-items:center;gap:var(--sp-8);font-size:var(--s-body);cursor:pointer}
+  .checkbox{width:18px;height:18px;border:2px solid var(--fg-hint);border-radius:var(--radius-sm);appearance:none;cursor:pointer;transition:background 150ms,border-color 150ms}
+  .checkbox:checked{background:var(--accent);border-color:var(--accent)}
+  .demo-table{width:100%;border-collapse:collapse;font-size:var(--s-caption)}
+  .demo-table th{text-align:left;padding:var(--sp-8) var(--sp-12);font-weight:600;font-size:var(--s-body-s);color:var(--fg-secondary);border-bottom:1px solid var(--border);background:var(--bg-surface)}
+  .demo-table td{padding:var(--sp-8) var(--sp-12);border-bottom:1px solid var(--divider);color:var(--fg-primary)}
+  .demo-table tr:nth-child(even) td{background:rgba(0,0,0,0.01)}
+  .status-bar{display:flex;align-items:center;gap:var(--sp-16);padding:var(--sp-4) var(--sp-16);background:var(--bg-surface);border-top:1px solid var(--border);font-size:var(--s-caption);color:var(--fg-secondary);border-radius:var(--radius-md)}
+  .status-dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+  .status-dot.red{background:var(--red)}.status-dot.green{background:var(--green)}.status-dot.accent{background:var(--accent)}
+  .card-example{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-md);padding:var(--sp-16);box-shadow:var(--shadow-1)}
+  .card-example h3{font-size:var(--s-body-l);font-weight:500;margin-bottom:var(--sp-4)}
+  .card-example p{font-size:var(--s-body);color:var(--fg-secondary)}
+  .tag{display:inline-block;padding:2px 8px;border-radius:var(--radius-sm);font-size:var(--s-caption);font-weight:500}
+  .tag-accent{background:var(--accent-bg);color:var(--accent)}
+  .tag-red{background:rgba(209,67,67,0.08);color:var(--red)}
+  .tag-green{background:rgba(74,139,95,0.08);color:var(--green)}
+  .layout-demo{display:flex;gap:0;border:1px solid var(--border);border-radius:var(--radius-md);overflow:hidden;height:240px}
+  .layout-sidebar{width:200px;background:var(--bg-surface);border-right:1px solid var(--border);padding:var(--sp-16);font-size:var(--s-body-s);color:var(--fg-secondary);display:flex;flex-direction:column;gap:var(--sp-8)}
+  .layout-sidebar-item{padding:var(--sp-8) var(--sp-12);border-radius:var(--radius-sm);cursor:pointer}.layout-sidebar-item:hover{background:rgba(0,0,0,0.04)}
+  .layout-sidebar-item.active{background:var(--accent-bg);color:var(--accent);font-weight:500}
+  .layout-content{flex:1;padding:var(--sp-16);background:var(--bg-root)}
+  .layout-content-label{font-size:var(--s-caption);color:var(--fg-hint);margin-bottom:var(--sp-8)}
+  code{font-family:var(--font-mono);font-size:var(--s-caption);background:var(--bg-surface);padding:2px 6px;border-radius:var(--radius-sm);color:var(--accent-dim)}
+</style>
+</head>
+<body>
+<div class="page">
+
+<div class="page-header">
+  <h1>设计标准展示</h1>
+  <p>规范对照 DESIGN_TOKENS.md — 每个 § 号对应一个章节，你想改哪条直接说"§X 改成 Y"</p>
+</div>
+
+<!-- ═══ §1 配色 ═══ -->
+<div class="section" id="sec-1">
+  <div class="section-title">§1 配色体系</div>
+  <div class="section-desc">1 主色 + 1 点缀 + 灰阶。禁止第四种色相。</div>
+  <div class="subsection-title">背景色</div>
+  <div class="swatch-grid">
+    <div class="swatch"><div class="swatch-color" style="background:#FBFAF7"></div><div class="swatch-info"><div class="swatch-name">bg_root</div><div class="swatch-hex">#FBFAF7</div><div class="swatch-role">窗口根背景</div></div></div>
+    <div class="swatch"><div class="swatch-color" style="background:#F3F1EC"></div><div class="swatch-info"><div class="swatch-name">bg_surface</div><div class="swatch-hex">#F3F1EC</div><div class="swatch-role">面板 / 侧边栏</div></div></div>
+    <div class="swatch"><div class="swatch-color" style="background:#FFF;border:1px solid rgba(0,0,0,0.06)"></div><div class="swatch-info"><div class="swatch-name">bg_card</div><div class="swatch-hex">#FFFFFF</div><div class="swatch-role">卡片</div></div></div>
+  </div>
+  <div class="subsection-title">文字色</div>
+  <div class="swatch-grid">
+    <div class="swatch"><div class="swatch-color" style="background:#2D2A26"></div><div class="swatch-info"><div class="swatch-name">fg_primary</div><div class="swatch-hex">#2D2A26</div><div class="swatch-role">主文字 — 暖炭</div></div></div>
+    <div class="swatch"><div class="swatch-color" style="background:#6E6B66"></div><div class="swatch-info"><div class="swatch-name">fg_secondary</div><div class="swatch-hex">#6E6B66</div><div class="swatch-role">次要文字</div></div></div>
+    <div class="swatch"><div class="swatch-color" style="background:#9E9B96"></div><div class="swatch-info"><div class="swatch-name">fg_hint</div><div class="swatch-hex">#9E9B96</div><div class="swatch-role">提示 / 占位符</div></div></div>
+    <div class="swatch"><div class="swatch-color" style="background:#C6C4BF"></div><div class="swatch-info"><div class="swatch-name">fg_disabled</div><div class="swatch-hex">#C6C4BF</div><div class="swatch-role">禁用态</div></div></div>
+  </div>
+  <div class="subsection-title">强调色 &amp; 功能色</div>
+  <div class="swatch-grid">
+    <div class="swatch"><div class="swatch-color" style="background:#B0823A"></div><div class="swatch-info"><div class="swatch-name">accent</div><div class="swatch-hex">#B0823A</div><div class="swatch-role">琥珀金 — 选中 / 链接</div></div></div>
+    <div class="swatch"><div class="swatch-color" style="background:#D14343"></div><div class="swatch-info"><div class="swatch-name">red</div><div class="swatch-hex">#D14343</div><div class="swatch-role">危险 / 过期</div></div></div>
+    <div class="swatch"><div class="swatch-color" style="background:#4A8B5F"></div><div class="swatch-info"><div class="swatch-name">green</div><div class="swatch-hex">#4A8B5F</div><div class="swatch-role">成功 / 完成</div></div></div>
+  </div>
+</div>
+
+<!-- ═══ §2 字体 ═══ -->
+<div class="section" id="sec-2">
+  <div class="section-title">§2 字体体系</div>
+  <div class="section-desc">六级字号 + 三级字重。标题/正文比 2.57×。</div>
+  <div class="subsection-title">字号层级（实时渲染）</div>
+  <div class="type-sample"><div class="type-label"><span>SIZE_HEADING</span> — 36px · weight 300</div><div style="font-size:36px;font-weight:300;line-height:1.2">静心规划每一天</div></div>
+  <div class="type-sample"><div class="type-label"><span>SIZE_TITLE</span> — 28px · weight 600</div><div style="font-size:28px;font-weight:600;line-height:1.3">课程表与作业管理</div></div>
+  <div class="type-sample"><div class="type-label"><span>SIZE_SUBTITLE</span> — 20px · weight 600</div><div style="font-size:20px;font-weight:600;line-height:1.4">今日课程</div></div>
+  <div class="type-sample"><div class="type-label"><span>SIZE_BODY_L</span> — 16px · weight 500 · 卡片标题</div><div style="font-size:16px;font-weight:500;line-height:1.5">高等数学 — 第三章</div></div>
+  <div class="type-sample"><div class="type-label"><span>SIZE_BODY</span> — 14px · weight 400 · 正文默认</div><div style="font-size:14px;font-weight:400;line-height:1.6;color:var(--fg-secondary)">用户日常看到最多的文字大小和颜色。行高 1.6 确保长文本阅读舒适。</div></div>
+  <div class="type-sample"><div class="type-label"><span>SIZE_BODY_S</span> — 13px · weight 400 · 辅助文字</div><div style="font-size:13px;font-weight:400;line-height:1.5;color:var(--fg-hint)">辅助说明、标签、脚注使用此字号。</div></div>
+  <div class="type-sample"><div class="type-label"><span>SIZE_CAPTION</span> — 11px · weight 400 · 表格 / 状态栏</div><div style="font-size:11px;font-weight:400;line-height:1.5;color:var(--fg-hint);font-family:var(--font-mono)">2024-03-15 | 09:30–11:00 | &yen;12.50</div></div>
+
+  <div class="subsection-title">字重用法</div>
+  <table class="demo-table">
+    <tr><th>字重</th><th>使用场景</th><th>示例</th></tr>
+    <tr><td><code>300</code> Light</td><td>仅大标题 36px+</td><td style="font-size:20px;font-weight:300">呼吸感</td></tr>
+    <tr><td><code>400</code> Regular</td><td>正文、表格、标签 — 默认</td><td>这是正文</td></tr>
+    <tr><td><code>500</code> Medium</td><td>卡片标题、导航选中、按钮 — "跳一级"</td><td style="font-weight:500">卡片标题</td></tr>
+    <tr><td><code>600</code> SemiBold</td><td>区块标题、对话框标题 — "跳两级"</td><td style="font-weight:600">区块标题</td></tr>
+    <tr><td><code>700</code> Bold</td><td>不使用</td><td style="font-weight:700;color:var(--fg-hint)">中文 600→700 差异极小</td></tr>
+  </table>
+</div>
+
+<!-- ═══ §3 间距 ═══ -->
+<div class="section" id="sec-3">
+  <div class="section-title">§3 间距体系</div>
+  <div class="section-desc">4px 基础网格。只使用 4/8/12/16/24/32/48/64。</div>
+  <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-md);padding:var(--sp-16)">
+    <div class="space-bar"><div class="space-bar-fill" style="width:4px" data-label="4px"></div></div>
+    <div class="space-bar"><div class="space-bar-fill" style="width:8px" data-label="8px"></div></div>
+    <div class="space-bar"><div class="space-bar-fill" style="width:12px" data-label="12px"></div></div>
+    <div class="space-bar"><div class="space-bar-fill" style="width:16px" data-label="16px"></div></div>
+    <div class="space-bar"><div class="space-bar-fill" style="width:24px" data-label="24px"></div></div>
+    <div class="space-bar"><div class="space-bar-fill" style="width:32px" data-label="32px"></div></div>
+    <div class="space-bar"><div class="space-bar-fill" style="width:48px" data-label="48px"></div></div>
+    <div class="space-bar"><div class="space-bar-fill" style="width:64px" data-label="64px"></div></div>
+  </div>
+</div>
+
+<!-- ═══ §4 圆角 ═══ -->
+<div class="section" id="sec-4">
+  <div class="section-title">§4 圆角体系</div>
+  <div class="section-desc">三级：4px / 8px / 12px。同类必须一致。最大 12px。</div>
+  <div class="radius-demo">
+    <div><div class="radius-box" style="border-radius:4px">4px</div><div class="radius-label">小控件<br>按钮/输入/标签</div></div>
+    <div><div class="radius-box" style="border-radius:8px">8px</div><div class="radius-label">卡片/面板<br>对话框/菜单</div></div>
+    <div><div class="radius-box" style="border-radius:12px">12px</div><div class="radius-label">弹窗/模态框<br>最大圆角</div></div>
+  </div>
+</div>
+
+<!-- ═══ §5 按钮 ═══ -->
+<div class="section" id="sec-5">
+  <div class="section-title">§5 按钮与交互状态</div>
+  <div class="section-desc">四种层级 × 四种状态。鼠标悬停/点击看效果。</div>
+
+  <div class="subsection-title">§5.1 主按钮 — accent 填充 · 每页最多 1 个</div>
+  <div class="btn-row">
+    <button class="btn btn-primary">默认</button>
+    <button class="btn btn-primary" style="background:var(--accent-hover);border-color:var(--accent-hover)">悬停 hover</button>
+    <button class="btn btn-primary" style="background:var(--accent-dim);border-color:var(--accent-dim);transform:scale(0.98)">按下 active</button>
+    <button class="btn btn-primary disabled">禁用</button>
+  </div>
+
+  <div class="subsection-title">§5.2 次按钮 — 透明 + 边框</div>
+  <div class="btn-row">
+    <button class="btn btn-secondary">默认</button>
+    <button class="btn btn-secondary" style="background:rgba(0,0,0,0.04)">悬停</button>
+    <button class="btn btn-secondary" style="background:rgba(0,0,0,0.08)">按下</button>
+    <button class="btn btn-secondary disabled">禁用</button>
+  </div>
+
+  <div class="subsection-title">§5.3 文字按钮 — 透明 + accent 文字</div>
+  <div class="btn-row">
+    <button class="btn btn-text">默认</button>
+    <button class="btn btn-text" style="color:var(--accent-hover);background:rgba(0,0,0,0.02)">悬停</button>
+    <button class="btn btn-text" style="color:var(--accent-dim)">按下</button>
+    <button class="btn btn-text disabled">禁用</button>
+  </div>
+
+  <div class="subsection-title">§5.4 危险按钮 — red 填充 · 仅确认态</div>
+  <div class="btn-row">
+    <button class="btn btn-danger">删除</button>
+    <button class="btn btn-danger" style="background:#c03a3a">悬停</button>
+    <button class="btn btn-danger" style="background:#a83232">按下</button>
+  </div>
+
+  <div class="subsection-title">§5.5 标签 Tags</div>
+  <div class="btn-row">
+    <span class="tag tag-accent">课程</span>
+    <span class="tag tag-green">已完成</span>
+    <span class="tag tag-red">即将到期</span>
+  </div>
+</div>
+
+<!-- ═══ §6 渐变 ═══ -->
+<div class="section" id="sec-6">
+  <div class="section-title">§6 渐变</div>
+  <div class="section-desc">几乎不用。仅空状态允许单色径向光晕 &lt; 8% 不透明度。</div>
+  <div style="width:100%;height:80px;background:radial-gradient(ellipse at 50% 30%,rgba(176,130,58,0.06) 0%,transparent 70%);border-radius:var(--radius-md);border:1px solid var(--border);display:flex;align-items:center;justify-content:center">
+    <div style="font-size:var(--s-caption);color:var(--fg-hint);text-align:center">仅允许的渐变：单色径向光晕<br><code>radial-gradient(ellipse, rgba(176,130,58,0.06), transparent)</code></div>
+  </div>
+</div>
+
+<!-- ═══ §7 阴影 ═══ -->
+<div class="section" id="sec-7">
+  <div class="section-title">§7 阴影与层级</div>
+  <div class="section-desc">浅色下阴影极淡，主要靠背景色深度区分层级。</div>
+  <div class="shadow-demo">
+    <div><div class="shadow-card elevation-0">Elevation 0<br>无阴影<br>根背景 · 表格</div></div>
+    <div><div class="shadow-card elevation-1">Elevation 1<br>卡片<br>0 1px 3px 4%</div></div>
+    <div><div class="shadow-card elevation-2">Elevation 2<br>下拉菜单<br>0 2px 8px 6%</div></div>
+    <div><div class="shadow-card elevation-3">Elevation 3<br>模态框<br>0 4px 16px 8%</div></div>
+  </div>
+</div>
+
+<!-- ═══ §8 输入控件 ═══ -->
+<div class="section" id="sec-8">
+  <div class="section-title">§8 输入控件 &amp; 表单</div>
+  <div class="section-desc">输入框、复选框。focus 态边框变 accent。</div>
+  <div class="input-row">
+    <div class="input-group"><label>课程名称</label><input class="input" type="text" placeholder="例如：高等数学" style="width:200px"></div>
+    <div class="input-group"><label>备注</label><textarea class="input" placeholder="可选备注..."></textarea></div>
+    <div class="input-group"><label>禁用态</label><input class="input" type="text" value="不可编辑" disabled style="width:200px"></div>
+  </div>
+  <div style="margin-top:var(--sp-16);display:flex;gap:var(--sp-24)">
+    <label class="checkbox-group"><input type="checkbox" class="checkbox"> 未选中</label>
+    <label class="checkbox-group"><input type="checkbox" class="checkbox" checked> 已选中 (accent 填充)</label>
+  </div>
+</div>
+
+<!-- ═══ §9 综合示例 ═══ -->
+<div class="section" id="sec-9">
+  <div class="section-title">§9 综合示例 — 模拟真实面板</div>
+  <div class="section-desc">用以上所有规范拼一个带侧边栏、卡片、表格、状态栏的完整界面。</div>
+
+  <div class="subsection-title">9.1 侧边栏 + 内容区布局</div>
+  <div class="layout-demo">
+    <div class="layout-sidebar">
+      <div style="font-weight:600;margin-bottom:var(--sp-8)">功能</div>
+      <div class="layout-sidebar-item">日程总览</div>
+      <div class="layout-sidebar-item active">课程表</div>
+      <div class="layout-sidebar-item">作业管理</div>
+      <div style="font-weight:600;margin-top:var(--sp-16);margin-bottom:var(--sp-8)">生活</div>
+      <div class="layout-sidebar-item">习惯打卡</div>
+      <div class="layout-sidebar-item">记账</div>
+      <div class="layout-sidebar-item">余额</div>
+    </div>
+    <div class="layout-content">
+      <div class="layout-content-label">← 侧边栏 bg_surface (#F3F1EC) | 内容区 bg_root (#FBFAF7) →</div>
+      <div style="display:flex;gap:var(--sp-12);margin-top:var(--sp-8)">
+        <div class="card-example" style="flex:1">
+          <h3>晨间阅读 <span class="tag tag-accent" style="margin-left:8px">每日</span></h3>
+          <p>每天早上 7:00–7:30。已连续 12 天。</p>
+          <div style="margin-top:var(--sp-12)"><button class="btn btn-primary" style="font-size:var(--s-body-s);padding:6px 16px">完成打卡</button></div>
+        </div>
+        <div class="card-example" style="flex:1">
+          <h3>晚间复习 <span class="tag tag-red" style="margin-left:8px">将逾期</span></h3>
+          <p>每晚 21:00–22:00。今日未完成，剩余 3h。</p>
+          <div style="margin-top:var(--sp-12);display:flex;gap:8px">
+            <button class="btn btn-secondary" style="font-size:var(--s-body-s);padding:6px 16px">推迟</button>
+            <button class="btn btn-text" style="font-size:var(--s-body-s);padding:6px 16px">跳过</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="subsection-title">9.2 数据表格</div>
+  <table class="demo-table">
+    <tr><th>课程</th><th>时间</th><th>教室</th><th>状态</th></tr>
+    <tr><td>高等数学</td><td>08:30–10:00</td><td>教一 301</td><td><span class="tag tag-green">已上完</span></td></tr>
+    <tr><td>大学物理</td><td>10:15–11:45</td><td>理学院 102</td><td><span class="tag tag-accent">进行中</span></td></tr>
+    <tr><td>线性代数</td><td>14:00–15:30</td><td>教三 205</td><td>—</td></tr>
+    <tr><td>英语精读</td><td>15:45–17:15</td><td>外语楼 401</td><td>—</td></tr>
+  </table>
+
+  <div class="subsection-title">9.3 状态栏</div>
+  <div class="status-bar">
+    <span>今日(周三): 4节课 | 下一节: 大学物理 10:15</span>
+    <span style="margin-left:auto">今日支出: &yen;24.50</span>
+    <span class="status-dot red" style="margin-left:16px"></span><span>2项DDL</span>
+    <span style="margin-left:16px">2024-03-15</span>
+  </div>
+</div>
+
+<!-- ═══ §10 对照速查 ═══ -->
+<div class="section" id="sec-10">
+  <div class="section-title">§10 规范 ↔ 页面 对照速查</div>
+  <div class="section-desc">想改某项标准？告诉我"§几 + 改成什么"。比如"§1 accent 改成蓝色系"。</div>
+  <table class="demo-table">
+    <tr><th>规范章节</th><th>页面位置</th><th>修改方式</th></tr>
+    <tr><td><strong>§1 配色</strong></td><td>色块 + hex 值</td><td>"bg_root 改成 #XXXX" → 改 CSS 变量 + theme.py TOKENS</td></tr>
+    <tr><td><strong>§2.2 字号</strong></td><td>逐级渲染文字</td><td>"SIZE_BODY 改成 15px" → 改规范文档 + theme.py + CSS</td></tr>
+    <tr><td><strong>§2.3 字重</strong></td><td>字重用法表格</td><td>"卡片标题用 600" → 改 §2.3 表格 + 相应组件</td></tr>
+    <tr><td><strong>§3 间距</strong></td><td>等比色条</td><td>"卡片间距 20px" → 不在网格，建议 16 或 24</td></tr>
+    <tr><td><strong>§4 圆角</strong></td><td>三级方块</td><td>"卡片圆角 10px" → 提醒必须统一，建议 8 或 12</td></tr>
+    <tr><td><strong>§5 按钮</strong></td><td>四层×四态矩阵</td><td>"次按钮 hover 背景 6%" → 改 §5 表格 + CSS</td></tr>
+    <tr><td><strong>§6 渐变</strong></td><td>径向光晕演示</td><td>"空状态渐变更明显" → 调不透明度上限</td></tr>
+    <tr><td><strong>§7 阴影</strong></td><td>四级卡片</td><td>"卡片阴影太重" → 改 elevation 1 值</td></tr>
+    <tr><td><strong>§9 动效</strong></td><td>按钮悬停过渡</td><td>"按钮过渡 200ms" → 改 CSS transition</td></tr>
+  </table>
+</div>
+
+</div>
+</body>
+</html>
