@@ -157,6 +157,9 @@ def build_theme(mode: str) -> str:
     return f"""
 * {{ font-family: "{FONT_CN}", "Microsoft YaHei", sans-serif; }}
 
+/* ── Base ────────────────────────────────── */
+QFrame { border: none; background: transparent; outline: none; }
+
 QMainWindow {{ background-color: {t["bg_root"]}; }}
 
 /* ── Top nav bar ─────────────────────────── */
@@ -211,11 +214,11 @@ QScrollBar::handle:horizontal:hover {{ background-color: {t["fg_hint"]}; }}
 QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{ width: 0; }}
 
 /* ── Splitter ────────────────────────────── */
-QSplitter::handle {{ background-color: {t["border"]}; }}
+QSplitter::handle {{ background-color: {t["bg_surface"]}; }}
 QSplitter::handle:horizontal {{ width: 1px; }}
 
 /* ── Status bar ──────────────────────────── */
-QStatusBar {{ background-color: {t["bg_surface"]}; color: {t["fg_secondary"]}; font-size: {SIZE_CAPTION}px; padding: 4px 12px; border-top: 1px solid {t["border"]}; }}
+QStatusBar {{ background-color: {t["bg_surface"]}; color: {t["fg_secondary"]}; font-size: {SIZE_BODY_S}px; padding: 4px 16px; border-top: 1px solid {t["border_strong"]}; }}
 QStatusBar::item {{ border: none; }}
 QStatusBar QLabel {{ color: {t["fg_secondary"]}; padding: 0; }}
 
@@ -248,6 +251,6 @@ QToolTip {{ background-color: {t["bg_elevated"]}; color: {t["fg_primary"]}; bord
 #aiInputContainer {{ background-color: {t["sidebar_bg"]}; border-top: 1px solid {t["border"]}; }}
 #courseCount, #taskCount {{ color: {t["fg_hint"]}; font-size: 10px; border: none; }}
 #taskTable {{ background-color: {t["bg_root"]}; color: {t["fg_primary"]}; border: none; font-size: 12px; }}
-#taskTable::item {{ padding: 8px 6px; border-bottom: 1px solid {t["divider"]}; }}
+#taskTable::item {{ padding: 8px 6px; min-height: 28px; border-bottom: 1px solid {t["divider"]}; }}
 #taskTable::item:alternate {{ background-color: {t["table_alt"]}; }}
 """
