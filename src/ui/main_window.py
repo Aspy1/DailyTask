@@ -173,31 +173,48 @@ class MainWindow(QMainWindow):
     def _setup_statusbar(self) -> None:
         self._statusbar = QStatusBar()
         self.setStatusBar(self._statusbar)
-
-        self._next_course_label = _ClickLabel()
-        self._next_course_label.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._next_course_label.setToolTip("点击切换今日/明日")
-        self._next_course_label.clicked.connect(self._toggle_day_view)
-        self._statusbar.addWidget(self._next_course_label)
-
-        self._ddl_alert_label = _ClickLabel()
-        self._ddl_alert_label.setCursor(Qt.CursorShape.PointingHandCursor)
         c = get_colors()
-        self._ddl_alert_label.setStyleSheet(
-            f"color: #fff; background-color: {c['red']}; border-radius: 4px; "
-            "padding: 1px 8px; font-weight: 600; font-size: 13px;"
-        )
-        self._ddl_alert_label.setToolTip("点击查看即将截止的任务")
-        self._ddl_alert_label.clicked.connect(self._on_ddl_alert_click)
-        self._ddl_alert_label.hide()
-        self._statusbar.addWidget(self._ddl_alert_label)
+        self._statusbar.setStyleSheet(f"""
+            QStatusBar {{
+                background-color: {c['status_bar_bg']};
+                color: {c['fg_secondary']}; font-size: 12px;
+                border-top: 1px solid {c['border']};
+                padding: 4px 16px;
+            }}
+            QLabel {{ color: {c['fg_secondary']}; font-size: 12px; border: none; background: transparent; }}
+        """)
 
-        self._date_label = QLabel()
-        self._statusbar.addPermanentWidget(self._date_label)
+        self._course_info_label = QLabel()
+        self._statusbar.addWidget(self._course_info_label)
+
+        self._statusbar.addPermanentWidget(QLabel(""))  # spacer
+
         self._expense_label = QLabel()
         self._statusbar.addPermanentWidget(self._expense_label)
 
+        sep1 = QLabel("|")
+        sep1.setStyleSheet(f"color: {c['border_strong']}; margin: 0 8px;")
+        self._statusbar.addPermanentWidget(sep1)
+
+        self._ddl_alert_label = _ClickLabel()
+        self._ddl_alert_label.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._ddl_alert_label.setStyleSheet(
+            f"color: {c['red']}; font-size: 12px; font-weight: 600;"
+            f"padding: 1px 6px;")
+        self._ddl_alert_label.setToolTip("点击查看即将截止的任务")
+        self._ddl_alert_label.clicked.connect(self._on_ddl_alert_click)
+        self._ddl_alert_label.hide()
+        self._statusbar.addPermanentWidget(self._ddl_alert_label)
+
+        sep2 = QLabel("|")
+        sep2.setStyleSheet(f"color: {c['border_strong']}; margin: 0 8px;")
+        self._statusbar.addPermanentWidget(sep2)
+
+        self._date_label = QLabel()
+        self._statusbar.addPermanentWidget(self._date_label)
+
         self._showing_tomorrow = False
+
 
     def _connect_ai(self) -> None:
         self._ai_panel.message_sent.connect(self._on_ai_message)
@@ -246,7 +263,7 @@ class MainWindow(QMainWindow):
                 pass
         day_names = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
         self._date_label.setText(
-            f"{week_str}{day_names[now.weekday()]} {now.strftime('%H:%M')}")
+            f"{week_str}{day_names[now.weekday()]} {now.strftime('%H:%M')}  |  {dt_date.today().isoformat()}")
 
     def _update_next_course(self) -> None:
         if self._showing_tomorrow:
@@ -256,7 +273,7 @@ class MainWindow(QMainWindow):
         now = datetime.now().time()
         past_midnight = schedule_date() != date.today()
         if not today_courses:
-            self._next_course_label.setText(tr("status.no_course"))
+            self._course_info_label.setText(tr("status.no_course"))
             return
         entries = []
         for c in today_courses:
@@ -272,7 +289,7 @@ class MainWindow(QMainWindow):
             entries.append(
                 (time.fromisoformat(start_str), time.fromisoformat(end_str), c))
         if not entries:
-            self._next_course_label.setText(tr("status.no_course"))
+            self._course_info_label.setText(tr("status.no_course"))
             return
         entries.sort(key=lambda e: e[0])
         total = len(entries)
@@ -285,12 +302,12 @@ class MainWindow(QMainWindow):
                     upcoming = (start_t, course)
                     break
         if upcoming is None:
-            self._next_course_label.setText(
+            self._course_info_label.setText(
                 f"共{total}节课，已上{finished}节，今日课已上完  ▸")
             return
         start_t, course = upcoming
         name = course.get("name", "")
-        self._next_course_label.setText(
+        self._course_info_label.setText(
             f"共{total}节课，已上{finished}节，下一节: {name} "
             f"{start_t.strftime('%H:%M')}  ▸")
 
@@ -311,7 +328,7 @@ class MainWindow(QMainWindow):
         ddl_text = f"  |  {len(urgent)}项DDL" if urgent else ""
 
         if not courses:
-            self._next_course_label.setText(
+            self._course_info_label.setText(
                 f"⏎ 明日({day_name}): 无课  |  不用早起{ddl_text}  ▸")
             return
 
@@ -333,7 +350,7 @@ class MainWindow(QMainWindow):
         else:
             text = f"{prefix}不用早起  最早{first_start}{ddl_text}  ▸"
 
-        self._next_course_label.setText(text)
+        self._course_info_label.setText(text)
 
     def _toggle_day_view(self) -> None:
         self._showing_tomorrow = not self._showing_tomorrow
@@ -341,15 +358,14 @@ class MainWindow(QMainWindow):
 
     def _update_expense(self) -> None:
         total = self._data_manager.expenses.today_total()
-        self._expense_label.setText(
-            f"{tr('status.today_expense')}: ¥{total:.2f}")
+        self._expense_label.setText(f"今日支出: ¥{total:.2f}")
 
     def _on_ddl_alert_click(self) -> None:
         self._workspace.show_ddl_tasks()
 
     def set_ddl_alert(self, count: int) -> None:
         if count > 0:
-            self._ddl_alert_label.setText(f" {count} 项任务即将截止 ")
+            self._ddl_alert_label.setText(f"{count}项DDL")
             self._ddl_alert_label.show()
         else:
             self._ddl_alert_label.hide()
