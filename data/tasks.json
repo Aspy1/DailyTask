@@ -97,6 +97,38 @@
       "notes": "",
       "created_at": "2026-06-06T21:28:02.969684",
       "reminded": false
+    },
+    {
+      "id": "t_010",
+      "title": "算法设计与分析 第五次作业 回溯法",
+      "course_name": "算法设计与分析",
+      "description": "回溯法",
+      "due_date": "2026-06-11T23:00:00",
+      "priority": "high",
+      "tags": [
+        "作业"
+      ],
+      "status": "completed",
+      "notes": "",
+      "created_at": "2026-06-06T23:52:40.914825",
+      "reminded": false,
+      "completed_at": "2026-06-06T23:53:25.069726"
+    },
+    {
+      "id": "t_011",
+      "title": "知识工程 作业",
+      "course_name": "知识工程",
+      "description": "",
+      "due_date": "2026-06-12T23:00:00",
+      "priority": "medium",
+      "tags": [
+        "作业"
+      ],
+      "status": "completed",
+      "notes": "",
+      "created_at": "2026-06-06T23:53:04.121994",
+      "reminded": false,
+      "completed_at": "2026-06-06T23:53:12.003212"
     }
   ],
   "archived": [
