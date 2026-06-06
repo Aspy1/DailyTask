@@ -1,133 +1,61 @@
 """Accordion sidebar navigation — warm-paper design system."""
 
 from PySide6.QtCore import (
-    Qt, Signal, QPropertyAnimation, QEasingCurve, QParallelAnimationGroup,
-    QTimer
+    Qt, Signal, QPropertyAnimation, QEasingCurve, QVariantAnimation,
 )
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QSizePolicy,
-    QGraphicsOpacityEffect, QApplication,
+    QWidget, QVBoxLayout, QLabel, QPushButton, QSizePolicy,
 )
-from PySide6.QtGui import QFont, QPainter, QTransform
+from PySide6.QtGui import QFont
 
 from src.ui.styles.theme import get_colors, FONT_CN
 
 
-# ─── Section header with animated arrow ───────────────────────
+# ─── Arrow label (simple text swap, no rotation flicker) ──────
 
-class _ArrowIcon(QLabel):
-    """A small ▶/▼ label that rotates via QTransform instead of CSS."""
+class _ArrowLabel(QLabel):
+    """▶ / ▼ label with smooth size and color."""
 
     def __init__(self, parent=None):
+        c = get_colors()
         super().__init__("▶", parent)
-        self._angle = 0.0
-        self.setFixedSize(14, 14)
+        self.setFixedSize(18, 18)
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.setStyleSheet(
+            f"color: {c['fg_hint']}; font-size: 9px; background: transparent;"
+            "padding: 0; margin: 0;")
 
-    def set_angle(self, degrees: float):
-        self._angle = degrees
-        self.update()
+    def set_expanded(self, val: bool):
+        self.setText("▼" if val else "▶")
 
-    def paintEvent(self, event):
-        from PySide6.QtGui import QPainter, QTransform, QFont
-        p = QPainter(self)
-        p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        p.setPen(self.palette().color(self.foregroundRole()))
-        f = QFont(self.font())
-        f.setPixelSize(10)
-        p.setFont(f)
-        # rotate around center
-        cx = self.width() / 2
-        cy = self.height() / 2
-        p.translate(cx, cy)
-        p.rotate(self._angle)
-        p.translate(-cx, -cy)
-        p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, "▶")
-        p.end()
 
+# ─── Section header ──────────────────────────────────────────
 
 class SectionHeader(QPushButton):
     """Clickable group header that expands / collapses its child items."""
 
-    collapsed = Signal()
-
     def __init__(self, text: str, parent=None):
         c = get_colors()
         super().__init__(text, parent)
-        self.setCheckable(False)
         self.setFlat(True)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._arrow = _ArrowIcon(self)
-        self._expanded = False
-
         self.setStyleSheet(f"""
             QPushButton {{
                 background: transparent; border: none;
                 color: {c['fg_secondary']}; font-size: 12px; font-weight: 600;
-                text-align: left; padding: 6px 16px;
+                text-align: left; padding: 8px 16px;
             }}
             QPushButton:hover {{
                 background-color: {c['accent_bg']};
             }}
         """)
-        self._arrow.setStyleSheet(f"color: {c['fg_hint']}; background: transparent;")
-
-        self.clicked.connect(self._toggle)
+        self._arrow = _ArrowLabel(self)
+        self._arrow.move(6, 10)
+        self._expanded = False
 
     def _toggle(self):
         self._expanded = not self._expanded
-        self._animate_arrow()
-        if not self._expanded:
-            self.collapsed.emit()
-
-    def _animate_arrow(self):
-        target = 90.0 if self._expanded else 0.0
-        anim = QPropertyAnimation(self._arrow, b"_angle_dummy")
-        start_val = self._arrow._angle
-        end_val = target
-
-        # Use a simple easing timer since QPropertyAnimation can't animate plain float
-        duration = 250
-        steps = 15
-        step_ms = duration // steps
-        delta = (end_val - start_val) / steps
-
-        def step(i=0):
-            if i >= steps:
-                self._arrow.set_angle(end_val)
-                # Swap text at midpoint for clarity
-                self._arrow.setText("▼" if self._expanded else "▶")
-                if self._expanded:
-                    self._arrow.set_angle(0)  # reset after showing ▼
-                return
-            self._arrow.set_angle(start_val + delta * (i + 1))
-            QTimer.singleShot(step_ms, lambda s=i+1: step(s))
-
-        step(0)
-
-    def animate_to_angle(self, target: float, on_finish=None):
-        """Public API for external animation control."""
-        duration = 250
-        steps = 15
-        step_ms = duration // steps
-        start = self._arrow._angle
-        delta = (target - start) / steps
-
-        def step(i=0):
-            if i >= steps:
-                self._arrow.set_angle(target)
-                if target == 90.0:
-                    self._arrow.setText("▼")
-                    self._arrow.set_angle(0)
-                elif target == 0.0:
-                    self._arrow.setText("▶")
-                if on_finish:
-                    on_finish()
-                return
-            self._arrow.set_angle(start + delta * (i + 1))
-            QTimer.singleShot(step_ms, lambda s=i+1: step(s))
-
-        step(0)
+        self._arrow.set_expanded(self._expanded)
 
     @property
     def expanded(self) -> bool:
@@ -136,11 +64,15 @@ class SectionHeader(QPushButton):
     @expanded.setter
     def expanded(self, val: bool):
         self._expanded = val
-        self._arrow.setText("▼" if val else "▶")
-        self._arrow.set_angle(0)
+        self._arrow.set_expanded(val)
+
+    def resizeEvent(self, ev):
+        super().resizeEvent(ev)
+        # Keep arrow vertically centered
+        self._arrow.move(8, (self.height() - 18) // 2)
 
 
-# ─── Nav item ────────────────────────────────────────────────
+# ─── Nav item ─────────────────────────────────────────────────
 
 class NavItem(QPushButton):
     """Single navigation row in the sidebar."""
@@ -155,12 +87,12 @@ class NavItem(QPushButton):
         self.setFlat(True)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         pl = "36px" if indent else "16px"
-        fs = "12px" if indent else "11px"
+        fs = "13px" if indent else "12px"
         self.setStyleSheet(f"""
             QPushButton {{
                 background: transparent; border: none;
                 color: {c['fg_secondary']}; font-size: {fs}; font-weight: 500;
-                text-align: left; padding: 6px 16px 6px {pl};
+                text-align: left; padding: 7px 16px 7px {pl};
             }}
             QPushButton:hover {{
                 background-color: {c['accent_bg']};
@@ -179,25 +111,20 @@ class NavItem(QPushButton):
         return self._key
 
 
-# ─── Collapsible section ─────────────────────────────────────
+# ─── Collapsible section ──────────────────────────────────────
 
 class SidebarSection(QWidget):
-    """A group: header + collapsible item list with height animation."""
+    """A group: header + collapsible item list with smooth height animation."""
 
-    sectionToggled = Signal(str, bool)  # section_id, expanded
+    sectionToggled = Signal(str, bool)
 
-    def __init__(self, section_id: str, header_text: str, items: list[tuple[str, str]],
-                 parent=None):
-        """
-        section_id: internal key (e.g. 'func', 'life')
-        header_text: display text (e.g. '功能', '生活')
-        items: list of (key, label) tuples
-        """
-        c = get_colors()
+    def __init__(self, section_id: str, header_text: str,
+                 items: list[tuple[str, str]], parent=None):
         super().__init__(parent)
         self._section_id = section_id
         self._expanded = False
         self._nav_items: dict[str, NavItem] = {}
+        self._anim = None
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -206,77 +133,82 @@ class SidebarSection(QWidget):
         self._header = SectionHeader(header_text)
         layout.addWidget(self._header)
 
-        # Container for nav items — we animate its maximumHeight
+        # Container for nav items
         self._items_container = QWidget()
         self._items_container.setStyleSheet("background: transparent;")
-        self._items_layout = QVBoxLayout(self._items_container)
-        self._items_layout.setContentsMargins(0, 0, 0, 0)
-        self._items_layout.setSpacing(0)
+        il = QVBoxLayout(self._items_container)
+        il.setContentsMargins(0, 0, 0, 0)
+        il.setSpacing(1)
 
         for key, label in items:
             item = NavItem(key, label)
-            self._items_layout.addWidget(item)
+            il.addWidget(item)
             self._nav_items[key] = item
 
         layout.addWidget(self._items_container)
 
+        # Start collapsed
         self._items_container.setMaximumHeight(0)
-        self._items_container.setVisible(False)
+        self._items_container.hide()
 
         self._header.clicked.connect(self._on_header_click)
 
-    def _on_header_click(self):
-        was_expanded = self._expanded
-        self._expanded = not self._expanded
-        self._animate_height()
+    # ── Direct height animation (no maxHeight jank) ────────────
 
-        if not self._expanded:
-            # Let parent Sidebar handle accordion via signal
-            self.sectionToggled.emit(self._section_id, self._expanded)
+    def _on_header_click(self):
+        self._header._toggle()
+        self._expanded = self._header.expanded
+        if self._expanded:
+            self._expand()
+        else:
+            self._collapse()
+
+    def _expand(self):
+        self._items_container.show()
+        target_h = self._items_container.sizeHint().height()
+        self._items_container.setFixedHeight(0)
+
+        self._anim = QVariantAnimation()
+        self._anim.setDuration(250)
+        self._anim.setStartValue(0)
+        self._anim.setEndValue(target_h)
+        self._anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+        self._anim.valueChanged.connect(
+            lambda v: self._items_container.setFixedHeight(v))
+        self._anim.finished.connect(
+            lambda: self._items_container.setMaximumHeight(16777215))
+        self._anim.start()
+
+    def _collapse(self):
+        current_h = self._items_container.height()
+        self._items_container.setMaximumHeight(current_h)
+        self._items_container.setMinimumHeight(0)
+
+        self._anim = QVariantAnimation()
+        self._anim.setDuration(200)
+        self._anim.setStartValue(current_h)
+        self._anim.setEndValue(0)
+        self._anim.setEasingCurve(QEasingCurve.Type.InCubic)
+        self._anim.valueChanged.connect(
+            lambda v: self._items_container.setFixedHeight(v))
+        self._anim.finished.connect(self._items_container.hide)
+        self._anim.start()
 
     def set_expanded(self, val: bool, animated: bool = True):
         if self._expanded == val:
             return
         self._expanded = val
         self._header.expanded = val
-        if animated:
-            self._animate_height()
-        else:
-            self._apply_height()
-
-    def _animate_height(self):
-        if self._expanded:
-            self._items_container.setVisible(True)
-            # Measure content height
-            h = self._items_container.sizeHint().height()
-            self._anim = QPropertyAnimation(self._items_container, b"maximumHeight")
-            self._anim.setDuration(250)
-            self._anim.setStartValue(0)
-            self._anim.setEndValue(h)
-            self._anim.setEasingCurve(QEasingCurve.Type.OutCubic)
-            self._anim.start()
-        else:
-            # Wait for accordion close signal before collapsing container
+        if animated and val:
+            self._expand()
+        elif animated and not val:
             self._collapse()
-
-    def _collapse(self):
-        h = self._items_container.height()
-        self._anim = QPropertyAnimation(self._items_container, b"maximumHeight")
-        self._anim.setDuration(250)
-        self._anim.setStartValue(h)
-        self._anim.setEndValue(0)
-        self._anim.setEasingCurve(QEasingCurve.Type.InCubic)
-        self._anim.finished.connect(lambda: self._items_container.setVisible(False))
-        self._anim.start()
-
-    def _apply_height(self):
-        if self._expanded:
-            self._items_container.setVisible(True)
-            h = self._items_container.sizeHint().height()
-            self._items_container.setMaximumHeight(h)
+        elif val:
+            self._items_container.show()
+            self._items_container.setMaximumHeight(16777215)
         else:
+            self._items_container.hide()
             self._items_container.setMaximumHeight(0)
-            self._items_container.setVisible(False)
 
     def nav_items(self) -> dict[str, NavItem]:
         return self._nav_items
@@ -286,22 +218,23 @@ class SidebarSection(QWidget):
         return self._expanded
 
 
-# ─── Sidebar ─────────────────────────────────────────────────
+# ─── Sidebar ──────────────────────────────────────────────────
 
 class Sidebar(QWidget):
     """Full sidebar with accordion sections, bottom items, and AI toggle."""
 
-    nav_changed = Signal(str)       # key of selected nav item
+    nav_changed = Signal(str)
     ai_toggled = Signal(bool)
 
     def __init__(self, parent=None):
         c = get_colors()
         super().__init__(parent)
         self.setObjectName("sidebar")
-        self.setFixedWidth(180)
+        self.setFixedWidth(184)
+        # Darker sidebar for contrast with content
         self.setStyleSheet(f"""
             #sidebar {{
-                background-color: {c['bg_surface']};
+                background-color: {c['sidebar_bg']};
             }}
         """)
 
@@ -311,7 +244,7 @@ class Sidebar(QWidget):
         self._ai_on = False
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 16, 0, 0)
+        layout.setContentsMargins(0, 20, 0, 0)
         layout.setSpacing(0)
 
         # ── Title ──
@@ -319,14 +252,15 @@ class Sidebar(QWidget):
         title.setFont(QFont(FONT_CN, 15, QFont.Weight.Bold))
         title.setStyleSheet(f"""
             color: {c['fg_primary']}; background: transparent;
-            padding: 0 16px; margin-bottom: 16px; letter-spacing: 0.5px;
+            padding: 0 16px 16px 16px;
         """)
         layout.addWidget(title)
 
         # ── Sections ──
         func_section = SidebarSection(
             "func", "功能",
-            [("schedule", "日程总览"), ("courses", "课程表"), ("tasks", "作业管理")]
+            [("schedule", "日程总览"), ("courses", "课程表"),
+             ("tasks", "作业管理")]
         )
         life_section = SidebarSection(
             "life", "生活",
@@ -338,14 +272,11 @@ class Sidebar(QWidget):
         layout.addWidget(func_section)
         layout.addWidget(life_section)
 
-        # Wire nav items
         for sec in self._sections.values():
             for nav in sec.nav_items().values():
                 nav.clicked_with_key.connect(self._on_nav_clicked)
                 self._nav_items[nav.nav_key] = nav
-            sec.sectionToggled.connect(self._on_section_toggled)
 
-        # Default: expand "功能", select "日程总览"
         func_section.set_expanded(True, animated=False)
         self.set_active("schedule")
 
@@ -354,55 +285,44 @@ class Sidebar(QWidget):
         spacer.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         layout.addWidget(spacer)
 
-        # ── Bottom ──
+        # ── Bottom items ──
         bottom = QWidget()
         bottom.setStyleSheet(f"""
             QWidget {{
                 background: transparent;
                 border-top: 1px solid {c['border_strong']};
-                padding-top: 8px;
+                padding-top: 4px;
             }}
         """)
         bl = QVBoxLayout(bottom)
         bl.setContentsMargins(0, 0, 0, 0)
         bl.setSpacing(0)
 
-        settings_btn = NavItem("settings", "设置", indent=False)
-        about_btn = NavItem("about", "关于", indent=False)
-        settings_btn.clicked_with_key.connect(self._on_nav_clicked)
-        about_btn.clicked_with_key.connect(self._on_nav_clicked)
-        self._nav_items["settings"] = settings_btn
-        self._nav_items["about"] = about_btn
-        bl.addWidget(settings_btn)
-        bl.addWidget(about_btn)
+        for key, label in [("settings", "设置"), ("about", "关于")]:
+            btn = NavItem(key, label, indent=False)
+            btn.clicked_with_key.connect(self._on_nav_clicked)
+            self._nav_items[key] = btn
+            bl.addWidget(btn)
         layout.addWidget(bottom)
 
         # ── AI Toggle ──
-        ai_toggle = QPushButton("AI 助手")
-        ai_toggle.setFlat(True)
-        ai_toggle.setCursor(Qt.CursorShape.PointingHandCursor)
-        ai_toggle.setStyleSheet(f"""
+        self._ai_btn = QPushButton("AI 助手")
+        self._ai_btn.setFlat(True)
+        self._ai_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._ai_btn.setStyleSheet(f"""
             QPushButton {{
                 background: transparent; border: none;
-                color: {c['fg_hint']}; font-size: 11px;
-                text-align: left; padding: 6px 16px;
+                color: {c['fg_hint']}; font-size: 12px;
+                text-align: left; padding: 8px 16px;
             }}
             QPushButton:hover {{ color: {c['accent']}; }}
         """)
-        ai_toggle.clicked.connect(self._toggle_ai)
-        self._ai_toggle_btn = ai_toggle
-        layout.addWidget(ai_toggle)
+        self._ai_btn.clicked.connect(self._toggle_ai)
+        layout.addWidget(self._ai_btn)
 
     def _on_nav_clicked(self, key: str):
         self.set_active(key)
         self.nav_changed.emit(key)
-
-    def _on_section_toggled(self, section_id: str, expanding: bool):
-        """Accordion: close other sections."""
-        if expanding:
-            return  # already handled by section itself
-        # When one closes, we don't auto-open another — accordion allows all-closed
-        pass
 
     def set_active(self, key: str):
         if self._current_nav == key:
@@ -411,44 +331,40 @@ class Sidebar(QWidget):
         for nav in self._nav_items.values():
             nav.setChecked(nav.nav_key == key)
 
-        # Auto-expand the section containing the selected item
+        # Auto-expand section containing the item
         for sec_id, sec in self._sections.items():
             if key in sec.nav_items():
                 if not sec.expanded:
                     self._expand_section_accordion(sec_id)
 
     def _expand_section_accordion(self, target_id: str):
-        """Expand target; collapse others."""
-        # Collapse others first
         for sec_id, sec in self._sections.items():
             if sec_id != target_id and sec.expanded:
                 sec.set_expanded(False)
-        # Expand target
         self._sections[target_id].set_expanded(True)
 
     def _toggle_ai(self):
         c = get_colors()
         self._ai_on = not self._ai_on
         if self._ai_on:
-            self._ai_toggle_btn.setStyleSheet(f"""
+            self._ai_btn.setStyleSheet(f"""
                 QPushButton {{
                     background: transparent; border: none;
-                    color: {c['accent']}; font-size: 11px; font-weight: 600;
-                    text-align: left; padding: 6px 16px;
+                    color: {c['accent']}; font-size: 12px; font-weight: 600;
+                    text-align: left; padding: 8px 16px;
                 }}
                 QPushButton:hover {{ color: {c['accent_hover']}; }}
             """)
         else:
-            self._ai_toggle_btn.setStyleSheet(f"""
+            self._ai_btn.setStyleSheet(f"""
                 QPushButton {{
                     background: transparent; border: none;
-                    color: {c['fg_hint']}; font-size: 11px;
-                    text-align: left; padding: 6px 16px;
+                    color: {c['fg_hint']}; font-size: 12px;
+                    text-align: left; padding: 8px 16px;
                 }}
                 QPushButton:hover {{ color: {c['accent']}; }}
             """)
         self.ai_toggled.emit(self._ai_on)
 
     def refresh_theme(self):
-        """Re-apply styles after theme change."""
-        pass  # Styles are applied in __init__ via get_colors()
+        pass

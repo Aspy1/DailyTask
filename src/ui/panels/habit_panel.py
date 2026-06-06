@@ -17,9 +17,10 @@ CARD_MIN_WIDTH = 210
 CARD_HEIGHT = 135
 
 
-class _HabitCard(QFrame):
-    toggled = Signal(str)  # habit_id
-    edit_requested = Signal(str)  # habit_id
+class _HabitCard(QWidget):
+    """Warm-paper card — matches HTML preview §9 design."""
+    toggled = Signal(str)
+    edit_requested = Signal(str)
 
     def __init__(self, habit: dict, active: bool, done: bool, parent=None):
         super().__init__(parent)
@@ -33,106 +34,111 @@ class _HabitCard(QFrame):
         self.setFixedHeight(CARD_HEIGHT)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
-        # Card appearance
-        if not active:
-            bg = c["bg_surface"]
-            border = c["border"]
-            fg = c["fg_hint"]
-            name_color = c["fg_hint"]
-        elif done:
-            bg = c["bg_surface"]
-            border = c["border"]
-            fg = c["fg_hint"]
-            name_color = c["fg_hint"]
-        else:
-            bg = c["card_bg"]
-            border = c["card_border"]
-            fg = c["fg_primary"]
-            name_color = c["fg_primary"]
-
+        # Card background
+        bg = c["card_bg"] if active and not done else c["bg_surface"]
         self.setStyleSheet(f"""
-            _HabitCard {{ background-color: {bg};
-                border-radius: 12px; }}
-            _HabitCard:hover {{ background-color: {c['accent_bg']}; }}
+            _HabitCard {{
+                background-color: {bg};
+                border-radius: 12px;
+            }}
+            _HabitCard:hover {{
+                background-color: {c['accent_bg']};
+            }}
         """)
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(16, 12, 16, 8)
-        layout.setSpacing(6)
+        layout.setContentsMargins(16, 14, 16, 10)
+        layout.setSpacing(4)
 
-        # Top: name + schedule
-        top = QHBoxLayout()
-        top.setSpacing(6)
+        # ── Row 1: name + tag ──
+        row1 = QHBoxLayout()
+        row1.setSpacing(8)
+
         name_lbl = QLabel(habit.get("name", ""))
-        name_lbl.setFont(QFont(self.font().family(), 12))
-        name_lbl.setStyleSheet(f"font-weight: 600; color: {name_color}; border: none; background: transparent;")
-        name_lbl.setMinimumWidth(60)
-        name_lbl.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self._name_lbl = name_lbl
-        top.addWidget(name_lbl)
+        name_lbl.setFont(QFont(self.font().family(), 14))
+        name_lbl.setStyleSheet(
+            f"font-weight: 600; color: {c['fg_primary']}; border: none; background: transparent;")
+        row1.addWidget(name_lbl)
+        row1.addStretch()
 
-        sched = habit.get("schedule", {})
-        if sched.get("type") == "weekly":
-            days = sched.get("days", [])
-            dn = ["一", "二", "三", "四", "五", "六", "日"]
-            sched_text = "每周" + "".join(dn[d - 1] for d in sorted(days))
+        # Tag
+        streak = habit.get("streak", 0)
+        if active and done:
+            tag_text = f"连续{streak}天" if streak > 0 else "已完成"
+            tag_bg = c["green"] + "20"  # 12% opacity
+            tag_fg = c["green"]
+        elif active and not done:
+            tag_text = "今日未打卡"
+            tag_bg = c["red"] + "18"
+            tag_fg = c["red"]
+        elif streak > 0:
+            tag_text = f"连续{streak}天"
+            tag_bg = c["green"] + "20"
+            tag_fg = c["green"]
         else:
-            sched_text = f"每{sched.get('value',1)}天"
-        rt = habit.get("reminder_time", "")
-        if rt:
-            sched_text += f" {rt}"
-        sched_lbl = QLabel(sched_text)
-        sched_lbl.setStyleSheet(f"color: {fg}; font-size: 13px; border: none; background: transparent;")
-        top.addWidget(sched_lbl)
-        top.addStretch()
+            tag_text = _describe_schedule(habit.get("schedule", {}))
+            tag_bg = c["accent_bg"]
+            tag_fg = c["accent"]
 
-        # Status indicator
-        if not active:
-            status = "—"
-        elif done:
-            status = "✓"
-        else:
-            status = "○"
-        status_lbl = QLabel(status)
-        status_lbl.setStyleSheet(
-            f"color: {name_color}; font-size: 14px; border: none; background: transparent;"
-        )
-        top.addWidget(status_lbl)
-        layout.addLayout(top)
+        tag = QLabel(tag_text)
+        tag.setStyleSheet(f"""
+            color: {tag_fg}; font-size: 11px; font-weight: 500;
+            padding: 2px 10px; border-radius: 10px;
+            background-color: {tag_bg}; border: none;
+        """)
+        row1.addWidget(tag)
+        layout.addLayout(row1)
 
-        # Divider
-        div = QFrame()
-        div.setFrameShape(QFrame.Shape.HLine)
-        div.setStyleSheet(f"border: none; background-color: {c['divider']}; max-height: 1px;")
-        layout.addWidget(div)
+        # ── Row 2: description ──
+        desc = _build_description(habit, active, done)
+        desc_lbl = QLabel(desc)
+        desc_lbl.setWordWrap(True)
+        fg = c["fg_secondary"] if (active and not done) else c["fg_hint"]
+        desc_lbl.setStyleSheet(
+            f"color: {fg}; font-size: 12px; border: none; background: transparent; line-height: 1.5;")
+        layout.addWidget(desc_lbl)
 
-        # Total time
-        ats = habit.get("attached_tasks", [])
-        at_total = sum(at.get("duration_minutes", 0) for at in ats)
-        total_min = habit.get("duration_minutes", 30) + at_total
-        time_lbl = QLabel(f"预计总用时 {total_min} 分钟")
-        time_lbl.setStyleSheet(
-            f"color: {c['accent']}; font-size: 13px; font-weight: 600; border: none; background: transparent;"
-        )
-        layout.addWidget(time_lbl)
-
-        # Attached tasks
-        if ats:
-            at_texts = []
-            for at in ats[:3]:
-                at_texts.append(at.get("name", ""))
-            at_str = "、".join(at_texts)
-            if len(ats) > 3:
-                at_str += f" 等{len(ats)}项"
-        else:
-            at_str = "无附加事项"
-        at_lbl = QLabel(at_str)
-        at_lbl.setWordWrap(True)
-        at_lbl.setStyleSheet(
-            f"color: {fg}; font-size: 13px; border: none; background: transparent;"
-        )
-        layout.addWidget(at_lbl)
         layout.addStretch()
+
+        # ── Row 3: action buttons ──
+        if active and not done:
+            btn_row = QHBoxLayout()
+            btn_row.setSpacing(8)
+
+            done_btn = QPushButton("完成打卡")
+            done_btn.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: {c['accent']}; color: #fff; border: none;
+                    border-radius: 6px; padding: 5px 16px; font-size: 11px; font-weight: 600;
+                }}
+                QPushButton:hover {{ background-color: {c['accent_hover']}; }}
+            """)
+            done_btn.clicked.connect(lambda: self.toggled.emit(self._hid))
+            btn_row.addWidget(done_btn)
+
+            postpone_btn = QPushButton("推迟")
+            postpone_btn.setStyleSheet(f"""
+                QPushButton {{
+                    background: transparent; color: {c['fg_secondary']}; border: 1px solid {c['border_strong']};
+                    border-radius: 6px; padding: 5px 12px; font-size: 11px;
+                }}
+                QPushButton:hover {{ background: {c['bg_input']}; }}
+            """)
+            postpone_btn.clicked.connect(lambda: self.postpone_requested.emit(self._hid))
+            btn_row.addWidget(postpone_btn)
+
+            skip_btn = QPushButton("跳过")
+            skip_btn.setStyleSheet(f"""
+                QPushButton {{
+                    background: transparent; color: {c['fg_hint']}; border: none;
+                    border-radius: 6px; padding: 5px 12px; font-size: 11px;
+                }}
+                QPushButton:hover {{ color: {c['fg_secondary']}; }}
+            """)
+            skip_btn.clicked.connect(lambda: self.skip_requested.emit(self._hid))
+            btn_row.addWidget(skip_btn)
+            btn_row.addStretch()
+            layout.addLayout(btn_row)
 
     def mouseDoubleClickEvent(self, ev):
         self.toggled.emit(self._hid)
@@ -143,6 +149,35 @@ class _HabitCard(QFrame):
         edit_action.triggered.connect(lambda: self.edit_requested.emit(self._hid))
         menu.exec(ev.globalPos())
 
+
+def _describe_schedule(sched: dict) -> str:
+    """Human-readable schedule label."""
+    if sched.get("type") == "weekly":
+        days = sched.get("days", [])
+        dn = ["一", "二", "三", "四", "五", "六", "日"]
+        return "每周" + "".join(dn[d - 1] for d in sorted(days))
+    val = sched.get("value", 1)
+    if val == 1:
+        return "每日"
+    return f"每{val}天"
+
+
+def _build_description(habit: dict, active: bool, done: bool) -> str:
+    """Build card description text."""
+    parts = []
+    sched = habit.get("schedule", {})
+    parts.append(_describe_schedule(sched))
+
+    dur = habit.get("duration_minutes", 30)
+    if dur:
+        parts.append(f"预计{dur}分钟")
+
+    ats = habit.get("attached_tasks", [])
+    if ats:
+        names = [at.get("name", "") for at in ats[:2]]
+        parts.append(" · ".join(names))
+
+    return "  ·  ".join(parts)
 
 class _FlowGrid(QWidget):
     """Simple flow layout — arranges children in rows, re-wrapping on resize."""
@@ -269,6 +304,8 @@ class HabitPanel(QWidget):
             card = _HabitCard(h, active, done)
             card.toggled.connect(self._toggle_habit)
             card.edit_requested.connect(self._edit_habit)
+            card.postpone_requested.connect(self._postpone_habit)
+            card.skip_requested.connect(self._skip_habit)
             card.setParent(self._grid)
             card.show()
         self._grid._layout_children()
@@ -290,6 +327,24 @@ class HabitPanel(QWidget):
             self._refresh()
         except Exception:
             pass
+
+    
+
+    def _postpone_habit(self, hid: str) -> None:
+        """Postpone habit to tomorrow."""
+        from datetime import date, timedelta
+        tomorrow = (date.today() + timedelta(days=1)).isoformat()
+        self._dm.habits.postpone(hid, tomorrow)
+        self._dm.habits.save()
+        self._dm.data_changed.emit("habit")
+        self._refresh()
+
+    def _skip_habit(self, hid: str) -> None:
+        """Skip today's habit."""
+        self._dm.habits.cancel_today(hid)
+        self._dm.habits.save()
+        self._dm.data_changed.emit("habit")
+        self._refresh()
 
     def _toggle_habit(self, hid: str) -> None:
         done = self._dm.habits.is_done_today(hid)

@@ -31,6 +31,8 @@ class MainWorkspace(QWidget):
         self._ai_service = ai_service
         self._plugin_manager = plugin_manager
 
+        c = get_colors()
+        self.setStyleSheet(f"background-color: {c['bg_root']};")
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)

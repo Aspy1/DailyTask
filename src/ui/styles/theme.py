@@ -21,7 +21,7 @@ TOKENS = {
     "light": {
         # Backgrounds
         "bg_root":          "#F2EFE9",
-        "bg_surface":       "#E8E5DE",
+        "bg_surface":       "#E0DDD6",
         "bg_card":          "#FDFCFA",
         "bg_elevated":      "#FDFCFA",
         "bg_input":         "#F2EFE9",
@@ -45,7 +45,7 @@ TOKENS = {
         "yellow":           "#B0823A",
         "orange":           "#C5702A",
         # Navigation
-        "sidebar_bg":       "#E8E5DE",
+        "sidebar_bg":       "#DCD8CF",
         "chat_bg":          "#FDFCFA",
         "input_bg":         "#F2EFE9",
         "input_border":     "rgba(0,0,0,0.10)",
@@ -57,7 +57,7 @@ TOKENS = {
         "card_bg":          "#FDFCFA",
         "card_border":      "rgba(0,0,0,0.06)",
         "section_heading":  "#B0823A",
-        "nav_bg":           "#E8E5DE",
+        "nav_bg":           "#DCD8CF",
         "status_bar_bg":    "#E3E0D9",
         "nav_selected_bg":  "rgba(176,130,58,0.10)",
         "nav_selected_fg":  "#966C2E",
