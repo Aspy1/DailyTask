@@ -111,7 +111,7 @@ class SettingsPanel(QWidget):
     def _divider(self) -> QFrame:
         c = get_colors()
         c = self._c()
-        d = QWidget()
+        d = QFrame()
         d.setFrameShape(QFrame.Shape.HLine)
         d.setStyleSheet(f"border: none; background-color: {c['divider']}; max-height: 1px; margin: 0 18px;")
         return d

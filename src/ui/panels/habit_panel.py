@@ -101,7 +101,7 @@ class _HabitCard(QFrame):
         layout.addLayout(top)
 
         # Divider
-        div = QWidget()
+        div = QFrame()
         div.setFrameShape(QFrame.Shape.HLine)
         div.setStyleSheet(f"border: none; background-color: {c['divider']}; max-height: 1px;")
         layout.addWidget(div)
