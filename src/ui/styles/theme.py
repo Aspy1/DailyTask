@@ -183,7 +183,7 @@ QMainWindow {{ background-color: {t["bg_root"]}; }}
 /* ── Menus ───────────────────────────────── */
 QMenuBar {{ background-color: {t["bg_surface"]}; color: {t["fg_primary"]}; border-bottom: 1px solid {t["border"]}; padding: 2px 0; font-size: {SIZE_BODY_S}px; }}
 QMenuBar::item:selected {{ background-color: {t["bg_elevated"]}; border-radius: 4px; }}
-QMenu {{ background-color: {t["bg_elevated"]}; color: {t["fg_primary"]}; border: 1px solid {t["border_strong"]}; border-radius: 8px; padding: 4px; }}
+QMenu {{ background-color: {t["bg_elevated"]}; color: {t["fg_primary"]}; border: 1px solid {t["border_strong"]}; padding: 4px; }}
 QMenu::item {{ padding: 6px 32px 6px 12px; border-radius: 4px; }}
 QMenu::item:selected {{ background-color: {t["accent_bg"]}; color: {t["fg_primary"]}; }}
 QMenu::separator {{ height: 1px; background-color: {t["divider"]}; margin: 4px 8px; }}
@@ -255,6 +255,6 @@ QToolTip {{ background-color: {t["bg_elevated"]}; color: {t["fg_primary"]}; bord
 #aiInputContainer {{ background-color: {t["sidebar_bg"]}; border-top: 1px solid {t["border"]}; }}
 #courseCount, #taskCount {{ color: {t["fg_hint"]}; font-size: 10px; border: none; }}
 #taskTable {{ background-color: {t["bg_root"]}; color: {t["fg_primary"]}; border: none; font-size: 12px; }}
-#taskTable::item {{ padding: 8px 6px; min-height: 28px; border-bottom: 1px solid {t["divider"]}; }}
+#taskTable::item {{ padding: 8px 6px; min-height: 32px; border-bottom: 1px solid {t["divider"]}; }}
 #taskTable::item:alternate {{ background-color: {t["table_alt"]}; }}
 """

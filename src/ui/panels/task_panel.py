@@ -126,6 +126,7 @@ class TaskPanel(QWidget):
         self._table.setColumnWidth(1, 170)
         self._table.setColumnWidth(3, 50)
         self._table.horizontalHeader().setDefaultAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._table.setSortingEnabled(False)
         self._table.verticalHeader().setVisible(False)
         self._table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
         self._table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
@@ -160,7 +161,7 @@ class TaskPanel(QWidget):
         c = get_colors()
         return """
             QPushButton { background-color: {c["btn_secondary_bg"]}; color: {c["fg_hint"]};
-                border: 1px solid {c["border"]}; border-radius: 8px;
+                border-radius: 8px;
                 padding: 4px 12px; font-size: 13px; }
             QPushButton:hover { background-color: {c["btn_secondary_hover"]}; color: {c["fg_secondary"]}; }
             QPushButton::menu-indicator { image: none; }

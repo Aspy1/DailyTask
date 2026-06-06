@@ -53,7 +53,7 @@ class PluginsPanel(QWidget):
         for pinfo in self._pm.list_plugins():
             c = self._c()
             row = QWidget()
-            row.setStyleSheet(f"background-color: {c['card_bg']}; border: 1px solid {c['card_border']}; border-radius:8px; padding:8px;")
+            row.setStyleSheet(f"background-color: {c['card_bg']}; border-radius:8px; padding:8px;")
             rl = QHBoxLayout(row)
             rl.setContentsMargins(8, 8, 8, 8)
             rl.setSpacing(10)

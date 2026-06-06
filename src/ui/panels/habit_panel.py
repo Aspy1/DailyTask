@@ -51,7 +51,7 @@ class _HabitCard(QFrame):
             name_color = c["fg_primary"]
 
         self.setStyleSheet(f"""
-            _HabitCard {{ background-color: {bg}; border: 1px solid {border};
+            _HabitCard {{ background-color: {bg};
                 border-radius: 12px; }}
             _HabitCard:hover {{ background-color: {c['accent_bg']}; }}
         """)

@@ -68,7 +68,7 @@ class CourseDetailDialog(QDialog):
         close_btn = QPushButton("关闭")
         close_btn.setStyleSheet(f"""
             QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['fg_primary']};
-                border: 1px solid {c['border']}; border-radius: 8px; padding: 6px 20px; font-size: 13px; }}
+                border-radius: 8px; padding: 6px 20px; font-size: 13px; }}
             QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; }}
         """)
         close_btn.clicked.connect(self.accept)

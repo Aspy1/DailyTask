@@ -421,7 +421,7 @@ class SettingsPanel(QWidget):
 
         for pinfo in self._plugin_manager.list_plugins():
             row = QWidget()
-            row.setStyleSheet(f"background-color: {self._c()['card_bg']}; border: 1px solid {self._c()['card_border']}; border-radius: 8px; padding: 6px;")
+            row.setStyleSheet(f"background-color: {self._c()['card_bg']}; border-radius: 8px; padding: 6px;")
             rl = QHBoxLayout(row)
             rl.setContentsMargins(8, 8, 8, 8)
             rl.setSpacing(8)
@@ -430,6 +430,16 @@ class SettingsPanel(QWidget):
             name_lbl.setStyleSheet("font-weight:600; font-size:14px; color: " + self._c()['fg_primary'] + "; background: transparent;")
             rl.addWidget(name_lbl)
             enabled_cb = QCheckBox("启用")
+            enabled_cb.setStyleSheet(f"""
+                QCheckBox {{ spacing: 8px; font-size: 13px; }}
+                QCheckBox::indicator {{
+                    width: 40px; height: 22px; border-radius: 11px;
+                    background-color: {self._c()['fg_disabled']};
+                }}
+                QCheckBox::indicator:checked {{
+                    background-color: {self._c()['accent']};
+                }}
+            """)
             enabled_cb.setChecked(bool(pinfo.enabled))
             enabled_cb.stateChanged.connect(lambda state, n=pinfo.name: self._toggle_plugin(n, state == 2))
             rl.addWidget(enabled_cb)
