@@ -238,7 +238,7 @@ class ScheduleView(QWidget):
             is_current = (period == current_slot and self._day_offset == 0)
 
             card = QFrame()
-            card.setFrameShape(QFrame.Shape.NoFrame)
+            card.setAttribute(Qt.WA_StyledBackground, True)
             card.setStyleSheet(f"""
                 QFrame {{ background-color: {c['card_bg']}; border: 1px solid {c['border_strong']}; border-radius: 8px; }}
             """)
@@ -271,7 +271,7 @@ class ScheduleView(QWidget):
                 for item in items:
                     if item["type"] == "course":
                         course_card = QFrame()
-                        course_card.setFrameShape(QFrame.Shape.NoFrame)
+                        course_card.setAttribute(Qt.WA_StyledBackground, True)
                         course_card.setStyleSheet(
                             f"QFrame {{ background-color: {c['bg_elevated']}; border-radius: 8px; }}"
                         )
@@ -301,7 +301,7 @@ class ScheduleView(QWidget):
 
                     elif item["type"] == "plan":
                         plan_card = QFrame()
-                        plan_card.setFrameShape(QFrame.Shape.NoFrame)
+                        plan_card.setAttribute(Qt.WA_StyledBackground, True)
                         plan_card.setStyleSheet(
                             f"QFrame {{ background-color: {c['accent_bg']}; border-radius: 8px; }}"
                         )
@@ -327,7 +327,7 @@ class ScheduleView(QWidget):
 
                     elif item["type"] == "habit":
                         hab_card = QFrame()
-                        hab_card.setFrameShape(QFrame.Shape.NoFrame)
+                        hab_card.setAttribute(Qt.WA_StyledBackground, True)
                         hab_card.setStyleSheet(
                             f"QFrame {{ background-color: {c['bg_elevated']}; border-radius: 8px; }}"
                         )
@@ -361,7 +361,7 @@ class ScheduleView(QWidget):
                 task_title = t.get("title", "")
                 course_name = t.get("course_name", "") or ""
                 ddl_divider = QFrame()
-                ddl_divider.setFrameShape(QFrame.Shape.NoFrame)
+                ddl_divider.setAttribute(Qt.WA_StyledBackground, True)
                 ddl_divider.setStyleSheet(f"QFrame {{ border: none; background: transparent; }}")
                 ddl_layout = QHBoxLayout(ddl_divider)
                 ddl_layout.setContentsMargins(0, 4, 0, 4)
