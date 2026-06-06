@@ -364,9 +364,7 @@ class ScheduleView(QWidget):
                 ddl_label.setTextFormat(Qt.TextFormat.RichText)
                 ddl_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
                 ddl_label.setWordWrap(True)
-                ddl_label.setMaximumWidth(
-                    self._content.width() - 48
-                )
+                # ddl_label auto-sizes via layout
                 ddl_label.setText(
                     f'<span style="color:{c["fg_hint"]};">——————————</span>'
                     f'<a href="task" style="color:{c['red']};font-weight:bold;text-decoration:none;">{task_title}</a>'
