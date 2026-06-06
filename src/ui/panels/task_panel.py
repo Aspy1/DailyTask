@@ -92,12 +92,12 @@ class TaskPanel(QWidget):
 
         bar_layout.addStretch()
 
-        self._filter_btn = QPushButton("课程筛选 ")
+        self._filter_btn = QPushButton("课程筛选")
         self._filter_btn.setStyleSheet(self._btn_qss())
         self._filter_btn.clicked.connect(self._show_course_filter)
         bar_layout.addWidget(self._filter_btn)
 
-        self._time_btn = QPushButton("时间筛选 ")
+        self._time_btn = QPushButton("时间筛选")
         self._time_btn.setStyleSheet(self._btn_qss())
         self._time_btn.clicked.connect(self._show_time_filter)
         bar_layout.addWidget(self._time_btn)
@@ -127,12 +127,14 @@ class TaskPanel(QWidget):
         self._table.setColumnWidth(3, 50)
         self._table.horizontalHeader().setDefaultAlignment(Qt.AlignmentFlag.AlignCenter)
         self._table.setSortingEnabled(False)
+        self._table.horizontalHeader().setSortIndicatorShown(False)
         self._table.verticalHeader().setVisible(False)
         self._table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
         self._table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self._table.setShowGrid(False)
         self._table.setAlternatingRowColors(True)
         self._table.setSortingEnabled(False)
+        self._table.horizontalHeader().setSortIndicatorShown(False)
         self._table.horizontalHeader().setSectionsClickable(False)
         self._table.horizontalHeader().setSortIndicatorShown(False)
         layout.addWidget(self._table, stretch=1)
@@ -224,15 +226,15 @@ class TaskPanel(QWidget):
         self._highlight_ddl = True
         self._time_bucket = None
         self._selected_courses = set()
-        self._filter_btn.setText("课程筛选 ")
-        self._time_btn.setText("时间筛选 ")
+        self._filter_btn.setText("课程筛选")
+        self._time_btn.setText("时间筛选")
         self._page = 0
         self._refresh()
 
     def filter_by_course(self, course_name: str) -> None:
         self._selected_courses = {course_name}
         self._page = 0
-        self._filter_btn.setText(f"课程: {course_name} ")
+        self._filter_btn.setText(f"课程: {course_name}")
 
     def _apply_course_filter(self, sel: set[str]) -> None:
         self._selected_courses = sel
@@ -240,7 +242,7 @@ class TaskPanel(QWidget):
         if sel:
             self._filter_btn.setText(f"课程 ({len(sel)}) ")
         else:
-            self._filter_btn.setText("课程筛选 ")
+            self._filter_btn.setText("课程筛选")
         self._refresh()
 
     def _show_time_filter(self) -> None:
@@ -265,11 +267,12 @@ class TaskPanel(QWidget):
             label = next((l for l, k in TIME_BUCKETS if k == bucket), bucket)
             self._time_btn.setText(f"时间: {label} ")
         else:
-            self._time_btn.setText("时间筛选 ")
+            self._time_btn.setText("时间筛选")
         self._refresh()
 
     def _refresh(self) -> None:
         self._table.setSortingEnabled(False)
+        self._table.horizontalHeader().setSortIndicatorShown(False)
         self._table.setRowCount(0)
 
         tasks = self._get_filtered()
@@ -288,7 +291,6 @@ class TaskPanel(QWidget):
             course_name = t.get("course_name", "") or "" or "—"
             course_item = QTableWidgetItem(course_name)
             course_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            course_item.setToolTip(course_name)
             self._table.setItem(i, 0, course_item)
 
             due = t.get("due_date", "")
@@ -309,31 +311,26 @@ class TaskPanel(QWidget):
                         f'<span style="color:#e74856;font-size: 13px;">{due_display}</span>'
                         f' <span style="color:{c["fg_secondary"]};font-size: 13px;">({days_left}天后)</span>'
                     )
-                    lbl.setToolTip(due_display)
                     self._table.setCellWidget(i, 1, lbl)
                     # skip setItem below
                     title_item = QTableWidgetItem(t.get("title", ""))
                     title_item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
-                    title_item.setToolTip(t.get("title", ""))
                     if t.get("status") == "completed":
                         title_item.setForeground(QBrush(QColor("#6e6e73")))
                     self._table.setItem(i, 2, title_item)
                     # Checkbox
                     cb = QCheckBox()
                     cb.setChecked(t.get("status") == "completed")
-                    cb.setToolTip("标记完成" if t.get("status") != "completed" else "已完成的勾选仅作提示。右键可取消完成。")
                     tid = t["id"]
                     cb.toggled.connect(lambda checked, tid=tid: self._on_check(tid, checked))
                     self._table.setCellWidget(i, 3, cb)
                     continue
             due_item = QTableWidgetItem(due_display)
             due_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            due_item.setToolTip(due_display)
             self._table.setItem(i, 1, due_item)
 
             title_item = QTableWidgetItem(t.get("title", ""))
             title_item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
-            title_item.setToolTip(t.get("title", ""))
             if t.get("status") == "completed":
                 title_item.setForeground(QBrush(QColor("#6e6e73")))
             self._table.setItem(i, 2, title_item)
@@ -341,7 +338,6 @@ class TaskPanel(QWidget):
             # Checkbox
             cb = QCheckBox()
             cb.setChecked(t.get("status") == "completed")
-            cb.setToolTip("标记完成" if t.get("status") != "completed" else "已完成的勾选仅作提示。右键可取消完成。")
             tid = t["id"]
             cb.toggled.connect(lambda checked, tid=tid: self._on_check(tid, checked))
             self._table.setCellWidget(i, 3, cb)
