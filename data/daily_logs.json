@@ -89,13 +89,6 @@
       {
         "course_name": "算法设计与分析",
         "date": "2026-06-07",
-        "time_slot": 1,
-        "title": "提交算法大作业和计网作业（截止今天23:00）",
-        "type": "course_note"
-      },
-      {
-        "course_name": "算法设计与分析",
-        "date": "2026-06-07",
         "time_slot": 3,
         "title": "开始做算法4个个人作业（截止6/11 23:00）",
         "type": "course_note"
