@@ -14,18 +14,9 @@ from PySide6.QtGui import QFont
 from src.models.course import PERIOD_TIMES, schedule_date
 from src.services.data_manager import DataManager
 from src.ui.styles.theme import get_colors, FONT_CN, SIZE_SUBTITLE
+from src.ui.components.click_label import ClickLabel
 
 
-
-class _ClickLabel(QLabel):
-    clicked = Signal()
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.setCursor(Qt.CursorShape.PointingHandCursor)
-    def mousePressEvent(self, ev):
-        if ev.button() == Qt.MouseButton.LeftButton:
-            self.clicked.emit()
-        super().mousePressEvent(ev)
 
 class ScheduleView(QWidget):
     course_table_requested = Signal()
@@ -586,7 +577,7 @@ class ScheduleView(QWidget):
                 task_title = t.get("title", "")
                 course_name = t.get("course_name", "") or ""
 
-                ddl_label = _ClickLabel()
+                ddl_label = ClickLabel()
                 ddl_label.setWordWrap(False)
                 ddl_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
                 suffix = f" 截止 {due_time}" if due_time else ""
