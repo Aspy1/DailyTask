@@ -19,9 +19,13 @@ from src.ui.styles.theme import get_colors, FONT_CN, SIZE_SUBTITLE
 
 class _ClickLabel(QLabel):
     clicked = Signal()
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
     def mousePressEvent(self, ev):
+        if ev.button() == Qt.MouseButton.LeftButton:
+            self.clicked.emit()
         super().mousePressEvent(ev)
-        self.clicked.emit()
 
 class ScheduleView(QWidget):
     course_table_requested = Signal()
