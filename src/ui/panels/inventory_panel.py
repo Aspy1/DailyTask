@@ -206,7 +206,7 @@ class InventoryPanel(QWidget):
 
         if cat != "全部":
             items = [it for it in items if it.get("category") == cat]
-        if tag != "全部标签":
+        if tag:
             items = [it for it in items if tag in it.get("tags", [])]
 
         items = sorted(items, key=lambda x: (
