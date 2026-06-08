@@ -1,3 +1,17 @@
 {
-  "items": []
+  "items": [
+    {
+      "id": "i_001",
+      "name": "抽纸",
+      "category": "日用品",
+      "quantity": 24,
+      "unit": "包",
+      "status": "充足",
+      "min_quantity": 1,
+      "location": "阳台",
+      "notes": "",
+      "created_at": "2026-06-08T16:41:58.099897",
+      "updated_at": "2026-06-08T16:41:58.099913"
+    }
+  ]
 }
