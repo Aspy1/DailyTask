@@ -145,11 +145,7 @@ class InventoryPanel(QWidget):
         bl.addSpacing(4)
 
         refresh_btn = QPushButton("刷新")
-        refresh_btn.setStyleSheet(f"""
-            QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
-                border-radius: 8px; padding: 5px 16px; font-size: 13px; }}
-            QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; }}
-        """)
+        refresh_btn.setStyleSheet(self._btn_qss())
         refresh_btn.clicked.connect(self._refresh)
         bl.addWidget(refresh_btn)
 
@@ -169,30 +165,39 @@ class InventoryPanel(QWidget):
 
         self._refresh()
 
-    def _refresh_filters(self) -> None:
-        current_cat = self._cat_combo.currentText()
-        current_tag = self._tag_combo.currentText()
-        self._cat_combo.blockSignals(True)
-        self._tag_combo.blockSignals(True)
-        self._cat_combo.clear()
-        self._cat_combo.addItem("全部")
-        cats = set(it.get("category", "") for it in self._dm.inventory.items)
-        for cat in sorted(cats):
-            if cat:
-                self._cat_combo.addItem(cat)
-        idx = self._cat_combo.findText(current_cat)
-        self._cat_combo.setCurrentIndex(idx if idx >= 0 else 0)
+    def _btn_qss(self) -> str:
+        c = get_colors()
+        return f"QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['fg_hint']}; border-radius: 8px; padding: 4px 12px; font-size: 13px; }} QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; color: {c['fg_secondary']}; }} QPushButton::menu-indicator {{ image: none; }}"
 
-        self._tag_combo.clear()
-        self._tag_combo.addItem("全部标签")
+    def _show_cat_filter(self) -> None:
+        c = get_colors()
+        menu = QMenu(self)
+        menu.setStyleSheet(f"QMenu {{ background-color: {c['bg_elevated']}; color: {c['fg_primary']}; border: 1px solid {c['border_strong']}; border-radius: 8px; padding: 4px; }} QMenu::item {{ padding: 6px 24px 6px 12px; border-radius: 4px; }} QMenu::item:selected {{ background-color: {c['accent_bg']}; }}")
+        menu.addAction("全部分类").triggered.connect(lambda: self._apply_cat_filter("全部"))
+        menu.addSeparator()
+        cats = sorted(set(it.get("category", "") for it in self._dm.inventory.items if it.get("category")))
+        for cat in cats:
+            menu.addAction(cat).triggered.connect(lambda checked, c2=cat: self._apply_cat_filter(c2))
+        menu.exec(self._cat_btn.mapToGlobal(self._cat_btn.rect().bottomLeft()))
+
+    def _show_tag_filter(self) -> None:
+        c = get_colors()
+        menu = QMenu(self)
+        menu.setStyleSheet(f"QMenu {{ background-color: {c['bg_elevated']}; color: {c['fg_primary']}; border: 1px solid {c['border_strong']}; border-radius: 8px; padding: 4px; }} QMenu::item {{ padding: 6px 24px 6px 12px; border-radius: 4px; }} QMenu::item:selected {{ background-color: {c['accent_bg']}; }}")
+        menu.addAction("全部标签").triggered.connect(lambda: self._apply_tag_filter(""))
+        menu.addSeparator()
         for tag in self._dm.inventory.all_tags:
-            self._tag_combo.addItem(tag)
-        idx = self._tag_combo.findText(current_tag)
-        self._tag_combo.setCurrentIndex(idx if idx >= 0 else 0)
-        self._cat_combo.blockSignals(False)
-        self._tag_combo.blockSignals(False)
+            menu.addAction(tag).triggered.connect(lambda checked, t=tag: self._apply_tag_filter(t))
+        menu.exec(self._tag_btn.mapToGlobal(self._tag_btn.rect().bottomLeft()))
 
-    def _on_filter_changed(self) -> None:
+    def _apply_cat_filter(self, cat: str) -> None:
+        self._cat_filter = cat
+        self._cat_btn.setText(cat if cat != "全部" else "全部分类")
+        self._refresh()
+
+    def _apply_tag_filter(self, tag: str) -> None:
+        self._tag_filter = tag
+        self._tag_btn.setText(tag if tag else "全部标签")
         self._refresh()
 
     def _refresh(self) -> None:
@@ -201,10 +206,8 @@ class InventoryPanel(QWidget):
             if item.widget():
                 item.widget().deleteLater()
 
-        self._refresh_filters()
-
-        cat = self._cat_combo.currentText()
-        tag = self._tag_combo.currentText()
+        cat = self._cat_filter
+        tag = self._tag_filter
         items = self._dm.inventory.items
 
         if cat != "全部":
