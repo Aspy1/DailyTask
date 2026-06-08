@@ -235,12 +235,12 @@ class ScheduleView(QWidget):
         snapshot = self._build_snapshot()
 
         # 2. Backup daily_logs.json
-        snapshot_path = _os.path.join(str(self._dm.daily_logs._file_path.parent), "schedule_snapshot.txt")
+        snapshot_path = _os.path.join(str(self._dm.daily_logs.file_path.parent), "schedule_snapshot.txt")
         with open(snapshot_path, 'w', encoding='utf-8') as f:
             f.write(snapshot)
 
-        backup_path = str(self._dm.daily_logs._file_path) + ".bak"
-        shutil.copy2(str(self._dm.daily_logs._file_path), backup_path)
+        backup_path = str(self._dm.daily_logs.file_path) + ".bak"
+        shutil.copy2(str(self._dm.daily_logs.file_path), backup_path)
         self._arrange_backup_path = backup_path
 
         # 3. Build AI prompt
@@ -280,7 +280,7 @@ class ScheduleView(QWidget):
         if not self._arrange_backup_path or not _os.path.exists(self._arrange_backup_path):
             QMessageBox.information(self, "撤销", "没有可撤销的备份。")
             return
-        shutil.copy2(self._arrange_backup_path, str(self._dm.daily_logs._file_path))
+        shutil.copy2(self._arrange_backup_path, str(self._dm.daily_logs.file_path))
         self._arrange_backup_path = None
         self._undo_btn.hide()
         self._dm.reload_all()
