@@ -29,11 +29,11 @@ class _ItemCard(QWidget):
         elif status == "不足":
             bg = c["orange"] + "10"
         else:
-            bg = c["card_bg"]
+            bg = c["bg_elevated"]
 
         self.setStyleSheet(f"""
             _ItemCard {{ background-color: {bg}; border-radius: 8px; }}
-            _ItemCard:hover {{ background-color: {c['accent_bg']}; }}
+            _ItemCard:hover {{ background-color: {c['accent_bg']}; }} _ItemCard {{ border-bottom: 1px solid {c['border']}; }}
         """)
 
         cl = QVBoxLayout(self)
@@ -156,7 +156,7 @@ class InventoryPanel(QWidget):
         self._container = QWidget()
         self._card_layout = QVBoxLayout(self._container)
         self._card_layout.setContentsMargins(16, 8, 16, 16)
-        self._card_layout.setSpacing(10)
+        self._card_layout.setSpacing(8)
         self._card_layout.addStretch()
         scroll.setWidget(self._container)
         layout.addWidget(scroll, stretch=1)
