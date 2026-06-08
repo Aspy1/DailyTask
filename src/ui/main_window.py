@@ -449,69 +449,57 @@ class MainWindow(QMainWindow):
 
     def _update_expense(self) -> None:
         total = self._data_manager.expenses.today_total()
-        self._expense_label.setText(f"今日支出: ¥{total:.2f}")
+        self._expense_label.setText(f"¥{total:.0f}")
 
     
     def _update_habit_count(self) -> None:
-        """Show active daily habits count."""
         today_habits = [h for h in self._data_manager.habits.habits
                         if self._data_manager.habits.is_active_today(h["id"])]
         done = sum(1 for h in today_habits
                    if self._data_manager.habits.is_done_today(h["id"]))
         total = len(today_habits)
-        self._habit_count_label.setText(f"{done}/{total}项日常")
+        self._habit_count_label.setText(f"日常{done}/{total}")
 
     def _update_exam_alert(self) -> None:
         today = date.today()
         c = get_colors()
         upcoming = self._data_manager.exams.get_upcoming(5)
-        if not upcoming:
-            self._exam_alert_label.setText("无考试")
-            self._exam_alert_label.setStyleSheet(
-                f"color: {c['fg_hint']}; font-size: 12px; padding: 1px 6px;")
+        count = len(upcoming)
+        if count == 0:
+            self._exam_alert_label.setText("")
+            self._exam_alert_label.hide()
             return
         nearest = upcoming[0]
-        exam_date = nearest.get("exam_date", "")
         try:
-            delta = (date.fromisoformat(exam_date) - today).days
+            delta = (date.fromisoformat(nearest.get("exam_date", "")) - today).days
         except (ValueError, TypeError):
             delta = 999
-        course = nearest.get("course_name", "")
-        if delta < 0:
-            text = "考试已过"
-            color = c["fg_disabled"]
-        elif delta == 0:
-            text = f"\u2605 {course} 今天考试!"
-            color = c["red"]
-        elif delta <= 7:
-            text = f"考试 {delta}天后: {course}"
+        if delta <= 7:
             color = c["red"]
         elif delta <= 15:
-            text = f"考试 {delta}天后: {course}"
             color = c["orange"]
         else:
-            text = f"最近考试: {course} ({exam_date})"
             color = c["fg_secondary"]
-        self._exam_alert_label.setText(text)
+        self._exam_alert_label.setText(f"备考{count}科")
         self._exam_alert_label.setStyleSheet(
             f"color: {color}; font-size: 12px; font-weight: 600; padding: 1px 6px;")
+        self._exam_alert_label.show()
 
     def _on_exam_alert_click(self) -> None:
         self._workspace.switch_to("exams")
 
     def _update_shopping(self) -> None:
-        """Show shopping needs summary."""
-        # Check if there are items marked as needing restock
         has_inventory = hasattr(self._data_manager, 'inventory')
         if has_inventory:
             items = getattr(self._data_manager.inventory, 'items', [])
             needs = [i for i in items if i.get('status') == 'need']
             if needs:
-                self._shopping_label.setText(f"需购{len(needs)}项")
+                self._shopping_label.setText(f"需购{len(needs)}")
+                self._shopping_label.show()
             else:
-                self._shopping_label.setText("无购物需求")
+                self._shopping_label.hide()
         else:
-            self._shopping_label.setText("无购物需求")
+            self._shopping_label.hide()
 
     def _on_ddl_alert_click(self) -> None:
         self._workspace.show_ddl_tasks()
