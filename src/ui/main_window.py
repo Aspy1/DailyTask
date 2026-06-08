@@ -483,10 +483,10 @@ class MainWindow(QMainWindow):
         elif delta == 0:
             text = f"\u2605 {course} 今天考试!"
             color = c["red"]
-        elif delta <= 3:
+        elif delta <= 7:
             text = f"考试 {delta}天后: {course}"
             color = c["red"]
-        elif delta <= 7:
+        elif delta <= 15:
             text = f"考试 {delta}天后: {course}"
             color = c["orange"]
         else:

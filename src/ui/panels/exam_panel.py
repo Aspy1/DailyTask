@@ -33,10 +33,10 @@ class _ExamCard(QWidget):
         elif days_left == 0:
             bg = c["red"] + "12"
             accent_color = c["red"]
-        elif days_left <= 3:
+        elif days_left <= 7:
             bg = c["red"] + "08"
             accent_color = c["red"]
-        elif days_left <= 7:
+        elif days_left <= 15:
             bg = c["orange"] + "08"
             accent_color = c["orange"]
         else:
@@ -62,10 +62,10 @@ class _ExamCard(QWidget):
         elif days_left == 0:
             badge.setText("今天")
             badge.setStyleSheet(f"color: #fff; font-size: 13px; font-weight: 700; background: {c['red']}; border-radius: 26px;")
-        elif days_left <= 3:
+        elif days_left <= 7:
             badge.setText(f"{days_left}天")
             badge.setStyleSheet(f"color: #fff; font-size: 13px; font-weight: 700; background: {c['red']}; border-radius: 26px;")
-        elif days_left <= 7:
+        elif days_left <= 15:
             badge.setText(f"{days_left}天")
             badge.setStyleSheet(f"color: #fff; font-size: 13px; font-weight: 700; background: {c['orange']}; border-radius: 26px;")
         else:
