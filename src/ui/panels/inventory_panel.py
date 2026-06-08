@@ -13,68 +13,73 @@ from src.ui.styles.theme import get_colors, FONT_CN, SIZE_SUBTITLE
 
 
 class _ItemCard(QWidget):
-    """Card with full item info and visual distinction."""
+    """Card matching schedule view style — rounded, elevated background."""
 
     def __init__(self, item: dict, parent=None):
         super().__init__(parent)
         self._item = item
         c = get_colors()
 
-        self.setMinimumHeight(90)
+        self.setMinimumHeight(72)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
         status = item.get("status", "充足")
-        ignored = item.get("ignore_low_stock", False)
         if status == "需购":
-            bg, accent, bar = c["red"] + "10", c["red"], c["red"]
-        elif status == "不足" and not ignored:
-            bg, accent, bar = c["orange"] + "10", c["orange"], c["orange"]
+            bg = c["red"] + "10"
+        elif status == "不足":
+            bg = c["orange"] + "10"
         else:
-            bg, accent, bar = c["card_bg"], c["green"], c["border"]
+            bg = c["card_bg"]
 
         self.setStyleSheet(f"""
-            _ItemCard {{ background-color: {bg}; border-radius: 0 10px 10px 0; border-left: 3px solid {bar}; margin-bottom: 1px; }}
+            _ItemCard {{ background-color: {bg}; border-radius: 8px; }}
             _ItemCard:hover {{ background-color: {c['accent_bg']}; }}
         """)
 
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(14, 10, 14, 10)
-        layout.setSpacing(12)
+        cl = QVBoxLayout(self)
+        cl.setContentsMargins(16, 12, 16, 10)
+        cl.setSpacing(4)
 
-        # Left: all info
-        info = QVBoxLayout()
-        info.setSpacing(4)
-
-        # Row 1: name + quantity
-        row1 = QHBoxLayout()
-        row1.setSpacing(8)
+        # Row 1: name + quantity + status
+        hdr = QHBoxLayout()
+        hdr.setSpacing(8)
         name = QLabel(item.get("name", ""))
         name.setStyleSheet(f"color: {c['fg_primary']}; font-size: 14px; font-weight: 600; border: none; background: transparent;")
-        row1.addWidget(name)
-        row1.addStretch()
+        hdr.addWidget(name)
+        hdr.addStretch()
         qty = QLabel(f"x{item.get('quantity',0)}")
-        qty.setStyleSheet(f"color: {accent}; font-size: 14px; font-weight: 700; border: none; background: transparent;")
-        row1.addWidget(qty)
-        info.addLayout(row1)
+        qty.setStyleSheet(f"color: {c['fg_secondary']}; font-size: 14px; font-weight: 700; border: none; background: transparent;")
+        hdr.addWidget(qty)
 
-        # Row 2: category + location
+        # Status badge
+        badge = QLabel({"需购": "需购", "不足": "不足", "充足": "充足"}.get(status, status))
+        badge.setFixedWidth(42)
+        badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        if status == "需购":
+            badge_color = c["red"]
+        elif status == "不足":
+            badge_color = c["orange"]
+        else:
+            badge_color = c["green"]
+        badge.setStyleSheet(f"color: {badge_color}; font-size: 11px; font-weight: 600; background: {badge_color}18; border-radius: 10px; padding: 2px 0; border: none;")
+        hdr.addWidget(badge)
+        cl.addLayout(hdr)
+
+        # Row 2: category · location
         parts = []
-        cat = item.get("category", "")
-        if cat:
-            parts.append(cat)
-        loc = item.get("location", "")
-        if loc:
-            parts.append(loc)
-        notes = item.get("notes", "")
-        if notes:
-            parts.append(notes)
+        if item.get("category"):
+            parts.append(item["category"])
+        if item.get("location"):
+            parts.append(item["location"])
+        if item.get("notes"):
+            parts.append(item["notes"])
         if parts:
             detail = QLabel(" · ".join(parts))
             detail.setWordWrap(True)
-            detail.setStyleSheet(f"color: {c['fg_secondary']}; font-size: 12px; border: none; background: transparent;")
-            info.addWidget(detail)
+            detail.setStyleSheet(f"color: {c['fg_hint']}; font-size: 12px; border: none; background: transparent;")
+            cl.addWidget(detail)
 
-        # Row 3: tags + status badge
+        # Row 3: tags
         tags = item.get("tags", [])
         if tags:
             tag_row = QHBoxLayout()
@@ -84,20 +89,7 @@ class _ItemCard(QWidget):
                 t.setStyleSheet(f"color: {c['accent']}; font-size: 10px; font-weight: 500; background: {c['accent']}18; border-radius: 8px; padding: 1px 8px; border: none;")
                 tag_row.addWidget(t)
             tag_row.addStretch()
-            info.addLayout(tag_row)
-
-        layout.addLayout(info, stretch=1)
-
-        # Right: status badge
-        status_text = {"需购": "需购", "不足": "不足", "充足": "充足"}.get(status, status)
-        badge = QLabel(status_text)
-        badge.setFixedWidth(42)
-        badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        badge.setStyleSheet(f"""
-            color: {accent}; font-size: 11px; font-weight: 600;
-            background: {accent}20; border-radius: 10px; padding: 2px 0; border: none;
-        """)
-        layout.addWidget(badge, alignment=Qt.AlignmentFlag.AlignTop)
+            cl.addLayout(tag_row)
 
 
 
