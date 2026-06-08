@@ -16,6 +16,7 @@ from src.ui.panels.task_panel import TaskPanel
 from src.ui.panels.expense_panel import ExpensePanel
 from src.ui.panels.habit_panel import HabitPanel
 from src.ui.panels.exam_panel import ExamPanel
+from src.ui.panels.inventory_panel import InventoryPanel
 from src.ui.widgets.schedule_view import ScheduleView
 from src.ui.widgets.course_detail_dialog import CourseDetailDialog
 from src.ui.styles.theme import get_colors
@@ -52,7 +53,7 @@ class MainWorkspace(QWidget):
         self._expense_panel = ExpensePanel(dm)
 
         # Placeholder panels (will be replaced with real ones later)
-        self._inventory_panel = self._placeholder("有什么", "物品统计与分类管理")
+        self._inventory_panel = InventoryPanel(dm)
         self._meal_panel = self._placeholder("吃什么", "菜品记录与智能推荐")
 
         self._settings_panel = SettingsPanel(settings, ai_service, plugin_manager, dm)
