@@ -220,6 +220,34 @@ class AIService(QObject):
         self._auto_compress()
         self._send_to_ai()
 
+    def _send_to_ai(self) -> None:
+        system_prompt = self._build_system_prompt()
+        try:
+            provider = self._make_provider()
+        except Exception as e:
+            self.error_occurred.emit(f"创建 AI 连接失败: {e}")
+            return
+        model = self._settings.get("AI", "model", "deepseek-chat")
+        self._thread = QThread()
+        self._worker = AIWorker(
+            provider=provider, model=model,
+            system_prompt=system_prompt,
+            messages=list(self._history),
+        )
+        self._worker.moveToThread(self._thread)
+        self._thread.started.connect(self._worker.run)
+        self._worker.finished.connect(self._on_response)
+        self._worker.error.connect(self._on_error)
+        self._worker.finished_with_instructions.connect(self._on_response_with_instructions)
+        self._worker.finished.connect(self._thread.quit)
+        self._worker.error.connect(self._thread.quit)
+        self._worker.finished_with_instructions.connect(self._thread.quit)
+        self._worker.finished.connect(self._worker.deleteLater)
+        self._worker.error.connect(self._worker.deleteLater)
+        self._worker.finished_with_instructions.connect(self._worker.deleteLater)
+        self._thread.finished.connect(self._thread.deleteLater)
+        self._thread.start()
+
     def _build_system_prompt(self) -> str:
         summary = self._dm.get_today_summary()
         today = date.today()
