@@ -479,15 +479,15 @@ class MainWindow(QMainWindow):
         self._workspace.switch_to("exams")
 
     def _update_shopping(self) -> None:
-        has_inventory = hasattr(self._data_manager, 'inventory')
-        if has_inventory:
-            items = getattr(self._data_manager.inventory, 'items', [])
-            needs = [i for i in items if i.get('status') == 'need']
-            if needs:
-                self._shopping_label.setText(f"需购{len(needs)}")
-                self._shopping_label.show()
-            else:
-                self._shopping_label.hide()
+        if not hasattr(self, '_shopping_label'):
+            return
+        c2 = get_colors()
+        needs = self._data_manager.inventory.need_restock
+        if needs:
+            self._shopping_label.setText(f"需购{len(needs)}")
+            self._shopping_label.setStyleSheet(
+                f"color: {c2['red']}; font-size: 12px; font-weight: 600; padding: 0 3px;")
+            self._shopping_label.show()
         else:
             self._shopping_label.hide()
 
