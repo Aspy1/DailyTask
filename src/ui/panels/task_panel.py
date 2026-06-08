@@ -74,6 +74,7 @@ class TaskPanel(QWidget):
         self._selected_courses: set[str] = set()
         self._time_bucket: str | None = None
         self._highlight_ddl = False
+        self._status_filter = "pending"  # "pending" | "completed" | "all"
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -103,10 +104,10 @@ class TaskPanel(QWidget):
         self._time_btn.clicked.connect(self._show_time_filter)
         bar_layout.addWidget(self._time_btn)
 
-        archive_btn = QPushButton("已归档")
-        archive_btn.setStyleSheet(self._btn_qss())
-        archive_btn.clicked.connect(self._show_archive)
-        bar_layout.addWidget(archive_btn)
+        self._status_btn = QPushButton("未完成")
+        self._status_btn.setStyleSheet(self._btn_qss())
+        self._status_btn.clicked.connect(self._toggle_status_filter)
+        bar_layout.addWidget(self._status_btn)
 
         refresh_btn = QPushButton("刷新")
         refresh_btn.setStyleSheet(self._btn_qss())
@@ -124,7 +125,7 @@ class TaskPanel(QWidget):
         self._table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
         self._table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Fixed)
         self._table.setColumnWidth(0, 120)
-        self._table.setColumnWidth(1, 130)
+        self._table.setColumnWidth(1, 175)
         self._table.setColumnWidth(3, 50)
         self._table.horizontalHeader().setStretchLastSection(False)
         self._table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
@@ -179,6 +180,10 @@ class TaskPanel(QWidget):
 
     def _get_filtered(self) -> list[dict]:
         tasks = self._dm.tasks.active
+        if self._status_filter == "completed":
+            tasks = [t for t in tasks if t.get("status") == "completed"]
+        elif self._status_filter == "pending":
+            tasks = [t for t in tasks if t.get("status") != "completed"]
         if self._selected_courses:
             tasks = [t for t in tasks if (t.get("course_name", "") or "—") in self._selected_courses]
         if self._time_bucket is not None:
@@ -359,6 +364,12 @@ class TaskPanel(QWidget):
             self._dm.tasks.uncomplete(task_id)
         self._dm.tasks.save()
         self._dm.data_changed.emit("task_status")
+        # Auto-switch filter: if marking done while in pending view, switch to completed
+        if checked and self._status_filter == "pending":
+            self._status_filter = "completed"
+            self._status_btn.setText("已完成")
+        # Auto-refresh to move item between views
+        self._refresh()
 
     def _prev_page(self) -> None:
         if self._page > 0:
@@ -399,6 +410,14 @@ class TaskPanel(QWidget):
                     lbl.setStyleSheet(f"color: {c['fg_hint']}; font-size: 13px;")
         except Exception:
             pass
+
+    def _toggle_status_filter(self) -> None:
+        cycle = {"pending": "completed", "completed": "all", "all": "pending"}
+        labels = {"pending": "未完成", "completed": "已完成", "all": "全部"}
+        self._status_filter = cycle[self._status_filter]
+        self._status_btn.setText(labels[self._status_filter])
+        self._page = 0
+        self._refresh()
 
     def _show_archive(self) -> None:
         archived = self._dm.tasks.archived

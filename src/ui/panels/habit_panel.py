@@ -2,11 +2,10 @@
 
 from PySide6.QtCore import Qt, Signal, QRect, QSize
 from PySide6.QtWidgets import (
-    QFrame,
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QListWidget, QListWidgetItem, QDialog, QLineEdit, QComboBox,
     QFormLayout, QDialogButtonBox, QMessageBox, QCheckBox,
-    QScrollArea, QFrame, QSizePolicy, QMenu,
+    QScrollArea, QSizePolicy, QMenu,
 )
 from PySide6.QtGui import QFont
 
@@ -41,15 +40,11 @@ class _HabitCard(QWidget):
         is_daily = sched.get("type") in ("daily", "interval")
         is_weekly = sched.get("type") == "weekly"
 
-        # Card background: dim when done or inactive
+        # Card background: dim when done, warm paper when active
         if done:
             bg = c["bg_surface"]
             name_fg = c["fg_hint"]
             desc_fg = c["fg_disabled"]
-        elif not active:
-            bg = c["bg_surface"]
-            name_fg = c["fg_hint"]
-            desc_fg = c["fg_hint"]
         else:
             bg = c["card_bg"]
             name_fg = c["fg_primary"]
@@ -331,9 +326,14 @@ class HabitPanel(QWidget):
 
     def _refresh(self) -> None:
         self._clear_grid()
+        visible_count = 0
         for h in self._dm.habits.habits:
             active = self._dm.habits.is_active_today(h["id"])
+            # Only show cards that are either active today or already done today
             done = self._dm.habits.is_done_today(h["id"])
+            if not active and not done:
+                continue
+            visible_count += 1
             card = _HabitCard(h, active, done)
             card.toggled.connect(self._toggle_habit)
             card.edit_requested.connect(self._edit_habit)
