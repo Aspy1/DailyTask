@@ -264,13 +264,6 @@ class MainWindow(QMainWindow):
         sep_exam.setStyleSheet(f"color: {c['border_strong']}; margin: 0 5px;")
         self._statusbar.addPermanentWidget(sep_exam)
 
-        self._shopping_label = QLabel()
-        self._statusbar.addPermanentWidget(self._shopping_label)
-
-        sep4 = QLabel("|")
-        sep4.setStyleSheet(f"color: {c['border_strong']}; margin: 0 5px;")
-        self._statusbar.addPermanentWidget(sep4)
-
         self._date_label = QLabel()
         self._statusbar.addPermanentWidget(self._date_label)
 
