@@ -12,6 +12,71 @@
       "notes": "",
       "created_at": "2026-06-08T16:41:58.099897",
       "updated_at": "2026-06-08T16:41:58.099913"
+    },
+    {
+      "id": "i_002",
+      "name": "护眼喷雾",
+      "category": "日用品",
+      "quantity": 2,
+      "unit": "件",
+      "status": "充足",
+      "min_quantity": 1,
+      "location": "桌子上一瓶，抽屉里一瓶",
+      "notes": "",
+      "created_at": "2026-06-08T17:09:59.091858",
+      "updated_at": "2026-06-08T17:09:59.091876"
+    },
+    {
+      "id": "i_003",
+      "name": "笔芯",
+      "category": "学习用品",
+      "quantity": 7,
+      "unit": "件",
+      "status": "充足",
+      "min_quantity": 1,
+      "location": "未指定",
+      "notes": "",
+      "created_at": "2026-06-08T17:09:59.212607",
+      "updated_at": "2026-06-08T17:09:59.212628"
+    },
+    {
+      "id": "i_004",
+      "name": "笔壳",
+      "category": "学习用品",
+      "quantity": 3,
+      "unit": "件",
+      "status": "充足",
+      "min_quantity": 1,
+      "location": "未指定",
+      "notes": "",
+      "created_at": "2026-06-08T17:09:59.335875",
+      "updated_at": "2026-06-08T17:09:59.335895"
+    },
+    {
+      "id": "i_005",
+      "name": "一次性纸杯",
+      "category": "日用品",
+      "quantity": 1,
+      "unit": "件",
+      "status": "充足",
+      "min_quantity": 1,
+      "location": "未指定",
+      "notes": "",
+      "created_at": "2026-06-08T17:09:59.456818",
+      "updated_at": "2026-06-08T17:09:59.456837"
+    },
+    {
+      "id": "i_006",
+      "name": "过敏药",
+      "category": "药品",
+      "quantity": 5,
+      "unit": "件",
+      "status": "充足",
+      "min_quantity": 1,
+      "location": "屏幕右边架子",
+      "notes": "",
+      "created_at": "2026-06-08T17:09:59.587780",
+      "updated_at": "2026-06-08T17:09:59.587804"
     }
   ]
 }
