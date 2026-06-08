@@ -59,7 +59,7 @@ AI 驱动的 PySide6 桌面日程管理应用。自然语言交互管理课程�
 │   ├── actions.py                  # 统一数据操作脚本 (AI + TG bot 共用)
 │   ├── build_index.py              # 模糊搜索索引生成
 │   ├── send_digest.py              # GitHub Actions 邮件摘要
-│   └── hermes_life.py              # Hermes bot 数据脚本
+│
 ├── plugins/pomodoro/               # 番茄钟插件
 ├── data/                           # JSON 数据文件
 │   ├── tasks.json / habits.json / courses.json
@@ -128,6 +128,10 @@ AI 驱动的 PySide6 桌面日程管理应用。自然语言交互管理课程�
 | `accent` | #B0823A | 强调色 |
 
 ## 更新日志
+
+### v0.8.2
+- 清理死代码 (context_sidebar/function_tabs/hermes_life, -665行)
+- ClickLabel 提取为公共组件
 
 ### v0.8.1
 - 考试卡片 UI 重构 (圆角卡片+倒计时徽章)
