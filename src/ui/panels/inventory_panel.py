@@ -364,24 +364,10 @@ class ItemDialog(QDialog):
             self._category.setCurrentIndex(idx)
         form.addRow("分类:", self._category)
 
-        qty_row = QHBoxLayout()
         self._quantity = QSpinBox()
         self._quantity.setRange(0, 999)
         self._quantity.setValue(item.get("quantity", 1) if item else 1)
-        qty_row.addWidget(self._quantity)
-        self._unit = QComboBox()
-        self._unit.setEditable(True)
-        self._unit.addItems(["个", "瓶", "包", "盒", "箱", "袋", "双", "件", "卷", "支"])
-        if item:
-            unit = item.get("unit", "个")
-            idx = self._unit.findText(unit)
-            if idx >= 0:
-                self._unit.setCurrentIndex(idx)
-            else:
-                self._unit.setCurrentText(unit)
-        qty_row.addWidget(self._unit)
-        qty_row.addStretch()
-        form.addRow("数量:", qty_row)
+        form.addRow("数量 (件):", self._quantity)
 
         self._min_qty = QSpinBox()
         self._min_qty.setRange(0, 99)
@@ -424,7 +410,7 @@ class ItemDialog(QDialog):
         self.result_data = {
             "name": self._name.text().strip(),
             "category": self._category.currentText(),
-            "quantity": qty, "unit": self._unit.currentText(),
+            "quantity": qty, "unit": "件",
             "min_quantity": min_q, "status": status,
             "location": self._location.text().strip(),
             "tags": tags, "notes": self._notes.text().strip(),
