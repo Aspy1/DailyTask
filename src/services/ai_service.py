@@ -43,11 +43,13 @@ python scripts/actions.py add_course --name "课程" --day 1 --weeks "1-16" --sl
 schedule格式: daily/N, weekly/1,3,5, monthly/N。day: 1=周一...7=周日。
 
 ### 物品（有什么）
-添加前先查找，然后在同一轮对话中立即添加:
+添加物品必须查找和添加写在同一个```sh块:
 ```sh
-python scripts/actions.py lookup_item --name "关键词"
+python scripts/actions.py lookup_item --name "A"
+python scripts/actions.py lookup_item --name "B"
+python scripts/actions.py add_item --name "B" --category "分类" --quantity N --location "位置"
 ```
-查找结果返回后，NOT_FOUND的直接添加，FOUND的跳过或询问。查找和添加必须在同一轮对话完成。
+如果lookup返回FOUND，该物品就不要add（只添加NOT_FOUND的）。全部命令放在一个块里执行。
 ```sh
 python scripts/actions.py add_item --name "物品名" --category "分类" --quantity N --location "位置" [--tags "标签1,标签2"]
 python scripts/actions.py update_item --id "i_001" --location "新位置"
@@ -314,7 +316,7 @@ class AIService(QObject):
 假期/调休:
 {self._build_holiday_info()}
 """
-        return SYSTEM_PROMPT_BASE + "\n" + context + "\n【输出格式】\n- 纯文本，禁用 markdown。仅可用**加粗**。\n- 禁止输出脚本命令原文和执行结果。\n- 添加前如有重复，列出重复项并询问是否更新。\n- 完成后用一行简练中文总结操作结果。"
+        return SYSTEM_PROMPT_BASE + "\n" + context + "\n【输出格式】\n- 纯文本，禁用 markdown。仅可用**加粗**。\n- 禁止输出脚本命令原文和执行结果。\n- 查找发现重复物品时，在该轮回复中告知用户，等待确认后再处理。\n- 完成后用一行简练中文总结操作结果。"
 
     def _build_expense_list(self) -> str:
         records = sorted(self._dm.expenses.records, key=lambda r: r.get("date", ""), reverse=True)[:20]
