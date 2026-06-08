@@ -266,6 +266,8 @@ class AIService(QObject):
 
         context = f"""当前日期: {today.isoformat()} {weekday}
 当前学期: {self._dm.courses.current_semester or '未设置'}
+当前第{self._get_current_week()}周 ({self._get_week_parity()})
+单双周课程: {self._build_parity_hint()}
 
 已导入的课程:
 {course_list}
@@ -327,6 +329,31 @@ class AIService(QObject):
             pu_str = f" [推迟至{pu[:10]}]" if pu else ""
             lines.append(f"  [{h['id']}] {h.get('name','')} ({s}{rt_str}){pu_str}")
         return "\n".join(lines)
+
+    def _get_current_week(self) -> int:
+        semesters = self._dm.courses._data.get("semesters", [])
+        for s in semesters:
+            try:
+                start = date.fromisoformat(s["start_date"])
+                delta = (date.today() - start).days
+                return max(1, delta // 7 + 1)
+            except (KeyError, ValueError):
+                pass
+        return 1
+
+    def _get_week_parity(self) -> str:
+        return "单周" if self._get_current_week() % 2 == 1 else "双周"
+
+    def _build_parity_hint(self) -> str:
+        lines = []
+        day_names = ["周一","周二","周三","周四","周五","周六","周日"]
+        for c in self._dm.courses.courses:
+            parity = c.get("week_parity", "all")
+            if parity != "all":
+                day = c.get("day_of_week", 0)
+                day_str = day_names[day-1] if 1 <= day <= 7 else "?"
+                lines.append(f"  {c.get('name','')}: {day_str} {parity}周")
+        return chr(10).join(lines) if lines else "  (无)"
 
     def _build_holiday_info(self) -> str:
         h = self._dm.courses.holidays
