@@ -148,33 +148,18 @@ class ScheduleView(QWidget):
 
     # ── Quick Arrange ──────────────────────────────────────
 
-    def _build_snapshot(self) -> str:
-        """Build a human+AI readable snapshot of everything to schedule."""
-        target = self._target_date
-        target_str = target.isoformat()
+    def _build_snapshot(self, days: int = 1) -> str:
+        """Build a human+AI readable snapshot for N days."""
         day_names = ["周一","周二","周三","周四","周五","周六","周日"]
-        lines = []
-        lines.append(f"========== 日程快照: {target_str} {day_names[target.weekday()]} ==========")
+        target = self._target_date
+        today = date.today()
+        lines = [f"========== 日程快照: {days}天 (从{target.isoformat()}起) =========="]
+        lines.append("当前日期: " + today.isoformat())
         lines.append("")
 
-        # ── Courses (fixed, cannot move) ──
-        courses = self._dm.courses.get_courses_for_date(target)
-        lines.append(f"--- 课程 (共{len(courses)}门，不可移动) ---")
-        for c in courses:
-            slots = c.get("time_slots", [])
-            slot_strs = []
-            for s in slots:
-                start_s = s.get("start", "?")
-                end_s = s.get("end", "?")
-                slot_strs.append(f"第{start_s}-{end_s}节")
-            loc = c.get("location", "") or ""
-            loc_str = f" @{loc}" if loc else ""
-            lines.append(f"  [{','.join(slot_strs)}] {c.get('name','')}{loc_str}")
-        lines.append("")
-
-        # ── DDLs (red lines) ──
+        # ── DDLs (global, same for all days) ──
         pending = self._dm.tasks.pending
-        lines.append(f"--- DDL/截止日期 (共{len(pending)}项，不可移动的红线) ---")
+        lines.append(f"--- DDL/截止日期 (共{len(pending)}项, 不可移动的红线) ---")
         for t in pending:
             due = t.get("due_date", "")[:16].replace("T", " ") if t.get("due_date") else "无截止"
             course = t.get("course_name", "") or ""
@@ -182,62 +167,96 @@ class ScheduleView(QWidget):
             lines.append(f"  ● {t.get('title','')}{c_str}  截止: {due}")
         lines.append("")
 
-        # ── Habits active today ──
-        habits = [h for h in self._dm.habits.habits if self._dm.habits.is_active_today(h["id"])]
-        lines.append(f"--- 今日习惯 (共{len(habits)}项) ---")
-        for h in habits:
-            done = "✓已打卡" if self._dm.habits.is_done_today(h["id"]) else "○待打卡"
-            dur = h.get("duration_minutes", 30)
-            rt = h.get("reminder_time", "")
-            rt_str = f" @{rt}" if rt else ""
-            lines.append(f"  {done} {h.get('name','')}{rt_str} ({dur}分钟)")
-        lines.append("")
+        # ── Exams ──
+        if hasattr(self._dm, 'exams'):
+            exams = self._dm.exams.exams
+            upcoming = [e for e in exams if e.get('exam_date', '') >= today.isoformat()]
+            if upcoming:
+                lines.append(f"--- 考试安排 (共{len(upcoming)}场) ---")
+                for e in sorted(upcoming, key=lambda x: x.get('exam_date', '')):
+                    scope = e.get('scope', '') or ''
+                    scope_str = f"  范围: {scope}" if scope else ''
+                    lines.append(f"  📝 {e.get('course_name','')}  {e.get('exam_date','')}{scope_str}")
+                lines.append("")
 
-        # ── Existing plans ──
-        existing_plans = self._dm.daily_logs.get_plans(target_str)
-        lines.append(f"--- 已有日程安排 (共{len(existing_plans)}项) ---")
-        for p in existing_plans:
-            ts = p.get("time_slot", "?")
-            lines.append(f"  第{ts}节: {p.get('title','')} [{p.get('type','custom')}]")
-        lines.append("")
-
-        # ── Free time slots ──
+        # ── Per-day breakdown ──
         period_count = self._dm.courses.get_period_count()
-        occupied = set()
-        for c in courses:
-            for s in c.get("time_slots", []):
-                for p in range(s["start"], s["end"] + 1):
-                    occupied.add(p)
-        free = [i for i in range(1, period_count + 1) if i not in occupied]
-        times = []
-        for p in free:
-            if p <= len(PERIOD_TIMES):
-                start_t, end_t = PERIOD_TIMES[p - 1]
-                times.append(f"第{p}节({start_t}-{end_t})")
+        for d in range(days):
+            day = target + timedelta(days=d)
+            day_str = day.isoformat()
+            day_name = day_names[day.weekday()]
+            is_today = day == today
+            marker = " ★今天" if is_today else ""
+            lines.append(f"========== {day_str} {day_name}{marker} ==========")
+
+            # Courses
+            courses = self._dm.courses.get_courses_for_date(day)
+            lines.append(f"  课程({len(courses)}门):")
+            for c in courses:
+                slots = c.get("time_slots", [])
+                slot_strs = []
+                for s in slots:
+                    slot_strs.append(f"第{s.get('start','?')}-{s.get('end','?')}节")
+                loc = c.get("location", "") or ""
+                loc_str = f" @{loc}" if loc else ""
+                lines.append(f"    [{','.join(slot_strs)}] {c.get('name','')}{loc_str}")
+
+            # Habits active on this day
+            active_habits = []
+            for h in self._dm.habits.habits:
+                sched = h.get("schedule", {})
+                st = sched.get("type", "daily")
+                if st == "daily" or st == "interval":
+                    active_habits.append(h)
+                elif st == "weekly":
+                    wd = day.weekday() + 1
+                    if wd in sched.get("days", []):
+                        active_habits.append(h)
+            if active_habits:
+                lines.append(f"  习惯({len(active_habits)}项):")
+                for h in active_habits:
+                    dur = h.get("duration_minutes", 30)
+                    rt = h.get("reminder_time", "") or ""
+                    rt_str = f" @{rt}" if rt else ""
+                    lines.append(f"    {h.get('name','')}{rt_str} ({dur}分钟)")
+
+            # Existing plans
+            plans = self._dm.daily_logs.get_plans(day_str)
+            if plans:
+                lines.append(f"  已有安排({len(plans)}项):")
+                for p in plans:
+                    lines.append(f"    第{p.get('time_slot','?')}节: {p.get('title','')}")
             else:
-                times.append(f"第{p}节")
-        lines.append(f"--- 空闲时段 (可安排新任务) ---")
-        lines.append(f"  {', '.join(times) if times else '(无空闲)'}")
-        lines.append("")
+                lines.append("  已有安排: (无)")
 
-        # ── Shopping needs ──
-        if hasattr(self._dm, 'inventory'):
-            items = getattr(self._dm.inventory, 'items', [])
-            needs = [i for i in items if i.get('status') == 'need']
-            if needs:
-                lines.append(f"--- 购物需求 (共{len(needs)}项) ---")
-                for n in needs:
-                    lines.append(f"  □ {n.get('name','')}")
+            # Free slots
+            occupied = set()
+            for c in courses:
+                for s in c.get("time_slots", []):
+                    for p in range(s["start"], s["end"] + 1):
+                        occupied.add(p)
+            free = [i for i in range(1, period_count + 1) if i not in occupied]
+            times = []
+            for p in free:
+                if p <= len(PERIOD_TIMES):
+                    st_t, en_t = PERIOD_TIMES[p - 1]
+                    times.append(f"第{p}节({st_t}-{en_t})")
+                else:
+                    times.append(f"第{p}节")
+            lines.append(f"  空闲: {', '.join(times) if times else '(无)'}")
+            lines.append("")
 
-        lines.append("")
+        # ── Arrange instructions ──
         lines.append("========== 安排指令 ==========")
-        lines.append("请根据以上信息，为今天安排日程。规则：")
+        lines.append(f"请为以上{days}天安排日程。规则：")
         lines.append("1. 课程时段不可占用，DDL截止时间不可移动")
-        lines.append("2. 将习惯安排到空闲时段（考虑reminder_time）")
-        lines.append("3. 将未完成的DDL对应任务安排到合适的空闲时段")
-        lines.append("4. 允许在上课时段安排自习任务（陪同上课）")
-        lines.append("5. 最后用JSON输出修改方案")
+        lines.append("2. 将习惯安排到对应日期的空闲时段")
+        lines.append("3. 根据DDL紧迫度，将任务分配到各天空闲时段（越临近截止越优先）")
+        lines.append("4. 如有考试，优先安排考前复习时间")
+        lines.append("5. 允许在上课时段安排自习任务")
+        lines.append("6. 用JSON输出修改方案，每条计划指定date字段")
         return "\n".join(lines)
+
 
     def _quick_arrange(self, days: int = 3) -> None:
         """Generate snapshot, backup, call AI to arrange."""
