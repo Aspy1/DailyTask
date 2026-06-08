@@ -17,13 +17,14 @@ COLORS = ["#e74c3c", "#e67e22", "#f1c40f", "#2ecc71", "#1abc9c",
           "#3498db", "#9b59b6", "#e91e63", "#00bcd4", "#ff5722"]
 
 
-class _TestCard(QWidget):
+class TestCardWidget(QWidget):
     def __init__(self, index, color, parent=None):
         super().__init__(parent)
+        self.setObjectName("testCard")
         self.setFixedHeight(80)
         self.setMinimumWidth(200)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self.setStyleSheet(f"_TestCard {{ background-color: {color}; border-radius: 8px; }}")
+        self.setStyleSheet(f"#testCard {{ background-color: {color}; border-radius: 8px; }}")
         layout = QHBoxLayout(self)
         layout.setContentsMargins(16, 0, 16, 0)
         lbl = QLabel(f"卡片 #{index+1}")
@@ -71,7 +72,7 @@ class InventoryPanel(QWidget):
             row_layout.setSpacing(8)
             for col in range(2):
                 idx = row * 2 + col
-                card = _TestCard(idx, COLORS[idx])
+                card = TestCardWidget(idx, COLORS[idx])
                 row_layout.addWidget(card, stretch=1)
             grid.addLayout(row_layout)
 
