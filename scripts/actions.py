@@ -387,6 +387,7 @@ def cmd_update_item(args):
             if args.status: it["status"] = args.status
             if args.min_qty is not None: it["min_quantity"] = args.min_qty
             if args.location: it["location"] = args.location
+            if args.tags: it["tags"] = [t.strip() for t in args.tags.split(",") if t.strip()]
             it["updated_at"] = now_iso()
             save("inventory.json", data)
             print(f"OK update_item {args.id}")
@@ -497,6 +498,7 @@ def main():
     p.add_argument("--min_qty", type=int, default=1)
     p.add_argument("--location")
     p.add_argument("--notes")
+    p.add_argument("--tags")
 
     # update_item
     p = sub.add_parser("update_item", help="更新物品")
@@ -508,6 +510,7 @@ def main():
     p.add_argument("--status", choices=["充足","不足","需购"])
     p.add_argument("--min_qty", type=int)
     p.add_argument("--location")
+    p.add_argument("--tags")
 
     # need_restock
     sub.add_parser("need_restock", help="查看需购物品")

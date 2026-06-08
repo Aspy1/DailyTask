@@ -47,6 +47,8 @@ class InventoryModel(BaseJsonModel):
             "min_quantity": data.get("min_quantity", 1),
             "location": data.get("location", ""),
             "notes": data.get("notes", ""),
+            "tags": data.get("tags", []),
+            "ignore_low_stock": data.get("ignore_low_stock", False),
             "created_at": datetime.now().isoformat(),
             "updated_at": datetime.now().isoformat(),
         }
@@ -57,15 +59,16 @@ class InventoryModel(BaseJsonModel):
         for it in self.items:
             if it["id"] == iid:
                 for k in ("name", "category", "quantity", "unit", "status",
-                          "min_quantity", "location", "notes"):
+                          "min_quantity", "location", "notes", "tags", "ignore_low_stock"):
                     if k in data:
                         it[k] = data[k]
                 it["updated_at"] = datetime.now().isoformat()
-                # Auto-set status based on quantity vs min
-                if it["quantity"] <= 0:
-                    it["status"] = "需购"
-                elif it["quantity"] < it["min_quantity"]:
-                    it["status"] = "不足"
+                # Auto-set status (skip if ignore_low_stock)
+                if not it.get("ignore_low_stock"):
+                    if it["quantity"] <= 0:
+                        it["status"] = "需购"
+                    elif it["quantity"] < it["min_quantity"]:
+                        it["status"] = "不足"
                 return True
         return False
 
@@ -79,7 +82,16 @@ class InventoryModel(BaseJsonModel):
 
     @property
     def need_restock(self) -> list[dict]:
-        return [it for it in self.items if it.get("status") in ("需购", "不足")]
+        return [it for it in self.items
+                if it.get("status") in ("需购", "不足") and not it.get("ignore_low_stock")]
+
+    @property
+    def all_tags(self) -> list[str]:
+        tags = set()
+        for it in self.items:
+            for t in it.get("tags", []):
+                tags.add(t)
+        return sorted(tags)
 
     @property
     def stock_count(self) -> int:

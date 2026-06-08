@@ -320,6 +320,7 @@ class MainWindow(QMainWindow):
         self._update_expense()
         self._update_habit_count()
         self._update_exam_alert()
+        self._update_shopping()
 
     def _update_date(self) -> None:
         now = datetime.now()
