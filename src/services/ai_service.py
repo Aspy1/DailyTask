@@ -119,27 +119,42 @@ class AIWorker(QObject):
     finished_with_instructions = Signal(str, list)
 
     def __init__(self, provider: AIProvider, model: str, system_prompt: str,
-                 messages: list, parent=None):
+                 messages: list, dm=None, settings=None, parent=None):
         super().__init__(parent)
         self._provider = provider
         self._model = model
         self._system_prompt = system_prompt
         self._messages = messages
+        self._dm = dm
+        self._settings = settings
 
     def run(self) -> None:
         try:
-            text = self._provider.chat(
-                system_prompt=self._system_prompt,
-                messages=self._messages,
-                model=self._model,
-                max_tokens=4096,
-                temperature=0.3,
-            )
-            instructions = InstructionParser.parse(text)
-            if instructions:
-                self.finished_with_instructions.emit(text, instructions)
-            else:
-                self.finished.emit(text)
+            msgs = list(self._messages)
+            final_text = ""
+            for turn in range(5):  # max 5 turns
+                text = self._provider.chat(
+                    system_prompt=self._system_prompt,
+                    messages=msgs,
+                    model=self._model,
+                    max_tokens=4096,
+                    temperature=0.3,
+                )
+                instructions = InstructionParser.parse(text)
+                if not instructions:
+                    # No tool calls — done
+                    self.finished.emit(text)
+                    return
+                # Execute tools silently
+                results = InstructionParser.execute(instructions, self._dm, self._settings)
+                # Feed results back for next turn
+                msgs.append({"role": "assistant", "content": text})
+                results_text = "\n".join(results)
+                msgs.append({"role": "user", "content": f"[工具执行结果]\n{results_text}"})
+                final_text = text
+            # Max turns reached — emit final text (strip code blocks)
+            display = re.sub(r'```(?:sh|json)\s*.*?```', '', final_text, flags=re.DOTALL).strip()
+            self.finished.emit(display or "已完成")
         except Exception as e:
             self.error.emit(str(e))
 
@@ -232,6 +247,7 @@ class AIService(QObject):
             provider=provider, model=model,
             system_prompt=system_prompt,
             messages=list(self._history),
+            dm=self._dm, settings=self._settings,
         )
         self._worker.moveToThread(self._thread)
         self._thread.started.connect(self._worker.run)
@@ -407,7 +423,9 @@ class AIService(QObject):
 
     def _on_response(self, text: str) -> None:
         self._history.append({"role": "assistant", "content": text})
-        self.response_received.emit(text)
+        # Strip code blocks
+        display = re.sub(r'```(?:sh|json)\s*.*?```', '', text, flags=re.DOTALL).strip()
+        self.response_received.emit(display or text)
 
     def _on_response_with_instructions(self, text: str, instructions: list) -> None:
         self._history.append({"role": "assistant", "content": text})
