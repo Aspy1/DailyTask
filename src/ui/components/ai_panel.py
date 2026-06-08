@@ -46,7 +46,7 @@ class _ChatInput(QTextEdit):
         super().__init__(parent)
         self.setMaximumHeight(72)
         self.setMinimumHeight(36)
-        self.setFont(QFont("Consolas", 11))
+        self.setFont(QFont("Microsoft YaHei UI", 11))
         self.setTabChangesFocus(True)
         c = get_colors()
         self.setStyleSheet(f"""
@@ -57,7 +57,7 @@ class _ChatInput(QTextEdit):
                 border-radius: 8px;
                 padding: 6px 10px;
                 font-family: "Microsoft YaHei UI", "Consolas", sans-serif;
-                font-size: 13px;
+                font-size: 14px;
             }}
             QTextEdit:focus {{ border-color: {c['accent']}; }}
         """)
@@ -97,7 +97,7 @@ class AIPanel(QWidget):
         header_layout.addWidget(title)
         header_layout.addStretch()
         self._status_indicator = QLabel("●")
-        self._status_indicator.setStyleSheet(f"color: {c['fg_disabled']}; font-size: 13px; border: none;")
+        self._status_indicator.setStyleSheet(f"color: {c['fg_disabled']}; font-size: 14px; border: none;")
         header_layout.addWidget(self._status_indicator)
         layout.addWidget(header)
 
@@ -118,7 +118,7 @@ class AIPanel(QWidget):
             Qt.TextInteractionFlag.TextSelectableByMouse | Qt.TextInteractionFlag.LinksAccessibleByMouse
         )
         self._chat_label.setStyleSheet(
-            f"QLabel {{ background-color: {c['chat_bg']}; color: {c['fg_primary']}; padding: 8px; font-size: 13px; }}"
+            f"QLabel {{ background-color: {c['chat_bg']}; color: {c['fg_primary']}; padding: 8px; font-size: 14px; }}"
         )
         self._chat_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self._scroll.setWidget(self._chat_label)
@@ -141,7 +141,7 @@ class AIPanel(QWidget):
         self._send_btn.setStyleSheet(f"""
             QPushButton {{
                 background-color: {c['accent']}; color: #fff; border: none;
-                border-radius: 8px; font-weight: 600; font-size: 13px;
+                border-radius: 8px; font-weight: 600; font-size: 14px;
             }}
             QPushButton:hover {{ background-color: {c['accent_hover']}; }}
             QPushButton:pressed {{ background-color: {c['accent_dim']}; }}
@@ -227,13 +227,13 @@ class AIPanel(QWidget):
     def set_status(self, online: bool, thinking: bool = False) -> None:
         c = get_colors()
         if thinking:
-            self._status_indicator.setStyleSheet(f"color: {c['yellow']}; font-size: 13px; border: none;")
+            self._status_indicator.setStyleSheet(f"color: {c['yellow']}; font-size: 14px; border: none;")
             self._status_indicator.setToolTip(tr("ai.thinking"))
         elif online:
-            self._status_indicator.setStyleSheet(f"color: {c['green']}; font-size: 13px; border: none;")
+            self._status_indicator.setStyleSheet(f"color: {c['green']}; font-size: 14px; border: none;")
             self._status_indicator.setToolTip(tr("ai.online"))
         else:
-            self._status_indicator.setStyleSheet(f"color: {c['fg_disabled']}; font-size: 13px; border: none;")
+            self._status_indicator.setStyleSheet(f"color: {c['fg_disabled']}; font-size: 14px; border: none;")
             self._status_indicator.setToolTip(tr("ai.offline"))
 
     def fill_input(self, text: str) -> None:
@@ -255,6 +255,6 @@ class AIPanel(QWidget):
             f"QScrollArea {{ background-color: {c['chat_bg']}; border: none; }}"
         )
         self._chat_label.setStyleSheet(
-            f"QLabel {{ background-color: {c['chat_bg']}; color: {c['fg_primary']}; padding: 8px; font-size: 13px; }}"
+            f"QLabel {{ background-color: {c['chat_bg']}; color: {c['fg_primary']}; padding: 8px; font-size: 14px; }}"
         )
 
