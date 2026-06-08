@@ -228,47 +228,47 @@ class MainWindow(QMainWindow):
         self._statusbar.addPermanentWidget(self._expense_label)
 
         sep1 = QLabel("|")
-        sep1.setStyleSheet(f"color: {c['border_strong']}; margin: 0 8px;")
+        sep1.setStyleSheet(f"color: {c['border_strong']}; margin: 0 5px;")
         self._statusbar.addPermanentWidget(sep1)
 
         self._ddl_alert_label = _ClickLabel()
         self._ddl_alert_label.setCursor(Qt.CursorShape.PointingHandCursor)
         self._ddl_alert_label.setStyleSheet(
             f"color: {c['red']}; font-size: 12px; font-weight: 600;"
-            f"padding: 1px 6px;")
+            f"padding: 0 3px;")
         self._ddl_alert_label.setToolTip("点击查看即将截止的任务")
         self._ddl_alert_label.clicked.connect(self._on_ddl_alert_click)
         self._ddl_alert_label.hide()
         self._statusbar.addPermanentWidget(self._ddl_alert_label)
 
         sep2 = QLabel("|")
-        sep2.setStyleSheet(f"color: {c['border_strong']}; margin: 0 8px;")
+        sep2.setStyleSheet(f"color: {c['border_strong']}; margin: 0 5px;")
         self._statusbar.addPermanentWidget(sep2)
 
         self._habit_count_label = QLabel()
         self._statusbar.addPermanentWidget(self._habit_count_label)
 
         sep3 = QLabel("|")
-        sep3.setStyleSheet(f"color: {c['border_strong']}; margin: 0 8px;")
+        sep3.setStyleSheet(f"color: {c['border_strong']}; margin: 0 5px;")
         self._statusbar.addPermanentWidget(sep3)
 
         self._exam_alert_label = _ClickLabel()
         self._exam_alert_label.setStyleSheet(
-            f"color: {c['orange']}; font-size: 12px; font-weight: 600; padding: 1px 6px;")
+            f"color: {c['orange']}; font-size: 12px; font-weight: 600; padding: 0 3px;")
         self._exam_alert_label.setCursor(Qt.CursorShape.PointingHandCursor)
         self._exam_alert_label.setToolTip("点击查看考试安排")
         self._exam_alert_label.clicked.connect(self._on_exam_alert_click)
         self._statusbar.addPermanentWidget(self._exam_alert_label)
 
         sep_exam = QLabel("|")
-        sep_exam.setStyleSheet(f"color: {c['border_strong']}; margin: 0 8px;")
+        sep_exam.setStyleSheet(f"color: {c['border_strong']}; margin: 0 5px;")
         self._statusbar.addPermanentWidget(sep_exam)
 
         self._shopping_label = QLabel()
         self._statusbar.addPermanentWidget(self._shopping_label)
 
         sep4 = QLabel("|")
-        sep4.setStyleSheet(f"color: {c['border_strong']}; margin: 0 8px;")
+        sep4.setStyleSheet(f"color: {c['border_strong']}; margin: 0 5px;")
         self._statusbar.addPermanentWidget(sep4)
 
         self._date_label = QLabel()
@@ -336,7 +336,6 @@ class MainWindow(QMainWindow):
         self._update_expense()
         self._update_habit_count()
         self._update_exam_alert()
-        self._update_shopping()
 
     def _update_date(self) -> None:
         now = datetime.now()
@@ -482,7 +481,7 @@ class MainWindow(QMainWindow):
             color = c["fg_secondary"]
         self._exam_alert_label.setText(f"备考{count}科")
         self._exam_alert_label.setStyleSheet(
-            f"color: {color}; font-size: 12px; font-weight: 600; padding: 1px 6px;")
+            f"color: {color}; font-size: 12px; font-weight: 600; padding: 0 3px;")
         self._exam_alert_label.show()
 
     def _on_exam_alert_click(self) -> None:
@@ -507,16 +506,16 @@ class MainWindow(QMainWindow):
     def set_ddl_alert(self, count: int) -> None:
         c = get_colors()
         if count > 0:
-            self._ddl_alert_label.setText(f"{count}项DDL")
+            self._ddl_alert_label.setText(f"DDL {count}")
             self._ddl_alert_label.setStyleSheet(
                 f"color: {c['red']}; font-size: 12px; font-weight: 600;"
-                f"padding: 1px 6px;")
+                f"padding: 0 3px;")
             self._ddl_alert_label.setCursor(Qt.CursorShape.PointingHandCursor)
         else:
-            self._ddl_alert_label.setText("暂无即将截止的事项")
+            self._ddl_alert_label.setText("暂无DDL")
             self._ddl_alert_label.setStyleSheet(
                 f"color: {c['fg_hint']}; font-size: 12px;"
-                f"padding: 1px 6px;")
+                f"padding: 0 3px;")
             self._ddl_alert_label.setCursor(Qt.CursorShape.ArrowCursor)
         self._ddl_alert_label.show()
 
