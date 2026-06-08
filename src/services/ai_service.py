@@ -129,6 +129,12 @@ course_name 必填：从用户消息中提取课程名称填入，如"毛概""�
 ### 完成任务
 {"action":"complete_task","data":{"id":"任务ID"}}
 
+### 日程计划操作（用于快速安排）
+添加计划: {"action":"add_plan","data":{"date":"YYYY-MM-DD","title":"计划标题","time_slot":时段编号,"type":"custom","note":"备注"}}
+删除计划: {"action":"delete_plan","data":{"date":"YYYY-MM-DD","index":索引}}
+替换全天计划: {"action":"replace_plans","data":{"date":"YYYY-MM-DD","plans":[计划1, 计划2, ...]}}
+time_slot编号从1开始，对应课程表时段。type可选: "custom"(自定义), "course_note"(课程备注)
+
 ### 核销习惯
 {"action":"log_habit","data":{"habit_id":"习惯ID","completed":true,"note":""}}
 
