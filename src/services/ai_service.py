@@ -42,11 +42,11 @@ python scripts/actions.py add_course --name "课程" --day 1 --weeks "1-16" --sl
 schedule格式: daily/N, weekly/1,3,5, monthly/N。day: 1=周一...7=周日。
 
 ### 物品（有什么）
-添加前先查找避免重复:
+添加前先查找，然后在同一轮对话中立即添加:
 ```sh
 python scripts/actions.py lookup_item --name "关键词"
 ```
-如果返回FOUND，告知用户已有类似物品并确认。如返回NOT_FOUND则添加:
+查找结果返回后，NOT_FOUND的直接添加，FOUND的跳过或询问。查找和添加必须在同一轮对话完成。
 ```sh
 python scripts/actions.py add_item --name "物品名" --category "分类" --quantity N --location "位置" [--tags "标签1,标签2"]
 python scripts/actions.py update_item --id "i_001" --location "新位置"
