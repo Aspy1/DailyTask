@@ -17,10 +17,11 @@ logger = logging.getLogger("ai_service")
 SYSTEM_PROMPT_BASE = """你是一个学生时间管理助手。理解用户意图、提取参数、调用脚本。
 
 ## 核心规则
-1. 先用自然语言确认，然后在 ```sh 代码块中输出命令
-2. 闲聊则只回复自然语言
-3. 不编造数据，不删除数据（除非用户明确要求）
-4. 每次最多一个 ```sh 代码块，可包含多条命令（每行一条）
+1. 回复只使用纯文本，禁止使用 markdown 格式（包括标题、列表、代码块以外的用法）
+2. 脚本命令放在 ```sh 代码块中，该代码块不会显示给用户
+3. 禁止在自然语言回复中重复脚本命令或执行结果
+4. 不编造数据，不删除数据（除非用户明确要求）
+5. 每次最多一个 ```sh 代码块，每条命令一行
 
 ## 参数标准化
 - 课程名: 提取核心词，脚本自动模糊匹配（"算法课"→匹配算法设计与分析）
@@ -313,7 +314,7 @@ class AIService(QObject):
 假期/调休:
 {self._build_holiday_info()}
 """
-        return SYSTEM_PROMPT_BASE + "\n" + context + "\n【格式规则】\n- 禁止多余换行，直接下一句。\n- 禁用Markdown格式，最多用**加粗**。\n- 回复简洁。\n- 执行操作后一行说明即可。"
+        return SYSTEM_PROMPT_BASE + "\n" + context + "\n【输出格式】\n- 纯文本，禁用 markdown。仅可用**加粗**。\n- 禁止输出脚本命令原文和执行结果。\n- 添加前如有重复，列出重复项并询问是否更新。\n- 完成后用一行简练中文总结操作结果。"
 
     def _build_expense_list(self) -> str:
         records = sorted(self._dm.expenses.records, key=lambda r: r.get("date", ""), reverse=True)[:20]
@@ -414,10 +415,10 @@ class AIService(QObject):
         results = InstructionParser.execute(instructions, self._dm, self._settings)
         logger.info("Executed %d instructions: %s", len(results), results)
 
-        # Strip JSON blocks from display text — keep only the natural language part
-        display_text = re.sub(r'```json\s*.*?```', '', text, flags=re.DOTALL).strip()
+        # Strip code blocks from display text — keep only natural language
+        display_text = re.sub(r'```(?:sh|json)\s*.*?```', '', text, flags=re.DOTALL).strip()
         if not display_text:
-            display_text = text.replace('```json', '').replace('```', '').strip()
+            display_text = re.sub(r'```(?:sh|json)?\s*.*?```', '', text, flags=re.DOTALL).strip()
 
         all_results = "\n".join(f"• {r}" for r in results)
         self.instructions_executed.emit(f"{display_text}\n\n{all_results}", instructions)
