@@ -148,6 +148,10 @@ class MainWorkspace(QWidget):
             self._expense_panel._refresh()
         if "habit" in action:
             self._habit_panel._refresh()
+        if "exam" in action or "ai_action" in action:
+            self._exam_panel._refresh()
+        if "inventory" in action or "ai_action" in action:
+            self._inventory_panel._refresh()
 
     def refresh_theme(self) -> None:
         for attr in (
