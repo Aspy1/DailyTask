@@ -136,7 +136,7 @@ class InventoryPanel(QWidget):
         add_btn = QPushButton("+ 添加")
         add_btn.setStyleSheet(f"""
             QPushButton {{ background-color: {c['accent']}; color: #fff; border: none;
-                border-radius: 8px; padding: 4px 14px; font-size: 13px; font-weight: 600; }}
+                border-radius: 8px; padding: 5px 16px; font-size: 13px; font-weight: 600; }}
             QPushButton:hover {{ background-color: {c['accent_hover']}; }}
         """)
         add_btn.clicked.connect(lambda: self._edit_item())
@@ -145,7 +145,7 @@ class InventoryPanel(QWidget):
         refresh_btn = QPushButton("刷新")
         refresh_btn.setStyleSheet(f"""
             QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
-                border-radius: 8px; padding: 4px 12px; font-size: 13px; }}
+                border-radius: 8px; padding: 5px 14px; font-size: 13px; }}
             QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; }}
         """)
         refresh_btn.clicked.connect(self._refresh)
