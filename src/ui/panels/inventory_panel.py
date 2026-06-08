@@ -197,7 +197,12 @@ class InventoryPanel(QWidget):
             name.setStyleSheet(f"color: {c['fg_primary']}; font-size: 14px; font-weight: 600; border: none; background: transparent;")
             hdr.addWidget(name)
             hdr.addStretch()
-            qty = QLabel(f"x{it.get('quantity',0)}")
+            qty_text = f"x{it.get('quantity',0)}"
+            dpu = it.get('doses_per_unit', 1)
+            if dpu > 1:
+                remaining = it['quantity'] * dpu
+                qty_text = f"x{it['quantity']} ({remaining}次)"
+            qty = QLabel(qty_text)
             qty.setStyleSheet(f"color: {c['fg_secondary']}; font-size: 14px; font-weight: 700; border: none; background: transparent;")
             hdr.addWidget(qty)
 
@@ -304,6 +309,9 @@ class ItemDialog(QDialog):
         form.addRow("数量 (件):", self._quantity)
         self._min_qty = QSpinBox(); self._min_qty.setRange(0,99); self._min_qty.setValue(item.get("min_quantity",1) if item else 1)
         form.addRow("最低库存:", self._min_qty)
+        self._doses = QSpinBox(); self._doses.setRange(1,999); self._doses.setValue(item.get("doses_per_unit",1) if item else 1)
+        self._doses.setToolTip("每件可用几次（如1盒药10次=10）")
+        form.addRow("每件可用次数:", self._doses)
         self._location = QLineEdit(item.get("location","") if item else ""); self._location.setPlaceholderText("如：卫生间柜子"); form.addRow("位置:", self._location)
         self._tags = QLineEdit(",".join(item.get("tags",[])) if item else ""); self._tags.setPlaceholderText("逗号分隔"); form.addRow("标签:", self._tags)
         self._notes = QLineEdit(item.get("notes","") if item else ""); self._notes.setPlaceholderText("备注..."); form.addRow("备注:", self._notes)
@@ -319,5 +327,6 @@ class ItemDialog(QDialog):
         s = "需购" if q <= 0 else ("不足" if q < m else "充足")
         self.result_data = {"name":self._name.text().strip(),"category":self._category.currentText(),
             "quantity":q,"unit":"件","min_quantity":m,"status":s,"location":self._location.text().strip(),
-            "tags":tags,"notes":self._notes.text().strip(),"ignore_low_stock":self._ignore.isChecked()}
+            "tags":tags,"notes":self._notes.text().strip(),"ignore_low_stock":self._ignore.isChecked(),
+            "doses_per_unit":self._doses.value()}
         self.accept()

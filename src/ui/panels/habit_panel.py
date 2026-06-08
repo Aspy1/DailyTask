@@ -428,6 +428,7 @@ class HabitDialog(QDialog):
         self._dm = dm
         self._habit = habit
         self._attached: list[dict] = list(habit.get("attached_tasks", [])) if habit else []
+        self._linked_data: list[dict] = list(habit.get("linked_items", [])) if habit else []
 
         c = get_colors()
         editing = habit is not None
@@ -569,6 +570,24 @@ class HabitDialog(QDialog):
         at_btns.addStretch()
         layout.addLayout(at_btns)
 
+        # ── Linked items ──
+        sep2 = QLabel("消耗物品（完成后自动扣除库存）")
+        sep2.setStyleSheet(f"color: {c['section_heading']}; font-weight: 600; font-size: 13px;")
+        layout.addWidget(sep2)
+        self._linked_list = QListWidget()
+        self._linked_list.setMaximumHeight(80)
+        self._linked_list.setStyleSheet(f"QListWidget {{ background-color: {c['bg_input']}; border: 1px solid {c['border']}; }} QListWidget::item {{ padding: 4px 8px; }}")
+        self._refresh_linked()
+        layout.addWidget(self._linked_list)
+        lk_btns = QHBoxLayout()
+        for text, slot in [("+ 关联物品", self._add_linked), ("移除", self._remove_linked)]:
+            btn = QPushButton(text)
+            btn.setStyleSheet(f"QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']}; border: none; border-radius: 4px; padding: 4px 10px; font-size: 12px; }} QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; }}")
+            btn.clicked.connect(slot)
+            lk_btns.addWidget(btn)
+        lk_btns.addStretch()
+        layout.addLayout(lk_btns)
+
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         buttons.accepted.connect(self._validate_and_accept)
         buttons.rejected.connect(self.reject)
@@ -641,6 +660,51 @@ class HabitDialog(QDialog):
             self._attached.pop(row)
             self._refresh_at_list()
 
+    def _refresh_linked(self) -> None:
+        self._linked_list.clear()
+        for li in self._linked_data:
+            item_id = li.get("item_id", "")
+            name = item_id
+            for it in self._dm.inventory.items:
+                if it["id"] == item_id:
+                    name = it["name"]; break
+            consume = li.get("consume_per_use", 1)
+            self._linked_list.addItem(f"{name}  -{consume}次/回")
+
+    def _add_linked(self) -> None:
+        items = self._dm.inventory.items
+        if not items:
+            QMessageBox.information(self, "提示", "还没有物品记录。")
+            return
+        c = get_colors()
+        dlg = QDialog(self)
+        dlg.setWindowTitle("选择消耗物品"); dlg.setMinimumWidth(350)
+        dlg.setStyleSheet(f"QDialog {{ background-color: {c['bg_card']}; color: {c['fg_primary']}; }}")
+        layout = QVBoxLayout(dlg)
+        lst = QListWidget()
+        lst.setStyleSheet(f"QListWidget {{ background-color: {c['bg_input']}; border: 1px solid {c['border']}; }} QListWidget::item {{ padding: 6px 10px; }}")
+        for it in items:
+            lst.addItem(f"[{it['id']}] {it['name']} ({it['quantity']}件)")
+        lst.itemDoubleClicked.connect(dlg.accept)
+        layout.addWidget(lst)
+        form = QFormLayout()
+        self._consume_spin = QSpinBox(); self._consume_spin.setRange(1,99); self._consume_spin.setValue(1)
+        form.addRow("每次消耗:", self._consume_spin)
+        layout.addLayout(form)
+        btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        btns.accepted.connect(dlg.accept); btns.rejected.connect(dlg.reject); layout.addWidget(btns)
+        if dlg.exec() and lst.currentItem():
+            idx = lst.currentRow()
+            if 0 <= idx < len(items):
+                self._linked_data.append({"item_id": items[idx]["id"], "consume_per_use": self._consume_spin.value()})
+                self._refresh_linked()
+
+    def _remove_linked(self) -> None:
+        row = self._linked_list.currentRow()
+        if 0 <= row < len(self._linked_data):
+            self._linked_data.pop(row)
+            self._refresh_linked()
+
     def _validate_and_accept(self) -> None:
         if not self._name_input.text().strip():
             QMessageBox.warning(self, "错误", "请输入事项名称。")
@@ -677,6 +741,7 @@ class HabitDialog(QDialog):
             "duration_minutes": dur_val,
             "reminder_time": self._reminder_time.text().strip(),
             "attached_tasks": list(self._attached),
+            "linked_items": list(self._linked_data),
         }
         self.accept()
 
@@ -740,6 +805,24 @@ class _AttachedTaskDialog(QDialog):
         save_tpl.clicked.connect(lambda: setattr(self, '_save_template', True))
         form.addRow(save_tpl)
         layout.addLayout(form)
+
+        # ── Linked items ──
+        sep2 = QLabel("消耗物品（完成后自动扣除库存）")
+        sep2.setStyleSheet(f"color: {c['section_heading']}; font-weight: 600; font-size: 13px;")
+        layout.addWidget(sep2)
+        self._linked_list = QListWidget()
+        self._linked_list.setMaximumHeight(80)
+        self._linked_list.setStyleSheet(f"QListWidget {{ background-color: {c['bg_input']}; border: 1px solid {c['border']}; }} QListWidget::item {{ padding: 4px 8px; }}")
+        self._refresh_linked()
+        layout.addWidget(self._linked_list)
+        lk_btns = QHBoxLayout()
+        for text, slot in [("+ 关联物品", self._add_linked), ("移除", self._remove_linked)]:
+            btn = QPushButton(text)
+            btn.setStyleSheet(f"QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']}; border: none; border-radius: 4px; padding: 4px 10px; font-size: 12px; }} QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; }}")
+            btn.clicked.connect(slot)
+            lk_btns.addWidget(btn)
+        lk_btns.addStretch()
+        layout.addLayout(lk_btns)
 
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         buttons.accepted.connect(self._ok)

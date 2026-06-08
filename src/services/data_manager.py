@@ -28,6 +28,7 @@ class DataManager(QObject):
         self.daily_logs = DailyLogModel(data_dir / "daily_logs.json")
         self.exams = ExamModel(data_dir / "exams.json")
         self.inventory = InventoryModel(data_dir / "inventory.json")
+        self.habits._inventory = self.inventory
 
         # Auto-reload: check file mtimes every 3s, reload if changed externally
         from PySide6.QtCore import QTimer
