@@ -438,11 +438,20 @@ class MainWindow(QMainWindow):
         self._workspace.show_ddl_tasks()
 
     def set_ddl_alert(self, count: int) -> None:
+        c = get_colors()
         if count > 0:
             self._ddl_alert_label.setText(f"{count}项DDL")
-            self._ddl_alert_label.show()
+            self._ddl_alert_label.setStyleSheet(
+                f"color: {c['red']}; font-size: 12px; font-weight: 600;"
+                f"padding: 1px 6px;")
+            self._ddl_alert_label.setCursor(Qt.CursorShape.PointingHandCursor)
         else:
-            self._ddl_alert_label.hide()
+            self._ddl_alert_label.setText("暂无即将截止的事项")
+            self._ddl_alert_label.setStyleSheet(
+                f"color: {c['fg_hint']}; font-size: 12px;"
+                f"padding: 1px 6px;")
+            self._ddl_alert_label.setCursor(Qt.CursorShape.ArrowCursor)
+        self._ddl_alert_label.show()
 
     @property
     def ai_panel(self) -> AIPanel:
