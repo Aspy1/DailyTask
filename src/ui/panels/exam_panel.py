@@ -63,13 +63,13 @@ class _ExamCard(QWidget):
             badge.setText("今天")
             badge.setStyleSheet(f"color: #fff; font-size: 13px; font-weight: 700; background: {c['red']}; border-radius: 26px;")
         elif days_left <= 3:
-            badge.setText(f"{days_left}\n天")
+            badge.setText(f"{days_left}天")
             badge.setStyleSheet(f"color: #fff; font-size: 13px; font-weight: 700; background: {c['red']}; border-radius: 26px;")
         elif days_left <= 7:
-            badge.setText(f"{days_left}\n天")
+            badge.setText(f"{days_left}天")
             badge.setStyleSheet(f"color: #fff; font-size: 13px; font-weight: 700; background: {c['orange']}; border-radius: 26px;")
         else:
-            badge.setText(f"{days_left}\n天")
+            badge.setText(f"{days_left}天")
             badge.setStyleSheet(f"color: {c['fg_secondary']}; font-size: 13px; font-weight: 600; background: {c['bg_input']}; border-radius: 26px;")
         layout.addWidget(badge)
 
