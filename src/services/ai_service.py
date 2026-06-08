@@ -419,6 +419,32 @@ class InstructionParser:
             dm.tasks.complete(data["id"])
             return f"已完成任务: {data['id']}"
 
+        elif action == "add_plan":
+            date_str = data.get("date") or date.today().isoformat()
+            plan = {k: v for k, v in data.items() if k not in ("date", "action")}
+            plan.setdefault("type", "custom")
+            dm.daily_logs.add_plan(plan, date_str)
+            dm.daily_logs.save()
+            return f"已添加计划: {plan.get('title','')} -> {date_str}"
+
+        elif action == "delete_plan":
+            date_str = data.get("date") or date.today().isoformat()
+            idx_val = data.get("index", 0)
+            ok = dm.daily_logs.delete_plan(date_str, idx_val)
+            dm.daily_logs.save()
+            return f"已删除计划: {date_str}[{idx_val}]" if ok else f"未找到计划"
+
+        elif action == "replace_plans":
+            date_str = data.get("date") or date.today().isoformat()
+            new_plans = data.get("plans", [])
+            dm.daily_logs._data.setdefault("plans", {})
+            dm.daily_logs._data["plans"][date_str] = []
+            for p in new_plans:
+                p.setdefault("type", "custom")
+                dm.daily_logs.add_plan(p, date_str)
+            dm.daily_logs.save()
+            return f"已替换{date_str}日程: {len(new_plans)}项"
+
         elif action == "add_habit":
             hid = dm.habits.add_habit(data)
             return f"已添加习惯: {data.get('name', hid)}"
