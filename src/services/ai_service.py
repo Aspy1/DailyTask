@@ -43,13 +43,12 @@ python scripts/actions.py add_course --name "课程" --day 1 --weeks "1-16" --sl
 schedule格式: daily/N, weekly/1,3,5, monthly/N。day: 1=周一...7=周日。
 
 ### 物品（有什么）
-添加物品必须查找和添加写在同一个```sh块:
+添加物品分两步，第一步只查找不添加:
 ```sh
 python scripts/actions.py lookup_item --name "A"
 python scripts/actions.py lookup_item --name "B"
-python scripts/actions.py add_item --name "B" --category "分类" --quantity N --location "位置"
 ```
-如果lookup返回FOUND，该物品就不要add（只添加NOT_FOUND的）。全部命令放在一个块里执行。
+系统会自动把查找结果发回，让你判断重复。然后你再回复确认并添加。
 ```sh
 python scripts/actions.py add_item --name "物品名" --category "分类" --quantity N --location "位置" [--tags "标签1,标签2"]
 python scripts/actions.py update_item --id "i_001" --location "新位置"
