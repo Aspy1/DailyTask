@@ -9,6 +9,7 @@ from src.models.task import TaskModel
 from src.models.habit import HabitModel
 from src.models.expense import ExpenseModel
 from src.models.daily_log import DailyLogModel
+from src.models.exam import ExamModel
 
 
 class DataManager(QObject):
