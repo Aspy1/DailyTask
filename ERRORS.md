@@ -81,3 +81,27 @@ btn.clicked.connect(lambda: self._quick_arrange())
 **现象**: 改 A 文件 → 提交 → B 文件报错（因为依赖了 A 的改动）
 
 **修复**: 每次改完后 `py_compile` 全量扫描 `src/**/*.py`
+
+## 11. DDL 计数按精确时间而非按天
+
+**现象**: 下午 3 点查看，3 天后 23:00 截止的作业不显示在 DDL 计数中
+
+**根因**: `datetime.now() + timedelta(days=3)` 精确到时分秒，下午生成的阈值排除当天晚间的 DDL
+
+**修复**: 改 `datetime` 为 `date` 比较——`date.today() + timedelta(days=3)`
+
+## 12. 状态栏 widget 残留占位
+
+**现象**: `备考1科` 和日期之间有大段空白
+
+**根因**: `_shopping_label` 和 `sep4` 虽然不更新数据了，但永久 widget 仍挂在 `QStatusBar` 上
+
+**修复**: 从 `_setup_statusbar` 中彻底移除不用的 widget
+
+## 13. `mousePressEvent` 右键也触发点击
+
+**现象**: 右键点 DDL 线或状态栏标签也会跳转
+
+**根因**: `_ClickLabel.mousePressEvent` 未区分鼠标按键
+
+**修复**: 加 `if ev.button() == Qt.MouseButton.LeftButton:` 判断
