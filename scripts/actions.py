@@ -402,6 +402,23 @@ def cmd_need_restock(args):
     if not needs:
         print("无需购物品")
 
+def cmd_lookup_item(args):
+    data = load("inventory.json")
+    name = args.name.strip().lower()
+    matches = []
+    for it in data.get("items", []):
+        iname = it["name"].lower()
+        if name in iname or iname in name:
+            matches.append(it)
+    if matches:
+        for m in matches:
+            loc = m.get("location", "")
+            loc_str = f" @{loc}" if loc else ""
+            print(f"  [{m['id']}] {m['name']} ({m['quantity']}件) - {m['status']}{loc_str}")
+        print(f"FOUND {len(matches)}")
+    else:
+        print("NOT_FOUND")
+
 def cmd_status(args):
     t = load("tasks.json")
     h = load("habits.json")
@@ -494,7 +511,6 @@ def main():
     p.add_argument("--name", required=True)
     p.add_argument("--category", default="其他")
     p.add_argument("--quantity", type=int, default=1)
-    p.add_argument("--unit", default="个")
     p.add_argument("--min_qty", type=int, default=1)
     p.add_argument("--location")
     p.add_argument("--notes")
@@ -506,7 +522,6 @@ def main():
     p.add_argument("--name")
     p.add_argument("--category")
     p.add_argument("--quantity", type=int)
-    p.add_argument("--unit")
     p.add_argument("--status", choices=["充足","不足","需购"])
     p.add_argument("--min_qty", type=int)
     p.add_argument("--location")
@@ -514,6 +529,10 @@ def main():
 
     # need_restock
     sub.add_parser("need_restock", help="查看需购物品")
+
+    # lookup_item
+    p = sub.add_parser("lookup_item", help="查找物品")
+    p.add_argument("--name", required=True)
 
     # status
     sub.add_parser("status", help="概览")
@@ -531,6 +550,7 @@ def main():
         "add_course": cmd_add_course, "delete_course": cmd_delete_course,
         "add_item": cmd_add_item, "update_item": cmd_update_item,
         "need_restock": cmd_need_restock,
+        "lookup_item": cmd_lookup_item,
         "status": cmd_status,
     }
 

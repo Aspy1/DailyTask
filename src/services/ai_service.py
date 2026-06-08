@@ -42,14 +42,19 @@ python scripts/actions.py add_course --name "课程" --day 1 --weeks "1-16" --sl
 schedule格式: daily/N, weekly/1,3,5, monthly/N。day: 1=周一...7=周日。
 
 ### 物品（有什么）
+添加前先查找避免重复:
 ```sh
-python scripts/actions.py add_item --name "物品名" --category "分类" --quantity N --unit "个" --location "位置" [--tags "标签1,标签2"]
+python scripts/actions.py lookup_item --name "关键词"
+```
+如果返回FOUND，告知用户已有类似物品并确认。如返回NOT_FOUND则添加:
+```sh
+python scripts/actions.py add_item --name "物品名" --category "分类" --quantity N --location "位置" [--tags "标签1,标签2"]
 python scripts/actions.py update_item --id "i_001" --location "新位置"
 python scripts/actions.py update_item --id "i_001" --quantity N --status "需购"
 python scripts/actions.py need_restock
 ```
-物品分类: 日用品/食品饮料/学习用品/数码电子/衣物/药品/其他
-unit常用: 个/瓶/包/盒/箱/袋/双/件/卷/支/根/盒
+分类: 日用品/食品饮料/学习用品/数码电子/衣物/药品/其他。数量单位统一用"件"。
+移动物品: "把X从A拿到B" → update_item --id "i_xxx" --location "B"
 
 ## 判断优先级
 1. 物品/存货/库存/还有/用完了/放在 → add_item 或 update_item

@@ -42,7 +42,7 @@ class InventoryModel(BaseJsonModel):
             "name": data.get("name", ""),
             "category": data.get("category", "其他"),
             "quantity": data.get("quantity", 1),
-            "unit": data.get("unit", "个"),
+            "unit": "件",
             "status": data.get("status", "充足"),  # 充足/不足/需购
             "min_quantity": data.get("min_quantity", 1),
             "location": data.get("location", ""),
