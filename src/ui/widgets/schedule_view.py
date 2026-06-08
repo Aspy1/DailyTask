@@ -584,10 +584,11 @@ class ScheduleView(QWidget):
 
                 ddl_label = _ClickLabel()
                 ddl_label.setWordWrap(False)
+                ddl_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
                 suffix = f" 截止 {due_time}" if due_time else ""
                 ddl_label.setText(f"—— {task_title}{suffix} ——")
                 ddl_label.setStyleSheet(
-                    f"color: {c['red']}; font-size: 13px; font-weight: 600; border: none; background: transparent; padding: 4px 0;")
+                    f"color: {c['red']}; font-size: 15px; font-weight: 600; border: none; background: transparent; padding: 6px 0;")
                 ddl_label.clicked.connect(lambda cn=course_name: self.task_focus_requested.emit(cn))
                 cl.addWidget(ddl_label)
 
