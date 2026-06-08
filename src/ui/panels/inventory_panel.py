@@ -117,7 +117,7 @@ class InventoryPanel(QWidget):
         self._cat_combo = QComboBox()
         self._cat_combo.setMinimumWidth(90)
         self._cat_combo.setStyleSheet(f"""
-            QComboBox {{ background: {c['bg_input']}; color: {c['fg_primary']}; border: 1px solid {c['border']}; border-radius: 6px; padding: 2px 8px; font-size: 12px; }}
+            QComboBox {{ background: {c['bg_input']}; color: {c['fg_primary']}; border: 1px solid {c['border']}; padding: 2px 8px; font-size: 12px; }}
         """)
         self._cat_combo.currentTextChanged.connect(self._on_filter_changed)
         bl.addWidget(self._cat_combo)
@@ -126,7 +126,7 @@ class InventoryPanel(QWidget):
         self._tag_combo = QComboBox()
         self._tag_combo.setMinimumWidth(80)
         self._tag_combo.setStyleSheet(f"""
-            QComboBox {{ background: {c['bg_input']}; color: {c['fg_primary']}; border: 1px solid {c['border']}; border-radius: 6px; padding: 2px 8px; font-size: 12px; }}
+            QComboBox {{ background: {c['bg_input']}; color: {c['fg_primary']}; border: 1px solid {c['border']}; padding: 2px 8px; font-size: 12px; }}
         """)
         self._tag_combo.currentTextChanged.connect(self._on_filter_changed)
         bl.addWidget(self._tag_combo)
@@ -341,7 +341,6 @@ class ItemDialog(QDialog):
             QLineEdit, QComboBox, QSpinBox {{
                 background-color: {c['bg_input']}; color: {c['fg_primary']};
                 border: 1px solid {c['border']}; padding: 6px 10px; font-size: 13px;
-                border-radius: 6px;
             }}
             QCheckBox {{ color: {c['fg_primary']}; spacing: 4px; }}
         """)
