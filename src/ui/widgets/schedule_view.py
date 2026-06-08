@@ -16,6 +16,13 @@ from src.services.data_manager import DataManager
 from src.ui.styles.theme import get_colors, FONT_CN, SIZE_SUBTITLE
 
 
+
+class _ClickLabel(QLabel):
+    clicked = Signal()
+    def mousePressEvent(self, ev):
+        super().mousePressEvent(ev)
+        self.clicked.emit()
+
 class ScheduleView(QWidget):
     course_table_requested = Signal()
     task_focus_requested = Signal(str)
@@ -574,25 +581,15 @@ class ScheduleView(QWidget):
                     due_time = ""
                 task_title = t.get("title", "")
                 course_name = t.get("course_name", "") or ""
-                ddl_divider = QWidget()
-                ddl_divider.setStyleSheet(f"QWidget {{ border: none; background: transparent; }}")
-                ddl_layout = QHBoxLayout(ddl_divider)
-                ddl_layout.setContentsMargins(0, 4, 0, 4)
-                ddl_label = QLabel()
-                ddl_label.setTextFormat(Qt.TextFormat.RichText)
-                ddl_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-                ddl_label.setWordWrap(True)
-                # ddl_label auto-sizes via layout
-                ddl_label.setText(
-                    f'<span style="color:{c["fg_hint"]};">——————————</span>'
-                    f'<a href="task" style="color:{c['red']};font-weight:bold;text-decoration:none;">{task_title}</a>'
-                    f'<span style="color:{c["fg_hint"]};"> 在此时截止 ({due_time}) ——————————</span>'
-                )
-                ddl_label.linkActivated.connect(
-                    lambda cn=course_name: self.task_focus_requested.emit(cn)
-                )
-                ddl_layout.addWidget(ddl_label)
-                cl.addWidget(ddl_divider)
+
+                ddl_label = _ClickLabel()
+                ddl_label.setWordWrap(False)
+                suffix = f" 截止 {due_time}" if due_time else ""
+                ddl_label.setText(f"—— {task_title}{suffix} ——")
+                ddl_label.setStyleSheet(
+                    f"color: {c['red']}; font-size: 13px; font-weight: 600; border: none; background: transparent; padding: 4px 0;")
+                ddl_label.clicked.connect(lambda cn=course_name: self.task_focus_requested.emit(cn))
+                cl.addWidget(ddl_label)
 
             self._content_layout.insertWidget(self._content_layout.count() - 1, card)
 
