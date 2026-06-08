@@ -15,6 +15,7 @@ from src.ui.panels.course_panel import CoursePanel
 from src.ui.panels.task_panel import TaskPanel
 from src.ui.panels.expense_panel import ExpensePanel
 from src.ui.panels.habit_panel import HabitPanel
+from src.ui.panels.exam_panel import ExamPanel
 from src.ui.widgets.schedule_view import ScheduleView
 from src.ui.widgets.course_detail_dialog import CourseDetailDialog
 from src.ui.styles.theme import get_colors
@@ -47,6 +48,7 @@ class MainWorkspace(QWidget):
         self._course_panel = CoursePanel(dm)
         self._task_panel = TaskPanel(dm)
         self._habit_panel = HabitPanel(dm)
+        self._exam_panel = ExamPanel(dm)
         self._expense_panel = ExpensePanel(dm)
 
         # Placeholder panels (will be replaced with real ones later)
@@ -58,19 +60,20 @@ class MainWorkspace(QWidget):
         # ── Flat stack: index = nav key ────────────────────────
         self._panel_map: dict[str, int] = {
             "schedule": 0, "courses": 1, "tasks": 2,
-            "daily": 3, "expenses": 4,
-            "inventory": 5, "meals": 6,
-            "settings": 7,
+            "exams": 3, "daily": 4, "expenses": 5,
+            "inventory": 6, "meals": 7,
+            "settings": 8,
         }
         panels = [
             self._schedule_view,   # 0: schedule
             self._course_panel,    # 1: courses
             self._task_panel,      # 2: tasks
-            self._habit_panel,     # 3: daily (habits)
-            self._expense_panel,   # 4: expenses
-            self._inventory_panel, # 5: inventory
-            self._meal_panel,      # 6: meals
-            self._settings_panel,  # 7: settings
+            self._exam_panel,      # 3: exams
+            self._habit_panel,     # 4: daily (habits)
+            self._expense_panel,   # 5: expenses
+            self._inventory_panel, # 6: inventory
+            self._meal_panel,      # 7: meals
+            self._settings_panel,  # 8: settings
         ]
         for p in panels:
             self._stack.addWidget(p)
