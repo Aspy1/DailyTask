@@ -152,7 +152,7 @@ class Sidebar(QWidget):
 
         func_section = SidebarSection("func", "功能", [
             ("schedule", "日程总览"), ("courses", "课程表"),
-            ("tasks", "作业管理")])
+            ("tasks", "作业管理"), ("exams", "考试")])
         life_section = SidebarSection("life", "生活", [
             ("daily", "日常"), ("expenses", "记账"),
             ("inventory", "有什么"), ("meals", "吃什么")])

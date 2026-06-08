@@ -24,6 +24,7 @@ class DataManager(QObject):
         self.habits = HabitModel(data_dir / "habits.json")
         self.expenses = ExpenseModel(data_dir / "expenses.json")
         self.daily_logs = DailyLogModel(data_dir / "daily_logs.json")
+        self.exams = ExamModel(data_dir / "exams.json")
 
         # Auto-reload: check file mtimes every 3s, reload if changed externally
         from PySide6.QtCore import QTimer
@@ -40,6 +41,7 @@ class DataManager(QObject):
         self.habits.reload()
         self.expenses.reload()
         self.daily_logs.reload()
+        self.exams.reload()
         self._capture_mtimes()
 
     def _capture_mtimes(self) -> None:
@@ -48,6 +50,7 @@ class DataManager(QObject):
             (self.courses, "courses"), (self.tasks, "tasks"),
             (self.habits, "habits"), (self.expenses, "expenses"),
             (self.daily_logs, "daily_logs"),
+            (self.exams, "exams"),
         ]:
             try:
                 self._file_mtimes[name] = model.file_path.stat().st_mtime
@@ -61,6 +64,7 @@ class DataManager(QObject):
             (self.courses, "courses"), (self.tasks, "tasks"),
             (self.habits, "habits"), (self.expenses, "expenses"),
             (self.daily_logs, "daily_logs"),
+            (self.exams, "exams"),
         ]:
             try:
                 mtime = model.file_path.stat().st_mtime

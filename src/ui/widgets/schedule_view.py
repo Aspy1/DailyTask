@@ -58,16 +58,28 @@ class ScheduleView(QWidget):
 
         bl.addStretch()
 
-        # Undo button (hidden by default)
+        # Undo + Save buttons (hidden until arrange done)
         self._undo_btn = QPushButton("撤销")
         self._undo_btn.setStyleSheet(f"""
-            QPushButton {{ background-color: {c['red']}; color: #fff;
-                border-radius: 8px; padding: 3px 10px; font-size: 13px; font-weight: 600; }}
-            QPushButton:hover {{ background-color: #d43d4a; }}
+            QPushButton {{ background-color: {c['red']}30; color: {c['red']};
+                border: 1px solid {c['red']}60; border-radius: 8px;
+                padding: 3px 10px; font-size: 13px; font-weight: 600; }}
+            QPushButton:hover {{ background-color: {c['red']}50; }}
         """)
         self._undo_btn.clicked.connect(self._undo_arrange)
         self._undo_btn.hide()
         bl.addWidget(self._undo_btn)
+
+        self._save_btn = QPushButton("保存")
+        self._save_btn.setStyleSheet(f"""
+            QPushButton {{ background-color: {c['green']}30; color: {c['green']};
+                border: 1px solid {c['green']}60; border-radius: 8px;
+                padding: 3px 10px; font-size: 13px; font-weight: 600; }}
+            QPushButton:hover {{ background-color: {c['green']}50; }}
+        """)
+        self._save_btn.clicked.connect(self._save_arrange)
+        self._save_btn.hide()
+        bl.addWidget(self._save_btn)
 
         refresh_btn = QPushButton("刷新")
         refresh_btn.setStyleSheet(f"""
@@ -264,16 +276,23 @@ class ScheduleView(QWidget):
 
     def on_arrange_done(self, success: bool, msg: str = "") -> None:
         """Called by main_window when AI response is processed."""
-        import logging
-        _log = logging.getLogger("schedule_view")
-        _log.info("on_arrange_done: success=%s, msg=%s", success, msg)
         self._arrange_btn.setText("调整")
         self._arrange_btn.setEnabled(True)
         if success:
             self._undo_btn.show()
+            self._save_btn.show()
             self._refresh()
         else:
             QMessageBox.warning(self, "安排失败", msg or "AI未能生成有效的安排方案。")
+
+    def _save_arrange(self) -> None:
+        """Accept the arrangement, dismiss undo/save buttons."""
+        self._undo_btn.hide()
+        self._save_btn.hide()
+        # Keep backup for one more undo — actually, clear it
+        if self._arrange_backup_path and _os.path.exists(self._arrange_backup_path):
+            _os.remove(self._arrange_backup_path)
+        self._arrange_backup_path = None
 
     def _undo_arrange(self) -> None:
         """Restore daily_logs.json from backup."""
@@ -281,8 +300,10 @@ class ScheduleView(QWidget):
             QMessageBox.information(self, "撤销", "没有可撤销的备份。")
             return
         shutil.copy2(self._arrange_backup_path, str(self._dm.daily_logs.file_path))
+        _os.remove(self._arrange_backup_path)
         self._arrange_backup_path = None
         self._undo_btn.hide()
+        self._save_btn.hide()
         self._dm.reload_all()
         self._dm.data_changed.emit("plan")
         self._refresh()

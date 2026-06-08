@@ -40,6 +40,13 @@ SYSTEM_PROMPT_BASE = """你是一个学生时间管理助手，运行在桌面�
 - "这门课要求做一个pre" → add_task
 - "下周有考试" → add_task
 
+### → 添加考试（add_exam）
+触发词：**考试**、**期中**、**期末**、**老师说**考试、**下周考试**、**考试范围**
+示例：
+- "老师说下周五考试，考试范围发到了微信群" → add_exam（考试日期=下周五，范围=微信群，备注=老师说）
+- "6月20日高数期末考试" → add_exam
+- "下周有模电考试" → add_exam
+
 ### → 添加习惯（add_habit）
 触发词：**我习惯**、**添加习惯**、**我有个习惯**
 示例：
@@ -137,6 +144,13 @@ time_slot编号从1开始，对应课程表时段。type可选: "custom"(自定�
 
 ### 核销习惯
 {"action":"log_habit","data":{"habit_id":"习惯ID","completed":true,"note":""}}
+
+### 添加考试
+{"action":"add_exam","data":{"course_name":"课程名","exam_date":"YYYY-MM-DD","scope":"考试范围","location":"地点","notes":"备注","tags":["期中"]}}
+### 更新考试
+{"action":"update_exam","data":{"id":"考试ID","course_name":"...","exam_date":"...","scope":"..."}}
+### 删除考试
+{"action":"delete_exam","data":{"id":"考试ID"}}
 
 ### 添加习惯
 {"action":"add_habit","data":{"name":"习惯名","schedule":{"type":"weekly","days":[1,3,5]},"reminder_time":"20:00","duration_minutes":30,"attached_tasks":[{"name":"收衣服","delay_hours":2,"duration_minutes":10}]}}
@@ -454,6 +468,21 @@ class InstructionParser:
             ok = dm.habits.cancel_today(data["id"])
             dm.habits.save()
             return f"已取消今天的习惯: {data['id']}" if ok else f"未找到习惯: {data['id']}"
+
+        elif action == "add_exam":
+            eid = dm.exams.add_exam(data)
+            dm.exams.save()
+            return f"已添加考试: {data.get('course_name', eid)} ({data.get('exam_date', '')})"
+
+        elif action == "update_exam":
+            ok = dm.exams.update_exam(data["id"], {k: v for k, v in data.items() if k != "id"})
+            dm.exams.save()
+            return f"已更新考试: {data['id']}" if ok else f"未找到考试: {data['id']}"
+
+        elif action == "delete_exam":
+            ok = dm.exams.delete_exam(data["id"])
+            dm.exams.save()
+            return f"已删除考试: {data['id']}" if ok else f"未找到考试: {data['id']}"
 
         elif action == "log_habit":
             dm.habits.log(data["habit_id"], data.get("completed", True), data.get("note", ""))
