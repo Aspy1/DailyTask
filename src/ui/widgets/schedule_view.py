@@ -239,40 +239,39 @@ class ScheduleView(QWidget):
         lines.append("5. 最后用JSON输出修改方案")
         return "\n".join(lines)
 
-    def _quick_arrange(self) -> None:
+    def _quick_arrange(self, days: int = 3) -> None:
         """Generate snapshot, backup, call AI to arrange."""
         from PySide6.QtWidgets import QMessageBox
+        try:
+            snapshot = self._build_snapshot(days=days)
 
-        # 1. Build snapshot
-        snapshot = self._build_snapshot()
+            snapshot_path = _os.path.join(str(self._dm.daily_logs.file_path.parent), "schedule_snapshot.txt")
+            with open(snapshot_path, 'w', encoding='utf-8') as f:
+                f.write(snapshot)
 
-        # 2. Backup daily_logs.json
-        snapshot_path = _os.path.join(str(self._dm.daily_logs.file_path.parent), "schedule_snapshot.txt")
-        with open(snapshot_path, 'w', encoding='utf-8') as f:
-            f.write(snapshot)
+            backup_path = str(self._dm.daily_logs.file_path) + ".bak"
+            shutil.copy2(str(self._dm.daily_logs.file_path), backup_path)
+            self._arrange_backup_path = backup_path
 
-        backup_path = str(self._dm.daily_logs.file_path) + ".bak"
-        shutil.copy2(str(self._dm.daily_logs.file_path), backup_path)
-        self._arrange_backup_path = backup_path
-
-        # 3. Build AI prompt
-        prompt = f"""请根据以下日程快照，为今天重新安排日程计划。
+            period_count = self._dm.courses.get_period_count()
+            prompt = f"""请根据以下日程快照，为未来{days}天重新安排日程计划。
 
 {snapshot}
 
 请用JSON输出修改方案。支持的JSON操作:
-- 添加计划: {{"action":"add_plan","data":{{"date":"日期","title":"标题","time_slot":时段编号,"type":"custom","note":"备注"}}}}
-- 删除计划: {{"action":"delete_plan","data":{{"date":"日期","index":索引}}}}
-- time_slot编号: {', '.join(str(i) for i in range(1, self._dm.courses.get_period_count()+1))}
+- 替换某天全部计划: {{"action":"replace_plans","data":{{"date":"YYYY-MM-DD","plans":[{{"title":"标题","time_slot":时段编号,"type":"custom","note":"备注"}}]}}}}
+- 添加单个计划: {{"action":"add_plan","data":{{"date":"YYYY-MM-DD","title":"标题","time_slot":时段编号,"type":"custom"}}}}
+- time_slot编号: {', '.join(str(i) for i in range(1, period_count + 1))}
 
-注意: 先删除今天的旧计划，再添加新计划。习惯不要作为plan重复添加（习惯已经在视图中自动显示）。
-只需要把需要额外安排的任务（DDL相关、自定义提醒）排进空闲时段即可。"""
+注意: 习惯不要作为plan重复添加。优先为最近截止的DDL安排复习时间。有考试则优先安排考前复习。**必须为快照中的每一天都输出replace_plans**。"""
 
-        self._arrange_btn.setText("...")
-        self._arrange_btn.setEnabled(False)
-
-        # 4. Send to AI via existing ai_service
-        self.arrange_requested.emit(prompt)
+            self._arrange_btn.setText("...")
+            self._arrange_btn.setEnabled(False)
+            self.arrange_requested.emit(prompt)
+        except Exception as e:
+            QMessageBox.warning(self, "错误", f"快速安排失败: {e}")
+            self._arrange_btn.setText("调整")
+            self._arrange_btn.setEnabled(True)
 
     def on_arrange_done(self, success: bool, msg: str = "") -> None:
         """Called by main_window when AI response is processed."""
