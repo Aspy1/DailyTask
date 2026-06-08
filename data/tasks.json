@@ -129,6 +129,19 @@
       "created_at": "2026-06-06T23:53:04.121994",
       "reminded": false,
       "completed_at": "2026-06-06T23:53:12.003212"
+    },
+    {
+      "id": "t_012",
+      "title": "电影观后感",
+      "course_name": "毛概",
+      "due_date": "2026-06-13T23:00:00",
+      "status": "completed",
+      "priority": "medium",
+      "tags": [],
+      "notes": "",
+      "created_at": "2026-06-08T14:39:07.707341",
+      "reminded": false,
+      "completed_at": "2026-06-08T14:39:22.018437"
     }
   ],
   "archived": [
