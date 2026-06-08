@@ -20,6 +20,7 @@ class ScheduleView(QWidget):
     course_table_requested = Signal()
     task_focus_requested = Signal(str)
     quick_adjust_requested = Signal(str)  # AI prompt for schedule optimization
+    arrange_requested = Signal(str)       # Quick-arrange: snapshot prompt → AI service
 
     def __init__(self, dm: DataManager, parent=None):
         super().__init__(parent)
@@ -78,7 +79,7 @@ class ScheduleView(QWidget):
         bl.addWidget(refresh_btn)
 
         # Quick arrange button
-        self._arrange_btn = QPushButton("快速安排")
+        self._arrange_btn = QPushButton("调整")
         self._arrange_btn.setStyleSheet(f"""
             QPushButton {{ background-color: {c['accent']}; color: #fff;
                 border-radius: 8px; padding: 3px 14px; font-size: 13px; font-weight: 600; }}
@@ -255,15 +256,18 @@ class ScheduleView(QWidget):
 注意: 先删除今天的旧计划，再添加新计划。习惯不要作为plan重复添加（习惯已经在视图中自动显示）。
 只需要把需要额外安排的任务（DDL相关、自定义提醒）排进空闲时段即可。"""
 
-        self._arrange_btn.setText("安排中...")
+        self._arrange_btn.setText("...")
         self._arrange_btn.setEnabled(False)
 
         # 4. Send to AI via existing ai_service
-        self.quick_adjust_requested.emit(prompt)
+        self.arrange_requested.emit(prompt)
 
     def on_arrange_done(self, success: bool, msg: str = "") -> None:
         """Called by main_window when AI response is processed."""
-        self._arrange_btn.setText("快速安排")
+        import logging
+        _log = logging.getLogger("schedule_view")
+        _log.info("on_arrange_done: success=%s, msg=%s", success, msg)
+        self._arrange_btn.setText("调整")
         self._arrange_btn.setEnabled(True)
         if success:
             self._undo_btn.show()

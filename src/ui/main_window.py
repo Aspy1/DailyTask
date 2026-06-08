@@ -274,7 +274,7 @@ class MainWindow(QMainWindow):
             self._on_instructions_done)
 
         # Schedule quick arrange
-        self._workspace._schedule_view.quick_adjust_requested.connect(
+        self._workspace._schedule_view.arrange_requested.connect(
             self._on_quick_arrange)
 
     # ── AI ─────────────────────────────────────────────────────
@@ -288,14 +288,19 @@ class MainWindow(QMainWindow):
     def _on_quick_arrange(self, prompt: str) -> None:
         """Handle schedule quick-arrange: send to AI, execute instructions, notify view."""
         sv = self._workspace._schedule_view
-        # Send to AI — the response comes back through _on_instructions_done
-        # But we need to detect that this is an arrange response
+        self._course_info_label.setText("AI 正在整理日程...")
         self._arrange_pending = True
-        self._ai_service.send_message(prompt)
+        try:
+            self._ai_service.send_message(prompt)
+        except Exception as e:
+            self._arrange_pending = False
+            self._course_info_label.setText(f"安排失败: {e}")
+            sv.on_arrange_done(False, str(e))
 
     def _on_ai_error(self, error_msg: str) -> None:
         if getattr(self, '_arrange_pending', False):
             self._arrange_pending = False
+            self._course_info_label.setText(f"安排失败: {error_msg}")
             self._workspace._schedule_view.on_arrange_done(False, error_msg)
             return
         self._ai_panel.append_message("ai", f"错误: {error_msg}")
@@ -304,11 +309,9 @@ class MainWindow(QMainWindow):
     def _on_instructions_done(self, text: str, instructions: list) -> None:
         if getattr(self, '_arrange_pending', False):
             self._arrange_pending = False
-            # Execute instructions (data was already saved by AI worker)
-            from src.services.ai_service import InstructionParser
-            results = InstructionParser.execute(instructions, self._data_manager)
+            self._course_info_label.setText(f"日程调整完成，{len(instructions)} 条指令")
             self._workspace._schedule_view.on_arrange_done(True,
-                "\n".join(results) if results else "已安排")
+                f"已安排 {len(instructions)} 条指令")
             return
         self._ai_panel.append_message("ai", text)
         self._ai_panel._on_response_done()
