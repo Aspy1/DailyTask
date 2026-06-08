@@ -1,9 +1,9 @@
-"""Inventory panel — item list with status badges."""
+"""Inventory panel — card list with filters, tags, right-click menu."""
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QDialog, QLineEdit, QFormLayout, QComboBox, QSpinBox,
+    QDialog, QLineEdit, QFormLayout, QComboBox, QSpinBox, QCheckBox,
     QDialogButtonBox, QMessageBox, QMenu, QScrollArea, QSizePolicy,
 )
 from PySide6.QtGui import QFont
@@ -13,29 +13,24 @@ from src.ui.styles.theme import get_colors, FONT_CN, SIZE_SUBTITLE
 
 
 class _ItemCard(QWidget):
-    """Card for one inventory item."""
+    """Long card for one inventory item."""
 
     def __init__(self, item: dict, parent=None):
         super().__init__(parent)
         self._item = item
         c = get_colors()
 
-        self.setMinimumHeight(72)
+        self.setMinimumHeight(60)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
         status = item.get("status", "充足")
+        ignored = item.get("ignore_low_stock", False)
         if status == "需购":
-            bg = c["red"] + "10"
-            accent = c["red"]
-            status_text = "需购"
-        elif status == "不足":
-            bg = c["orange"] + "10"
-            accent = c["orange"]
-            status_text = "不足"
+            bg, accent = c["red"] + "10", c["red"]
+        elif status == "不足" and not ignored:
+            bg, accent = c["orange"] + "10", c["orange"]
         else:
-            bg = c["card_bg"]
-            accent = c["green"]
-            status_text = "充足"
+            bg, accent = c["card_bg"], c["green"]
 
         self.setStyleSheet(f"""
             _ItemCard {{ background-color: {bg}; border-radius: 10px; }}
@@ -43,50 +38,63 @@ class _ItemCard(QWidget):
         """)
 
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(16, 10, 16, 10)
-        layout.setSpacing(12)
+        layout.setContentsMargins(16, 8, 12, 8)
+        layout.setSpacing(10)
 
-        # Left: name + details
+        # Name + tags
         info = QVBoxLayout()
         info.setSpacing(3)
+        name = QLabel(item.get("name", ""))
+        name.setStyleSheet(f"color: {c['fg_primary']}; font-size: 14px; font-weight: 600; border: none; background: transparent;")
+        info.addWidget(name)
 
-        name_lbl = QLabel(item.get("name", ""))
-        name_lbl.setStyleSheet(f"color: {c['fg_primary']}; font-size: 15px; font-weight: 600; border: none; background: transparent;")
-        info.addWidget(name_lbl)
-
-        qty = item.get("quantity", 0)
-        unit = item.get("unit", "个")
-        min_q = item.get("min_quantity", 1)
-        cat = item.get("category", "")
-        loc = item.get("location", "")
-        detail_parts = [f"{qty}{unit}"]
-        if min_q > 1:
-            detail_parts.append(f"最低{min_q}")
-        if cat:
-            detail_parts.append(cat)
-        if loc:
-            detail_parts.append(loc)
-        detail = QLabel(" · ".join(detail_parts))
-        detail.setStyleSheet(f"color: {c['fg_hint']}; font-size: 12px; border: none; background: transparent;")
-        info.addWidget(detail)
+        # Tags row
+        tags = item.get("tags", [])
+        if tags:
+            tag_row = QHBoxLayout()
+            tag_row.setSpacing(4)
+            for tag in tags:
+                t = QLabel(tag)
+                t.setStyleSheet(f"color: {c['accent']}; font-size: 10px; font-weight: 500; background: {c['accent']}18; border-radius: 8px; padding: 1px 8px; border: none;")
+                tag_row.addWidget(t)
+            tag_row.addStretch()
+            info.addLayout(tag_row)
 
         layout.addLayout(info, stretch=1)
 
-        # Right: status badge
-        badge = QLabel(status_text)
-        badge.setFixedSize(48, 26)
-        badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        badge.setStyleSheet(f"""
-            color: {accent}; font-size: 11px; font-weight: 600;
-            background: {accent}20; border-radius: 13px; border: none;
-        """)
-        layout.addWidget(badge)
+        # Right side: qty + category
+        right = QVBoxLayout()
+        right.setSpacing(2)
+        right.setAlignment(Qt.AlignmentFlag.AlignRight)
+
+        qty_unit = f"{item.get('quantity',0)}{item.get('unit','个')}"
+        qty_lbl = QLabel(qty_unit)
+        qty_lbl.setAlignment(Qt.AlignmentFlag.AlignRight)
+        qty_lbl.setStyleSheet(f"color: {accent}; font-size: 13px; font-weight: 600; border: none; background: transparent;")
+        right.addWidget(qty_lbl)
+
+        cat = item.get("category", "")
+        if cat:
+            cat_lbl = QLabel(cat)
+            cat_lbl.setAlignment(Qt.AlignmentFlag.AlignRight)
+            cat_lbl.setStyleSheet(f"color: {c['fg_hint']}; font-size: 11px; border: none; background: transparent;")
+            right.addWidget(cat_lbl)
+
+        if ignored:
+            ign = QLabel("已忽略")
+            ign.setAlignment(Qt.AlignmentFlag.AlignRight)
+            ign.setStyleSheet(f"color: {c['fg_disabled']}; font-size: 10px; border: none; background: transparent;")
+            right.addWidget(ign)
+
+        layout.addLayout(right)
 
 
 class InventoryPanel(QWidget):
     def __init__(self, dm: DataManager, parent=None):
         super().__init__(parent)
         self._dm = dm
+        self._cat_filter = "全部"
+        self._tag_filter = ""
         c = get_colors()
 
         layout = QVBoxLayout(self)
@@ -98,19 +106,31 @@ class InventoryPanel(QWidget):
         bar.setObjectName("taskBar")
         bl = QHBoxLayout(bar)
         bl.setContentsMargins(16, 8, 16, 8)
-        bl.setSpacing(8)
+        bl.setSpacing(6)
 
         title = QLabel("有什么")
         title.setFont(QFont(FONT_CN, SIZE_SUBTITLE))
         title.setStyleSheet(f"color: {c['fg_primary']}; font-weight: 600; border: none;")
         bl.addWidget(title)
 
-        # Quick stats
-        need = len(self._dm.inventory.need_restock)
-        total = len(self._dm.inventory.items)
-        self._stats = QLabel(f"{total}件 · 需购{need}")
-        self._stats.setStyleSheet(f"color: {c['fg_hint']}; font-size: 13px; border: none;")
-        bl.addWidget(self._stats)
+        # Category filter
+        self._cat_combo = QComboBox()
+        self._cat_combo.setMinimumWidth(90)
+        self._cat_combo.setStyleSheet(f"""
+            QComboBox {{ background: {c['bg_input']}; color: {c['fg_primary']}; border: 1px solid {c['border']}; border-radius: 6px; padding: 2px 8px; font-size: 12px; }}
+        """)
+        self._cat_combo.currentTextChanged.connect(self._on_filter_changed)
+        bl.addWidget(self._cat_combo)
+
+        # Tag filter
+        self._tag_combo = QComboBox()
+        self._tag_combo.setMinimumWidth(80)
+        self._tag_combo.setStyleSheet(f"""
+            QComboBox {{ background: {c['bg_input']}; color: {c['fg_primary']}; border: 1px solid {c['border']}; border-radius: 6px; padding: 2px 8px; font-size: 12px; }}
+        """)
+        self._tag_combo.currentTextChanged.connect(self._on_filter_changed)
+        bl.addWidget(self._tag_combo)
+
         bl.addStretch()
 
         add_btn = QPushButton("+ 添加")
@@ -140,11 +160,37 @@ class InventoryPanel(QWidget):
         self._container = QWidget()
         self._card_layout = QVBoxLayout(self._container)
         self._card_layout.setContentsMargins(16, 8, 16, 16)
-        self._card_layout.setSpacing(8)
+        self._card_layout.setSpacing(6)
         self._card_layout.addStretch()
         scroll.setWidget(self._container)
         layout.addWidget(scroll, stretch=1)
 
+        self._refresh()
+
+    def _refresh_filters(self) -> None:
+        current_cat = self._cat_combo.currentText()
+        current_tag = self._tag_combo.currentText()
+        self._cat_combo.blockSignals(True)
+        self._tag_combo.blockSignals(True)
+        self._cat_combo.clear()
+        self._cat_combo.addItem("全部")
+        cats = set(it.get("category", "") for it in self._dm.inventory.items)
+        for cat in sorted(cats):
+            if cat:
+                self._cat_combo.addItem(cat)
+        idx = self._cat_combo.findText(current_cat)
+        self._cat_combo.setCurrentIndex(idx if idx >= 0 else 0)
+
+        self._tag_combo.clear()
+        self._tag_combo.addItem("全部标签")
+        for tag in self._dm.inventory.all_tags:
+            self._tag_combo.addItem(tag)
+        idx = self._tag_combo.findText(current_tag)
+        self._tag_combo.setCurrentIndex(idx if idx >= 0 else 0)
+        self._cat_combo.blockSignals(False)
+        self._tag_combo.blockSignals(False)
+
+    def _on_filter_changed(self) -> None:
         self._refresh()
 
     def _refresh(self) -> None:
@@ -153,30 +199,26 @@ class InventoryPanel(QWidget):
             if item.widget():
                 item.widget().deleteLater()
 
-        items = sorted(self._dm.inventory.items,
-                       key=lambda x: (0 if x.get("status") == "需购" else 1 if x.get("status") == "不足" else 2,
-                                      x.get("name", "")))
+        self._refresh_filters()
+
+        cat = self._cat_combo.currentText()
+        tag = self._tag_combo.currentText()
+        items = self._dm.inventory.items
+
+        if cat != "全部":
+            items = [it for it in items if it.get("category") == cat]
+        if tag != "全部标签":
+            items = [it for it in items if tag in it.get("tags", [])]
+
+        items = sorted(items, key=lambda x: (
+            0 if x.get("status") == "需购" else 1 if x.get("status") == "不足" else 2,
+            x.get("name", "")))
 
         for it in items:
             card = _ItemCard(it)
             card.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
             card.customContextMenuRequested.connect(lambda pos, i=it: self._context_menu(pos, i))
             self._card_layout.insertWidget(self._card_layout.count() - 1, card)
-
-        need = len(self._dm.inventory.need_restock)
-        self._stats.setText(f"{len(items)}件 · 需购{need}")
-
-    def _edit_item(self, item: dict | None = None) -> None:
-        dlg = ItemDialog(item, self)
-        if dlg.exec():
-            data = dlg.result_data
-            if item:
-                self._dm.inventory.update_item(item["id"], data)
-            else:
-                self._dm.inventory.add_item(data)
-            self._dm.inventory.save()
-            self._dm.data_changed.emit("inventory")
-            self._refresh()
 
     def _context_menu(self, pos, item: dict) -> None:
         c = get_colors()
@@ -187,17 +229,51 @@ class InventoryPanel(QWidget):
             QMenu::item {{ padding: 6px 24px 6px 12px; border-radius: 4px; }}
             QMenu::item:selected {{ background-color: {c['accent_bg']}; }}
         """)
+
         menu.addAction("编辑").triggered.connect(lambda: self._edit_item(item))
-        menu.addAction("删除").triggered.connect(lambda: self._delete_item(item["id"]))
-        # Quick status toggle
+
+        # Status toggle
         status = item.get("status", "")
         if status != "需购":
             menu.addAction("标记需购").triggered.connect(
-                lambda: self._quick_status(item["id"], "需购"))
+                lambda: self._quick_update(item["id"], {"status": "需购"}))
         if status != "充足":
             menu.addAction("标记充足").triggered.connect(
-                lambda: self._quick_status(item["id"], "充足"))
+                lambda: self._quick_update(item["id"], {"status": "充足"}))
+
+        # Ignore low-stock
+        ignored = item.get("ignore_low_stock", False)
+        if ignored:
+            menu.addAction("恢复库存提醒").triggered.connect(
+                lambda: self._quick_update(item["id"], {"ignore_low_stock": False}))
+        else:
+            menu.addAction("忽略库存不足提醒").triggered.connect(
+                lambda: self._quick_update(item["id"], {"ignore_low_stock": True}))
+
+        menu.addSeparator()
+        menu.addAction("📧 设置邮件提醒").triggered.connect(
+            lambda: self._email_reminder(item))
+        menu.addAction("删除").triggered.connect(
+            lambda: self._delete_item(item["id"]))
         menu.exec(self.mapToGlobal(pos))
+
+    def _edit_item(self, item: dict | None = None) -> None:
+        dlg = ItemDialog(item, self._dm, self)
+        if dlg.exec():
+            data = dlg.result_data
+            if item:
+                self._dm.inventory.update_item(item["id"], data)
+            else:
+                self._dm.inventory.add_item(data)
+            self._dm.inventory.save()
+            self._dm.data_changed.emit("inventory")
+            self._refresh()
+
+    def _quick_update(self, iid: str, data: dict) -> None:
+        self._dm.inventory.update_item(iid, data)
+        self._dm.inventory.save()
+        self._dm.data_changed.emit("inventory")
+        self._refresh()
 
     def _delete_item(self, iid: str) -> None:
         name = iid
@@ -211,23 +287,54 @@ class InventoryPanel(QWidget):
             self._dm.data_changed.emit("inventory")
             self._refresh()
 
-    def _quick_status(self, iid: str, status: str) -> None:
-        self._dm.inventory.update_item(iid, {"status": status})
-        self._dm.inventory.save()
-        self._dm.data_changed.emit("inventory")
-        self._refresh()
+    def _email_reminder(self, item: dict) -> None:
+        # Open a simple time picker to set email reminder for this item
+        from PySide6.QtWidgets import QDateTimeEdit
+        from PySide6.QtCore import QLocale
+        from datetime import datetime, timedelta
+        c = get_colors()
+        dlg = QDialog(self)
+        dlg.setWindowTitle(f"邮件提醒 - {item.get('name','')}")
+        dlg.setMinimumWidth(320)
+        dlg.setStyleSheet(f"""
+            QDialog {{ background-color: {c['card_bg']}; }}
+            QLabel {{ color: {c['fg_primary']}; font-size: 13px; }}
+            QDateTimeEdit {{ background-color: {c['bg_input']}; color: {c['fg_primary']};
+                border-radius: 8px; padding: 6px 10px; font-size: 13px; }}
+        """)
+        layout = QVBoxLayout(dlg)
+        layout.setSpacing(12)
+        layout.addWidget(QLabel(f"为「{item.get('name','')}」设置补货提醒"))
+        dt = QDateTimeEdit()
+        dt.setLocale(QLocale(QLocale.Language.English, QLocale.Country.UnitedStates))
+        dt.setCalendarPopup(True)
+        dt.setDateTime(datetime.now() + timedelta(days=3))
+        dt.setDisplayFormat("yyyy-MM-dd HH:mm")
+        layout.addWidget(dt)
+        btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        btns.accepted.connect(dlg.accept)
+        btns.rejected.connect(dlg.reject)
+        layout.addWidget(btns)
+        if dlg.exec():
+            notify_time = dt.dateTime().toPython().isoformat()
+            self._dm.daily_logs.add_reminder(
+                "inventory", item.get("name", ""),
+                datetime.now().strftime("%Y-%m-%d"), notify_time)
+            self._dm.daily_logs.save()
+            QMessageBox.information(self, "已设置", f"将在 {notify_time[:16]} 提醒补货")
 
     def refresh_theme(self) -> None:
         self._refresh()
 
 
 class ItemDialog(QDialog):
-    def __init__(self, item: dict | None = None, parent=None):
+    def __init__(self, item: dict | None, dm: DataManager, parent=None):
         super().__init__(parent)
+        self._dm = dm
         c = get_colors()
         editing = item is not None
         self.setWindowTitle("编辑物品" if editing else "添加物品")
-        self.setMinimumWidth(380)
+        self.setMinimumWidth(400)
         self.setStyleSheet(f"""
             QDialog {{ background-color: {c['bg_card']}; color: {c['fg_primary']}; }}
             QLabel {{ color: {c['fg_primary']}; background: transparent; border: none; }}
@@ -236,6 +343,7 @@ class ItemDialog(QDialog):
                 border: 1px solid {c['border']}; padding: 6px 10px; font-size: 13px;
                 border-radius: 6px;
             }}
+            QCheckBox {{ color: {c['fg_primary']}; spacing: 4px; }}
         """)
 
         layout = QVBoxLayout(self)
@@ -263,7 +371,6 @@ class ItemDialog(QDialog):
         self._quantity.setRange(0, 999)
         self._quantity.setValue(item.get("quantity", 1) if item else 1)
         qty_row.addWidget(self._quantity)
-
         self._unit = QComboBox()
         self._unit.setEditable(True)
         self._unit.addItems(["个", "瓶", "包", "盒", "箱", "袋", "双", "件", "卷", "支"])
@@ -281,16 +388,24 @@ class ItemDialog(QDialog):
         self._min_qty = QSpinBox()
         self._min_qty.setRange(0, 99)
         self._min_qty.setValue(item.get("min_quantity", 1) if item else 1)
-        self._min_qty.setToolTip("低于此数量标记为不足")
         form.addRow("最低库存:", self._min_qty)
 
         self._location = QLineEdit(item.get("location", "") if item else "")
         self._location.setPlaceholderText("如：卫生间柜子")
         form.addRow("位置:", self._location)
 
+        self._tags = QLineEdit(
+            ",".join(item.get("tags", [])) if item else "")
+        self._tags.setPlaceholderText("逗号分隔，如：超市优惠,618")
+        form.addRow("标签:", self._tags)
+
         self._notes = QLineEdit(item.get("notes", "") if item else "")
         self._notes.setPlaceholderText("备注...")
         form.addRow("备注:", self._notes)
+
+        self._ignore = QCheckBox("忽略库存不足提醒")
+        self._ignore.setChecked(item.get("ignore_low_stock", False) if item else False)
+        form.addRow("", self._ignore)
 
         layout.addLayout(form)
 
@@ -306,20 +421,15 @@ class ItemDialog(QDialog):
             return
         qty = self._quantity.value()
         min_q = self._min_qty.value()
-        if qty <= 0:
-            status = "需购"
-        elif qty < min_q:
-            status = "不足"
-        else:
-            status = "充足"
+        tags = [t.strip() for t in self._tags.text().split(",") if t.strip()]
+        status = "需购" if qty <= 0 else ("不足" if qty < min_q else "充足")
         self.result_data = {
             "name": self._name.text().strip(),
             "category": self._category.currentText(),
-            "quantity": qty,
-            "unit": self._unit.currentText(),
-            "min_quantity": min_q,
-            "status": status,
+            "quantity": qty, "unit": self._unit.currentText(),
+            "min_quantity": min_q, "status": status,
             "location": self._location.text().strip(),
-            "notes": self._notes.text().strip(),
+            "tags": tags, "notes": self._notes.text().strip(),
+            "ignore_low_stock": self._ignore.isChecked(),
         }
         self.accept()
