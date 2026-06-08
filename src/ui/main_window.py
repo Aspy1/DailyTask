@@ -252,17 +252,17 @@ class MainWindow(QMainWindow):
         sep3.setStyleSheet(f"color: {c['border_strong']}; margin: 0 8px;")
         self._statusbar.addPermanentWidget(sep3)
 
-        self._exam_alert_label = QLabel()
+        self._exam_alert_label = _ClickLabel()
         self._exam_alert_label.setStyleSheet(
             f"color: {c['orange']}; font-size: 12px; font-weight: 600; padding: 1px 6px;")
         self._exam_alert_label.setCursor(Qt.CursorShape.PointingHandCursor)
         self._exam_alert_label.setToolTip("点击查看考试安排")
-        self._exam_alert_label.mousePressEvent = lambda ev: self._on_exam_alert_click()
+        self._exam_alert_label.clicked.connect(self._on_exam_alert_click)
         self._statusbar.addPermanentWidget(self._exam_alert_label)
 
-        sep5 = QLabel("|")
-        sep4.setStyleSheet(f"color: {c['border_strong']}; margin: 0 8px;")
-        self._statusbar.addPermanentWidget(sep4)
+        sep_exam = QLabel("|")
+        sep_exam.setStyleSheet(f"color: {c['border_strong']}; margin: 0 8px;")
+        self._statusbar.addPermanentWidget(sep_exam)
 
         self._shopping_label = QLabel()
         self._statusbar.addPermanentWidget(self._shopping_label)
@@ -462,17 +462,14 @@ class MainWindow(QMainWindow):
         self._habit_count_label.setText(f"{done}/{total}项日常")
 
     def _update_exam_alert(self) -> None:
-        """Show nearest upcoming exam with countdown."""
-        c = get_colors()
         today = date.today()
+        c = get_colors()
         upcoming = self._data_manager.exams.get_upcoming(5)
         if not upcoming:
             self._exam_alert_label.setText("无考试")
             self._exam_alert_label.setStyleSheet(
                 f"color: {c['fg_hint']}; font-size: 12px; padding: 1px 6px;")
-            self._exam_alert_label.setCursor(Qt.CursorShape.ArrowCursor)
             return
-        # Find the nearest one
         nearest = upcoming[0]
         exam_date = nearest.get("exam_date", "")
         try:
@@ -481,10 +478,10 @@ class MainWindow(QMainWindow):
             delta = 999
         course = nearest.get("course_name", "")
         if delta < 0:
-            text = f"考试已过"
+            text = "考试已过"
             color = c["fg_disabled"]
         elif delta == 0:
-            text = f"★ {course} 今天考试!"
+            text = f"\u2605 {course} 今天考试!"
             color = c["red"]
         elif delta <= 3:
             text = f"考试 {delta}天后: {course}"
@@ -498,7 +495,6 @@ class MainWindow(QMainWindow):
         self._exam_alert_label.setText(text)
         self._exam_alert_label.setStyleSheet(
             f"color: {color}; font-size: 12px; font-weight: 600; padding: 1px 6px;")
-        self._exam_alert_label.setCursor(Qt.CursorShape.PointingHandCursor)
 
     def _on_exam_alert_click(self) -> None:
         self._workspace.switch_to("exams")
