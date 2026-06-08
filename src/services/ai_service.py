@@ -41,12 +41,24 @@ python scripts/actions.py add_course --name "课程" --day 1 --weeks "1-16" --sl
 
 schedule格式: daily/N, weekly/1,3,5, monthly/N。day: 1=周一...7=周日。
 
+### 物品（有什么）
+```sh
+python scripts/actions.py add_item --name "物品名" --category "分类" --quantity N --unit "个" --location "位置" [--tags "标签1,标签2"]
+python scripts/actions.py update_item --id "i_001" --location "新位置"
+python scripts/actions.py update_item --id "i_001" --quantity N --status "需购"
+python scripts/actions.py need_restock
+```
+物品分类: 日用品/食品饮料/学习用品/数码电子/衣物/药品/其他
+unit常用: 个/瓶/包/盒/箱/袋/双/件/卷/支/根/盒
+
 ## 判断优先级
-1. 考试/期中/期末 → add_exam
-2. 作业/布置/pre/论文 → add_task
-3. 习惯/打卡/每天 → add_habit/log_habit
-4. 完成/做完了 → complete_task/log_habit
-5. 提醒类 → add_plan
+1. 物品/存货/库存/还有/用完了/放在 → add_item 或 update_item
+2. 考试/期中/期末 → add_exam
+3. 作业/布置/pre/论文 → add_task
+4. 习惯/打卡/每天 → add_habit/log_habit
+5. 完成/做完了 → complete_task/log_habit
+6. 提醒类 → add_plan
+7. 移动/拿到/放到/挪到 → update_item --location
 """
 
 
@@ -290,6 +302,9 @@ class AIService(QObject):
 余额:
 {balance_info}
 
+物品库存（id 用于修改/移动）:
+{self._build_inventory_list()}
+
 假期/调休:
 {self._build_holiday_info()}
 """
@@ -354,6 +369,19 @@ class AIService(QObject):
                 day_str = day_names[day-1] if 1 <= day <= 7 else "?"
                 lines.append(f"  {c.get('name','')}: {day_str} {parity}周")
         return chr(10).join(lines) if lines else "  (无)"
+
+    def _build_inventory_list(self) -> str:
+        items = self._dm.inventory.items
+        if not items:
+            return "  （无物品记录）"
+        lines = []
+        for it in items:
+            loc = it.get("location", "")
+            loc_str = f" [{loc}]" if loc else ""
+            tags = it.get("tags", [])
+            tag_str = f" ({','.join(tags)})" if tags else ""
+            lines.append(f"  [{it['id']}] {it['name']} {it['quantity']}{it['unit']}{loc_str} - {it['status']}{tag_str}")
+        return chr(10).join(lines)
 
     def _build_holiday_info(self) -> str:
         h = self._dm.courses.holidays
