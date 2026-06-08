@@ -364,11 +364,6 @@ class TaskPanel(QWidget):
             self._dm.tasks.uncomplete(task_id)
         self._dm.tasks.save()
         self._dm.data_changed.emit("task_status")
-        # Auto-switch filter: if marking done while in pending view, switch to completed
-        if checked and self._status_filter == "pending":
-            self._status_filter = "completed"
-            self._status_btn.setText("已完成")
-        # Auto-refresh to move item between views
         self._refresh()
 
     def _prev_page(self) -> None:
