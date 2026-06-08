@@ -16,21 +16,9 @@ from src.services.settings_manager import SettingsManager
 from src.services.ai_service import AIService
 from src.services.data_manager import DataManager
 from src.ui.components.main_workspace import MainWorkspace
+from src.ui.components.click_label import ClickLabel
 from src.ui.components.sidebar import Sidebar
 from src.ui.components.ai_panel import AIPanel
-
-
-class _ClickLabel(QLabel):
-    clicked = Signal()
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.setCursor(Qt.CursorShape.PointingHandCursor)
-
-    def mousePressEvent(self, ev):
-        if ev.button() == Qt.MouseButton.LeftButton:
-            self.clicked.emit()
-        super().mousePressEvent(ev)
 
 
 class MainWindow(QMainWindow):
@@ -236,7 +224,7 @@ class MainWindow(QMainWindow):
         sep1.setStyleSheet(f"color: {c['border_strong']}; margin: 0 5px;")
         self._statusbar.addPermanentWidget(sep1)
 
-        self._ddl_alert_label = _ClickLabel()
+        self._ddl_alert_label = ClickLabel()
         self._ddl_alert_label.setCursor(Qt.CursorShape.PointingHandCursor)
         self._ddl_alert_label.setStyleSheet(
             f"color: {c['red']}; font-size: 12px; font-weight: 600;"
@@ -256,7 +244,7 @@ class MainWindow(QMainWindow):
         sep3.setStyleSheet(f"color: {c['border_strong']}; margin: 0 5px;")
         self._statusbar.addPermanentWidget(sep3)
 
-        self._exam_alert_label = _ClickLabel()
+        self._exam_alert_label = ClickLabel()
         self._exam_alert_label.setStyleSheet(
             f"color: {c['orange']}; font-size: 12px; font-weight: 600; padding: 0 3px;")
         self._exam_alert_label.setCursor(Qt.CursorShape.PointingHandCursor)
