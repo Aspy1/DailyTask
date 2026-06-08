@@ -143,6 +143,18 @@
       "created_at": "2026-06-08T14:39:07.707341",
       "reminded": false,
       "completed_at": "2026-06-08T14:39:22.018437"
+    },
+    {
+      "id": "t_013",
+      "title": "准备口语演讲稿（一分钟，三选一主题）并背熟",
+      "course_name": "西方文化掠影",
+      "due_date": "2026-06-09T23:00:00",
+      "status": "pending",
+      "priority": "medium",
+      "tags": [],
+      "notes": "",
+      "created_at": "2026-06-08T15:09:40.179938",
+      "reminded": false
     }
   ],
   "archived": [
