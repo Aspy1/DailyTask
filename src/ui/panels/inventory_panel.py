@@ -113,23 +113,17 @@ class InventoryPanel(QWidget):
         title.setStyleSheet(f"color: {c['fg_primary']}; font-weight: 600; border: none;")
         bl.addWidget(title)
 
-        # Category filter
-        self._cat_combo = QComboBox()
-        self._cat_combo.setMinimumWidth(90)
-        self._cat_combo.setStyleSheet(f"""
-            QComboBox {{ background: transparent; color: {c['fg_secondary']}; border: none; padding: 3px 10px; font-size: 12px; }}
-        """)
-        self._cat_combo.currentTextChanged.connect(self._on_filter_changed)
-        bl.addWidget(self._cat_combo)
+        # Category filter button
+        self._cat_btn = QPushButton("全部分类")
+        self._cat_btn.setStyleSheet(self._btn_qss())
+        self._cat_btn.clicked.connect(self._show_cat_filter)
+        bl.addWidget(self._cat_btn)
 
-        # Tag filter
-        self._tag_combo = QComboBox()
-        self._tag_combo.setMinimumWidth(80)
-        self._tag_combo.setStyleSheet(f"""
-            QComboBox {{ background: transparent; color: {c['fg_secondary']}; border: none; padding: 3px 10px; font-size: 12px; }}
-        """)
-        self._tag_combo.currentTextChanged.connect(self._on_filter_changed)
-        bl.addWidget(self._tag_combo)
+        # Tag filter button
+        self._tag_btn = QPushButton("全部标签")
+        self._tag_btn.setStyleSheet(self._btn_qss())
+        self._tag_btn.clicked.connect(self._show_tag_filter)
+        bl.addWidget(self._tag_btn)
 
         bl.addStretch()
 
