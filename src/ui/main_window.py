@@ -41,6 +41,7 @@ class MainWindow(QMainWindow):
         self._data_manager = data_manager
         self._plugin_manager = plugin_manager
         self._ai_visible = False
+        self._arrange_pending = False
 
         self._setup_ui()
         self._setup_statusbar()
@@ -272,6 +273,10 @@ class MainWindow(QMainWindow):
         self._ai_service.instructions_executed.connect(
             self._on_instructions_done)
 
+        # Schedule quick arrange
+        self._workspace._schedule_view.quick_adjust_requested.connect(
+            self._on_quick_arrange)
+
     # ── AI ─────────────────────────────────────────────────────
 
     def _on_ai_message(self, text: str) -> None:
@@ -280,11 +285,31 @@ class MainWindow(QMainWindow):
         self._ai_panel.set_status(True, thinking=True)
         self._ai_service.send_message(text)
 
+    def _on_quick_arrange(self, prompt: str) -> None:
+        """Handle schedule quick-arrange: send to AI, execute instructions, notify view."""
+        sv = self._workspace._schedule_view
+        # Send to AI — the response comes back through _on_instructions_done
+        # But we need to detect that this is an arrange response
+        self._arrange_pending = True
+        self._ai_service.send_message(prompt)
+
     def _on_ai_error(self, error_msg: str) -> None:
+        if getattr(self, '_arrange_pending', False):
+            self._arrange_pending = False
+            self._workspace._schedule_view.on_arrange_done(False, error_msg)
+            return
         self._ai_panel.append_message("ai", f"错误: {error_msg}")
         self._ai_panel._on_response_done()
 
     def _on_instructions_done(self, text: str, instructions: list) -> None:
+        if getattr(self, '_arrange_pending', False):
+            self._arrange_pending = False
+            # Execute instructions (data was already saved by AI worker)
+            from src.services.ai_service import InstructionParser
+            results = InstructionParser.execute(instructions, self._data_manager)
+            self._workspace._schedule_view.on_arrange_done(True,
+                "\n".join(results) if results else "已安排")
+            return
         self._ai_panel.append_message("ai", text)
         self._ai_panel._on_response_done()
 
