@@ -142,10 +142,12 @@ class InventoryPanel(QWidget):
         add_btn.clicked.connect(lambda: self._edit_item())
         bl.addWidget(add_btn)
 
+        bl.addSpacing(4)
+
         refresh_btn = QPushButton("刷新")
         refresh_btn.setStyleSheet(f"""
             QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
-                border-radius: 8px; padding: 5px 14px; font-size: 13px; }}
+                border-radius: 8px; padding: 5px 16px; font-size: 13px; }}
             QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; }}
         """)
         refresh_btn.clicked.connect(self._refresh)
