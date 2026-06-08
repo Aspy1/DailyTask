@@ -236,7 +236,6 @@ class MainWindow(QMainWindow):
         self._ddl_alert_label.setStyleSheet(
             f"color: {c['red']}; font-size: 12px; font-weight: 600;"
             f"padding: 0 3px;")
-        self._ddl_alert_label.setToolTip("点击查看即将截止的任务")
         self._ddl_alert_label.clicked.connect(self._on_ddl_alert_click)
         self._ddl_alert_label.hide()
         self._statusbar.addPermanentWidget(self._ddl_alert_label)
@@ -256,7 +255,6 @@ class MainWindow(QMainWindow):
         self._exam_alert_label.setStyleSheet(
             f"color: {c['orange']}; font-size: 12px; font-weight: 600; padding: 0 3px;")
         self._exam_alert_label.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._exam_alert_label.setToolTip("点击查看考试安排")
         self._exam_alert_label.clicked.connect(self._on_exam_alert_click)
         self._statusbar.addPermanentWidget(self._exam_alert_label)
 
