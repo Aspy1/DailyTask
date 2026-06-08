@@ -117,7 +117,7 @@ class InventoryPanel(QWidget):
         self._cat_combo = QComboBox()
         self._cat_combo.setMinimumWidth(90)
         self._cat_combo.setStyleSheet(f"""
-            QComboBox {{ background: {c['bg_input']}; color: {c['fg_primary']}; border: 1px solid {c['border']}; padding: 2px 8px; font-size: 12px; }}
+            QComboBox {{ background: transparent; color: {c['fg_secondary']}; border: none; padding: 3px 10px; font-size: 12px; }}
         """)
         self._cat_combo.currentTextChanged.connect(self._on_filter_changed)
         bl.addWidget(self._cat_combo)
@@ -126,14 +126,14 @@ class InventoryPanel(QWidget):
         self._tag_combo = QComboBox()
         self._tag_combo.setMinimumWidth(80)
         self._tag_combo.setStyleSheet(f"""
-            QComboBox {{ background: {c['bg_input']}; color: {c['fg_primary']}; border: 1px solid {c['border']}; padding: 2px 8px; font-size: 12px; }}
+            QComboBox {{ background: transparent; color: {c['fg_secondary']}; border: none; padding: 3px 10px; font-size: 12px; }}
         """)
         self._tag_combo.currentTextChanged.connect(self._on_filter_changed)
         bl.addWidget(self._tag_combo)
 
         bl.addStretch()
 
-        add_btn = QPushButton("+ 添加")
+        add_btn = QPushButton("添加")
         add_btn.setStyleSheet(f"""
             QPushButton {{ background-color: {c['accent']}; color: #fff; border: none;
                 border-radius: 8px; padding: 5px 16px; font-size: 13px; font-weight: 600; }}
