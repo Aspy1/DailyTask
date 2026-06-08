@@ -361,6 +361,46 @@ def cmd_delete_course(args):
             return
     print(f"ERROR course not found: {cid}")
 
+def cmd_add_item(args):
+    data = load("inventory.json")
+    data.setdefault("items", [])
+    iid = gen_id(data["items"], "i")
+    qty = args.quantity or 1
+    item = {"id": iid, "name": args.name, "category": args.category or "其他",
+            "quantity": qty, "unit": args.unit or "个",
+            "status": "需购" if qty <= 0 else "充足",
+            "min_quantity": args.min_qty or 1,
+            "location": args.location or "", "notes": args.notes or "",
+            "created_at": now_iso(), "updated_at": now_iso()}
+    data["items"].append(item)
+    save("inventory.json", data)
+    print(f"OK add_item {iid} | {args.name}")
+
+def cmd_update_item(args):
+    data = load("inventory.json")
+    for it in data.get("items", []):
+        if it["id"] == args.id:
+            if args.name: it["name"] = args.name
+            if args.category: it["category"] = args.category
+            if args.quantity is not None: it["quantity"] = args.quantity
+            if args.unit: it["unit"] = args.unit
+            if args.status: it["status"] = args.status
+            if args.min_qty is not None: it["min_quantity"] = args.min_qty
+            if args.location: it["location"] = args.location
+            it["updated_at"] = now_iso()
+            save("inventory.json", data)
+            print(f"OK update_item {args.id}")
+            return
+    print(f"ERROR item not found: {args.id}")
+
+def cmd_need_restock(args):
+    data = load("inventory.json")
+    needs = [it for it in data.get("items", []) if it.get("status") in ("需购", "不足")]
+    for it in needs:
+        print(f"  [{it['id']}] {it['name']} ({it['quantity']}{it.get('unit','个')}) - {it['status']}")
+    if not needs:
+        print("无需购物品")
+
 def cmd_status(args):
     t = load("tasks.json")
     h = load("habits.json")
@@ -448,6 +488,30 @@ def main():
     p = sub.add_parser("delete_course", help="删除课程")
     p.add_argument("--id", required=True)
 
+    # add_item
+    p = sub.add_parser("add_item", help="添加物品")
+    p.add_argument("--name", required=True)
+    p.add_argument("--category", default="其他")
+    p.add_argument("--quantity", type=int, default=1)
+    p.add_argument("--unit", default="个")
+    p.add_argument("--min_qty", type=int, default=1)
+    p.add_argument("--location")
+    p.add_argument("--notes")
+
+    # update_item
+    p = sub.add_parser("update_item", help="更新物品")
+    p.add_argument("--id", required=True)
+    p.add_argument("--name")
+    p.add_argument("--category")
+    p.add_argument("--quantity", type=int)
+    p.add_argument("--unit")
+    p.add_argument("--status", choices=["充足","不足","需购"])
+    p.add_argument("--min_qty", type=int)
+    p.add_argument("--location")
+
+    # need_restock
+    sub.add_parser("need_restock", help="查看需购物品")
+
     # status
     sub.add_parser("status", help="概览")
 
@@ -462,6 +526,8 @@ def main():
         "log_habit": cmd_log_habit, "add_plan": cmd_add_plan,
         "replace_plans": cmd_replace_plans, "delete_plan": cmd_delete_plan,
         "add_course": cmd_add_course, "delete_course": cmd_delete_course,
+        "add_item": cmd_add_item, "update_item": cmd_update_item,
+        "need_restock": cmd_need_restock,
         "status": cmd_status,
     }
 
