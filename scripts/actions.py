@@ -515,6 +515,7 @@ def main():
     p.add_argument("--location")
     p.add_argument("--notes")
     p.add_argument("--tags")
+    p.add_argument("--status", default=None)  # accepted but ignored, auto-derived
 
     # update_item
     p = sub.add_parser("update_item", help="更新物品")
