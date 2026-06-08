@@ -49,6 +49,7 @@ class InventoryModel(BaseJsonModel):
             "notes": data.get("notes", ""),
             "tags": data.get("tags", []),
             "ignore_low_stock": data.get("ignore_low_stock", False),
+            "doses_per_unit": data.get("doses_per_unit", 1),
             "created_at": datetime.now().isoformat(),
             "updated_at": datetime.now().isoformat(),
         }
@@ -59,7 +60,7 @@ class InventoryModel(BaseJsonModel):
         for it in self.items:
             if it["id"] == iid:
                 for k in ("name", "category", "quantity", "unit", "status",
-                          "min_quantity", "location", "notes", "tags", "ignore_low_stock"):
+                          "min_quantity", "location", "notes", "tags", "ignore_low_stock", "doses_per_unit"):
                     if k in data:
                         it[k] = data[k]
                 it["updated_at"] = datetime.now().isoformat()
@@ -79,6 +80,31 @@ class InventoryModel(BaseJsonModel):
                 items.pop(i)
                 return True
         return False
+
+    def consume(self, iid: str, amount: int = 1) -> bool:
+        """Consume N doses. Returns True if item still has stock."""
+        for it in self.items:
+            if it["id"] == iid:
+                dpu = it.get("doses_per_unit", 1)
+                total_doses = it["quantity"] * dpu
+                total_doses -= amount
+                it["quantity"] = max(0, total_doses // dpu)
+                if it["quantity"] <= 0:
+                    it["status"] = "需购"
+                elif it["quantity"] < it.get("min_quantity", 1):
+                    it["status"] = "不足"
+                else:
+                    it["status"] = "充足"
+                if not it.get("ignore_low_stock"):
+                    it["updated_at"] = __import__("datetime").datetime.now().isoformat()
+                return it["quantity"] > 0
+        return False
+
+    def remaining_doses(self, iid: str) -> int:
+        for it in self.items:
+            if it["id"] == iid:
+                return it["quantity"] * it.get("doses_per_unit", 1)
+        return 0
 
     @property
     def need_restock(self) -> list[dict]:
