@@ -367,7 +367,7 @@ def cmd_add_item(args):
     iid = gen_id(data["items"], "i")
     qty = args.quantity or 1
     item = {"id": iid, "name": args.name, "category": args.category or "其他",
-            "quantity": qty, "unit": args.unit or "个",
+            "quantity": qty, "unit": "件",
             "status": "需购" if qty <= 0 else "充足",
             "min_quantity": args.min_qty or 1,
             "location": args.location or "", "notes": args.notes or "",
