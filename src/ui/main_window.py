@@ -450,7 +450,13 @@ class MainWindow(QMainWindow):
         done = sum(1 for h in today_habits
                    if self._data_manager.habits.is_done_today(h["id"]))
         total = len(today_habits)
-        self._habit_count_label.setText(f"日常{done}/{total}")
+        c3 = get_colors()
+        if total > 0:
+            self._habit_count_label.setText(f"日常{done}/{total}")
+            self._habit_count_label.setStyleSheet(f"color: {c3['green'] if done == total else c3['fg_secondary']}; font-size: 12px; padding: 0 3px;")
+        else:
+            self._habit_count_label.setText("今日无事")
+            self._habit_count_label.setStyleSheet(f"color: {c3['fg_hint']}; font-size: 12px; padding: 0 3px;")
 
     def _update_exam_alert(self) -> None:
         today = date.today()

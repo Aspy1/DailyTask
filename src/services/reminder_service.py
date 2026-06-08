@@ -243,7 +243,7 @@ class ReminderService(QObject):
     # ── DDL red dot ───────────────────────────────────────
 
     def _check_ddl(self) -> None:
-        threshold_dt = datetime.now() + timedelta(days=3)
+        threshold_date = date.today() + timedelta(days=3)
         pending = self._dm.tasks.pending
         urgent_count = 0
         for t in pending:
@@ -251,8 +251,8 @@ class ReminderService(QObject):
             if not due_str:
                 continue
             try:
-                due_dt = datetime.fromisoformat(due_str.replace("Z", "+00:00"))
-                if due_dt <= threshold_dt:
+                due_date = date.fromisoformat(due_str[:10])
+                if due_date <= threshold_date:
                     urgent_count += 1
             except (ValueError, TypeError):
                 pass
