@@ -127,72 +127,182 @@
       {
         "title": "收尾算法设计与分析个人作业（截止6/11）",
         "time_slot": 3,
-        "type": "custom"
+        "type": "custom",
+        "note": "算法设计与分析"
       },
       {
         "title": "开始准备西方文化掠影口语演讲稿（截止6/15）",
         "time_slot": 5,
-        "type": "custom"
+        "type": "custom",
+        "note": "西方文化掠影"
       }
     ],
     "2026-06-11": [
       {
-        "title": "继续做计算机网络第五章课后作业（截止6/14）",
-        "time_slot": 3,
-        "type": "custom"
+        "title": "完成算法设计与分析个人作业（截止今天23:00）",
+        "time_slot": 1,
+        "type": "custom",
+        "note": "算法设计与分析"
       },
       {
-        "title": "准备西方文化掠影口语演讲稿并背熟（截止6/15）",
+        "title": "开始计算机网络第五章课后作业（截止6/14）",
+        "time_slot": 3,
+        "type": "custom",
+        "note": "计算机网络"
+      },
+      {
+        "title": "继续准备西方文化掠影口语演讲稿（截止6/15）",
         "time_slot": 5,
-        "type": "custom"
+        "type": "custom",
+        "note": "西方文化掠影"
       }
     ],
     "2026-06-12": [
       {
-        "title": "继续做计算机网络第五章课后作业（截止6/14）",
+        "title": "继续计算机网络第五章课后作业（截止6/14）",
         "time_slot": 3,
-        "type": "custom"
+        "type": "custom",
+        "note": "计算机网络"
       },
       {
-        "title": "准备西方文化掠影口语演讲稿并背熟（截止6/15）",
+        "title": "继续准备西方文化掠影口语演讲稿（截止6/15）",
         "time_slot": 5,
-        "type": "custom"
+        "type": "custom",
+        "note": "西方文化掠影"
       }
     ],
     "2026-06-13": [
       {
         "title": "收尾计算机网络第五章课后作业（截止6/14）",
         "time_slot": 3,
-        "type": "custom"
+        "type": "custom",
+        "note": "计算机网络"
       },
       {
-        "title": "准备西方文化掠影口语演讲稿并背熟（截止6/15）",
+        "title": "背熟西方文化掠影口语演讲稿（截止6/15）",
         "time_slot": 5,
-        "type": "custom"
+        "type": "custom",
+        "note": "西方文化掠影"
       }
     ],
     "2026-06-14": [
       {
-        "title": "收尾西方文化掠影口语演讲稿并背熟（截止6/15）",
-        "time_slot": 3,
-        "type": "custom"
+        "title": "完成计算机网络第五章课后作业（截止今天23:00）",
+        "time_slot": 1,
+        "type": "custom",
+        "note": "计算机网络"
       },
       {
-        "title": "开始复习算法设计与分析（6/19考试）",
+        "title": "复习算法设计与分析（6/19考试）",
+        "time_slot": 3,
+        "type": "custom",
+        "note": "算法设计与分析"
+      },
+      {
+        "title": "复习算法设计与分析（6/19考试）",
         "time_slot": 5,
-        "type": "custom"
+        "type": "custom",
+        "note": "算法设计与分析"
       }
     ],
     "2026-06-15": [
       {
+        "title": "完成西方文化掠影口语演讲稿（截止今天23:00）",
+        "time_slot": 1,
+        "type": "custom",
+        "note": "西方文化掠影"
+      },
+      {
         "title": "复习算法设计与分析（6/19考试）",
         "time_slot": 3,
-        "type": "custom"
+        "type": "custom",
+        "note": "算法设计与分析"
       },
       {
         "title": "复习算法设计与分析（6/19考试）",
         "time_slot": 5,
-        "type": "custom"
+        "type": "custom",
+        "note": "算法设计与分析"
+      }
+    ],
+    "2026-06-16": [
+      {
+        "title": "复习算法设计与分析（6/19考试）",
+        "time_slot": 1,
+        "type": "custom",
+        "note": "算法设计与分析"
+      },
+      {
+        "title": "复习算法设计与分析（6/19考试）",
+        "time_slot": 3,
+        "type": "custom",
+        "note": "算法设计与分析"
+      },
+      {
+        "title": "复习算法设计与分析（6/19考试）",
+        "time_slot": 5,
+        "type": "custom",
+        "note": "算法设计与分析"
+      }
+    ],
+    "2026-06-17": [
+      {
+        "title": "复习算法设计与分析（6/19考试）",
+        "time_slot": 1,
+        "type": "custom",
+        "note": "算法设计与分析"
+      },
+      {
+        "title": "复习算法设计与分析（6/19考试）",
+        "time_slot": 3,
+        "type": "custom",
+        "note": "算法设计与分析"
+      },
+      {
+        "title": "复习计算机网络（6/29考试）",
+        "time_slot": 5,
+        "type": "custom",
+        "note": "计算机网络"
+      }
+    ],
+    "2026-06-18": [
+      {
+        "title": "复习算法设计与分析（明天考试）",
+        "time_slot": 1,
+        "type": "custom",
+        "note": "算法设计与分析"
+      },
+      {
+        "title": "复习算法设计与分析（明天考试）",
+        "time_slot": 3,
+        "type": "custom",
+        "note": "算法设计与分析"
+      },
+      {
+        "title": "复习计算机网络（6/29考试）",
+        "time_slot": 5,
+        "type": "custom",
+        "note": "计算机网络"
+      }
+    ],
+    "2026-06-19": [
+      {
+        "title": "算法设计与分析考试",
+        "time_slot": 1,
+        "type": "custom",
+        "note": "考试"
+      },
+      {
+        "title": "复习计算机网络（6/29考试）",
+        "time_slot": 3,
+        "type": "custom",
+        "note": "计算机网络"
+      },
+      {
+        "title": "复习计算机网络（6/29考试）",
+        "time_slot": 5,
+        "type": "custom",
+        "note": "计算机网络"
       }
     ]
   },
