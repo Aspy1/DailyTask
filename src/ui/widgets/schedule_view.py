@@ -331,10 +331,11 @@ class ScheduleView(QWidget):
 
     def _refresh(self) -> None:
         self._dm.reload_all()
-        while self._content_layout.count() > 1:
-            item = self._content_layout.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
+
+        # Ensure slot tracking dicts exist for incremental updates
+        if not hasattr(self, '_slot_cards'):
+            self._slot_cards = {}
+            self._slot_hashes = {}
 
         c = get_colors()
         target = self._target_date
@@ -448,8 +449,35 @@ class ScheduleView(QWidget):
                     slot = period_count
             ddl_by_slot[slot].append(t)
 
+        import json, hashlib
+
         for period in range(1, period_count + 1):
             items = slot_data.get(period, [])
+            ddls = ddl_by_slot.get(period, [])
+
+            # Hash slot content for incremental update detection
+            is_current_slot = (period == current_slot and self._day_offset == 0)
+            content_key = json.dumps({
+                'items': [{'t': i['type'], 'n': i.get('name','') or i.get('title',''),
+                           'nt': i.get('note',''), 'd': i.get('duration',0),
+                           'l': i.get('location',''), 'rt': i.get('reminder_time',''),
+                           'pt': i.get('plan_type',''), 'cn': i.get('course_name','')}
+                          for i in items],
+                'ddls': [{'t': d.get('title',''), 'd': d.get('due_date','')[:16]}
+                         for d in ddls],
+                'cur': is_current_slot
+            }, sort_keys=True).encode()
+            new_hash = hashlib.md5(content_key).hexdigest()
+
+            if period in self._slot_cards and self._slot_hashes.get(period) == new_hash:
+                continue  # unchanged
+
+            # Remove old card if replacing
+            if period in self._slot_cards:
+                old_card = self._slot_cards[period]
+                self._content_layout.removeWidget(old_card)
+                old_card.deleteLater()
+
             if period <= len(PERIOD_TIMES):
                 start_t, end_t = PERIOD_TIMES[period - 1]
                 time_str = f"{start_t} - {end_t}"
@@ -584,11 +612,23 @@ class ScheduleView(QWidget):
                 suffix = f" 截止 {due_time}" if due_time else ""
                 ddl_label.setText(f"—— {task_title}{suffix} ——")
                 ddl_label.setStyleSheet(
-                    f"color: {c['red']}; font-size: 15px; font-weight: 600; border: none; background: transparent; padding: 6px 0;")
+                    f"color: {c['red']}; font-size: 15px; font-weight: 600; border: none; background: transparent; padding: 6px 0;"
+                )
                 ddl_label.clicked.connect(lambda cn=course_name: self.task_focus_requested.emit(cn))
                 cl.addWidget(ddl_label)
 
             self._content_layout.insertWidget(self._content_layout.count() - 1, card)
+            self._slot_cards[period] = card
+            self._slot_hashes[period] = new_hash
+
+        # Clean up cards for removed periods (e.g. period_count shrank)
+        for p in list(self._slot_cards.keys()):
+            if p > period_count:
+                self._content_layout.removeWidget(self._slot_cards[p])
+                self._slot_cards[p].deleteLater()
+                del self._slot_cards[p]
+                del self._slot_hashes[p]
+
 
     def refresh_theme(self) -> None:
         """Re-render the schedule to pick up new theme colors."""

@@ -28,16 +28,10 @@
 
 | 变量 | 类型 | 作用 |
 |---|---|---|
-| `self._dm` | `DataManager` | 数据访问 |
-| `self._day_offset` | `int` | 当前显示的天数偏移 |
-| `self._undo_btn` | `QPushButton` | 撤销按钮 |
-| `self._save_btn` | `QPushButton` | 保存按钮 |
-| `self._arrange_btn` | `QPushButton` | 调整按钮 |
-| `self._date_label` | `QLabel` | 日期标签 |
-| `self._content` | `QWidget` | 内容容器 |
-| `self._content_layout` | `QLayout` | 内容布局 |
+| `_slot_cards` | `dict[int, QWidget]` | 增量更新：每时段卡片 widget 引用，hash 匹配则跳过重建 |
+| `_slot_hashes` | `dict[int, str]` | 增量更新：每时段内容的 md5 hash，用于 diff 检测 |
+| `_arrange_backup_path` | `str \| None` | 调整前 daily_logs.json 备份路径 |
 
----
 
 #### 信号
 
@@ -51,6 +45,17 @@
 ---
 
 #### 函数合同
+
+##### _refresh()
+
+| 字段 | 内容 |
+|---|---|
+| 前置条件 | `_slot_cards`/`_slot_hashes` dict 已初始化（首次自动创建） |
+| 核心逻辑 | 1. `dm.reload_all()`<br>2. 计算 slot_data + ddl_by_slot（与旧版相同）<br>3. 每时段计算 `hashlib.md5(json.dumps(content))`<br>4. hash 匹配 → `continue` 跳过（不销毁不重建）<br>5. hash 不匹配 → `removeWidget` + `deleteLater` 旧卡 → 构建新卡 → `insertWidget` → 更新 dict |
+| 副作用 | 只有内容变化的时段触发 widget 重建；不变时段零开销 |
+| 返回值 | 无 |
+| 信号来源 | 被 `data_changed` → 各面板刷新触发 |
+
 
 ##### `__init__(dm, parent=None)`
 

@@ -433,6 +433,78 @@ def cmd_status(args):
 
 
 # ═══════════════════════════════════════════════════════════
+# In-process executor (avoids subprocess overhead for AI calls)
+# ═══════════════════════════════════════════════════════════
+
+def run_in_process(cmd_str: str) -> str:
+    """Execute an actions.py command string in-process.
+    
+    Parses the shell command string, builds an argparse Namespace,
+    and calls the handler directly — no subprocess overhead.
+    Thread-safe: each call gets its own stdout buffer.
+    """
+    import io, shlex
+    from contextlib import redirect_stdout
+
+    parts = shlex.split(cmd_str)
+    # Strip 'python' / 'python3' / 'py' prefix
+    while parts and parts[0].lower() in ('python', 'python3', 'py'):
+        parts.pop(0)
+    # Strip script path if present
+    if parts and ('actions.py' in parts[0]):
+        parts.pop(0)
+
+    if not parts:
+        return "ERROR: empty command"
+
+    action = parts[0]
+    # Build argparse-like Namespace from --key value pairs
+    ns = argparse.Namespace()
+    ns.action = action
+    i = 1
+    while i < len(parts):
+        if parts[i].startswith('--'):
+            key = parts[i][2:].replace('-', '_')
+            if i + 1 < len(parts) and not parts[i + 1].startswith('--'):
+                val = parts[i + 1]
+                # Try int conversion
+                try:
+                    val = int(val)
+                except ValueError:
+                    pass
+                setattr(ns, key, val)
+                i += 2
+            else:
+                setattr(ns, key, True)
+                i += 1
+        else:
+            i += 1
+
+    handlers = {
+        "add_task": cmd_add_task, "complete_task": cmd_complete_task,
+        "add_exam": cmd_add_exam, "add_habit": cmd_add_habit,
+        "log_habit": cmd_log_habit, "add_plan": cmd_add_plan,
+        "replace_plans": cmd_replace_plans, "delete_plan": cmd_delete_plan,
+        "add_course": cmd_add_course, "delete_course": cmd_delete_course,
+        "add_item": cmd_add_item, "update_item": cmd_update_item,
+        "need_restock": cmd_need_restock,
+        "lookup_item": cmd_lookup_item,
+        "status": cmd_status,
+    }
+
+    if action not in handlers:
+        return f"ERROR unknown action: {action}"
+
+    buf = io.StringIO()
+    with redirect_stdout(buf):
+        try:
+            handlers[action](ns)
+        except Exception as e:
+            print(f"ERROR {e}")
+    return buf.getvalue().strip()
+
+
+# ═══════════════════════════════════════════════════════════
 # CLI
 # ═══════════════════════════════════════════════════════════
 

@@ -188,20 +188,30 @@ class InstructionParser:
 
     @staticmethod
     def execute(commands: list[str], dm=None, settings=None) -> list[str]:
-        """Execute shell commands via subprocess."""
-        import subprocess
+        """Execute commands in-process via actions.run_in_process (no subprocess)."""
         results = []
-        for cmd in commands:
-            try:
-                r = subprocess.run(
-                    cmd, shell=True,
-                    cwd=str(Path(__file__).parent.parent.parent),
-                    capture_output=True, text=True, timeout=30
-                )
-                output = r.stdout.strip() or r.stderr.strip()
-                results.append(output)
-            except Exception as e:
-                results.append(f"ERROR {e}")
+        try:
+            from scripts.actions import run_in_process
+        except ImportError:
+            # Fallback: subprocess for standalone/legacy setups
+            import subprocess
+            for cmd in commands:
+                try:
+                    r = subprocess.run(
+                        cmd, shell=True,
+                        cwd=str(Path(__file__).parent.parent.parent),
+                        capture_output=True, text=True, timeout=30
+                    )
+                    results.append(r.stdout.strip() or r.stderr.strip())
+                except Exception as e:
+                    results.append(f"ERROR {e}")
+        else:
+            for cmd in commands:
+                try:
+                    output = run_in_process(cmd)
+                    results.append(output)
+                except Exception as e:
+                    results.append(f"ERROR {e}")
         if dm:
             dm.reload_all()
             dm.data_changed.emit("ai_action")
