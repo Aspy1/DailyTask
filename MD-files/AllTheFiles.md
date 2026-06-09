@@ -195,6 +195,8 @@
 | 托盘 / 右下角图标 | System Tray / Tray Icon | `app.py` |
 | 单实例 | Single Instance Lock | `app.py` |
 | 调整 / 快速安排 | Quick Arrange | `schedule_view.py` → `main_window.py` → `ai_service.py` |
+| 增量更新 | Incremental refresh — hash-based skip of unchanged widgets | `schedule_view._refresh()` |
+| 内存调用 | In-process actions execution — no subprocess overhead | `actions.run_in_process()` → `ai_service.py` |
 | 同步 | Git Sync | `git_sync.py` |
 | 提醒 / DDL | Reminder / Alert | `reminder_service.py` |
 | 数据 / 数据管理 | DataManager | `data_manager.py` |
@@ -277,6 +279,18 @@
 
 - **原因**：`SYSTEM_PROMPT_BASE` 全局约束 AI 输出 ```sh 代码块，`InstructionParser` 只提取 ```sh 块。JSON 格式与全局规则冲突导致输出不可解析。
 - **位置**：`schedule_view._quick_arrange` L282-287
+- **状态**：锁定
+
+**DR-PERF-01：_refresh 使用 hash-based 增量更新**
+
+- **原因**：`deleteLater()` + 全量 `insertWidget()` 触发完整 layout pass + QSS 重解析 + paint，6 时段 × N 卡片每 3s 重建导致明显卡顿。hash 匹配跳过可将 80%+ 刷新降为零开销。
+- **位置**：`schedule_view._refresh` L332-591
+- **状态**：锁定
+
+**DR-PERF-02：AI 指令执行从 subprocess 改为内存调用**
+
+- **原因**：每条 `subprocess.run("python scripts/actions.py")` 启动完整 Python 解释器 + import + JSON 读写。5 条指令 = 5 次进程启动。改为 import + 直接调 handler 消除进程边界。
+- **位置**：`scripts/actions.py` `run_in_process()` + `ai_service.py` `InstructionParser.execute`
 - **状态**：锁定
 
 **DR-UI-ARRANGE-02：response_received 经 _on_ai_response 中转（兜底检查）**

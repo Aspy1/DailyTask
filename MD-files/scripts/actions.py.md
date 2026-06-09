@@ -40,6 +40,19 @@
 
 ---
 
+
+#### 函数合同
+
+##### run_in_process(cmd_str) → str
+
+| 字段 | 内容 |
+|---|---|
+| 前置条件 | actions.py 模块可导入，cmd_str 格式为 `python scripts/actions.py <action> [--key val ...]` |
+| 核心逻辑 | `shlex.split` 解析 → 去 `python`/脚本路径前缀 → 构建 `argparse.Namespace` → 直接调 handler → `contextlib.redirect_stdout` 捕获输出 |
+| 副作用 | 与 subprocess 版相同（操作 JSON 文件） |
+| 返回值 | `str` — handler 的 print 输出（`OK ...`/`ERROR ...`） |
+| 线程安全 | 是——每调用独立 stdout buffer，不与全局 sys.stdout 冲突 |
+
 #### 函数合同
 
 > *（待补：23 个方法需逐函数编写合同。类: （无显式类）。信号数: 0）*

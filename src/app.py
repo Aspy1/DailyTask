@@ -143,6 +143,7 @@ class App(QApplication):
 
         self._window = MainWindow(self._settings, self._ai_service, self._data_manager, self._plugin_manager)
         self._window.setWindowIcon(app_icon)
+        self._window.show()  # show immediately — rest of init continues after window visible
 
         # Flash state (before reminder.start() — _on_ddl_alert uses _flash_timer)
         self._flash_timer = QTimer(self)
@@ -159,8 +160,6 @@ class App(QApplication):
             self.is_secondary = True
             return
         self._instance_server.newConnection.connect(self._on_second_instance)
-
-        self._window.show()
 
     def _on_second_instance(self) -> None:
         sock: QLocalSocket | None = None
