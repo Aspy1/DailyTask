@@ -1,107 +1,39 @@
-# 开发避坑记录
+# ERRORS.md — 已踩过的坑
 
-记录本项目开发中遇到的典型错误及其修复方案。
+> 索引优先查阅。Agent 禁止通读全文——先扫索引，锁定了条目号再跳转。
 
-## 1. clicked 信号传参数污染
+## 索引
 
-**现象**: 点击"调整"按钮，传给 `_quick_arrange(days)` 的参数 `days` 变成 `False`，快照显示"未来False天"
+> 格式: 条目 → L{起始}-{结束} 行号范围
 
-**根因**: Qt `QPushButton.clicked` 信号自动传 `checked=False` 作为第一个参数，覆盖了函数默认参数
+| 关键词 | 条目 | 行号 |
+|---|---|---|
+| 调整按钮/undo/save/安排/整理/.../arrange_pending | #001 | L28-L50 |
+| 信号/emit/finished_with_instructions/Agent Loop | #001 | L33-L38 |
+| prompt格式/JSON/sh冲突/_quick_arrange/输出格式 | #001 | L40-L43 |
+| 指令重复执行/double-exec/_on_response_with_instructions | #001 | L45-L47 |
 
-**修复**: 用 lambda 包裹
-```python
-# 错误
-btn.clicked.connect(self._quick_arrange)
-# 正确
-btn.clicked.connect(lambda: self._quick_arrange())
-```
+---
 
-## 2. `_file_path` → `file_path` 属性名错误
+## 条目
 
-**现象**: `AttributeError: 'DailyLogModel' object has no attribute '_file_path'`
+### #001 | 2026-06-08 | 调整按钮点后"..."挂死，撤销/保存按钮不出现
 
-**根因**: `BaseJsonModel` 的属性名是 `file_path`，不是 `_file_path`
+L28-50 完整条目
 
-## 3. f-string 内花括号未转义
+**症状**: 点击日程视图的"调整"按钮 → 按钮变为"..."并 disabled → AI 确实执行了数据修改 → 但按钮永远不恢复，撤销/保存按钮从不出现
 
-**现象**: Python 代码中 `{"action":"add_plan"}` 等 JSON 示例被 Python 当作 f-string 插值解析
+**根因（三重链）**:
+1. `AIWorker.finished_with_instructions` 信号声明但从未 emit — Worker.run() 内部执行指令后只发 `finished`
+2. `_quick_arrange` 的 prompt 要求 JSON 输出格式，但 `SYSTEM_PROMPT_BASE` 要求 `\`\`\`sh 代码块 — AI 收到冲突指令
+3. `_arrange_pending` 只在 `_on_instructions_done`（永不被调用的死代码）里重置
 
-**修复**: f-string 内的花括号必须双写 `{{"action":"add_plan"}}`
+**修复**:
+- `src/services/ai_service.py` L134: Worker.run() 新增 `all_instructions` 追踪，有指令时 emit `finished_with_instructions`
+- `src/ui/widgets/schedule_view.py` L282-287: prompt 从 JSON 格式改为 `\`\`\`sh` + `python scripts/actions.py` 命令
+- `src/ui/main_window.py` L266-267: `response_received` 改为经 `_on_ai_response` 中转，兜底清 `_arrange_pending`
+- `src/services/ai_service.py` L430-442: `_on_response_with_instructions` 去掉 `InstructionParser.execute()` 重复执行
 
-## 4. 分隔符变量编号混乱 (sep4 未定义)
+**涉及文件**: `ai_service.py`, `schedule_view.py`, `main_window.py`
 
-**现象**: `UnboundLocalError: cannot access local variable 'sep4'`
-
-**根因**: 在已有 sep1-sep4 的状态栏中插入新组件，只改了局部编号，后面的 sep4 仍引用旧变量名
-
-**修复**: 添加新分隔符时使用独立命名 (如 `sep_exam`) 或整体重写该段
-
-## 5. AI 输出"未知操作: xxx"
-
-**现象**: AI 生成了 `replace_plans` 指令，但执行器报"未知操作"
-
-**根因**: 系统提示词里文档化了该操作，但 `_exec_one` 方法中未注册对应的 elif 分支
-
-**修复**: 确保 prompt 中提到的每个 action 都在执行器中实现
-
-## 6. 信号冲突 (两个 handler 接同一信号)
-
-**现象**: "快速安排"点击没反应
-
-**根因**: `quick_adjust_requested` 信号被 `main_workspace._on_quick_adjust`（填充 AI 输入框）和 `main_window._on_quick_arrange`（直接发 AI）同时连接，产生竞争
-
-**修复**: 新建独立信号 `arrange_requested`，不共享
-
-## 7. 替换文本未精确匹配导致代码残留
-
-**现象**: 多次 `content.replace(old, new)` 后文件越来越大，含大量死代码
-
-**根因**: old_string 与文件中实际文本不完全一致（空格/换行差异），Python 静默跳过
-
-**修复**: 用 git checkout 回滚干净版 → 用精确的行级替换 → py_compile 验证
-
-## 8. execute_code 忘记 import os
-
-**现象**: `NameError: name 'os' is not defined`
-
-**根因**: 每次 `execute_code` 调用是独立 Python 进程，不共享之前的 import
-
-**修复**: 每个 execute_code 块开头都写全 import
-
-## 9. Windows bash (MSYS) 工具故障
-
-**现象**: `write_file`/`patch`/`read_file`/`terminal` 全部报 exit code 126 "builtin: not found"
-
-**根因**: w64devkit 缺少运行时 DLL
-
-**应对**: 所有文件操作改用 `execute_code` 内的 Python `open()` 进行
-
-## 10. 语法检查缺失导致连锁错误
-
-**现象**: 改 A 文件 → 提交 → B 文件报错（因为依赖了 A 的改动）
-
-**修复**: 每次改完后 `py_compile` 全量扫描 `src/**/*.py`
-
-## 11. DDL 计数按精确时间而非按天
-
-**现象**: 下午 3 点查看，3 天后 23:00 截止的作业不显示在 DDL 计数中
-
-**根因**: `datetime.now() + timedelta(days=3)` 精确到时分秒，下午生成的阈值排除当天晚间的 DDL
-
-**修复**: 改 `datetime` 为 `date` 比较——`date.today() + timedelta(days=3)`
-
-## 12. 状态栏 widget 残留占位
-
-**现象**: `备考1科` 和日期之间有大段空白
-
-**根因**: `_shopping_label` 和 `sep4` 虽然不更新数据了，但永久 widget 仍挂在 `QStatusBar` 上
-
-**修复**: 从 `_setup_statusbar` 中彻底移除不用的 widget
-
-## 13. `mousePressEvent` 右键也触发点击
-
-**现象**: 右键点 DDL 线或状态栏标签也会跳转
-
-**根因**: `_ClickLabel.mousePressEvent` 未区分鼠标按键
-
-**修复**: 加 `if ev.button() == Qt.MouseButton.LeftButton:` 判断
+**教训**: 声明但未 emit 的 Qt 信号是 typo-like bug——连接了但永远不走。新增信号时必须在 emit 侧加搜索确认：`grep 'emit'` 能找到所有发射点。

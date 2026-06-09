@@ -264,7 +264,7 @@ class MainWindow(QMainWindow):
     def _connect_ai(self) -> None:
         self._ai_panel.message_sent.connect(self._on_ai_message)
         self._ai_service.response_received.connect(
-            self._ai_panel.append_message_ai)
+            self._on_ai_response)
         self._ai_service.error_occurred.connect(self._on_ai_error)
         self._ai_service.instructions_executed.connect(
             self._on_instructions_done)
@@ -280,6 +280,14 @@ class MainWindow(QMainWindow):
             self._on_ai_toggle(True)
         self._ai_panel.set_status(True, thinking=True)
         self._ai_service.send_message(text)
+
+    def _on_ai_response(self, text: str) -> None:
+        """Handle AI text response. Route arrange results through arrange_pending check."""
+        if getattr(self, '_arrange_pending', False):
+            self._arrange_pending = False
+            self._course_info_label.setText("日程调整完成")
+            self._workspace._schedule_view.on_arrange_done(True, "AI 已响应")
+        self._ai_panel.append_message_ai(text)
 
     def _on_quick_arrange(self, prompt: str) -> None:
         """Handle schedule quick-arrange: send to AI, execute instructions, notify view."""
