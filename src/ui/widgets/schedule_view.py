@@ -279,9 +279,10 @@ class ScheduleView(QWidget):
 
 {snapshot}
 
-请用JSON输出修改方案。支持的JSON操作:
-- 替换某天全部计划: {{"action":"replace_plans","data":{{"date":"YYYY-MM-DD","plans":[{{"title":"标题","time_slot":时段编号,"type":"custom","note":"备注"}}]}}}}
-- 添加单个计划: {{"action":"add_plan","data":{{"date":"YYYY-MM-DD","title":"标题","time_slot":时段编号,"type":"custom"}}}}
+请用 ```sh 代码块输出修改命令（不要用JSON）:
+- 替换某天全部计划: python scripts/actions.py replace_plans --date "YYYY-MM-DD" --plans '[{{"title":"标题","time_slot":时段编号,"type":"custom","note":"备注"}}]'
+- 添加单个计划: python scripts/actions.py add_plan --date "YYYY-MM-DD" --title "标题" --slot 时段编号
+- 删除计划: python scripts/actions.py delete_plan --date "YYYY-MM-DD" --index 序号
 - time_slot编号: {', '.join(str(i) for i in range(1, period_count + 1))}
 
 注意: 习惯不要作为plan重复添加。优先为最近截止的DDL安排复习时间。有考试则优先安排考前复习。**必须为快照中的每一天都输出replace_plans**。"""

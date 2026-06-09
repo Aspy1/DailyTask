@@ -132,6 +132,7 @@ class AIWorker(QObject):
         try:
             msgs = list(self._messages)
             final_text = ""
+            all_instructions = []  # collect across multi-turn agent loop
             for turn in range(5):  # max 5 turns
                 text = self._provider.chat(
                     system_prompt=self._system_prompt,
@@ -143,8 +144,13 @@ class AIWorker(QObject):
                 instructions = InstructionParser.parse(text)
                 if not instructions:
                     # No tool calls — done
-                    self.finished.emit(text)
+                    if all_instructions:
+                        # Instructions were executed in earlier turns
+                        self.finished_with_instructions.emit(final_text, all_instructions)
+                    else:
+                        self.finished.emit(text)
                     return
+                all_instructions.extend(instructions)
                 # Execute tools silently
                 results = InstructionParser.execute(instructions, self._dm, self._settings)
                 # Feed results back for next turn
@@ -152,9 +158,12 @@ class AIWorker(QObject):
                 results_text = "\n".join(results)
                 msgs.append({"role": "user", "content": f"[工具执行结果]\n{results_text}"})
                 final_text = text
-            # Max turns reached — emit final text (strip code blocks)
+            # Max turns reached
             display = re.sub(r'```(?:sh|json)\s*.*?```', '', final_text, flags=re.DOTALL).strip()
-            self.finished.emit(display or "已完成")
+            if all_instructions:
+                self.finished_with_instructions.emit(display or "已完成", all_instructions)
+            else:
+                self.finished.emit(display or "已完成")
         except Exception as e:
             self.error.emit(str(e))
 
@@ -429,17 +438,16 @@ class AIService(QObject):
 
     def _on_response_with_instructions(self, text: str, instructions: list) -> None:
         self._history.append({"role": "assistant", "content": text})
-        logger.info("AI response with %d instructions:\n%s", len(instructions), text[:500])
-        results = InstructionParser.execute(instructions, self._dm, self._settings)
-        logger.info("Executed %d instructions: %s", len(results), results)
+        n = len(instructions) if instructions else 0
+        logger.info("AI completed with %d instructions executed by worker", n)
 
         # Strip code blocks from display text — keep only natural language
         display_text = re.sub(r'```(?:sh|json)\s*.*?```', '', text, flags=re.DOTALL).strip()
         if not display_text:
             display_text = re.sub(r'```(?:sh|json)?\s*.*?```', '', text, flags=re.DOTALL).strip()
 
-        all_results = "\n".join(f"• {r}" for r in results)
-        self.instructions_executed.emit(f"{display_text}\n\n{all_results}", instructions)
+        summary = f"已执行 {n} 条指令" if n else text
+        self.instructions_executed.emit(display_text or summary, instructions)
 
     def _on_error(self, error_msg: str) -> None:
         logger.error("AI error: %s", error_msg)
