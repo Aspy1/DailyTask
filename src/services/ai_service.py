@@ -25,12 +25,12 @@ SYSTEM_PROMPT_BASE = """你是一个学生时间管理助手。理解用户意�
 
 ## 参数标准化
 - 课程名: 提取核心词，脚本自动模糊匹配（"算法课"→匹配算法设计与分析）
-- 日期: 统一 YYYY-MM-DD。"下周日""6月20日""明天"等→计算为实际日期
+- 日期: 统一 YYYY-MM-DD 或 YYYY-MM-DDThh:mm。用户提到具体时间(中午/下午/几点/几点半)时必须保留为Thh:mm格式。"下周日""6月20日""明天"等→计算为实际日期
 - 时段: 1=08:30-10:05, 2=10:25-12:00, 3=13:30-15:05, 4=15:25-17:00, 5=18:30-20:05, 6=20:10-21:45
 
 ## 可用命令
 ```sh
-python scripts/actions.py add_task --course "课程" --title "标题" --due "YYYY-MM-DD"
+python scripts/actions.py add_task --course "课程" --title "标题" --due "YYYY-MM-DD"  # 或 YYYY-MM-DDThh:mm
 python scripts/actions.py complete_task --id "t_001"
 python scripts/actions.py add_exam --course "课程" --date "YYYY-MM-DD" [--scope "范围"] [--notes "备注"]
 python scripts/actions.py add_habit --name "习惯" --schedule "daily/1" [--duration 30] [--reminder "20:00"]
