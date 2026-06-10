@@ -84,7 +84,12 @@ class MainWindow(QMainWindow):
     def _connect_course_table(self) -> None:
         cp = self._workspace.course_panel
         if cp is not None:
-            cp.table.fill_ai_prompt.connect(self._ai_panel.fill_input)
+            cp.table.fill_ai_prompt.connect(self._on_course_fill_ai)
+
+    def _on_course_fill_ai(self, prompt: str) -> None:
+        if not self._ai_visible:
+            self._on_ai_toggle(True)
+        self._ai_panel.fill_input(prompt)
 
     # ── Navigation ─────────────────────────────────────────────
 
