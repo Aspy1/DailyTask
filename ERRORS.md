@@ -18,6 +18,7 @@
 | 分类/全部分类/只显示其他/categories/fallback | #003 | L87-L97 |
 | parse_date/这周五/中午12点/中文时间/日期解析 | #004 | L102-L113 |
 | fill_ai_prompt/右键菜单/填充AI/AI面板不展开 | #004 | L115-L122 |
+| run_in_process/Namespace/AttributeError/默认值/argparse | #005 | L127-L146 |
 
 ---
 
@@ -107,4 +108,22 @@ L102-L122
 
 **补充**: 修复后 task 面板仍不刷新——`_on_data_changed` 只对 `"task" in action` 刷新 task_panel，AI 操作发 `"ai_action"` 不匹配。task/expense/habit 三面板均遗漏 `is_ai` 检查。已在所有面板统一加 `or is_ai`。
 
-**教训**: 正则边界条件（`这` vs `本`）和 UI 可见性（隐藏面板填充不可见）是"静默失败"的高发区。——连接了但永远不走。新增信号时必须在 emit 侧加搜索确认：`grep 'emit'` 能找到所有发射点。
+**教训**: 正则边界条件（`这` vs `本`）和 UI 可见性（隐藏面板填充不可见）是"静默失败"的高发区。
+
+---
+
+### #005 | 2026-06-10 | run_in_process 缺 argparse 默认值导致全线 crash
+
+L127-L146
+
+**症状**: AI 说"已添加任务"但任务未创建，tasks.json 无记录。后续发现 add_plan 等也受影响——所有不传可选参数的 AI 命令静默失败。
+
+**根因**: `run_in_process()` 手动 `shlex.split` 解析命令行构建 `argparse.Namespace`，但只设置了 CLI 中明确出现的 `--key value`。argparse 的 `default=` 机制完全被绕过。如 `--priority medium` 未出现在命令中 → Namespace 无 `priority` 属性 → `args.priority or "medium"` 先求值 `args.priority` 即抛 `AttributeError`（`or` 保护无效——Python 求值顺序）。
+
+**修复**: `run_in_process()` 中在调用 handler 前遍历所有已知可选参数的默认值 dict，用 `hasattr` 检查 + `setattr` 补全。共覆盖 22 个可选参数（priority/schedule/duration/slot/type/weeks/slots/parity/category/quantity/min_qty/tags/notes/location/scope/teacher/course/reminder/unit/status/due/note）。
+
+**模拟验证**: 全部 16 条命令（add_task/complete_task/add_exam/add_habit/log_habit/add_plan/replace_plans/delete_plan/add_course/delete_course/add_item/update_item/need_restock/lookup_item/status/delete_item）零 crash。
+
+**涉及文件**: `scripts/actions.py`
+
+**教训**: 手动实现 arg parser 时必须同步 argparse 的 `default=` 值。`args.xxx or default` 不防 AttributeError——Python 先求值左侧才到 `or`。正确写法：`getattr(args, 'xxx', default)` 或预填充 Namespace。——连接了但永远不走。新增信号时必须在 emit 侧加搜索确认：`grep 'emit'` 能找到所有发射点。
