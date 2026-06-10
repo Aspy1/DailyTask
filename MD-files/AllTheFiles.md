@@ -197,6 +197,10 @@
 | 调整 / 快速安排 | Quick Arrange | `schedule_view.py` → `main_window.py` → `ai_service.py` |
 | 增量更新 | Incremental refresh — hash-based skip of unchanged widgets | `schedule_view._refresh()` |
 | 内存调用 | In-process actions execution — no subprocess overhead | `actions.run_in_process()` → `ai_service.py` |
+| 虚拟品类 | Virtual goods category (话费/会员/API额度等) | `inventory.py` DEFAULT_INVENTORY |
+| 日常消耗品 | Merged category: 日用品+食品+学习+药品 | `inventory.py` DEFAULT_INVENTORY |
+| 衣物分类 | Clothes — separate from 日常消耗品 for wash tracking | `inventory.py` |
+| API 余额 | DeepSeek API credit balance, auto-fetched every 5 min | `ai_service._fetch_deepseek_balance()` |
 | 同步 | Git Sync | `git_sync.py` |
 | 提醒 / DDL | Reminder / Alert | `reminder_service.py` |
 | 数据 / 数据管理 | DataManager | `data_manager.py` |
