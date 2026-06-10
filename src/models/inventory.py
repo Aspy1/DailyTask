@@ -8,7 +8,7 @@ from src.models.base import BaseJsonModel
 DEFAULT_INVENTORY = {
     "_version": 1,
     "items": [],
-    "categories": ["日用品", "食品饮料", "学习用品", "数码电子", "衣物", "药品", "其他"],
+    "categories": ["日常消耗品", "数码电子", "衣物", "虚拟品类", "其他"],
 }
 
 

@@ -5,7 +5,7 @@ import logging
 import re
 from datetime import date, datetime, timedelta
 from pathlib import Path
-from typing import Protocol
+from typing import Any, Protocol
 
 from PySide6.QtCore import QObject, Signal, QThread
 
@@ -55,7 +55,7 @@ python scripts/actions.py update_item --id "i_001" --location "新位置"
 python scripts/actions.py update_item --id "i_001" --quantity N --status "需购"
 python scripts/actions.py need_restock
 ```
-分类: 日用品/食品饮料/学习用品/数码电子/衣物/药品/其他。数量单位统一用"件"。
+分类: 日常消耗品/数码电子/衣物/虚拟品类/其他。数量单位统一用"件"。
 移动物品: "把X从A拿到B" → update_item --id "i_xxx" --location "B"
 
 ## 判断优先级
@@ -282,6 +282,41 @@ class AIService(QObject):
         self._thread.finished.connect(self._thread.deleteLater)
         self._thread.start()
 
+    # DeepSeek balance cache
+    _ds_balance_cache: dict[str, Any] = {}
+
+    def _fetch_deepseek_balance(self) -> str:
+        """Fetch DeepSeek API balance. Returns cached value if < 5 min old."""
+        import time, requests
+        now = time.time()
+        cached = self._ds_balance_cache
+        if cached and (now - cached.get("fetched_at", 0)) < 300:
+            return cached.get("value", "")
+
+        api_key = self._settings.api_key
+        if not api_key:
+            return ""
+        try:
+            resp = requests.get(
+                "https://api.deepseek.com/user/balance",
+                headers={"Accept": "application/json", "Authorization": f"Bearer {api_key}"},
+                timeout=5,
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                infos = data.get("balance_infos", [])
+                if infos:
+                    total = float(infos[0].get("total_balance", 0))
+                    val = f"¥{total:.2f}"
+                else:
+                    val = "未知"
+            else:
+                val = "查询失败"
+        except Exception:
+            val = ""
+        self._ds_balance_cache = {"value": val, "fetched_at": now}
+        return val
+
     def _build_system_prompt(self) -> str:
         summary = self._dm.get_today_summary()
         today = date.today()
@@ -315,6 +350,10 @@ class AIService(QObject):
             else:
                 b = "未设置"
             balance_lines.append(f"  {label}: {b}")
+                # DeepSeek API balance
+        ds_balance = self._fetch_deepseek_balance()
+        if ds_balance:
+            balance_lines.append(f"  DeepSeek API: {ds_balance}")
         balance_info = "\n".join(balance_lines)
 
         context = f"""当前日期: {today.isoformat()} {weekday}
