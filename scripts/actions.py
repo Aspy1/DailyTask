@@ -531,6 +531,20 @@ def run_in_process(cmd_str: str) -> str:
         "status": cmd_status,
     }
 
+    # Apply argparse defaults for all optional args (not in CLI string)
+    _defaults = {
+        'priority': 'medium', 'schedule': 'daily/1', 'duration': 30,
+        'slot': 1, 'type': 'custom', 'weeks': '1-16', 'slots': '3-4',
+        'parity': 'all', 'category': '其他', 'quantity': 1, 'min_qty': 1,
+        'tags': None, 'notes': '', 'location': '', 'scope': '', 'teacher': '',
+        'course': '', 'reminder': '', 'unit': '', 'status': None, 'due': '', 'note': '',
+        'title': '', 'date': '', 'name': '', 'plans': '[]', 'index': 0,
+        'day': 0,
+    }
+    for k, v in _defaults.items():
+        if not hasattr(ns, k):
+            setattr(ns, k, v)
+
     if action not in handlers:
         return f"ERROR unknown action: {action}"
 
