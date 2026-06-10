@@ -8,8 +8,8 @@ AI 驱动的 PySide6 桌面日程管理应用。自然语言交互管理课程�
 |----|------|
 | UI | PySide6，手风琴侧边栏 + 内容区，QSS 暖纸书房主题 |
 | 设计 | #F2EFE9 纸白、#B0823A 琥珀金、4px 间距网格 |
-| AI | DeepSeek API，sh 命令调用 scripts/actions.py 统一操作脚本 |
-| 数据 | JSON 本地存储，原子写入 (.tmp → os.replace)，3s 自动 reload |
+| AI | DeepSeek API，sh 命令 → 内存调用 actions.py (无 subprocess 开销) |
+| 数据 | JSON 本地存储，原子写入，3s 增量 reload，hash 跳过未变 widget |
 | 提醒 | 托盘弹窗 + SMTP 邮件 + GitHub Actions 每日摘要 |
 | 插件 | 延迟加载，面板注册 API |
 | 移动端 | TG bot 通过 Hermes Gateway 直连 data/ 目录，零同步 |
@@ -17,58 +17,66 @@ AI 驱动的 PySide6 桌面日程管理应用。自然语言交互管理课程�
 ## 项目结构
 
 ```
+├── main.py                         # 入口
+├── AGENTS.md                       # AI Agent 开发约束
+├── ERRORS.md                       # 已踩坑索引
+├── README.md
 ├── src/
 │   ├── app.py                      # 应用入口 · 托盘 · 单实例
-│   ├── models/                     # 数据模型
+│   ├── models/                     # 数据模型 (7 models)
 │   │   ├── base.py                 #   BaseJsonModel (原子写入)
 │   │   ├── course.py               #   课程 · 学期 · 假期
 │   │   ├── task.py                 #   作业 · DDL
 │   │   ├── habit.py                #   日常 · 周期 · 打卡
 │   │   ├── expense.py              #   支出 · 预算 · 余额
 │   │   ├── exam.py                 #   考试 · 日期 · 范围
-│   │   └── daily_log.py            #   日程计划 · 储蓄
-│   ├── services/                   # 业务服务
-│   │   ├── ai_service.py           #   AI 对话 · sh 命令解析
+│   │   ├── daily_log.py            #   日程计划 · 储蓄
+│   │   └── inventory.py            #   物品库存 · 5 分类
+│   ├── services/                   # 业务服务 (6 services)
+│   │   ├── ai_service.py           #   AI 对话 · Agent Loop · DeepSeek 余额
 │   │   ├── data_manager.py         #   数据聚合 · 3s 自动 reload
 │   │   ├── reminder_service.py     #   提醒 · 邮件 · DDL
 │   │   ├── settings_manager.py     #   配置读写
 │   │   ├── git_sync.py             #   Git 自动同步
 │   │   └── plugin_manager.py       #   插件加载
 │   └── ui/                         # 用户界面
-│       ├── main_window.py          #   主窗口 · 状态栏 (DDL/课程/习惯)
+│       ├── main_window.py          #   主窗口 · 状态栏 · AI 调整链路
 │       ├── components/             #   布局组件
-│       │   ├── sidebar.py          #     手风琴侧边栏 (功能/生活分组)
-│       │   ├── main_workspace.py   #     面板切换 (8 面板)
+│       │   ├── sidebar.py          #     手风琴侧边栏
+│       │   ├── main_workspace.py   #     面板切换 (9 面板)
 │       │   ├── ai_panel.py         #     AI 助手聊天面板
-│       │   └── function_tabs.py    #     功能标签
+│       │   └── click_label.py      #     可点击 Label 公共组件
 │       ├── panels/                 #   功能面板
 │       │   ├── course_panel.py     #     课程表 (周网格 7×6)
-│       │   ├── task_panel.py       #     作业 (三态筛选: 未完成/已完成/全部)
-│       │   ├── exam_panel.py       #     考试 (日期/范围/地点)
-│       │   ├── habit_panel.py      #     日常 (卡片网格, 仅显示当日)
-│       │   ├── expense_panel.py    #     记账 (6 分类)
-│       │   ├── settings_panel.py   #     设置 (API/邮箱/余额)
+│       │   ├── task_panel.py       #     作业 (多选筛选 + 分页)
+│       │   ├── exam_panel.py       #     考试
+│       │   ├── habit_panel.py      #     日常 (卡片网格)
+│       │   ├── expense_panel.py    #     记账 (5 分类)
+│       │   ├── inventory_panel.py  #     有什么 (分类筛选 + 标签编辑)
+│       │   ├── settings_panel.py   #     设置
 │       │   └── plugins_panel.py    #     插件管理
 │       ├── widgets/                #   自定义控件
-│       │   ├── schedule_view.py    #     日程视图 (3天 AI 调整)
+│       │   ├── schedule_view.py    #     日程视图 (增量更新 + AI 调整)
 │       │   ├── course_table.py     #     课程表表格
 │       │   └── course_detail_dialog.py
 │       └── styles/
 │           └── theme.py            #     设计令牌 · QSS
 ├── scripts/
-│   ├── actions.py                  # 统一数据操作脚本 (AI + TG bot 共用)
-│   ├── build_index.py              # 模糊搜索索引生成
-│   ├── send_digest.py              # GitHub Actions 邮件摘要
-│
+│   ├── actions.py                  # 统一数据操作 (15 命令 + 内存调用)
+│   ├── build_index.py              # 模糊搜索索引
+│   └── send_digest.py              # GitHub Actions 邮件摘要
+├── MD-files/                       # ATF 文档体系
+│   ├── AllTheFiles.md              #   全局索引
+│   ├── FORMAT_SPEC.md              #   格式规范
+│   └── src/                        #   逐文件 .py.md (35 文件)
+├── dev-logs/                       # 开发日志
 ├── plugins/pomodoro/               # 番茄钟插件
-├── data/                           # JSON 数据文件
-│   ├── tasks.json / habits.json / courses.json
-│   ├── expenses.json / exams.json / daily_logs.json
-│   └── search_index.json           # 模糊搜索索引
-├── DESIGN_TOKENS.md                # 设计规范
-├── 规划书.md                        # 开发规划
-├── 接口文档.md                      # API 文档
-└── 修改说明.md                      # 变更日志
+├── data/                           # JSON 数据 (8 files)
+│   └── backup/                     #   自动备份
+├── DESIGN_TOKENS.md
+├── 规划书.md
+├── 接口文档.md
+└── 修改说明.md
 ```
 
 ## 功能
@@ -102,10 +110,21 @@ AI 驱动的 PySide6 桌面日程管理应用。自然语言交互管理课程�
 - 6 大分类，月度预算，今日/本月统计
 - 校园卡/水卡/电费余额追踪
 
+### 有什么 (新增)
+- 物品库存管理：5 大分类（日常消耗品/数码电子/衣物/虚拟品类/其他）
+- **仅 AI 操作**：手动添加已移除，全部通过 AI 对话管理
+- 分类筛选 + 标签筛选 + 分页
+- 右键菜单：修改标签（多标签并存，双击编辑）、标记需购/充足、邮件提醒、删除
+- DeepSeek API 额度自动查询（5 分钟缓存）
+- 存放地点自由文本：衣柜-左侧上层、抽屉-右侧
+
 ### AI 助手
-- 自然语言 → **sh 命令** → scripts/actions.py 执行
+- 自然语言 → **sh 命令** → 内存调用 actions.py (无 subprocess 开销)
+- 15 种数据操作：add/complete/delete task, add/delete exam, add/log habit, add/replace/delete plan, add/delete course, add/update/delete/lookup item, need_restock, status
 - 统一脚本处理：模糊匹配课程名、中文日期解析、ID 生成、JSON 写入
+- Agent Loop 最多 5 轮自动调用
 - 聊天气泡，16 条自动压缩
+- 快速调整：一键生成日程快照 → AI 排程 → 备份 → 撤销/保存
 
 ### 提醒
 - DDL 6h 邮件，考试 14/7/3 天托盘+邮件
@@ -129,13 +148,26 @@ AI 驱动的 PySide6 桌面日程管理应用。自然语言交互管理课程�
 
 ## 更新日志
 
+### v0.9.0
+- 性能优化三刀：show 提前 / 增量 refresh (hash skip) / actions 内存调用
+- 物品库存 (有什么)：5 分类、标签编辑器、AI 驱动
+- 虚拟品类 + DeepSeek API 余额自动查询
+- 分类筛选从 model 读 (修只显示"其他"的 bug)
+- 手动添加物品移除，全部依靠 AI
+- delete_item 命令补齐
+- 窗口默认大小 +10%
+- AGENTS.md 开发约束 (分档流程 + 改后模拟)
+- dev-logs/ ERRORS.md 文档体系
+
 ### v0.8.2
 - 清理死代码 (context_sidebar/function_tabs/hermes_life, -665行)
 - ClickLabel 提取为公共组件
+- 调整信号链修复 (finished_with_instructions emit)
 
 ### v0.8.1
 - 考试卡片 UI 重构 (圆角卡片+倒计时徽章)
-- 状态栏精简 (今日消费N | DDL N | 日常x/y | 备考N科)，全部可点击跳转
+- 状态栏精简 (今日消费N | DDL N | 日常x/y | 备考N科)
+- AI 整理日程信号链三重修复，全部可点击跳转
 - 状态栏考试阈值 7天红/15天橙
 - DDL 线自适应单行，居中，可点击跳转
 - AI 上下文注入当前周次+单双周
