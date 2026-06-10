@@ -16,6 +16,8 @@
 | 未响应/卡顿/_refresh/deleteLater/全量重建 | #002 | L62-L70 |
 | subprocess/子进程/actions.py/启动开销 | #002 | L73-L82 |
 | 分类/全部分类/只显示其他/categories/fallback | #003 | L87-L97 |
+| parse_date/这周五/中午12点/中文时间/日期解析 | #004 | L102-L113 |
+| fill_ai_prompt/右键菜单/填充AI/AI面板不展开 | #004 | L115-L122 |
 
 ---
 
@@ -81,4 +83,26 @@ L87-L97
 
 **教训**: property 的 fallback 值不应硬编码业务数据。应引用常量（`DEFAULT_INVENTORY["categories"]`）作为权威来源，确保 fallback 与初始值一致。
 
-**补充说明**: 此 bug 之前被另一个设计掩盖——filter 原本从已有物品提取分类（`set(it["category"] for it in items)`），只显示有物品的分类。该行为是设计选择而非 bug，但掩盖了 property fallback 的硬编码问题。——连接了但永远不走。新增信号时必须在 emit 侧加搜索确认：`grep 'emit'` 能找到所有发射点。
+**补充说明**: 此 bug 之前被另一个设计掩盖——filter 原本从已有物品提取分类（`set(it["category"] for it in items)`），只显示有物品的分类。该行为是设计选择而非 bug，但掩盖了 property fallback 的硬编码问题。
+
+---
+
+### #004 | 2026-06-10 | 中文日期解析失败 + AI 面板不展开
+
+L102-L122
+
+**症状 1**: AI 收到的作业 DDL 是"这周五中午12点"，任务虽然创建了但 `due_date` 字段是垃圾值 `"这周五中午12点T23:00:00"`。
+
+**根因 1**: `parse_date()` 的"本周X"正则 `(?:本周)?周(.)` 不匹配"这周X"（`这`≠`本`）。时间"中午12点"完全未处理，`normalize_time()` 只追加默认 T23:00:00。
+
+**修复 1**: `parse_date`: `(?:这|本)?周(.)` 同时匹配"这周"和"本周"。`normalize_time`: 新增中文时间提取——中午/下午/上午/晚上 + 数字点 ± 半 → HH:MM:SS。
+
+**症状 2**: 课程表右键"布置了作业"等操作后，AI 面板不自动出现，用户看不到已填充的提示词。
+
+**根因 2**: `fill_input()` 只设置文本不展开面板。AI 面板初始 splitter 宽度为 0（隐藏）。
+
+**修复 2**: `_connect_course_table` 改为连接 `_on_course_fill_ai` 方法，先 `_on_ai_toggle(True)` 展开面板再 `fill_input(prompt)`。
+
+**涉及文件**: `scripts/actions.py`, `src/ui/main_window.py`
+
+**教训**: 正则边界条件（`这` vs `本`）和 UI 可见性（隐藏面板填充不可见）是"静默失败"的高发区。——连接了但永远不走。新增信号时必须在 emit 侧加搜索确认：`grep 'emit'` 能找到所有发射点。

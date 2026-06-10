@@ -105,8 +105,8 @@ def parse_date(s: str) -> str:
             if days_ahead <= 7:
                 days_ahead += 7
             return (today + timedelta(days=days_ahead)).isoformat()
-    # "本周五" / "周五"
-    m = re.match(r'(?:本周)?周(.)', s)
+    # "这周五" / "本周五" / "周五"
+    m = re.match(r'(?:这|本)?周(.)', s)
     if m:
         wd = day_names.get(m.group(1))
         if wd is not None:
@@ -144,13 +144,38 @@ def parse_date(s: str) -> str:
     return s
 
 def normalize_time(due_str: str) -> str:
-    """Ensure date has T23:00:00 default."""
+    """Ensure date has time. Extracts Chinese time expressions (中午12点, 下午3点)."""
     if not due_str:
         return ""
-    if "T" not in due_str:
-        due_str += "T23:00:00"
+    # Extract Chinese time: 中午12点, 下午3点半, 上午9点, 晚上8点
+    time_match = re.search(
+        r'(中午|下午|上午|晚上|早晨|早上)(\d{1,2})点(半)?',
+        due_str
+    )
+    if time_match:
+        period, hour_str, half = time_match.group(1), time_match.group(2), time_match.group(3)
+        hour = int(hour_str)
+        if period in ('下午', '晚上'):
+            if hour != 12:
+                hour += 12
+        elif period in ('中午',):
+            if hour < 12:  # 中午1点→13点
+                hour += 12
+        # 上午/早晨: keep as is (but 12→0 for midnight)
+        if period == '上午' and hour == 12:
+            hour = 0
+        minute = '30' if half else '00'
+        # Replace the time part in the string with ISO time
+        due_str = re.sub(r'(中午|下午|上午|晚上|早晨|早上)\d{1,2}点(半)?', '', due_str).strip()
+        if 'T' not in due_str:
+            due_str += f'T{hour:02d}:{minute}:00'
+        else:
+            due_str = due_str[:11] + f'{hour:02d}:{minute}:00'
+        return due_str
+    if 'T' not in due_str:
+        due_str += 'T23:00:00'
     elif len(due_str) <= 16:
-        due_str += ":00"
+        due_str += ':00'
     return due_str
 
 
