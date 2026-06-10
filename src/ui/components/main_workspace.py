@@ -140,17 +140,18 @@ class MainWorkspace(QWidget):
         self._task_panel.show_ddl_highlight()
 
     def _on_data_changed(self, action: str) -> None:
+        is_ai = "ai_action" in action
         self._course_panel._refresh()
         self._schedule_view._refresh()
-        if "task" in action:
+        if "task" in action or is_ai:
             self._task_panel._refresh()
-        if "expense" in action:
+        if "expense" in action or is_ai:
             self._expense_panel._refresh()
-        if "habit" in action:
+        if "habit" in action or is_ai:
             self._habit_panel._refresh()
-        if "exam" in action or "ai_action" in action:
+        if "exam" in action or is_ai:
             self._exam_panel._refresh()
-        if "inventory" in action or "ai_action" in action:
+        if "inventory" in action or is_ai:
             self._inventory_panel._refresh()
 
     def refresh_theme(self) -> None:

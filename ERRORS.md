@@ -103,6 +103,8 @@ L102-L122
 
 **修复 2**: `_connect_course_table` 改为连接 `_on_course_fill_ai` 方法，先 `_on_ai_toggle(True)` 展开面板再 `fill_input(prompt)`。
 
-**涉及文件**: `scripts/actions.py`, `src/ui/main_window.py`
+**涉及文件**: `scripts/actions.py`, `src/ui/main_window.py`, `src/ui/components/main_workspace.py`
+
+**补充**: 修复后 task 面板仍不刷新——`_on_data_changed` 只对 `"task" in action` 刷新 task_panel，AI 操作发 `"ai_action"` 不匹配。task/expense/habit 三面板均遗漏 `is_ai` 检查。已在所有面板统一加 `or is_ai`。
 
 **教训**: 正则边界条件（`这` vs `本`）和 UI 可见性（隐藏面板填充不可见）是"静默失败"的高发区。——连接了但永远不走。新增信号时必须在 emit 侧加搜索确认：`grep 'emit'` 能找到所有发射点。
