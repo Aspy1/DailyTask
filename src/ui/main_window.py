@@ -26,8 +26,8 @@ class MainWindow(QMainWindow):
                  data_manager: DataManager, plugin_manager=None):
         super().__init__()
         self.setWindowTitle(tr("app.name"))
-        self.setMinimumSize(900, 580)
-        self.resize(1100, 720)
+        self.setMinimumSize(990, 638)
+        self.resize(1210, 792)
 
         self._settings = settings
         self._ai_service = ai_service
