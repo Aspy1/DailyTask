@@ -394,6 +394,19 @@ def cmd_update_item(args):
             return
     print(f"ERROR item not found: {args.id}")
 
+def cmd_delete_item(args):
+    data = load("inventory.json")
+    iid = args.id
+    items = data.get("items", [])
+    for i, it in enumerate(items):
+        if it["id"] == iid:
+            removed = items.pop(i)
+            save("inventory.json", data)
+            print(f"OK delete_item {iid} | {removed.get('name','')}")
+            return
+    print(f"ERROR item not found: {iid}")
+
+
 def cmd_need_restock(args):
     data = load("inventory.json")
     needs = [it for it in data.get("items", []) if it.get("status") in ("需购", "不足")]
@@ -487,6 +500,7 @@ def run_in_process(cmd_str: str) -> str:
         "replace_plans": cmd_replace_plans, "delete_plan": cmd_delete_plan,
         "add_course": cmd_add_course, "delete_course": cmd_delete_course,
         "add_item": cmd_add_item, "update_item": cmd_update_item,
+        "delete_item": cmd_delete_item,
         "need_restock": cmd_need_restock,
         "lookup_item": cmd_lookup_item,
         "status": cmd_status,
@@ -622,6 +636,7 @@ def main():
         "replace_plans": cmd_replace_plans, "delete_plan": cmd_delete_plan,
         "add_course": cmd_add_course, "delete_course": cmd_delete_course,
         "add_item": cmd_add_item, "update_item": cmd_update_item,
+        "delete_item": cmd_delete_item,
         "need_restock": cmd_need_restock,
         "lookup_item": cmd_lookup_item,
         "status": cmd_status,

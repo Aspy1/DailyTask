@@ -53,6 +53,7 @@ python scripts/actions.py lookup_item --name "B"
 python scripts/actions.py add_item --name "物品名" --category "分类" --quantity N --location "位置" [--tags "标签1,标签2"]
 python scripts/actions.py update_item --id "i_001" --location "新位置"
 python scripts/actions.py update_item --id "i_001" --quantity N --status "需购"
+python scripts/actions.py delete_item --id "i_001"
 python scripts/actions.py need_restock
 ```
 分类: 日常消耗品/数码电子/衣物/虚拟品类/其他。数量单位统一用"件"。
@@ -66,6 +67,7 @@ python scripts/actions.py need_restock
 5. 完成/做完了 → complete_task/log_habit
 6. 提醒类 → add_plan
 7. 移动/拿到/放到/挪到 → update_item --location
+8. 删除/丢掉/扔掉/不要了 → delete_item
 """
 
 
