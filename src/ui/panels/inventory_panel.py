@@ -3,8 +3,9 @@
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QDialog, QLineEdit, QFormLayout, QComboBox, QSpinBox, QCheckBox,
-    QDialogButtonBox, QMessageBox, QMenu, QScrollArea, QSizePolicy,
+    QLineEdit, QListWidget,
+    QDialog, QDialogButtonBox,
+    QMessageBox, QMenu, QScrollArea, QSizePolicy,
 )
 from PySide6.QtGui import QFont
 
@@ -50,11 +51,6 @@ class InventoryPanel(QWidget):
         bl.addWidget(self._tag_btn)
 
         bl.addStretch()
-
-        add_btn = QPushButton("添加")
-        add_btn.setStyleSheet(f"QPushButton {{ background-color: {c['accent']}; color: #fff; border: none; border-radius: 8px; padding: 5px 16px; font-size: 13px; font-weight: 600; }} QPushButton:hover {{ background-color: {c['accent_hover']}; }}")
-        add_btn.clicked.connect(lambda: self._edit_item())
-        bl.addWidget(add_btn)
 
         refresh_btn = QPushButton("刷新")
         refresh_btn.setStyleSheet(self._btn_qss())
@@ -248,7 +244,6 @@ class InventoryPanel(QWidget):
         c = get_colors()
         menu = QMenu(self)
         menu.setStyleSheet(f"QMenu {{ background-color: {c['bg_elevated']}; color: {c['fg_primary']}; border-radius: 8px; padding: 4px; }} QMenu::item {{ padding: 6px 24px 6px 12px; border-radius: 4px; }} QMenu::item:selected {{ background-color: {c['accent_bg']}; }}")
-        menu.addAction("编辑").triggered.connect(lambda: self._edit_item(item))
         st = item.get("status", "")
         if st != "需购": menu.addAction("标记需购").triggered.connect(lambda: self._quick_update(item["id"], {"status": "需购"}))
         if st != "充足": menu.addAction("标记充足").triggered.connect(lambda: self._quick_update(item["id"], {"status": "充足"}))
@@ -256,16 +251,9 @@ class InventoryPanel(QWidget):
         menu.addAction("恢复库存提醒" if ig else "忽略库存不足提醒").triggered.connect(lambda: self._quick_update(item["id"], {"ignore_low_stock": not ig}))
         menu.addSeparator()
         menu.addAction("设置邮件提醒").triggered.connect(lambda: self._email_reminder(item))
+        menu.addAction("修改标签").triggered.connect(lambda: self._edit_tags(item))
         menu.addAction("删除").triggered.connect(lambda: self._delete_item(item["id"]))
         menu.exec(self.mapToGlobal(pos))
-
-    def _edit_item(self, item=None) -> None:
-        dlg = ItemDialog(item, self._dm, self)
-        if dlg.exec():
-            data = dlg.result_data
-            if item: self._dm.inventory.update_item(item["id"], data)
-            else: self._dm.inventory.add_item(data)
-            self._dm.inventory.save(); self._dm.data_changed.emit("inventory"); self._refresh()
 
     def _quick_update(self, iid, data) -> None:
         self._dm.inventory.update_item(iid, data); self._dm.inventory.save(); self._dm.data_changed.emit("inventory"); self._refresh()
@@ -274,6 +262,63 @@ class InventoryPanel(QWidget):
         name = next((it.get("name", iid) for it in self._dm.inventory.items if it["id"] == iid), iid)
         if QMessageBox.question(self, "确认", f"删除「{name}」？") == QMessageBox.StandardButton.Yes:
             self._dm.inventory.delete_item(iid); self._dm.inventory.save(); self._dm.data_changed.emit("inventory"); self._refresh()
+
+    def _edit_tags(self, item: dict) -> None:
+        """Open dialog to add/remove/edit tags on an item."""
+        c = get_colors()
+        dlg = QDialog(self)
+        dlg.setWindowTitle(f"修改标签 - {item.get('name', '')}")
+        dlg.setMinimumWidth(360)
+        dlg.setStyleSheet(f"QDialog {{ background-color: {c['card_bg']}; }} QLabel {{ color: {c['fg_primary']}; font-size: 13px; background: transparent; border: none; }} QLineEdit {{ background-color: {c['bg_input']}; color: {c['fg_primary']}; border: 1px solid {c['border']}; padding: 6px 10px; font-size: 13px; }} QPushButton {{ background-color: {c['accent_bg']}; color: {c['fg_primary']}; border: none; border-radius: 4px; padding: 4px 12px; font-size: 12px; }} QPushButton:hover {{ background-color: {c['accent']}; color: #fff; }}")
+        layout = QVBoxLayout(dlg); layout.setSpacing(10); layout.setContentsMargins(20, 16, 20, 16)
+
+        tag_list = QListWidget()
+        tag_list.setStyleSheet(f"QListWidget {{ background-color: {c['bg_input']}; color: {c['fg_primary']}; border: 1px solid {c['border']}; border-radius: 4px; font-size: 13px; }}")
+        tags = list(item.get("tags", []))
+        for t in tags:
+            tag_list.addItem(t)
+        layout.addWidget(QLabel("当前标签 (双击编辑):"))
+        layout.addWidget(tag_list)
+
+        # Double-click to edit
+        def edit_tag():
+            row = tag_list.currentRow()
+            if row >= 0:
+                old = tag_list.item(row).text()
+                new, ok = __import__('PySide6.QtWidgets').QInputDialog.getText(dlg, "编辑标签", "标签文本:", text=old)
+                if ok and new.strip():
+                    tag_list.item(row).setText(new.strip())
+
+        tag_list.doubleClicked.connect(lambda _: edit_tag())
+
+        # Add new tag
+        add_row = QHBoxLayout()
+        self._tag_input = QLineEdit(); self._tag_input.setPlaceholderText("新标签..."); add_row.addWidget(self._tag_input)
+        add_btn = QPushButton("添加"); add_row.addWidget(add_btn)
+        layout.addLayout(add_row)
+
+        def add_tag():
+            t = self._tag_input.text().strip()
+            if t and not any(tag_list.item(i).text() == t for i in range(tag_list.count())):
+                tag_list.addItem(t)
+                self._tag_input.clear()
+
+        add_btn.clicked.connect(add_tag)
+        self._tag_input.returnPressed.connect(add_tag)
+
+        # Remove selected
+        del_btn = QPushButton("删除选中"); del_btn.clicked.connect(lambda: tag_list.takeItem(tag_list.currentRow()) if tag_list.currentRow() >= 0 else None)
+        layout.addWidget(del_btn)
+
+        # OK / Cancel
+        btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        btns.accepted.connect(dlg.accept); btns.rejected.connect(dlg.reject)
+        layout.addWidget(btns)
+
+        if dlg.exec():
+            new_tags = [tag_list.item(i).text() for i in range(tag_list.count())]
+            self._dm.inventory.update_item(item["id"], {"tags": new_tags})
+            self._dm.inventory.save(); self._dm.data_changed.emit("inventory"); self._refresh()
 
     def _email_reminder(self, item) -> None:
         from PySide6.QtWidgets import QDateTimeEdit; from PySide6.QtCore import QLocale
@@ -291,42 +336,3 @@ class InventoryPanel(QWidget):
         if dlg.exec(): self._dm.daily_logs.add_reminder("inventory", item.get("name", ""), datetime.now().strftime("%Y-%m-%d"), dt.dateTime().toPython().isoformat()); self._dm.daily_logs.save(); QMessageBox.information(self, "已设置", "已设置补货提醒")
 
     def refresh_theme(self) -> None: self._refresh()
-
-
-class ItemDialog(QDialog):
-    def __init__(self, item, dm, parent=None):
-        super().__init__(parent); self._dm = dm; c = get_colors()
-        self.setWindowTitle("编辑物品" if item else "添加物品"); self.setMinimumWidth(400)
-        self.setStyleSheet(f"QDialog {{ background-color: {c['bg_card']}; color: {c['fg_primary']}; }} QLabel {{ color: {c['fg_primary']}; background: transparent; border: none; }} QLineEdit, QComboBox, QSpinBox {{ background-color: {c['bg_input']}; color: {c['fg_primary']}; border: 1px solid {c['border']}; padding: 6px 10px; font-size: 13px; }} QCheckBox {{ color: {c['fg_primary']}; spacing: 4px; }}")
-        layout = QVBoxLayout(self); layout.setSpacing(12); layout.setContentsMargins(24, 20, 24, 16)
-        form = QFormLayout(); form.setSpacing(10)
-        self._name = QLineEdit(item.get("name","") if item else ""); self._name.setPlaceholderText("如：洗发水"); form.addRow("名称:", self._name)
-        self._category = QComboBox(); self._category.setEditable(True)
-        cats = ["日常消耗品","数码电子","衣物","虚拟品类","其他"]; self._category.addItems(cats)
-        if item: self._category.setCurrentIndex(cats.index(item.get("category","其他")) if item.get("category","其他") in cats else 0)
-        form.addRow("分类:", self._category)
-        self._quantity = QSpinBox(); self._quantity.setRange(0,999); self._quantity.setValue(item.get("quantity",1) if item else 1)
-        form.addRow("数量 (件):", self._quantity)
-        self._min_qty = QSpinBox(); self._min_qty.setRange(0,99); self._min_qty.setValue(item.get("min_quantity",1) if item else 1)
-        form.addRow("最低库存:", self._min_qty)
-        self._doses = QSpinBox(); self._doses.setRange(1,999); self._doses.setValue(item.get("doses_per_unit",1) if item else 1)
-        self._doses.setToolTip("每件可用几次（如1盒药10次=10）")
-        form.addRow("每件可用次数:", self._doses)
-        self._location = QLineEdit(item.get("location","") if item else ""); self._location.setPlaceholderText("如：卫生间柜子"); form.addRow("位置:", self._location)
-        self._tags = QLineEdit(",".join(item.get("tags",[])) if item else ""); self._tags.setPlaceholderText("逗号分隔"); form.addRow("标签:", self._tags)
-        self._notes = QLineEdit(item.get("notes","") if item else ""); self._notes.setPlaceholderText("备注..."); form.addRow("备注:", self._notes)
-        self._ignore = QCheckBox("忽略库存不足提醒"); self._ignore.setChecked(item.get("ignore_low_stock",False) if item else False); form.addRow("", self._ignore)
-        layout.addLayout(form)
-        btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
-        btns.accepted.connect(self._ok); btns.rejected.connect(self.reject); layout.addWidget(btns)
-
-    def _ok(self):
-        if not self._name.text().strip(): QMessageBox.warning(self,"错误","请输入物品名称。"); return
-        q = self._quantity.value(); m = self._min_qty.value()
-        tags = [t.strip() for t in self._tags.text().split(",") if t.strip()]
-        s = "需购" if q <= 0 else ("不足" if q < m else "充足")
-        self.result_data = {"name":self._name.text().strip(),"category":self._category.currentText(),
-            "quantity":q,"unit":"件","min_quantity":m,"status":s,"location":self._location.text().strip(),
-            "tags":tags,"notes":self._notes.text().strip(),"ignore_low_stock":self._ignore.isChecked(),
-            "doses_per_unit":self._doses.value()}
-        self.accept()

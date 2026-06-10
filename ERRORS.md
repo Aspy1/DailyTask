@@ -15,6 +15,7 @@
 | 启动慢/show/首屏 | #002 | L55-L60 |
 | 未响应/卡顿/_refresh/deleteLater/全量重建 | #002 | L62-L70 |
 | subprocess/子进程/actions.py/启动开销 | #002 | L73-L82 |
+| 分类/全部分类/只显示其他/categories/fallback | #003 | L87-L97 |
 
 ---
 
@@ -62,4 +63,22 @@ L55-82
 
 **涉及文件**: `app.py`, `schedule_view.py`, `scripts/actions.py`, `ai_service.py`
 
-**教训**: Widget 全量销毁+重建是 PySide6 最高频的性能杀手——`deleteLater()` + `insertWidget()` 触发完整 layout pass + QSS 重解析 + paint。hash-based 跳过可减少 80%+ 的重建次数。——连接了但永远不走。新增信号时必须在 emit 侧加搜索确认：`grep 'emit'` 能找到所有发射点。
+**教训**: Widget 全量销毁+重建是 PySide6 最高频的性能杀手——`deleteLater()` + `insertWidget()` 触发完整 layout pass + QSS 重解析 + paint。hash-based 跳过可减少 80%+ 的重建次数。
+
+---
+
+### #003 | 2026-06-09 | 分类 filter 只显示"其他"
+
+L87-L97
+
+**症状**: 点击"全部分类"只弹出一个选项"其他"，五个分类全不显示。
+
+**根因**: `InventoryModel.categories` property 的 fallback 硬编码为 `["其他"]`——当 JSON 文件中无 `categories` 键时（旧版本数据文件），返回此单元素列表。filter 从 property 读分类 → 只得到一个"其他"。
+
+**修复**: `inventory.py` `categories` property：缺键时从 `DEFAULT_INVENTORY["categories"]` 读取完整列表并写入 `_data`（自动修复旧数据文件）。
+
+**涉及文件**: `src/models/inventory.py`
+
+**教训**: property 的 fallback 值不应硬编码业务数据。应引用常量（`DEFAULT_INVENTORY["categories"]`）作为权威来源，确保 fallback 与初始值一致。
+
+**补充说明**: 此 bug 之前被另一个设计掩盖——filter 原本从已有物品提取分类（`set(it["category"] for it in items)`），只显示有物品的分类。该行为是设计选择而非 bug，但掩盖了 property fallback 的硬编码问题。——连接了但永远不走。新增信号时必须在 emit 侧加搜索确认：`grep 'emit'` 能找到所有发射点。

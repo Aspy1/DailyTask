@@ -56,6 +56,14 @@
 
 ### 代码审查要求
 
+- **改前模拟**：修改涉及 UI 交互（点击→弹窗→信号链路）或数据流（读→写→刷新）时，必须先模拟完整执行流程再动手。
+- **改后模拟**：修改完成后必须再跑一遍模拟——检查 import 是否完整、变量是否定义、信号是否连接、UI 控件是否正确初始化。`NameError: name 'X' is not defined` 是改后漏检的典型。
+- 声明但未 emit 的 Qt 信号 = typo-like bug。新增信号后必须 `grep 'emit'` 确认有发射点。
+- AI prompt 注入点（SYSTEM_PROMPT、_build_system_prompt、各 panel 的动态 prompt）必须格式一致。
+- 跨线程信号链（Worker → Service → MainWindow）必须两端都能追踪到 emit → connect → slot。
+
+
+
 - 声明但未 emit 的 Qt 信号 = typo-like bug。新增信号后必须 `grep 'emit'` 确认有发射点。
 - AI prompt 注入点（SYSTEM_PROMPT、_build_system_prompt、各 panel 的动态 prompt）必须格式一致。
 - 跨线程信号链（Worker → Service → MainWindow）必须两端都能追踪到 emit → connect → slot。
