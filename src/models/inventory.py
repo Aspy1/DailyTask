@@ -22,7 +22,12 @@ class InventoryModel(BaseJsonModel):
 
     @property
     def categories(self) -> list[str]:
-        return self._data.get("categories", ["其他"])
+        cats = self._data.get("categories")
+        if not cats:
+            # Repair: file created before categories key existed
+            cats = list(DEFAULT_INVENTORY["categories"])
+            self._data["categories"] = cats
+        return cats
 
     def add_item(self, data: dict) -> str:
         items = self._data.setdefault("items", [])
