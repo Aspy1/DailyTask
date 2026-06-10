@@ -143,7 +143,10 @@ class App(QApplication):
 
         self._window = MainWindow(self._settings, self._ai_service, self._data_manager, self._plugin_manager)
         self._window.setWindowIcon(app_icon)
-        self._window.show()  # show immediately — rest of init continues after window visible
+
+        self._setup_tray(app_icon)  # tray must be ready before window shows (auto-start behavior)
+
+        self._window.show()  # show with tray already present
 
         # Flash state (before reminder.start() — _on_ddl_alert uses _flash_timer)
         self._flash_timer = QTimer(self)
@@ -152,8 +155,6 @@ class App(QApplication):
         self._ddl_count = 0
 
         self._reminder.start()  # after _window + _flash_timer exist
-
-        self._setup_tray(app_icon)
 
         self._instance_server = QLocalServer(self)
         if not self._instance_server.listen(SINGLE_INSTANCE_KEY):
