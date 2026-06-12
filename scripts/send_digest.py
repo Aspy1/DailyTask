@@ -298,20 +298,26 @@ def build_digest(data_dir: Path) -> str:
 def send_email(subject: str, body: str) -> None:
     host = os.environ.get("SMTP_HOST", "smtp.qq.com")
     port = int(os.environ.get("SMTP_PORT", "587"))
-    user = os.environ["SMTP_USER"]
-    pwd = os.environ["SMTP_PASS"]
+    user = os.environ.get("SMTP_USER", "")
+    pwd = os.environ.get("SMTP_PASS", "")
+
+    if not user or not pwd:
+        print("ERROR: SMTP_USER or SMTP_PASS not set")
+        return
 
     msg = MIMEText(body, "plain", "utf-8")
     msg["Subject"] = subject
     msg["From"] = user
     msg["To"] = user
 
-    with smtplib.SMTP(host, port, timeout=15) as s:
-        s.starttls()
-        s.login(user, pwd)
-        s.send_message(msg)
-
-    print(f"Email sent: {subject}")
+    try:
+        with smtplib.SMTP(host, port, timeout=15) as s:
+            s.starttls()
+            s.login(user, pwd)
+            s.send_message(msg)
+        print(f"Email sent: {subject}")
+    except Exception as e:
+        print(f"ERROR sending email: {e}")
 
 
 def main() -> None:
