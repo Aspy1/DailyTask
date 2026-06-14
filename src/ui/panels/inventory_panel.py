@@ -19,6 +19,7 @@ class InventoryPanel(QWidget):
     def __init__(self, dm: DataManager, parent=None):
         super().__init__(parent)
         self._dm = dm
+        self._current_category = None  # None=categories view, str=items in category
         self._cat_filter = "全部"
         self._tag_filter = ""
         self._page = 0
@@ -27,6 +28,24 @@ class InventoryPanel(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
+
+        # === Breadcrumb (hidden in category view) ===
+        self._breadcrumb = QWidget()
+        self._breadcrumb.hide()
+        bc_layout = QHBoxLayout(self._breadcrumb)
+        bc_layout.setContentsMargins(16, 4, 16, 4)
+        bc_layout.setSpacing(6)
+
+        self._back_btn = QPushButton("← 返回")
+        self._back_btn.setStyleSheet(f"QPushButton {{ background: transparent; color: {c['accent']}; border: none; padding: 4px 8px; font-size: 13px; font-weight: 600; }} QPushButton:hover {{ color: {c['fg_primary']}; }}")
+        self._back_btn.clicked.connect(self._go_back)
+        bc_layout.addWidget(self._back_btn)
+
+        self._breadcrumb_label = QLabel()
+        self._breadcrumb_label.setStyleSheet(f"color: {c['fg_secondary']}; font-size: 13px; font-weight: 500; border: none;")
+        bc_layout.addWidget(self._breadcrumb_label)
+        bc_layout.addStretch()
+        layout.addWidget(self._breadcrumb)
 
         # === Toolbar ===
         bar = QWidget()
@@ -40,6 +59,8 @@ class InventoryPanel(QWidget):
         title.setStyleSheet(f"color: {c['fg_primary']}; font-weight: 600; border: none;")
         bl.addWidget(title)
 
+        bl.addStretch()
+
         self._cat_btn = QPushButton("全部分类")
         self._cat_btn.setStyleSheet(self._btn_qss())
         self._cat_btn.clicked.connect(self._show_cat_filter)
@@ -49,8 +70,6 @@ class InventoryPanel(QWidget):
         self._tag_btn.setStyleSheet(self._btn_qss())
         self._tag_btn.clicked.connect(self._show_tag_filter)
         bl.addWidget(self._tag_btn)
-
-        bl.addStretch()
 
         refresh_btn = QPushButton("刷新")
         refresh_btn.setStyleSheet(self._btn_qss())
@@ -150,6 +169,18 @@ class InventoryPanel(QWidget):
             0 if x.get("status") == "需购" else 1 if x.get("status") == "不足" else 2,
             x.get("name", "")))
 
+    def _go_back(self) -> None:
+        self._current_category = None
+        self._cat_filter = "全部"
+        self._page = 0
+        self._refresh()
+
+    def _enter_category(self, category: str) -> None:
+        self._current_category = category
+        self._cat_filter = category
+        self._page = 0
+        self._refresh()
+
     def _refresh(self) -> None:
         while self._card_layout.count() > 1:
             it = self._card_layout.takeAt(0)
@@ -157,6 +188,55 @@ class InventoryPanel(QWidget):
                 it.widget().deleteLater()
 
         c = get_colors()
+
+        if self._current_category is None:
+            self._refresh_categories(c)
+        else:
+            self._refresh_items(c)
+
+    def _refresh_categories(self, c: dict) -> None:
+        self._breadcrumb.hide()
+
+        cats = self._dm.inventory.categories
+        total_items = len(self._dm.inventory.items)
+
+        for cat_name in cats:
+            cat_items = [it for it in self._dm.inventory.items if it.get("category") == cat_name]
+            if self._tag_filter:
+                cat_items = [it for it in cat_items if self._tag_filter in it.get("tags", [])]
+            count = len(cat_items)
+
+            card = QWidget()
+            card.setMinimumHeight(56)
+            card.setCursor(Qt.CursorShape.PointingHandCursor)
+            card.setStyleSheet(f"background-color: {c['bg_elevated']}; border-radius: 8px;")
+            card.mousePressEvent = lambda e, cn=cat_name: self._enter_category(cn)
+
+            cl = QHBoxLayout(card)
+            cl.setContentsMargins(16, 12, 16, 12)
+            cl.setSpacing(8)
+
+            name = QLabel(cat_name)
+            name.setStyleSheet(f"color: {c['fg_primary']}; font-size: 15px; font-weight: 600; border: none; background: transparent;")
+            cl.addWidget(name)
+            cl.addStretch()
+
+            cnt = QLabel(f"{count} 件")
+            cnt.setStyleSheet(f"color: {c['fg_hint']}; font-size: 13px; border: none; background: transparent;")
+            cl.addWidget(cnt)
+
+            arrow = QLabel("›")
+            arrow.setStyleSheet(f"color: {c['fg_hint']}; font-size: 18px; border: none; background: transparent;")
+            cl.addWidget(arrow)
+
+            self._card_layout.insertWidget(self._card_layout.count() - 1, card)
+
+        self._count_label.setText(f"共 {total_items} 件物品")
+
+    def _refresh_items(self, c: dict) -> None:
+        self._breadcrumb.show()
+        self._breadcrumb_label.setText(f"现在查看的具体品类：{self._current_category}")
+
         items = self._get_filtered()
         total = len(items)
         start = self._page * PAGE_SIZE
@@ -186,7 +266,6 @@ class InventoryPanel(QWidget):
             cl.setContentsMargins(16, 10, 16, 10)
             cl.setSpacing(4)
 
-            # Row 1: name + qty + badge
             hdr = QHBoxLayout()
             hdr.setSpacing(8)
             name = QLabel(it.get("name", ""))
@@ -196,8 +275,7 @@ class InventoryPanel(QWidget):
             qty_text = f"x{it.get('quantity',0)}"
             dpu = it.get('doses_per_unit', 1)
             if dpu > 1:
-                remaining = it['quantity'] * dpu
-                qty_text = f"x{it['quantity']} ({remaining}次)"
+                qty_text = f"x{it['quantity']} ({it['quantity'] * dpu}次)"
             qty = QLabel(qty_text)
             qty.setStyleSheet(f"color: {c['fg_secondary']}; font-size: 14px; font-weight: 700; border: none; background: transparent;")
             hdr.addWidget(qty)
@@ -210,9 +288,8 @@ class InventoryPanel(QWidget):
             hdr.addWidget(badge)
             cl.addLayout(hdr)
 
-            # Row 2: details
             parts = []
-            for k in ["category", "location", "notes"]:
+            for k in ["location", "notes"]:
                 v = it.get(k, "")
                 if v: parts.append(v)
             if parts:
@@ -221,7 +298,6 @@ class InventoryPanel(QWidget):
                 detail.setStyleSheet(f"color: {c['fg_hint']}; font-size: 12px; border: none; background: transparent;")
                 cl.addWidget(detail)
 
-            # Tags
             tags = it.get("tags", [])
             if tags:
                 tr = QHBoxLayout()
