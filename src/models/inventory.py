@@ -46,6 +46,7 @@ class InventoryModel(BaseJsonModel):
             "id": iid,
             "name": data.get("name", ""),
             "category": data.get("category", "其他"),
+            "group": data.get("group", ""),
             "quantity": data.get("quantity", 1),
             "unit": "件",
             "status": data.get("status", "充足"),  # 充足/不足/需购
@@ -64,7 +65,7 @@ class InventoryModel(BaseJsonModel):
     def update_item(self, iid: str, data: dict) -> bool:
         for it in self.items:
             if it["id"] == iid:
-                for k in ("name", "category", "quantity", "unit", "status",
+                for k in ("name", "category", "group", "quantity", "unit", "status",
                           "min_quantity", "location", "notes", "tags", "ignore_low_stock", "doses_per_unit"):
                     if k in data:
                         it[k] = data[k]

@@ -2,16 +2,45 @@
   "items": [
     {
       "id": "i_001",
-      "name": "上衣",
+      "name": "T恤",
       "category": "衣物",
-      "quantity": 3,
+      "group": "上衣",
+      "quantity": 1,
       "unit": "件",
       "status": "充足",
       "min_quantity": 1,
       "location": "衣柜-左侧上层",
-      "notes": "蓝色T恤",
-      "created_at": "2026-06-14T20:57:10.130531",
-      "updated_at": "2026-06-14T20:57:10.130550"
+      "notes": "",
+      "created_at": "2026-06-14T21:00:58.878065",
+      "updated_at": "2026-06-14T21:00:58.878086"
+    },
+    {
+      "id": "i_002",
+      "name": "羽绒服",
+      "category": "衣物",
+      "group": "上衣",
+      "quantity": 1,
+      "unit": "件",
+      "status": "充足",
+      "min_quantity": 1,
+      "location": "衣柜-左侧上层",
+      "notes": "",
+      "created_at": "2026-06-14T21:00:58.879065",
+      "updated_at": "2026-06-14T21:00:58.879069"
+    },
+    {
+      "id": "i_003",
+      "name": "防晒服",
+      "category": "衣物",
+      "group": "上衣",
+      "quantity": 1,
+      "unit": "件",
+      "status": "充足",
+      "min_quantity": 1,
+      "location": "衣柜-左侧上层",
+      "notes": "",
+      "created_at": "2026-06-14T21:00:58.880098",
+      "updated_at": "2026-06-14T21:00:58.880102"
     }
   ]
 }
