@@ -33,19 +33,42 @@ class InventoryPanel(QWidget):
 
         # === Breadcrumb (hidden in category view) ===
         self._breadcrumb = QWidget()
-        self._breadcrumb.hide()
+        self._update_breadcrumb()
         bc_layout = QHBoxLayout(self._breadcrumb)
         bc_layout.setContentsMargins(16, 4, 16, 4)
-        bc_layout.setSpacing(6)
+        bc_layout.setSpacing(4)
 
-        self._back_btn = QPushButton("← 返回")
-        self._back_btn.setStyleSheet(f"QPushButton {{ background: transparent; color: {c['accent']}; border: none; padding: 4px 8px; font-size: 13px; font-weight: 600; }} QPushButton:hover {{ color: {c['fg_primary']}; }}")
+        self._back_btn = QPushButton("←")
+        self._back_btn.setStyleSheet(f"QPushButton {{ background: transparent; color: {c['accent']}; border: none; padding: 2px 6px; font-size: 13px; font-weight: 600; }} QPushButton:hover {{ color: {c['fg_primary']}; }}")
         self._back_btn.clicked.connect(self._go_back)
         bc_layout.addWidget(self._back_btn)
 
-        self._breadcrumb_label = QLabel()
-        self._breadcrumb_label.setStyleSheet(f"color: {c['fg_secondary']}; font-size: 13px; font-weight: 500; border: none;")
-        bc_layout.addWidget(self._breadcrumb_label)
+        self._bc_cat = QPushButton()
+        self._bc_cat.setStyleSheet(f"QPushButton {{ background: {c['bg_elevated']}; color: {c['fg_primary']}; border: none; border-radius: 4px; padding: 2px 8px; font-size: 12px; }} QPushButton:hover {{ background: {c['accent_bg']}; }}")
+        self._bc_cat.clicked.connect(lambda: self._navigate_to(1))
+        self._bc_cat.hide()
+        bc_layout.addWidget(self._bc_cat)
+
+        self._bc_sep1 = QLabel("›")
+        self._bc_sep1.setStyleSheet(f"color: {c['fg_hint']}; font-size: 13px; border: none;")
+        self._bc_sep1.hide()
+        bc_layout.addWidget(self._bc_sep1)
+
+        self._bc_group = QPushButton()
+        self._bc_group.setStyleSheet(f"QPushButton {{ background: {c['bg_elevated']}; color: {c['fg_primary']}; border: none; border-radius: 4px; padding: 2px 8px; font-size: 12px; }} QPushButton:hover {{ background: {c['accent_bg']}; }}")
+        self._bc_group.clicked.connect(lambda: self._navigate_to(2))
+        self._bc_group.hide()
+        bc_layout.addWidget(self._bc_group)
+
+        self._bc_sep2 = QLabel("›")
+        self._bc_sep2.setStyleSheet(f"color: {c['fg_hint']}; font-size: 13px; border: none;")
+        self._bc_sep2.hide()
+        bc_layout.addWidget(self._bc_sep2)
+
+        self._bc_item = QLabel()
+        self._bc_item.setStyleSheet(f"color: {c['fg_secondary']}; font-size: 12px; border: none;")
+        self._bc_item.hide()
+        bc_layout.addWidget(self._bc_item)
         bc_layout.addStretch()
         layout.addWidget(self._breadcrumb)
 
@@ -171,6 +194,16 @@ class InventoryPanel(QWidget):
             0 if x.get("status") == "需购" else 1 if x.get("status") == "不足" else 2,
             x.get("name", "")))
 
+    def _navigate_to(self, level: int) -> None:
+        if level <= 0:
+            self._current_category = None
+            self._current_group = None
+            self._cat_filter = "全部"
+        elif level == 1:
+            self._current_group = None
+        self._page = 0
+        self._refresh()
+
     def _go_back(self) -> None:
         if self._current_group:
             self._current_group = None
@@ -181,6 +214,18 @@ class InventoryPanel(QWidget):
             self._cat_filter = "全部"
             self._page = 0
         self._refresh()
+
+    def _update_breadcrumb(self) -> None:
+        self._bc_cat.hide(); self._bc_sep1.hide()
+        self._bc_group.hide(); self._bc_sep2.hide(); self._bc_item.hide()
+        if self._current_category:
+            self._breadcrumb.show()
+            self._bc_cat.setText(self._current_category); self._bc_cat.show()
+            if self._current_group:
+                self._bc_sep1.show()
+                self._bc_group.setText(self._current_group); self._bc_group.show()
+        else:
+            self._update_breadcrumb()
 
     def _enter_category(self, category: str) -> None:
         self._current_category = category
@@ -210,7 +255,7 @@ class InventoryPanel(QWidget):
             self._refresh_items(c)
 
     def _refresh_categories(self, c: dict) -> None:
-        self._breadcrumb.hide()
+        self._update_breadcrumb()
 
         cats = self._dm.inventory.categories
         total_items = len(self._dm.inventory.items)
@@ -249,8 +294,7 @@ class InventoryPanel(QWidget):
         self._count_label.setText(f"共 {total_items} 件物品")
 
     def _refresh_items(self, c: dict) -> None:
-        self._breadcrumb.show()
-        self._breadcrumb_label.setText(f"现在查看的具体品类：{self._current_category}")
+        self._update_breadcrumb()
 
         items = self._get_filtered()
         # Group items by their group field (non-empty) — Level 1 collapsing
@@ -268,7 +312,7 @@ class InventoryPanel(QWidget):
         for gname, gitems in groups.items():
             display_items.append({
                 "_type": "group", "name": gname,
-                "count": len(gitems), "items": gitems,
+                "count": sum(it.get("quantity", 0) for it in gitems), "items": gitems,
             })
         for it in standalone:
             display_items.append({"_type": "item", **it})
@@ -348,7 +392,7 @@ class InventoryPanel(QWidget):
         name.setStyleSheet(f"color: {c['fg_primary']}; font-size: 14px; font-weight: 600; border: none; background: transparent;")
         hdr.addWidget(name)
         hdr.addStretch()
-        qty_text = f"x{it.get('quantity',0)}"
+        qty_text = self._format_quantity(it)
         dpu = it.get('doses_per_unit', 1)
         if dpu > 1:
             qty_text = f"x{it['quantity']} ({it['quantity'] * dpu}次)"
@@ -391,8 +435,7 @@ class InventoryPanel(QWidget):
 
     def _refresh_group_items(self, c: dict) -> None:
         """Level 2: expandable type cards with instance sub-cards."""
-        self._breadcrumb.show()
-        self._breadcrumb_label.setText(f"现在查看：{self._current_category} › {self._current_group}")
+        self._update_breadcrumb()
 
         items = [it for it in self._dm.inventory.items
                  if it.get("category") == self._current_category
@@ -433,7 +476,7 @@ class InventoryPanel(QWidget):
         cl.addStretch()
 
         qty = it.get("quantity", 0)
-        qty_label = QLabel(f"×{qty}")
+        qty_label = QLabel(self._format_quantity(it))
         qty_label.setStyleSheet(f"color: {c['fg_secondary']}; font-size: 14px; font-weight: 700; border: none; background: transparent;")
         cl.addWidget(qty_label)
 
@@ -454,7 +497,7 @@ class InventoryPanel(QWidget):
         """Render an individual instance card with tags and context menu."""
         card = QWidget()
         card.setMinimumHeight(48)
-        card.setStyleSheet(f"background-color: {c['bg_root']}; border-left: 3px solid {c['accent']}; border-radius: 0 8px 8px 0; margin-left: 24px;")
+        card.setStyleSheet(f"background-color: {c['bg_elevated']}; border-left: 3px solid {c['accent']}; border-radius: 0 8px 8px 0; margin-left: 24px;")
 
         cl = QHBoxLayout(card)
         cl.setContentsMargins(12, 8, 12, 8)
@@ -496,6 +539,13 @@ class InventoryPanel(QWidget):
         card.customContextMenuRequested.connect(lambda _, i=inst_item: self._context_menu(i))
         self._card_layout.insertWidget(self._card_layout.count() - 1, card)
 
+    def _format_quantity(self, it: dict) -> str:
+        cat = it.get("category", "")
+        qty = it.get("quantity", 0)
+        if cat == "虚拟品类":
+            return f"×{qty}项"
+        return f"×{qty}件"
+
     def _toggle_expand(self, iid: str) -> None:
         if iid in self._expanded_items:
             self._expanded_items.discard(iid)
@@ -503,20 +553,37 @@ class InventoryPanel(QWidget):
             self._expanded_items.add(iid)
         self._refresh()
 
+    # Per-category status labels
+    CATEGORY_LABELS = {
+        "衣物":       {"需购": "要买了", "不足": "要洗了", "充足": "可穿"},
+        "虚拟品类":   {"需购": "要续费", "不足": "要到期了", "充足": "有效"},
+        "数码电子":   {"需购": "需维修", "不足": "待更换", "充足": "正常"},
+        "日常消耗品": {"需购": "需补货", "不足": "快用完", "充足": "充足"},
+    }
+
     def _context_menu(self, item: dict) -> None:
         from PySide6.QtGui import QCursor
         c = get_colors()
+        cat = item.get("category", "其他")
+        labels = self.CATEGORY_LABELS.get(cat, {"需购": "需购", "不足": "不足", "充足": "充足"})
+        st = item.get("status", "充足")
+
         menu = QMenu(self)
         menu.setStyleSheet(f"QMenu {{ background-color: {c['bg_elevated']}; color: {c['fg_primary']}; border-radius: 8px; padding: 4px; }} QMenu::item {{ padding: 6px 24px 6px 12px; border-radius: 4px; }} QMenu::item:selected {{ background-color: {c['accent_bg']}; }}")
-        st = item.get("status", "")
-        if st != "需购": menu.addAction("标记需购").triggered.connect(lambda: self._quick_update(item["id"], {"status": "需购"}))
-        if st != "充足": menu.addAction("标记充足").triggered.connect(lambda: self._quick_update(item["id"], {"status": "充足"}))
+
+        for target_status in ["需购", "不足", "充足"]:
+            if st != target_status:
+                menu.addAction(labels[target_status]).triggered.connect(
+                    lambda checked, s=target_status: self._quick_update(item["id"], {"status": s}))
+
         ig = item.get("ignore_low_stock", False)
-        menu.addAction("恢复库存提醒" if ig else "忽略库存不足提醒").triggered.connect(lambda: self._quick_update(item["id"], {"ignore_low_stock": not ig}))
+        menu.addAction("恢复库存提醒" if ig else "忽略库存不足提醒").triggered.connect(
+            lambda: self._quick_update(item["id"], {"ignore_low_stock": not ig}))
         menu.addSeparator()
         menu.addAction("设置邮件提醒").triggered.connect(lambda: self._email_reminder(item))
         menu.addAction("修改标签").triggered.connect(lambda: self._edit_tags(item))
-        menu.addAction("删除").triggered.connect(lambda: self._delete_item(item["id"]))
+        if cat != "虚拟品类":  # 虚拟品类不直接删
+            menu.addAction("删除").triggered.connect(lambda: self._delete_item(item["id"]))
         menu.exec(QCursor.pos())
 
     def _quick_update(self, iid, data) -> None:
