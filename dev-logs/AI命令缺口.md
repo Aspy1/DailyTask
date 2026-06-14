@@ -41,3 +41,11 @@
 2. `src/services/ai_service.py` — SYSTEM_PROMPT_BASE 可用命令列表
 3. `~/.hermes/skills/life-assistant-data/SKILL.md` — TG bot 关键词表
 4. `scripts/actions.py` — main() + run_in_process 两处 handlers 注册
+
+
+## 行为准则（AI 操作约束）
+
+| 规则 | 说明 |
+|---|---|
+| **禁直接删除物品** | AI 不可执行 `delete_item`。物品只能标记为"已消耗""已丢弃"等状态标签，由用户手动删除。防止 AI 误删。 |
+| **消耗用 consume** | "洗发水用了一次" → 查询 id → `update_item --quantity N` 减量 |

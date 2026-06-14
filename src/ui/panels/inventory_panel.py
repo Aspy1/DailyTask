@@ -21,6 +21,7 @@ class InventoryPanel(QWidget):
         self._dm = dm
         self._current_category = None  # None=categories, str=items in category
         self._current_group = None       # None=items view, str=items in group
+        self._expanded_items: set[str] = set()  # item IDs currently expanded
         self._cat_filter = "全部"
         self._tag_filter = ""
         self._page = 0
@@ -385,11 +386,11 @@ class InventoryPanel(QWidget):
             cl.addLayout(tr)
 
         card.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        card.customContextMenuRequested.connect(lambda pos, i=it: self._context_menu(pos, i))
+        card.customContextMenuRequested.connect(lambda _, i=it: self._context_menu(i))
         self._card_layout.insertWidget(self._card_layout.count() - 1, card)
 
     def _refresh_group_items(self, c: dict) -> None:
-        """Level 2: show items within a specific group."""
+        """Level 2: expandable type cards with instance sub-cards."""
         self._breadcrumb.show()
         self._breadcrumb_label.setText(f"现在查看：{self._current_category} › {self._current_group}")
 
@@ -400,21 +401,110 @@ class InventoryPanel(QWidget):
             items = [it for it in items if self._tag_filter in it.get("tags", [])]
 
         total = len(items)
-        start = self._page * PAGE_SIZE
-        page_items = items[start:start + PAGE_SIZE]
-        max_page = max(0, (total - 1) // PAGE_SIZE)
-        if self._page > max_page:
-            self._page = max_page
-            start = self._page * PAGE_SIZE
-            page_items = items[start:start + PAGE_SIZE]
+        for it in items:
+            self._render_expandable_card(c, it)
 
-        for it in page_items:
-            self._render_item_card(c, it)
+        self._count_label.setText(f"{total} 类物品")
 
-        page_str = f"第{self._page + 1}/{max_page + 1}页" if total > PAGE_SIZE else ""
-        self._count_label.setText(f"{total} 件物品  {page_str}")
+    def _render_expandable_card(self, c: dict, it: dict) -> None:
+        """Render a type card that expands to show instances."""
+        iid = it["id"]
+        expanded = iid in self._expanded_items
 
-    def _context_menu(self, pos, item: dict) -> None:
+        # Type card (always clickable)
+        card = QWidget()
+        card.setMinimumHeight(52)
+        card.setCursor(Qt.CursorShape.PointingHandCursor)
+        card.setStyleSheet(f"background-color: {c['bg_elevated']}; border-radius: 8px;")
+        card.mousePressEvent = lambda e, id=iid: self._toggle_expand(id)
+
+        cl = QHBoxLayout(card)
+        cl.setContentsMargins(16, 10, 16, 10)
+        cl.setSpacing(8)
+
+        arrow_icon = "▼" if expanded else "▶"
+        arrow = QLabel(arrow_icon)
+        arrow.setStyleSheet(f"color: {c['accent']}; font-size: 12px; font-weight: bold; border: none; background: transparent;")
+        cl.addWidget(arrow)
+
+        name = QLabel(it.get("name", ""))
+        name.setStyleSheet(f"color: {c['fg_primary']}; font-size: 14px; font-weight: 600; border: none; background: transparent;")
+        cl.addWidget(name)
+        cl.addStretch()
+
+        qty = it.get("quantity", 0)
+        qty_label = QLabel(f"×{qty}")
+        qty_label.setStyleSheet(f"color: {c['fg_secondary']}; font-size: 14px; font-weight: 700; border: none; background: transparent;")
+        cl.addWidget(qty_label)
+
+        self._card_layout.insertWidget(self._card_layout.count() - 1, card)
+
+        # Instance cards (only when expanded)
+        if expanded:
+            instances = it.get("instances", [])
+            if not instances:
+                # Auto-generate instances from quantity
+                instances = [{"tags": it.get("tags", []), "status": it.get("status", "充足"),
+                              "notes": it.get("notes", ""), "location": it.get("location", "")}
+                             for _ in range(qty)]
+            for idx, inst in enumerate(instances):
+                self._render_instance_card(c, iid, idx, inst, it)
+
+    def _render_instance_card(self, c: dict, parent_id: str, idx: int, inst: dict, parent: dict) -> None:
+        """Render an individual instance card with tags and context menu."""
+        card = QWidget()
+        card.setMinimumHeight(48)
+        card.setStyleSheet(f"background-color: {c['bg_root']}; border-left: 3px solid {c['accent']}; border-radius: 0 8px 8px 0; margin-left: 24px;")
+
+        cl = QHBoxLayout(card)
+        cl.setContentsMargins(12, 8, 12, 8)
+        cl.setSpacing(6)
+
+        label = QLabel(f"#{idx + 1}")
+        label.setStyleSheet(f"color: {c['fg_hint']}; font-size: 12px; font-weight: 600; border: none; background: transparent;")
+        cl.addWidget(label)
+
+        # Tags
+        tags = inst.get("tags", [])
+        if tags:
+            for tag in tags:
+                t = QLabel(tag)
+                t.setStyleSheet(f"color: {c['accent']}; font-size: 10px; font-weight: 500; background: {c['accent']}18; border-radius: 8px; padding: 1px 8px; border: none;")
+                cl.addWidget(t)
+
+        # Status badge
+        status = inst.get("status", "充足")
+        bc = {"需购": c["red"], "不足": c["orange"], "充足": c["green"]}.get(status, c["green"])
+        badge = QLabel({"需购": "需购", "不足": "不足", "充足": "充足"}.get(status, status))
+        badge.setStyleSheet(f"color: {bc}; font-size: 10px; font-weight: 600; background: {bc}18; border-radius: 8px; padding: 1px 6px; border: none;")
+        cl.addWidget(badge)
+
+        # Notes
+        note = inst.get("notes", "")
+        if note:
+            n = QLabel(note)
+            n.setStyleSheet(f"color: {c['fg_hint']}; font-size: 11px; border: none; background: transparent;")
+            cl.addWidget(n)
+
+        cl.addStretch()
+
+        # Instance context menu
+        inst_item = {"id": f"{parent_id}_{idx}", "parent_id": parent_id, "index": idx,
+                     "name": parent.get("name", ""), "tags": tags, "status": status, "notes": note,
+                     "inst_data": inst}
+        card.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        card.customContextMenuRequested.connect(lambda _, i=inst_item: self._context_menu(i))
+        self._card_layout.insertWidget(self._card_layout.count() - 1, card)
+
+    def _toggle_expand(self, iid: str) -> None:
+        if iid in self._expanded_items:
+            self._expanded_items.discard(iid)
+        else:
+            self._expanded_items.add(iid)
+        self._refresh()
+
+    def _context_menu(self, item: dict) -> None:
+        from PySide6.QtGui import QCursor
         c = get_colors()
         menu = QMenu(self)
         menu.setStyleSheet(f"QMenu {{ background-color: {c['bg_elevated']}; color: {c['fg_primary']}; border-radius: 8px; padding: 4px; }} QMenu::item {{ padding: 6px 24px 6px 12px; border-radius: 4px; }} QMenu::item:selected {{ background-color: {c['accent_bg']}; }}")
@@ -427,7 +517,7 @@ class InventoryPanel(QWidget):
         menu.addAction("设置邮件提醒").triggered.connect(lambda: self._email_reminder(item))
         menu.addAction("修改标签").triggered.connect(lambda: self._edit_tags(item))
         menu.addAction("删除").triggered.connect(lambda: self._delete_item(item["id"]))
-        menu.exec(self.mapToGlobal(pos))
+        menu.exec(QCursor.pos())
 
     def _quick_update(self, iid, data) -> None:
         self._dm.inventory.update_item(iid, data); self._dm.inventory.save(); self._dm.data_changed.emit("inventory"); self._refresh()
