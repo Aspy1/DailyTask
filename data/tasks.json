@@ -2,20 +2,6 @@
   "_version": 1,
   "tasks": [
     {
-      "course_name": "算法设计与分析",
-      "description": "",
-      "due_date": "2026-06-11T23:00:00",
-      "priority": "high",
-      "tags": [],
-      "title": "算法设计与分析 4个个人作业",
-      "id": "t_005",
-      "status": "completed",
-      "notes": "",
-      "created_at": "2026-06-01T21:08:54.185463",
-      "reminded": false,
-      "completed_at": "2026-06-11T20:06:46.632367"
-    },
-    {
       "course_name": "计算机网络",
       "description": "",
       "due_date": "2026-06-14T23:00:00",
@@ -23,11 +9,11 @@
       "tags": [],
       "title": "第五章课后作业",
       "id": "t_009",
-      "status": "pending",
+      "status": "completed",
       "notes": "",
       "created_at": "2026-06-06T21:28:02.969684",
       "reminded": false,
-      "completed_at": null
+      "completed_at": "2026-06-14T21:01:36.697528"
     },
     {
       "id": "t_013",
@@ -204,6 +190,20 @@
       "created_at": "2026-06-08T14:39:07.707341",
       "reminded": false,
       "completed_at": "2026-06-08T14:39:22.018437"
+    },
+    {
+      "course_name": "算法设计与分析",
+      "description": "",
+      "due_date": "2026-06-11T23:00:00",
+      "priority": "high",
+      "tags": [],
+      "title": "算法设计与分析 4个个人作业",
+      "id": "t_005",
+      "status": "completed",
+      "notes": "",
+      "created_at": "2026-06-01T21:08:54.185463",
+      "reminded": false,
+      "completed_at": "2026-06-11T20:06:46.632367"
     }
   ]
 }
