@@ -54,6 +54,7 @@ class InventoryModel(BaseJsonModel):
             "location": data.get("location", ""),
             "notes": data.get("notes", ""),
             "tags": data.get("tags", []),
+            "instances": data.get("instances", []),
             "ignore_low_stock": data.get("ignore_low_stock", False),
             "doses_per_unit": data.get("doses_per_unit", 1),
             "created_at": datetime.now().isoformat(),
@@ -66,7 +67,7 @@ class InventoryModel(BaseJsonModel):
         for it in self.items:
             if it["id"] == iid:
                 for k in ("name", "category", "group", "quantity", "unit", "status",
-                          "min_quantity", "location", "notes", "tags", "ignore_low_stock", "doses_per_unit"):
+                          "min_quantity", "location", "notes", "tags", "instances", "ignore_low_stock", "doses_per_unit"):
                     if k in data:
                         it[k] = data[k]
                 it["updated_at"] = datetime.now().isoformat()

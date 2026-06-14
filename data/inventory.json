@@ -5,28 +5,71 @@
       "name": "T恤",
       "category": "衣物",
       "group": "上衣",
-      "quantity": 1,
+      "quantity": 3,
       "unit": "件",
       "status": "充足",
       "min_quantity": 1,
       "location": "衣柜-左侧上层",
       "notes": "",
       "created_at": "2026-06-14T21:00:58.878065",
-      "updated_at": "2026-06-14T21:00:58.878086"
+      "updated_at": "2026-06-14T21:00:58.878086",
+      "instances": [
+        {
+          "tags": [
+            "纯棉",
+            "蓝色"
+          ],
+          "status": "充足",
+          "notes": "圆领短袖"
+        },
+        {
+          "tags": [
+            "纯棉",
+            "白色"
+          ],
+          "status": "充足",
+          "notes": "V领"
+        },
+        {
+          "tags": [
+            "速干"
+          ],
+          "status": "充足",
+          "notes": "运动款"
+        }
+      ]
     },
     {
       "id": "i_002",
       "name": "羽绒服",
       "category": "衣物",
       "group": "上衣",
-      "quantity": 1,
+      "quantity": 2,
       "unit": "件",
       "status": "充足",
       "min_quantity": 1,
       "location": "衣柜-左侧上层",
       "notes": "",
       "created_at": "2026-06-14T21:00:58.879065",
-      "updated_at": "2026-06-14T21:00:58.879069"
+      "updated_at": "2026-06-14T21:00:58.879069",
+      "instances": [
+        {
+          "tags": [
+            "长款",
+            "黑色"
+          ],
+          "status": "充足",
+          "notes": "冬季主力"
+        },
+        {
+          "tags": [
+            "短款",
+            "红色"
+          ],
+          "status": "不足",
+          "notes": "拉链坏了"
+        }
+      ]
     },
     {
       "id": "i_003",
@@ -40,7 +83,17 @@
       "location": "衣柜-左侧上层",
       "notes": "",
       "created_at": "2026-06-14T21:00:58.880098",
-      "updated_at": "2026-06-14T21:00:58.880102"
+      "updated_at": "2026-06-14T21:00:58.880102",
+      "instances": [
+        {
+          "tags": [
+            "轻薄",
+            "白色"
+          ],
+          "status": "充足",
+          "notes": "UPF50+"
+        }
+      ]
     }
   ]
 }
