@@ -392,6 +392,7 @@ def cmd_add_item(args):
     iid = gen_id(data["items"], "i")
     qty = args.quantity or 1
     item = {"id": iid, "name": args.name, "category": args.category or "其他",
+            "group": args.group or "",
             "quantity": qty, "unit": "件",
             "status": "需购" if qty <= 0 else "充足",
             "min_quantity": args.min_qty or 1,
@@ -406,6 +407,7 @@ def cmd_update_item(args):
     for it in data.get("items", []):
         if it["id"] == args.id:
             if args.name: it["name"] = args.name
+            if args.group is not None and args.group != "": it["group"] = args.group
             if args.category: it["category"] = args.category
             if args.quantity is not None: it["quantity"] = args.quantity
             if args.unit: it["unit"] = args.unit
@@ -537,7 +539,7 @@ def run_in_process(cmd_str: str) -> str:
         'slot': 1, 'type': 'custom', 'weeks': '1-16', 'slots': '3-4',
         'parity': 'all', 'category': '其他', 'quantity': 1, 'min_qty': 1,
         'tags': None, 'notes': '', 'location': '', 'scope': '', 'teacher': '',
-        'course': '', 'reminder': '', 'unit': '', 'status': None, 'due': '', 'note': '',
+        'course': '', 'reminder': '', 'unit': '', 'status': None, 'due': '', 'note': '', 'group': '',
         'title': '', 'date': '', 'name': '', 'plans': '[]', 'index': 0,
         'day': 0,
     }
@@ -639,6 +641,7 @@ def main():
     p.add_argument("--min_qty", type=int, default=1)
     p.add_argument("--location")
     p.add_argument("--notes")
+    p.add_argument("--group", default="")
     p.add_argument("--tags")
     p.add_argument("--status", default=None)  # accepted but ignored, auto-derived
 
@@ -646,6 +649,7 @@ def main():
     p = sub.add_parser("update_item", help="更新物品")
     p.add_argument("--id", required=True)
     p.add_argument("--name")
+    p.add_argument("--group")
     p.add_argument("--category")
     p.add_argument("--quantity", type=int)
     p.add_argument("--status", choices=["充足","不足","需购"])
