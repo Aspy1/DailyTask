@@ -252,14 +252,34 @@ class InventoryPanel(QWidget):
         self._breadcrumb_label.setText(f"现在查看的具体品类：{self._current_category}")
 
         items = self._get_filtered()
-        total = len(items)
+        # Group items by their group field (non-empty) — Level 1 collapsing
+        groups: dict[str, list[dict]] = {}
+        standalone: list[dict] = []
+        for it in items:
+            g = it.get("group", "")
+            if g:
+                groups.setdefault(g, []).append(it)
+            else:
+                standalone.append(it)
+
+        # Build display list: group cards first, then standalone items
+        display_items: list[dict] = []
+        for gname, gitems in groups.items():
+            display_items.append({
+                "_type": "group", "name": gname,
+                "count": len(gitems), "items": gitems,
+            })
+        for it in standalone:
+            display_items.append({"_type": "item", **it})
+
+        total = len(display_items)
         start = self._page * PAGE_SIZE
-        page_items = items[start:start + PAGE_SIZE]
+        page_items = display_items[start:start + PAGE_SIZE]
         max_page = max(0, (total - 1) // PAGE_SIZE)
         if self._page > max_page:
             self._page = max_page
             start = self._page * PAGE_SIZE
-            page_items = items[start:start + PAGE_SIZE]
+            page_items = display_items[start:start + PAGE_SIZE]
 
         for d in page_items:
             if d.get("_type") == "group":
@@ -268,7 +288,7 @@ class InventoryPanel(QWidget):
                 self._render_item_card(c, d)
 
         page_str = f"第{self._page + 1}/{max_page + 1}页" if total > PAGE_SIZE else ""
-        self._count_label.setText(f"{total} 件物品  {page_str}")
+        self._count_label.setText(f"{total} 项  {page_str}")
 
     def _render_group_card(self, c: dict, d: dict) -> None:
         """Render a clickable group card at Level 1."""
