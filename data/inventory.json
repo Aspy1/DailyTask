@@ -94,6 +94,154 @@
           "notes": "UPF50+"
         }
       ]
+    },
+    {
+      "id": "i_004",
+      "name": "洗发水",
+      "category": "日常消耗品",
+      "group": "",
+      "quantity": 2,
+      "unit": "件",
+      "status": "充足",
+      "min_quantity": 1,
+      "location": "卫生间柜子",
+      "notes": "",
+      "created_at": "2026-06-14T21:22:49.442522",
+      "updated_at": "2026-06-14T21:22:49.442537"
+    },
+    {
+      "id": "i_005",
+      "name": "牙膏",
+      "category": "日常消耗品",
+      "group": "",
+      "quantity": 1,
+      "unit": "件",
+      "status": "充足",
+      "min_quantity": 1,
+      "location": "卫生间",
+      "notes": "",
+      "created_at": "2026-06-14T21:22:49.443357",
+      "updated_at": "2026-06-14T21:22:49.443360"
+    },
+    {
+      "id": "i_006",
+      "name": "纸巾",
+      "category": "日常消耗品",
+      "group": "",
+      "quantity": 5,
+      "unit": "件",
+      "status": "充足",
+      "min_quantity": 1,
+      "location": "储物间",
+      "notes": "",
+      "created_at": "2026-06-14T21:22:49.444058",
+      "updated_at": "2026-06-14T21:22:49.444060"
+    },
+    {
+      "id": "i_007",
+      "name": "手机充电线",
+      "category": "数码电子",
+      "group": "",
+      "quantity": 2,
+      "unit": "件",
+      "status": "充足",
+      "min_quantity": 1,
+      "location": "桌面",
+      "notes": "",
+      "created_at": "2026-06-14T21:22:49.444713",
+      "updated_at": "2026-06-14T21:22:49.444716",
+      "instances": [
+        {
+          "tags": [
+            "Type-C",
+            "1米"
+          ],
+          "status": "正常",
+          "notes": ""
+        },
+        {
+          "tags": [
+            "Lightning",
+            "2米"
+          ],
+          "status": "待更换",
+          "notes": "接触不良"
+        }
+      ]
+    },
+    {
+      "id": "i_008",
+      "name": "蓝牙耳机",
+      "category": "数码电子",
+      "group": "",
+      "quantity": 1,
+      "unit": "件",
+      "status": "充足",
+      "min_quantity": 1,
+      "location": "抽屉-右侧",
+      "notes": "",
+      "created_at": "2026-06-14T21:22:49.445370",
+      "updated_at": "2026-06-14T21:22:49.445372"
+    },
+    {
+      "id": "i_009",
+      "name": "QQ音乐会员",
+      "category": "虚拟品类",
+      "group": "",
+      "quantity": 1,
+      "unit": "件",
+      "status": "充足",
+      "min_quantity": 1,
+      "location": "",
+      "notes": "",
+      "created_at": "2026-06-14T21:22:49.446311",
+      "updated_at": "2026-06-14T21:22:49.446314",
+      "instances": [
+        {
+          "tags": [
+            "自动续费"
+          ],
+          "status": "有效",
+          "notes": "2026-08-15到期"
+        }
+      ]
+    },
+    {
+      "id": "i_010",
+      "name": "百度网盘会员",
+      "category": "虚拟品类",
+      "group": "",
+      "quantity": 1,
+      "unit": "件",
+      "status": "充足",
+      "min_quantity": 1,
+      "location": "",
+      "notes": "",
+      "created_at": "2026-06-14T21:22:49.447164",
+      "updated_at": "2026-06-14T21:22:49.447167",
+      "instances": [
+        {
+          "tags": [
+            "年费"
+          ],
+          "status": "要到期了",
+          "notes": "2026-06-30到期"
+        }
+      ]
+    },
+    {
+      "id": "i_011",
+      "name": "雨伞",
+      "category": "其他",
+      "group": "",
+      "quantity": 1,
+      "unit": "件",
+      "status": "充足",
+      "min_quantity": 1,
+      "location": "门厅",
+      "notes": "",
+      "created_at": "2026-06-14T21:22:49.447923",
+      "updated_at": "2026-06-14T21:22:49.447926"
     }
   ]
 }
