@@ -33,7 +33,6 @@ class InventoryPanel(QWidget):
 
         # === Breadcrumb (hidden in category view) ===
         self._breadcrumb = QWidget()
-        self._update_breadcrumb()
         bc_layout = QHBoxLayout(self._breadcrumb)
         bc_layout.setContentsMargins(16, 4, 16, 4)
         bc_layout.setSpacing(4)
