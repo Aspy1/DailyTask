@@ -185,9 +185,13 @@ def normalize_time(due_str: str) -> str:
 
 def cmd_add_task(args):
     course = args.course or ""
-    matched = match_course(course)
+    matched = match_course(course) or course or ""
     title = args.title
-    due = parse_date(args.due) if args.due else ""
+    due_raw = args.due or ""
+    if not due_raw.strip():
+        print("ERROR add_task requires --due (YYYY-MM-DD)")
+        return
+    due = parse_date(due_raw)
     due = normalize_time(due)
     priority = args.priority or "medium"
 
