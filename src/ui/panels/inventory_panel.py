@@ -224,7 +224,7 @@ class InventoryPanel(QWidget):
                 self._bc_sep1.show()
                 self._bc_group.setText(self._current_group); self._bc_group.show()
         else:
-            self._update_breadcrumb()
+            self._breadcrumb.hide()
 
     def _enter_category(self, category: str) -> None:
         self._current_category = category
