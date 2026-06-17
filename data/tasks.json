@@ -2,44 +2,17 @@
   "_version": 1,
   "tasks": [
     {
-      "course_name": "计算机网络",
-      "description": "",
-      "due_date": "2026-06-14T23:00:00",
-      "priority": "medium",
-      "tags": [],
-      "title": "第五章课后作业",
-      "id": "t_009",
-      "status": "completed",
-      "notes": "",
-      "created_at": "2026-06-06T21:28:02.969684",
-      "reminded": false,
-      "completed_at": "2026-06-14T21:01:36.697528"
-    },
-    {
       "id": "t_013",
       "title": "准备口语演讲稿（一分钟，三选一主题）并背熟",
       "course_name": "西方文化掠影",
       "due_date": "2026-06-15T23:00:00",
-      "status": "pending",
+      "status": "completed",
       "priority": "medium",
       "tags": [],
       "notes": "",
       "created_at": "2026-06-08T15:09:40.179938",
       "reminded": false,
-      "completed_at": null
-    },
-    {
-      "id": "t_014",
-      "title": "网站试标",
-      "course_name": "知识工程",
-      "due_date": "2026-06-12T23:00:00",
-      "status": "completed",
-      "priority": "medium",
-      "tags": [],
-      "notes": "",
-      "created_at": "2026-06-10T21:54:06.978332",
-      "reminded": false,
-      "completed_at": "2026-06-12T21:17:30.999587"
+      "completed_at": "2026-06-17T22:21:22.513359"
     }
   ],
   "archived": [
@@ -204,6 +177,33 @@
       "created_at": "2026-06-01T21:08:54.185463",
       "reminded": false,
       "completed_at": "2026-06-11T20:06:46.632367"
+    },
+    {
+      "course_name": "计算机网络",
+      "description": "",
+      "due_date": "2026-06-14T23:00:00",
+      "priority": "medium",
+      "tags": [],
+      "title": "第五章课后作业",
+      "id": "t_009",
+      "status": "completed",
+      "notes": "",
+      "created_at": "2026-06-06T21:28:02.969684",
+      "reminded": false,
+      "completed_at": "2026-06-14T21:01:36.697528"
+    },
+    {
+      "id": "t_014",
+      "title": "网站试标",
+      "course_name": "知识工程",
+      "due_date": "2026-06-12T23:00:00",
+      "status": "completed",
+      "priority": "medium",
+      "tags": [],
+      "notes": "",
+      "created_at": "2026-06-10T21:54:06.978332",
+      "reminded": false,
+      "completed_at": "2026-06-12T21:17:30.999587"
     }
   ]
 }
