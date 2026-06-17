@@ -19,6 +19,7 @@
 | parse_date/这周五/中午12点/中文时间/日期解析 | #004 | L102-L113 |
 | fill_ai_prompt/右键菜单/填充AI/AI面板不展开 | #004 | L115-L122 |
 | run_in_process/Namespace/AttributeError/默认值/argparse | #005 | L127-L146 |
+| 替换/breadcrumb/递归/hide/_update_breadcrumb | #006 | L151-L163 |
 
 ---
 
@@ -126,4 +127,21 @@ L127-L146
 
 **涉及文件**: `scripts/actions.py`
 
-**教训**: 手动实现 arg parser 时必须同步 argparse 的 `default=` 值。`args.xxx or default` 不防 AttributeError——Python 先求值左侧才到 `or`。正确写法：`getattr(args, 'xxx', default)` 或预填充 Namespace。——连接了但永远不走。新增信号时必须在 emit 侧加搜索确认：`grep 'emit'` 能找到所有发射点。
+**教训**: 手动实现 arg parser 时必须同步 argparse 的 `default=` 值。`args.xxx or default` 不防 AttributeError——Python 先求值左侧才到 `or`。正确写法：`getattr(args, 'xxx', default)` 或预填充 Namespace。
+
+---
+
+### #006 | 2026-06-12 | content.replace 批量替换导致递归 + AttributeError
+
+L151-L163
+
+**症状 1**: 启动崩溃 `AttributeError: 'InventoryPanel' object has no attribute '_bc_cat'`
+**症状 2**: 修复后启动崩溃 `RecursionError: maximum recursion depth exceeded` (L227 自调用)
+
+**根因**: 将旧代码中多处 `self._breadcrumb.hide()` 批量 replace 为 `self._update_breadcrumb()`。其中一处是 `_update_breadcrumb` 自身的 `else` 分支——替换后变成自调用死循环。另一处是 `__init__` 中控件尚未创建时的调用。
+
+**修复**: 
+- `_update_breadcrumb` else 分支恢复 `self._breadcrumb.hide()`
+- `__init__` 中移除过早调用（末尾 `_refresh()` 会自动触发）
+
+**教训**: `content.replace()` 批量替换文本时，若替换目标出现在被替换函数自身的内部，会造成递归或逻辑错误。涉及自身引用的改动必须精确定位编辑（patch tool），不能靠全局替换。——连接了但永远不走。新增信号时必须在 emit 侧加搜索确认：`grep 'emit'` 能找到所有发射点。
