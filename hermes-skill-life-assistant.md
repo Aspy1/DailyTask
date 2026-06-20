@@ -1,6 +1,6 @@
 ---
 name: life-assistant-data
-description: Use when the user asks to add/query/modify tasks, habits, courses, expenses, or schedule plans. Directly read/write JSON files in D:\ClaudeCoding\日程规划\data\.
+description: Use when the user asks to add/query/modify tasks, habits, courses, expenses, or schedule plans. Directly read/write JSON files in data/.
 version: 1.0.0
 author: Hermes Agent
 license: MIT
@@ -11,7 +11,7 @@ metadata:
 
 # Life Assistant Data Bridge
 
-Direct file I/O to the 生活助手 desktop app's JSON data store. All paths are absolute under `D:\ClaudeCoding\日程规划\data\`.
+Direct file I/O to the 生活助手 desktop app's JSON data store. All paths are absolute under `data/`.
 
 ## Data Files
 
@@ -29,7 +29,7 @@ Direct file I/O to the 生活助手 desktop app's JSON data store. All paths are
 ### Read data
 Use `read_file` to read any JSON file. Always read before writing to see current state.
 
-Example: `read_file("D:\ClaudeCoding\日程规划\data\tasks.json")`
+Example: `read_file("data/tasks.json")`
 
 ### Add a task
 1. Read `tasks.json` first
@@ -102,7 +102,7 @@ Read `tasks.json` (pending tasks), `habits.json` (active today + done status), `
 
 ## Important Rules
 
-- **Always use absolute paths**: `D:\ClaudeCoding\日程规划\data\xxx.json`
+- **Always use absolute paths**: `data/xxx.json`
 - **Always read before write** to avoid overwriting concurrent changes
 - **Generate unique IDs** by scanning all existing IDs (including archived)
 - **Use Python in execute_code** for JSON manipulation
