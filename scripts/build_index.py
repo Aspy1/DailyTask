@@ -2,7 +2,7 @@
 import json
 from pathlib import Path
 
-DATA = Path(r"D:\ClaudeCoding\日程规划\data")
+DATA = Path(__file__).parent.parent / "data"
 
 def build_index():
     index = {"courses": {}, "habits": {}, "items": {}}
