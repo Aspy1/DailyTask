@@ -6,6 +6,7 @@ from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QSplitter,
     QStatusBar, QLabel, QPushButton, QMessageBox, QMenu, QApplication,
+    QDialog, QFrame,
 )
 from PySide6.QtGui import QAction, QFont, QPalette
 
@@ -15,6 +16,7 @@ from src.ui.styles.theme import get_colors
 from src.services.settings_manager import SettingsManager
 from src.services.ai_service import AIService
 from src.services.data_manager import DataManager
+from src.services.weather_service import WeatherService
 from src.ui.components.main_workspace import MainWorkspace
 from src.ui.components.click_label import ClickLabel
 from src.ui.components.sidebar import Sidebar
@@ -35,6 +37,18 @@ class MainWindow(QMainWindow):
         self._plugin_manager = plugin_manager
         self._ai_visible = False
         self._arrange_pending = False
+
+        # 天气服务
+        self._weather_service = WeatherService()
+        if settings.weather_api_key and settings.weather_api_host:
+            self._weather_service.set_credentials(
+                settings.weather_api_host, settings.weather_api_key)
+            if settings.weather_auto_update:
+                self._weather_service.start_auto_update()
+        self._weather_service.weather_updated.connect(self._on_weather_updated)
+
+        # 将天气服务传递给AI服务
+        ai_service.set_weather_service(self._weather_service)
 
         self._setup_ui()
         self._setup_statusbar()
@@ -260,6 +274,18 @@ class MainWindow(QMainWindow):
         sep_exam.setStyleSheet(f"color: {c['border_strong']}; margin: 0 5px;")
         self._statusbar.addPermanentWidget(sep_exam)
 
+        # 天气显示
+        self._weather_label = ClickLabel()
+        self._weather_label.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._weather_label.setStyleSheet(f"color: {c['fg_secondary']}; font-size: 12px;")
+        self._weather_label.clicked.connect(self._on_weather_click)
+        self._weather_label.setText("天气: --")
+        self._statusbar.addPermanentWidget(self._weather_label)
+
+        sep_weather = QLabel("|")
+        sep_weather.setStyleSheet(f"color: {c['border_strong']}; margin: 0 5px;")
+        self._statusbar.addPermanentWidget(sep_weather)
+
         self._date_label = QLabel()
         self._statusbar.addPermanentWidget(self._date_label)
 
@@ -334,6 +360,20 @@ class MainWindow(QMainWindow):
         self._update_habit_count()
         self._update_exam_alert()
         self._update_shopping()
+
+    # ── Weather ───────────────────────────────────────────────
+
+    def _on_weather_updated(self, data: dict) -> None:
+        """天气数据更新"""
+        if data:
+            temp = data.get("temp", "?")
+            text = data.get("text", "?")
+            self._weather_label.setText(f"天气: {temp}°C {text}")
+
+    def _on_weather_click(self) -> None:
+        """点击天气标签，显示详细天气"""
+        dialog = WeatherDetailDialog(self._weather_service, self)
+        dialog.exec()
 
     def _update_date(self) -> None:
         now = datetime.now()
@@ -526,3 +566,226 @@ class MainWindow(QMainWindow):
     @property
     def ai_panel(self) -> AIPanel:
         return self._ai_panel
+
+
+class WeatherDetailDialog(QDialog):
+    """天气详情对话框（支持刷新后自动更新）"""
+
+    def __init__(self, weather_service, parent=None):
+        super().__init__(parent)
+        self._ws = weather_service
+        c = get_colors()
+
+        self.setWindowTitle("天气详情")
+        self.setMinimumWidth(360)
+        self.setStyleSheet(f"""
+            QDialog {{ background-color: {c['bg_card']}; }}
+            QLabel {{ background: transparent; border: none; }}
+        """)
+
+        self._layout = QVBoxLayout(self)
+        self._layout.setContentsMargins(20, 20, 20, 20)
+        self._layout.setSpacing(16)
+
+        # 标题栏
+        title_row = QHBoxLayout()
+        self._title = QLabel("天气详情")
+        self._title.setStyleSheet(
+            f"font-size: 20px; font-weight: 700; color: {c['fg_primary']};")
+        title_row.addWidget(self._title)
+
+        # 最后更新时间
+        self._update_time_label = QLabel()
+        self._update_time_label.setStyleSheet(
+            f"font-size: 11px; color: {c['fg_hint']}; margin-left: 8px;")
+        title_row.addWidget(self._update_time_label)
+        title_row.addStretch()
+
+        self._refresh_btn = QPushButton("刷新")
+        self._refresh_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._refresh_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {c['accent']};
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 6px 16px;
+                font-size: 13px;
+            }}
+            QPushButton:hover {{ background-color: {c['accent_hover']}; }}
+            QPushButton:disabled {{
+                background-color: {c['fg_hint']};
+                color: {c['bg_card']};
+            }}
+        """)
+        self._refresh_btn.clicked.connect(self._on_refresh)
+        title_row.addWidget(self._refresh_btn)
+        self._layout.addLayout(title_row)
+
+        # 实时天气区域
+        self._now_card = None
+        self._temp_label = None
+        self._info_label = None
+        self._hum_label = None
+        self._wind_label = None
+        self._no_data_label = None
+
+        # 预报区域
+        self._forecast_rows = []  # 保存预报行的引用
+
+        # 首次加载
+        self._build_ui()
+        self._update_content()
+
+        # 连接信号
+        self._ws.weather_updated.connect(self._update_content)
+        self._ws.forecast_updated.connect(self._update_content)
+
+    def _build_ui(self):
+        """构建UI结构"""
+        c = get_colors()
+        self._layout.removeWidget(self._no_data_label) if self._no_data_label else None
+
+        # 实时天气卡片
+        if self._now_card:
+            self._layout.removeWidget(self._now_card)
+        self._now_card = QFrame()
+        self._now_card.setStyleSheet(f"""
+            QFrame {{ background-color: {c['bg_elevated']}; border-radius: 8px; padding: 12px; }}
+        """)
+        card_layout = QVBoxLayout(self._now_card)
+        card_layout.setSpacing(8)
+
+        self._temp_label = QLabel()
+        self._temp_label.setStyleSheet(
+            f"font-size: 28px; font-weight: 700; color: {c['fg_primary']};")
+        card_layout.addWidget(self._temp_label)
+
+        self._info_label = QLabel()
+        self._info_label.setStyleSheet(
+            f"font-size: 14px; color: {c['fg_secondary']};")
+        card_layout.addWidget(self._info_label)
+
+        row = QHBoxLayout()
+        row.setSpacing(16)
+        self._hum_label = QLabel()
+        self._hum_label.setStyleSheet(f"font-size: 13px; color: {c['fg_hint']};")
+        row.addWidget(self._hum_label)
+
+        self._wind_label = QLabel()
+        self._wind_label.setStyleSheet(f"font-size: 13px; color: {c['fg_hint']};")
+        row.addWidget(self._wind_label)
+        row.addStretch()
+        card_layout.addLayout(row)
+
+        self._layout.insertWidget(1, self._now_card)
+
+        # 预报标题
+        self._forecast_title = QLabel("未来3天预报")
+        self._forecast_title.setStyleSheet(
+            f"font-size: 15px; font-weight: 600; color: {c['fg_primary']};")
+        self._layout.insertWidget(2, self._forecast_title)
+
+        # 预报行（3天）
+        for i in range(3):
+            row_layout = QHBoxLayout()
+            row_layout.setSpacing(12)
+
+            date_lbl = QLabel()
+            date_lbl.setStyleSheet(
+                f"font-size: 13px; color: {c['fg_secondary']}; min-width: 80px;")
+            row_layout.addWidget(date_lbl)
+
+            text_lbl = QLabel()
+            text_lbl.setStyleSheet(f"font-size: 13px; color: {c['fg_primary']};")
+            row_layout.addWidget(text_lbl)
+
+            rain_lbl = QLabel()
+            rain_lbl.setStyleSheet(f"font-size: 12px; color: {c['accent']};")
+            row_layout.addWidget(rain_lbl)
+
+            temp_lbl = QLabel()
+            temp_lbl.setStyleSheet(
+                f"font-size: 13px; color: {c['fg_secondary']};")
+            temp_lbl.setAlignment(Qt.AlignmentFlag.AlignRight)
+            row_layout.addWidget(temp_lbl)
+
+            self._layout.insertWidget(3 + i, row_layout.itemAt(0).widget())
+            self._forecast_rows.append({
+                "date": date_lbl,
+                "text": text_lbl,
+                "rain": rain_lbl,
+                "temp": temp_lbl
+            })
+
+    def _update_content(self):
+        """更新内容"""
+        c = get_colors()
+
+        # 更新最后更新时间
+        now_cache_time = self._ws._now_cache_time
+        if now_cache_time:
+            self._update_time_label.setText(f"最后更新: {now_cache_time.strftime('%H:%M')}")
+        else:
+            self._update_time_label.setText("")
+
+        # 恢复刷新按钮状态
+        self._refresh_btn.setEnabled(True)
+        self._refresh_btn.setText("刷新")
+
+        # 更新实时天气
+        now = self._ws.get_now()
+        if now:
+            if self._now_card:
+                self._now_card.show()
+            if self._temp_label:
+                self._temp_label.setText(f"{now.get('temp', '?')}°C")
+            if self._info_label:
+                self._info_label.setText(
+                    f"{now.get('text', '?')}  ·  体感 {now.get('feelsLike', '?')}°C")
+            if self._hum_label:
+                self._hum_label.setText(f"湿度 {now.get('humidity', '?')}%")
+            if self._wind_label:
+                self._wind_label.setText(
+                    f"{now.get('windDir', '?')} {now.get('windScale', '?')}级")
+        else:
+            if self._now_card:
+                self._now_card.hide()
+
+        # 更新预报
+        forecast = self._ws.get_forecast()
+        for i, row in enumerate(self._forecast_rows):
+            if i < len(forecast):
+                day = forecast[i]
+                row["date"].setText(day.get('fxDate', '?'))
+                row["text"].setText(day.get('textDay', '?'))
+                precip = day.get('precip', '0')
+                if precip and float(precip) > 0:
+                    row["rain"].setText(f"雨量{precip}mm")
+                    row["rain"].show()
+                else:
+                    row["rain"].hide()
+                row["temp"].setText(
+                    f"{day.get('tempMin', '?')}°C ~ {day.get('tempMax', '?')}°C")
+            else:
+                row["date"].setText("")
+                row["text"].setText("")
+                row["rain"].hide()
+                row["temp"].setText("")
+
+    def _on_refresh(self):
+        """刷新按钮点击"""
+        # 禁用按钮并显示加载状态
+        self._refresh_btn.setEnabled(False)
+        self._refresh_btn.setText("...")
+        # 触发刷新
+        self._ws.refresh()
+
+    def closeEvent(self, event):
+        """关闭时断开信号连接"""
+        try:
+            self._ws.weather_updated.disconnect(self._update_content)
+            self._ws.forecast_updated.disconnect(self._update_content)
+        except RuntimeError:
+            pass
+        super().closeEvent(event)
