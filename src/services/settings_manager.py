@@ -53,6 +53,13 @@ DEFAULT_SETTINGS = {
         "electricity_threshold": "30",
         "last_balance_notify_date": "",
     },
+    "Weather": {
+        "provider": "qweather",
+        "api_key": "",
+        "api_host": "",
+        "auto_update": "true",
+        "show_aqi": "false",
+    },
 }
 
 class SettingsManager:
@@ -119,3 +126,27 @@ class SettingsManager:
     @is_first_run.setter
     def is_first_run(self, value: bool) -> None:
         self.set("General", "first_run", str(value).lower())
+
+    @property
+    def weather_api_key(self) -> str:
+        return self.get("Weather", "api_key")
+
+    @weather_api_key.setter
+    def weather_api_key(self, value: str) -> None:
+        self.set("Weather", "api_key", value)
+
+    @property
+    def weather_api_host(self) -> str:
+        return self.get("Weather", "api_host")
+
+    @weather_api_host.setter
+    def weather_api_host(self, value: str) -> None:
+        self.set("Weather", "api_host", value)
+
+    @property
+    def weather_auto_update(self) -> bool:
+        return self.get_bool("Weather", "auto_update", fallback=True)
+
+    @weather_auto_update.setter
+    def weather_auto_update(self, value: bool) -> None:
+        self.set("Weather", "auto_update", str(value).lower())
