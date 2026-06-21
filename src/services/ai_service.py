@@ -12,6 +12,23 @@ from PySide6.QtCore import QObject, Signal, QThread
 logger = logging.getLogger("ai_service")
 
 
+def _weather_code_to_text(code: int) -> str:
+    """天气代码转中文描述"""
+    mapping = {
+        0: "晴", 1: "晴间多云", 2: "多云", 3: "阴",
+        45: "雾", 48: "霜雾",
+        51: "小毛毛雨", 53: "中毛毛雨", 55: "大毛毛雨",
+        56: "冻毛毛雨", 57: "强冻毛毛雨",
+        61: "小雨", 63: "中雨", 65: "大雨",
+        66: "冻雨", 67: "强冻雨",
+        71: "小雪", 73: "中雪", 75: "大雪", 77: "雪粒",
+        80: "小阵雨", 81: "中阵雨", 82: "大阵雨",
+        85: "小阵雪", 86: "大阵雪",
+        95: "雷暴", 96: "雷暴伴冰雹", 99: "强雷暴伴冰雹",
+    }
+    return mapping.get(code, "未知")
+
+
 # ── System prompt ──────────────────────────────────────────────
 
 SYSTEM_PROMPT_BASE = """你是一个学生时间管理助手。理解用户意图、提取参数、调用脚本。
@@ -38,6 +55,9 @@ python scripts/actions.py log_habit --id "h_001"
 python scripts/actions.py add_plan --date "YYYY-MM-DD" --title "标题" --slot 3
 python scripts/actions.py replace_plans --date "YYYY-MM-DD" --plans '[{"title":"标题","time_slot":3}]'
 python scripts/actions.py add_course --name "课程" --day 1 --weeks "1-16" --slots "3-4"
+python scripts/actions.py query_weather  # 查询天气（返回JSON）
+python scripts/actions.py query_balance  # 查询DeepSeek余额（返回JSON）
+python scripts/actions.py weather_stats  # 天气API调用统计（返回JSON）
 ```
 
 schedule格式: daily/N, weekly/1,3,5, monthly/N。day: 1=周一...7=周日。
@@ -68,6 +88,15 @@ python scripts/actions.py need_restock
 6. 提醒类 → add_plan
 7. 移动/拿到/放到/挪到 → update_item --location
 8. 删除/丢掉/扔掉/不要了 → delete_item
+9. 天气/气温/多少度/下雨/晴天 → query_weather
+10. 余额/剩余/还剩/额度/多少钱 → query_balance
+11. 调用次数/统计/用了多少次 → weather_stats
+
+## 天气与日程规划
+- 规划日程时参考天气预报。若当天有雨（weathercode 51-67, 80-82, 95-99），在相关日程备注中提醒"记得带伞"
+- 若温度超过35°C，提醒"注意防暑"
+- 若温度低于0°C，提醒"注意保暖"
+- 天气信息已在上下文中提供，直接引用即可
 """
 
 
@@ -225,13 +254,18 @@ class AIService(QObject):
     error_occurred = Signal(str)
     instructions_executed = Signal(str, list)
 
-    def __init__(self, settings, data_manager, parent=None):
+    def __init__(self, settings, data_manager, weather_service=None, parent=None):
         super().__init__(parent)
         self._settings = settings
         self._dm = data_manager
+        self._weather_service = weather_service  # 天气服务
         self._history: list[dict] = []
         self._thread: QThread | None = None
         self._worker: AIWorker | None = None
+
+    def set_weather_service(self, weather_service) -> None:
+        """设置天气服务"""
+        self._weather_service = weather_service
 
     def _make_provider(self) -> AIProvider:
         provider = self._settings.get("AI", "provider", "deepseek")
@@ -319,9 +353,102 @@ class AIService(QObject):
         self._ds_balance_cache = {"value": val, "fetched_at": now}
         return val
 
+    # Weather cache
+    _weather_cache: dict[str, Any] = {}
+
+    def _fetch_weather_for_prompt(self) -> str:
+        """获取天气信息用于系统提示词。优先使用WeatherService，否则回退到Open-Meteo。"""
+        import time
+        now = time.time()
+        cached = self._weather_cache
+        if cached and (now - cached.get("fetched_at", 0)) < 300:
+            return cached.get("value", "  天气信息暂不可用")
+
+        # 优先使用WeatherService
+        if self._weather_service:
+            try:
+                val = self._weather_service.get_weather_text_for_ai()
+                self._weather_cache = {"value": val, "fetched_at": now}
+                return val
+            except Exception as e:
+                logger.warning(f"WeatherService获取天气失败: {e}")
+
+        # 回退到Open-Meteo（保留旧逻辑作为备用）
+        try:
+            import requests
+            from src.models.scene_archive import SceneArchive
+            archive = SceneArchive(self._dm.data_dir)
+            loc = archive.get_location()
+            lat, lon = loc["lat"], loc["lon"]
+
+            resp = requests.get(
+                "https://api.open-meteo.com/v1/forecast",
+                params={
+                    "latitude": lat,
+                    "longitude": lon,
+                    "current_weather": True,
+                    "hourly": "temperature_2m,relativehumidity_2m,weathercode,precipitation_probability",
+                    "timezone": "Asia/Shanghai",
+                    "forecast_days": 3,
+                },
+                timeout=5,
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                current = data.get("current_weather", {})
+                hourly = data.get("hourly", {})
+
+                temp = current.get("temperature", "?")
+                wcode = current.get("weathercode", 0)
+                wtext = _weather_code_to_text(wcode)
+                wind = current.get("windspeed", "?")
+
+                lines = [f"  当前: {wtext}, {temp}°C, 风速{wind}km/h"]
+
+                # 未来3天预报
+                temps = hourly.get("temperature_2m", [])
+                codes = hourly.get("weathercode", [])
+                times = hourly.get("time", [])
+                if temps and codes and times:
+                    from datetime import datetime as _dt
+                    seen_days = set()
+                    for i, t in enumerate(times):
+                        if i >= len(temps) or i >= len(codes):
+                            break
+                        dt = _dt.fromisoformat(t.replace("Z", "+00:00"))
+                        day_key = dt.strftime("%m-%d")
+                        if day_key not in seen_days and len(seen_days) < 3:
+                            seen_days.add(day_key)
+                            lines.append(f"  {dt.strftime('%m-%d')}: {_weather_code_to_text(codes[i])}, {temps[i]}°C")
+
+                val = "\n".join(lines)
+            else:
+                val = "  天气查询失败"
+        except Exception as e:
+            val = f"  天气信息暂不可用 ({e})"
+        self._weather_cache = {"value": val, "fetched_at": now}
+        return val
+
     def _build_system_prompt(self) -> str:
-        summary = self._dm.get_today_summary()
         today = date.today()
+        # Weather cache timestamp to include in prompt cache
+        weather_ts = self._weather_cache.get("fetched_at", 0) if hasattr(self, '_weather_cache') else 0
+        # Lightweight cache: skip rebuild if data shape hasn't changed today
+        cache_key = (
+            today.isoformat(),
+            len(self._dm.courses.courses),
+            len(self._dm.daily_logs._data.get("plans", {})),
+            len(self._dm.tasks.active),
+            len(self._dm.habits.habits),
+            len(self._dm.expenses.records),
+            len(self._dm.inventory.items),
+            self._dm.expenses.budget.get("monthly", 0),
+            int(weather_ts),  # 包含天气缓存时间戳
+        )
+        if getattr(self, '_prompt_cache_key', None) == cache_key:
+            return self._prompt_cache_value
+
+        summary = self._dm.get_today_summary()
         weekday_names = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
         weekday = weekday_names[today.weekday()]
 
@@ -358,6 +485,9 @@ class AIService(QObject):
             balance_lines.append(f"  DeepSeek API: {ds_balance}")
         balance_info = "\n".join(balance_lines)
 
+        # 获取天气信息
+        weather_info = self._fetch_weather_for_prompt()
+
         context = f"""当前日期: {today.isoformat()} {weekday}
 当前学期: {self._dm.courses.current_semester or '未设置'}
 当前第{self._get_current_week()}周 ({self._get_week_parity()})
@@ -384,13 +514,19 @@ class AIService(QObject):
 余额:
 {balance_info}
 
+天气:
+{weather_info}
+
 物品库存（id 用于修改/移动）:
 {self._build_inventory_list()}
 
 假期/调休:
 {self._build_holiday_info()}
 """
-        return SYSTEM_PROMPT_BASE + "\n" + context + "\n【输出格式】\n- 纯文本，禁用 markdown。仅可用**加粗**。\n- 禁止输出脚本命令原文和执行结果。\n- 查找发现重复物品时，在该轮回复中告知用户，等待确认后再处理。\n- 完成后用一行简练中文总结操作结果。"
+        prompt = SYSTEM_PROMPT_BASE + "\n" + context + "\n【输出格式】\n- 纯文本，禁用 markdown。仅可用**加粗**。\n- 禁止输出脚本命令原文和执行结果。\n- 查找发现重复物品时，在该轮回复中告知用户，等待确认后再处理。\n- 完成后用一行简练中文总结操作结果。"
+        self._prompt_cache_key = cache_key
+        self._prompt_cache_value = prompt
+        return prompt
 
     def _build_expense_list(self) -> str:
         records = sorted(self._dm.expenses.records, key=lambda r: r.get("date", ""), reverse=True)[:20]
