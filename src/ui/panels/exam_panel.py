@@ -44,7 +44,7 @@ class _ExamCard(QWidget):
             accent_color = c["accent"]
 
         self.setStyleSheet(f"""
-            _ExamCard {{ background-color: {bg}; border-radius: 10px; }}
+            _ExamCard {{ background-color: {bg}; border-radius: 8px; }}
             _ExamCard:hover {{ background-color: {c['accent_bg']}; }}
         """)
 
@@ -200,17 +200,12 @@ class ExamPanel(QWidget):
             self._refresh()
 
     def _context_menu(self, pos, exam: dict) -> None:
-        c = get_colors()
-        menu = QMenu(self)
-        menu.setStyleSheet(f"""
-            QMenu {{ background-color: {c['bg_elevated']}; color: {c['fg_primary']};
-                border-radius: 8px; padding: 4px; }}
-            QMenu::item {{ padding: 6px 24px 6px 12px; border-radius: 4px; }}
-            QMenu::item:selected {{ background-color: {c['accent_bg']}; }}
-        """)
-        menu.addAction("编辑").triggered.connect(lambda: self._add_exam(exam))
-        menu.addAction("删除").triggered.connect(lambda: self._delete_exam(exam["id"]))
-        menu.exec(self.mapToGlobal(pos))
+        from src.ui.widgets.context_menu import ContextMenu
+        
+        menu = ContextMenu(self)
+        menu.add_item("编辑", lambda: self._add_exam(exam))
+        menu.add_item("删除", lambda: self._delete_exam(exam["id"]))
+        menu.exec()
 
     def _delete_exam(self, eid: str) -> None:
         name = eid

@@ -139,24 +139,24 @@ class InventoryPanel(QWidget):
         return f"QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['fg_hint']}; border-radius: 8px; padding: 4px 12px; font-size: 13px; }} QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; color: {c['fg_secondary']}; }} QPushButton::menu-indicator {{ image: none; }}"
 
     def _show_cat_filter(self) -> None:
-        c = get_colors()
-        menu = QMenu(self)
-        menu.setStyleSheet(f"QMenu {{ background-color: {c['bg_elevated']}; color: {c['fg_primary']}; border: 1px solid {c['border_strong']}; border-radius: 8px; padding: 4px; }} QMenu::item {{ padding: 6px 24px 6px 12px; border-radius: 4px; }} QMenu::item:selected {{ background-color: {c['accent_bg']}; }}")
-        menu.addAction("全部分类").triggered.connect(lambda: self._apply_cat_filter("全部"))
-        menu.addSeparator()
-        cats = self._dm.inventory.categories  # read from model, not from existing items
+        from src.ui.widgets.context_menu import ContextMenu
+        
+        menu = ContextMenu(self)
+        menu.add_action("全部分类").triggered.connect(lambda: self._apply_cat_filter("全部"))
+        menu.add_separator()
+        cats = self._dm.inventory.categories
         for cat in cats:
-            menu.addAction(cat).triggered.connect(lambda checked, c2=cat: self._apply_cat_filter(c2))
+            menu.add_action(cat).triggered.connect(lambda checked, c2=cat: self._apply_cat_filter(c2))
         menu.exec(self._cat_btn.mapToGlobal(self._cat_btn.rect().bottomLeft()))
 
     def _show_tag_filter(self) -> None:
-        c = get_colors()
-        menu = QMenu(self)
-        menu.setStyleSheet(f"QMenu {{ background-color: {c['bg_elevated']}; color: {c['fg_primary']}; border: 1px solid {c['border_strong']}; border-radius: 8px; padding: 4px; }} QMenu::item {{ padding: 6px 24px 6px 12px; border-radius: 4px; }} QMenu::item:selected {{ background-color: {c['accent_bg']}; }}")
-        menu.addAction("全部标签").triggered.connect(lambda: self._apply_tag_filter(""))
-        menu.addSeparator()
+        from src.ui.widgets.context_menu import ContextMenu
+        
+        menu = ContextMenu(self)
+        menu.add_action("全部标签").triggered.connect(lambda: self._apply_tag_filter(""))
+        menu.add_separator()
         for tag in self._dm.inventory.all_tags:
-            menu.addAction(tag).triggered.connect(lambda checked, t=tag: self._apply_tag_filter(t))
+            menu.add_action(tag).triggered.connect(lambda checked, t=tag: self._apply_tag_filter(t))
         menu.exec(self._tag_btn.mapToGlobal(self._tag_btn.rect().bottomLeft()))
 
     def _apply_cat_filter(self, cat: str) -> None:
@@ -259,17 +259,25 @@ class InventoryPanel(QWidget):
         cats = self._dm.inventory.categories
         total_items = len(self._dm.inventory.items)
 
+        from collections import Counter
+        counts = Counter()
+        for it in self._dm.inventory.items:
+            if self._tag_filter and self._tag_filter not in it.get("tags", []):
+                continue
+            counts[it.get("category", "其他")] += 1
+
         for cat_name in cats:
-            cat_items = [it for it in self._dm.inventory.items if it.get("category") == cat_name]
-            if self._tag_filter:
-                cat_items = [it for it in cat_items if self._tag_filter in it.get("tags", [])]
-            count = len(cat_items)
+            count = counts.get(cat_name, 0)
 
             card = QWidget()
             card.setMinimumHeight(56)
             card.setCursor(Qt.CursorShape.PointingHandCursor)
             card.setStyleSheet(f"background-color: {c['bg_elevated']}; border-radius: 8px;")
-            card.mousePressEvent = lambda e, cn=cat_name: self._enter_category(cn)
+            # Only left-click enters category; right-click is blocked
+            def _on_click(e, cn=cat_name):
+                if e.button() == Qt.MouseButton.LeftButton:
+                    self._enter_category(cn)
+            card.mousePressEvent = _on_click
 
             cl = QHBoxLayout(card)
             cl.setContentsMargins(16, 12, 16, 12)
@@ -340,7 +348,11 @@ class InventoryPanel(QWidget):
         card.setMinimumHeight(56)
         card.setCursor(Qt.CursorShape.PointingHandCursor)
         card.setStyleSheet(f"background-color: {c['accent_bg']}; border-radius: 8px;")
-        card.mousePressEvent = lambda e, gn=d["name"]: self._enter_group(gn)
+        # Only left-click enters group; right-click is blocked
+        def _on_click(e, gn=d["name"]):
+            if e.button() == Qt.MouseButton.LeftButton:
+                self._enter_group(gn)
+        card.mousePressEvent = _on_click
 
         cl = QHBoxLayout(card)
         cl.setContentsMargins(16, 12, 16, 12)
@@ -567,23 +579,23 @@ class InventoryPanel(QWidget):
         labels = self.CATEGORY_LABELS.get(cat, {"需购": "需购", "不足": "不足", "充足": "充足"})
         st = item.get("status", "充足")
 
-        menu = QMenu(self)
-        menu.setStyleSheet(f"QMenu {{ background-color: {c['bg_elevated']}; color: {c['fg_primary']}; border-radius: 8px; padding: 4px; }} QMenu::item {{ padding: 6px 24px 6px 12px; border-radius: 4px; }} QMenu::item:selected {{ background-color: {c['accent_bg']}; }}")
+        from src.ui.widgets.context_menu import ContextMenu
+        menu = ContextMenu(self)
 
         for target_status in ["需购", "不足", "充足"]:
             if st != target_status:
-                menu.addAction(labels[target_status]).triggered.connect(
+                menu.add_action(labels[target_status]).triggered.connect(
                     lambda checked, s=target_status: self._quick_update(item["id"], {"status": s}))
 
         ig = item.get("ignore_low_stock", False)
-        menu.addAction("恢复库存提醒" if ig else "忽略库存不足提醒").triggered.connect(
+        menu.add_action("恢复库存提醒" if ig else "忽略库存不足提醒").triggered.connect(
             lambda: self._quick_update(item["id"], {"ignore_low_stock": not ig}))
-        menu.addSeparator()
-        menu.addAction("设置邮件提醒").triggered.connect(lambda: self._email_reminder(item))
-        menu.addAction("修改标签").triggered.connect(lambda: self._edit_tags(item))
-        if cat != "虚拟品类":  # 虚拟品类不直接删
-            menu.addAction("删除").triggered.connect(lambda: self._delete_item(item["id"]))
-        menu.exec(QCursor.pos())
+        menu.add_separator()
+        menu.add_action("设置邮件提醒").triggered.connect(lambda: self._email_reminder(item))
+        menu.add_action("修改标签").triggered.connect(lambda: self._edit_tags(item))
+        if cat != "虚拟品类":
+            menu.add_action("删除").triggered.connect(lambda: self._delete_item(item["id"]))
+        menu.exec()
 
     def _quick_update(self, iid, data) -> None:
         self._dm.inventory.update_item(iid, data); self._dm.inventory.save(); self._dm.data_changed.emit("inventory"); self._refresh()

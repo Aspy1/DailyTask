@@ -5,12 +5,13 @@ import re
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
-    QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView, QMenu,
+    QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
 )
-from PySide6.QtGui import QFont, QColor, QBrush, QAction
+from PySide6.QtGui import QFont, QColor, QBrush
 
 from src.models.course import PERIOD_TIMES
 from src.ui.styles.theme import get_colors
+from src.ui.widgets.context_menu import ContextMenu
 
 
 DAY_LABELS = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
@@ -27,7 +28,7 @@ COURSE_BG_TINTS = [
     "rgba(110,140,100,0.10)",  # olive
 ]
 
-CELL_TEXT = "#2D2A26"
+CELL_TEXT = None
 
 # Right-click menu actions — extensible: just add a label
 COURSE_ACTIONS = [
@@ -39,24 +40,26 @@ COURSE_ACTIONS = [
 ]
 
 
-def build_course_context_menu(course: dict, parent=None) -> QMenu:
+def build_course_context_menu(course: dict, parent=None) -> object:
     """Create a standalone course context menu — usable from schedule view too."""
-    from PySide6.QtWidgets import QMenu
-    c = get_colors()
-    menu = QMenu(parent)
-    menu.setStyleSheet(f"""
-        QMenu {{ background-color: {c['bg_elevated']}; color: {c['fg_primary']}; border: 1px solid {c['border_strong']}; border-radius: 8px; padding: 4px; }}
-        QMenu::item {{ padding: 6px 24px 6px 12px; border-radius: 4px; }}
-        QMenu::item:selected {{ background-color: {c['accent_bg']}; }}
-        QMenu::separator {{ height: 1px; background-color: {c['divider']}; margin: 4px 8px; }}
-    """)
+    from src.ui.widgets.context_menu import ContextMenu, MenuAction
+    
+    menu = ContextMenu(parent)
     course_id = course.get("id", "")
-    menu.addAction("修改课程名称").setData(("rename", course_id))
-    menu.addAction("删除这门课").setData(("delete", course_id))
-    menu.addAction("查看关于这门课的事项").setData(("view_tasks", course.get("name", "")))
-    menu.addSeparator()
+    
+    rename_action = menu.add_action("修改课程名称")
+    rename_action.setData(("rename", course_id))
+    delete_action = menu.add_action("删除这门课")
+    delete_action.setData(("delete", course_id))
+    view_tasks_action = menu.add_action("查看关于这门课的事项")
+    view_tasks_action.setData(("view_tasks", course.get("name", "")))
+    
+    menu.add_separator()
+    
     for action_label in COURSE_ACTIONS:
-        menu.addAction(action_label).setData(("fill", action_label))
+        action = menu.add_action(action_label)
+        action.setData(("fill", action_label))
+    
     return menu
 
 
@@ -229,35 +232,29 @@ class CourseTable(QTableWidget):
             return
         course_id = course.get("id", "")
 
-        c = get_colors()
-        menu = QMenu(self)
-        menu.setStyleSheet(f"""
-            QMenu {{ background-color: {c['bg_elevated']}; color: {c['fg_primary']}; border: 1px solid {c['border_strong']}; border-radius: 8px; padding: 4px; }}
-            QMenu::item {{ padding: 6px 24px 6px 12px; border-radius: 4px; }}
-            QMenu::item:selected {{ background-color: {c['accent_bg']}; }}
-            QMenu::separator {{ height: 1px; background-color: {c['divider']}; margin: 4px 8px; }}
-        """)
+        menu = ContextMenu(self)
 
         # Section 1: course management
-        rename_action = menu.addAction("修改课程名称")
+        rename_action = menu.add_action("修改课程名称")
         rename_action.setData(("rename", course_id))
-        delete_action = menu.addAction("删除这门课")
+        delete_action = menu.add_action("删除这门课")
         delete_action.setData(("delete", course_id))
-        view_tasks_action = menu.addAction("查看关于这门课的事项")
+        view_tasks_action = menu.add_action("查看关于这门课的事项")
         view_tasks_action.setData(("view_tasks", course.get("name", "")))
 
-        menu.addSeparator()
+        menu.add_separator()
 
         # Section 2: task creation → fill AI prompt
         for action_label in COURSE_ACTIONS:
-            action = menu.addAction(action_label)
+            action = menu.add_action(action_label)
             action.setData(("fill", action_label))
 
-        chosen = menu.exec(self.viewport().mapToGlobal(pos))
-        if chosen is None or chosen.data() is None:
+        menu.exec()
+        chosen = menu.last_action
+        if chosen is None or chosen.data is None:
             return
 
-        action_type, payload = chosen.data()
+        action_type, payload = chosen.data
         if action_type == "rename":
             self.course_rename_requested.emit(course_id)
         elif action_type == "delete":

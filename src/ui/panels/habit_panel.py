@@ -5,7 +5,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QListWidget, QListWidgetItem, QDialog, QLineEdit, QComboBox, QSpinBox,
     QFormLayout, QDialogButtonBox, QMessageBox, QCheckBox,
-    QScrollArea, QSizePolicy, QMenu,
+    QScrollArea, QSizePolicy,
 )
 from PySide6.QtGui import QFont
 
@@ -40,20 +40,20 @@ class _HabitCard(QWidget):
         is_daily = sched.get("type") in ("daily", "interval")
         is_weekly = sched.get("type") == "weekly"
 
-        # Card background: dim when done, warm paper when active
+        # Card background: dim when done, elevated when active
         if done:
             bg = c["bg_surface"]
             name_fg = c["fg_hint"]
             desc_fg = c["fg_disabled"]
         else:
-            bg = c["card_bg"]
+            bg = c["bg_card"]
             name_fg = c["fg_primary"]
             desc_fg = c["fg_secondary"]
 
         self.setStyleSheet(f"""
             _HabitCard {{
                 background-color: {bg};
-                border-radius: 12px;
+                border-radius: 8px;
             }}
             _HabitCard:hover {{
                 background-color: {c['accent_bg']};
@@ -111,7 +111,7 @@ class _HabitCard(QWidget):
         tag = QLabel(tag_text)
         tag.setStyleSheet(f"""
             color: {tag_fg}; font-size: 11px; font-weight: 500;
-            padding: 2px 10px; border-radius: 10px;
+            padding: 2px 10px; border-radius: 4px;
             background-color: {tag_bg}; border: none;
         """)
         row1.addWidget(tag)
@@ -134,10 +134,11 @@ class _HabitCard(QWidget):
             done_btn = QPushButton("完成打卡")
             done_btn.setStyleSheet(f"""
                 QPushButton {{
-                    background-color: {c['accent']}; color: #fff; border: none;
-                    border-radius: 6px; padding: 5px 16px; font-size: 11px; font-weight: 600;
+                    background-color: {c['accent']}; color: {c['fg_primary']}; border: none;
+                    border-radius: 8px; padding: 8px 12px; font-size: 13px; font-weight: 600;
                 }}
                 QPushButton:hover {{ background-color: {c['accent_hover']}; }}
+                QPushButton:pressed {{ background-color: {c['accent_dim']}; }}
             """)
             done_btn.clicked.connect(lambda: self.toggled.emit(self._hid))
             btn_row.addWidget(done_btn)
@@ -147,9 +148,10 @@ class _HabitCard(QWidget):
                 QPushButton {{
                     background: transparent; color: {c['fg_secondary']};
                     border: 1px solid {c['border_strong']};
-                    border-radius: 6px; padding: 5px 12px; font-size: 11px;
+                    border-radius: 8px; padding: 8px 12px; font-size: 13px;
                 }}
                 QPushButton:hover {{ background: {c['bg_input']}; }}
+                QPushButton:pressed {{ background: {c['accent_bg']}; }}
             """)
             postpone_btn.clicked.connect(
                 lambda: self.postpone_clicked.emit(self._hid))
@@ -159,9 +161,10 @@ class _HabitCard(QWidget):
             skip_btn.setStyleSheet(f"""
                 QPushButton {{
                     background: transparent; color: {c['fg_hint']}; border: none;
-                    border-radius: 6px; padding: 5px 12px; font-size: 11px;
+                    border-radius: 8px; padding: 8px 12px; font-size: 13px;
                 }}
                 QPushButton:hover {{ color: {c['fg_secondary']}; }}
+                QPushButton:pressed {{ color: {c['fg_primary']}; }}
             """)
             skip_btn.clicked.connect(
                 lambda: self.skip_clicked.emit(self._hid))
@@ -174,9 +177,10 @@ class _HabitCard(QWidget):
             self.toggled.emit(self._hid)
 
     def contextMenuEvent(self, ev):
-        menu = QMenu(self)
-        edit_action = menu.addAction("编辑")
-        edit_action.triggered.connect(lambda: self.edit_requested.emit(self._hid))
+        from src.ui.widgets.context_menu import ContextMenu
+        
+        menu = ContextMenu(self)
+        menu.add_action("编辑").triggered.connect(lambda: self.edit_requested.emit(self._hid))
         menu.exec(ev.globalPos())
 
 
@@ -292,8 +296,9 @@ class HabitPanel(QWidget):
         self._fab.setFixedSize(48, 48)
         self._fab.setStyleSheet(f"""
             QPushButton {{ background-color: {c['accent']}; color: #fff; border: none;
-                border-radius: 12px; font-size: 24px; font-weight: 600; }}
+                border-radius: 24px; font-size: 24px; font-weight: 600; }}
             QPushButton:hover {{ background-color: {c['accent_hover']}; }}
+            QPushButton:pressed {{ background-color: {c['accent_dim']}; }}
         """)
         self._fab.clicked.connect(self._add_habit)
         self._fab.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -582,7 +587,7 @@ class HabitDialog(QDialog):
         lk_btns = QHBoxLayout()
         for text, slot in [("+ 关联物品", self._add_linked), ("移除", self._remove_linked)]:
             btn = QPushButton(text)
-            btn.setStyleSheet(f"QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']}; border: none; border-radius: 4px; padding: 4px 10px; font-size: 12px; }} QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; }}")
+            btn.setStyleSheet(self._btn_secondary_qss())
             btn.clicked.connect(slot)
             lk_btns.addWidget(btn)
         lk_btns.addStretch()
@@ -605,6 +610,15 @@ class HabitDialog(QDialog):
             QComboBox {{ background-color: {c['bg_input']}; color: {c['fg_primary']};
                 border: 1px solid {c['border']}; padding: 3px 4px; font-size: 13px; }}
             QComboBox::drop-down {{ border: none; width: 16px; }}
+        """
+
+    def _btn_secondary_qss(self) -> str:
+        c = get_colors()
+        return f"""
+            QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
+                border: none; border-radius: 8px; padding: 8px 12px; font-size: 13px; }}
+            QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; }}
+            QPushButton:pressed {{ background-color: {c['accent_bg']}; }}
         """
 
     def _refresh_at_list(self) -> None:
@@ -818,7 +832,7 @@ class _AttachedTaskDialog(QDialog):
         lk_btns = QHBoxLayout()
         for text, slot in [("+ 关联物品", self._add_linked), ("移除", self._remove_linked)]:
             btn = QPushButton(text)
-            btn.setStyleSheet(f"QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']}; border: none; border-radius: 4px; padding: 4px 10px; font-size: 12px; }} QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; }}")
+            btn.setStyleSheet(f"QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']}; border: none; border-radius: 8px; padding: 8px 12px; font-size: 13px; }} QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; }} QPushButton:pressed {{ background-color: {c['accent_bg']}; }}")
             btn.clicked.connect(slot)
             lk_btns.addWidget(btn)
         lk_btns.addStretch()

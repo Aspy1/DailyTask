@@ -2,8 +2,12 @@
 
 from datetime import date, datetime, timedelta
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 from src.models.base import BaseJsonModel
+
+if TYPE_CHECKING:
+    from src.models.inventory import InventoryModel
 
 
 DEFAULT_HABITS = {
@@ -15,8 +19,23 @@ DEFAULT_HABITS = {
 
 
 class HabitModel(BaseJsonModel):
+    _inventory: "InventoryModel"
+
     def __init__(self, file_path: Path):
         super().__init__(file_path, DEFAULT_HABITS)
+        self._rebuild_index()
+
+    def load(self) -> dict[str, Any]:
+        data = super().load()
+        self._rebuild_index()
+        return data
+
+    def reload(self) -> None:
+        super().reload()
+        self._rebuild_index()
+
+    def _rebuild_index(self) -> None:
+        self._habit_by_id = {h["id"]: h for h in self.habits}
 
     @property
     def habits(self) -> list[dict]:
@@ -45,13 +64,14 @@ class HabitModel(BaseJsonModel):
         habit.setdefault("canceled_on", [])
         habit.setdefault("created_at", datetime.now().isoformat())
         habits.append(habit)
+        self._habit_by_id[hid] = habit
         return hid
 
     def update_habit(self, habit_id: str, changes: dict) -> bool:
-        for h in self.habits:
-            if h["id"] == habit_id:
-                h.update(changes)
-                return True
+        habit = self._habit_by_id.get(habit_id)
+        if habit:
+            habit.update(changes)
+            return True
         return False
 
     def postpone(self, habit_id: str, until: str) -> bool:
@@ -61,20 +81,16 @@ class HabitModel(BaseJsonModel):
     def cancel_today(self, habit_id: str) -> bool:
         """Cancel today's instance of a habit."""
         today = date.today().isoformat()
-        for h in self.habits:
-            if h["id"] == habit_id:
-                canceled = h.setdefault("canceled_on", [])
-                if today not in canceled:
-                    canceled.append(today)
-                return True
+        habit = self._habit_by_id.get(habit_id)
+        if habit:
+            canceled = habit.setdefault("canceled_on", [])
+            if today not in canceled:
+                canceled.append(today)
+            return True
         return False
 
     def is_active_today(self, habit_id: str) -> bool:
-        habit = None
-        for h in self.habits:
-            if h["id"] == habit_id:
-                habit = h
-                break
+        habit = self._habit_by_id.get(habit_id)
         if not habit:
             return False
 
@@ -153,11 +169,7 @@ class HabitModel(BaseJsonModel):
             self._update_streak(habit_id)
         attached = []
         if completed:
-            habit = None
-            for h in self.habits:
-                if h["id"] == habit_id:
-                    habit = h
-                    break
+            habit = self._habit_by_id.get(habit_id)
             if habit:
                 for at in habit.get("attached_tasks", []):
                     due = datetime.now() + timedelta(hours=at.get("delay_hours", 24))
@@ -171,13 +183,12 @@ class HabitModel(BaseJsonModel):
         return attached
 
     def _update_streak(self, habit_id: str) -> None:
-        for habit in self._data.get("habits", []):
-            if habit["id"] == habit_id:
-                streak = habit.get("streak", 0) + 1
-                habit["streak"] = streak
-                if streak > habit.get("longest_streak", 0):
-                    habit["longest_streak"] = streak
-                return
+        habit = self._habit_by_id.get(habit_id)
+        if habit:
+            streak = habit.get("streak", 0) + 1
+            habit["streak"] = streak
+            if streak > habit.get("longest_streak", 0):
+                habit["longest_streak"] = streak
 
     def is_done_today(self, habit_id: str) -> bool:
         today = date.today().isoformat()
@@ -185,13 +196,11 @@ class HabitModel(BaseJsonModel):
         entry = day_log.get(habit_id, {})
         return entry.get("completed", False)
 
-    def get_pending_today(self) -> list[dict]:
-        return [h for h in self.habits if not self.is_done_today(h["id"])]
-
     def delete_habit(self, habit_id: str) -> bool:
         habits = self._data.get("habits", [])
         for i, h in enumerate(habits):
             if h["id"] == habit_id:
                 habits.pop(i)
+                self._habit_by_id.pop(habit_id, None)
                 return True
         return False

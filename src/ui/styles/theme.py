@@ -1,19 +1,24 @@
 """Design system — Warm Paper Study palette (light-first)."""
 
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont, QFontDatabase
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QMenu
 
 FONT_CN = "Microsoft YaHei"
 FONT_MONO = "Consolas"
 
 # ── Type scale (see DESIGN_TOKENS.md §2.2) ──────────────
-SIZE_CAPTION  = 12   # table data, status bar
-SIZE_BODY_S   = 13   # secondary text, labels, footnotes
-SIZE_BODY     = 14   # body (default)
-SIZE_BODY_L   = 16   # card titles, emphasized body
-SIZE_SUBTITLE = 20   # section headings
-SIZE_TITLE    = 28   # page titles
-SIZE_HEADING  = 36   # hero / empty-state headings
+SIZE_TINY      = 10   # tags, badges
+SIZE_CAPTION   = 12   # table data, status bar
+SIZE_BODY_S    = 13   # secondary text, labels, footnotes
+SIZE_BODY      = 14   # body (default)
+SIZE_BODY_M    = 15   # emphasized body text
+SIZE_BODY_L    = 16   # card titles, emphasized body
+SIZE_ICON      = 18   # icon font size
+SIZE_SUBTITLE  = 20   # section headings
+SIZE_TITLE     = 28   # page titles
+SIZE_HEADING   = 36   # hero / empty-state headings
+SIZE_FAB       = 24   # floating action button
 
 # ── Design tokens (see DESIGN_TOKENS.md §1) ─────────────
 
@@ -44,6 +49,21 @@ TOKENS = {
         "green":            "#4A8B5F",
         "yellow":           "#B0823A",
         "orange":           "#C5702A",
+        # Course colors
+        "course_color_1":   "rgba(176,130,58,0.12)",   # amber
+        "course_color_2":   "rgba(90,140,110,0.10)",   # sage
+        "course_color_3":   "rgba(160,110,80,0.10)",   # terracotta
+        "course_color_4":   "rgba(100,130,170,0.10)",  # slate blue
+        "course_color_5":   "rgba(140,120,90,0.10)",   # warm taupe
+        "course_color_6":   "rgba(80,150,130,0.10)",   # teal
+        "course_color_7":   "rgba(170,100,120,0.10)",  # rose
+        "course_color_8":   "rgba(110,140,100,0.10)",  # olive
+        # Button states
+        "btn_pressed_bg":   "rgba(0,0,0,0.08)",
+        # Badge
+        "badge_bg":         "rgba(176,130,58,0.10)",
+        "badge_fg":         "#B0823A",
+        "badge_radius":     8,
         # Navigation
         "sidebar_bg":       "#D0CCC4",
         "chat_bg":          "#FDFCFA",
@@ -88,6 +108,21 @@ TOKENS = {
         "green":            "#5FA87A",
         "yellow":           "#D4A853",
         "orange":           "#D48A40",
+        # Course colors (adjusted for dark bg)
+        "course_color_1":   "rgba(212,168,83,0.15)",   # amber
+        "course_color_2":   "rgba(95,168,122,0.12)",   # sage
+        "course_color_3":   "rgba(200,140,100,0.12)",   # terracotta
+        "course_color_4":   "rgba(130,160,200,0.12)",  # slate blue
+        "course_color_5":   "rgba(170,150,110,0.12)",   # warm taupe
+        "course_color_6":   "rgba(100,180,160,0.12)",   # teal
+        "course_color_7":   "rgba(200,130,150,0.12)",  # rose
+        "course_color_8":   "rgba(140,170,130,0.12)",  # olive
+        # Button states
+        "btn_pressed_bg":   "rgba(255,255,255,0.06)",
+        # Badge
+        "badge_bg":         "rgba(212,168,83,0.12)",
+        "badge_fg":         "#D4A853",
+        "badge_radius":     8,
         # Navigation — darker sidebar, distinct
         "sidebar_bg":       "#1A1917",
         "chat_bg":          "#1E1D1A",
@@ -109,6 +144,7 @@ TOKENS = {
 }
 
 _current_mode: str = "light"
+_color_cache: dict | None = None
 
 
 def get_mode() -> str:
@@ -116,12 +152,28 @@ def get_mode() -> str:
 
 
 def get_colors() -> dict:
-    return TOKENS.get(_current_mode, TOKENS["light"])
+    global _color_cache
+    if _color_cache is None:
+        _color_cache = TOKENS.get(_current_mode, TOKENS["light"])
+    return _color_cache
+
+
+def elide_text(text: str, font: QFont, max_width: int) -> str:
+    """Ellipsize text to fit within max_width pixels.
+
+    Usage:
+        from src.ui.styles.theme import elide_text
+        label.setText(elide_text(long_text, label.font(), 200))
+    """
+    from PySide6.QtGui import QFontMetrics
+    metrics = QFontMetrics(font)
+    return metrics.elidedText(text, Qt.TextElideMode.ElideRight, max_width)
 
 
 def switch_theme(mode: str) -> str:
-    global _current_mode
+    global _current_mode, _color_cache
     _current_mode = mode
+    _color_cache = None
     return build_theme(mode)
 
 
@@ -134,9 +186,10 @@ def _resolve_font() -> str:
 
 
 def init_theme(app: QApplication, mode: str = "light") -> str:
-    global FONT_CN, _current_mode
+    global FONT_CN, _current_mode, _color_cache
     FONT_CN = _resolve_font()
     _current_mode = mode
+    _color_cache = None
     font = QFont(FONT_CN, SIZE_BODY)
     font.setHintingPreference(QFont.HintingPreference.PreferFullHinting)
     app.setFont(font)
@@ -258,3 +311,198 @@ QToolTip {{ background-color: {t["bg_elevated"]}; color: {t["fg_primary"]}; bord
 #taskTable::item {{ padding: 8px 12px; min-height: 32px; border-bottom: 1px solid {t["divider"]}; }}
 #taskTable::item:alternate {{ background-color: {t["table_alt"]}; }}
 """
+
+
+# ── Public style helpers (see DESIGN_TOKENS.md §5-7) ──────────────
+
+def btn_primary_qss() -> str:
+    """主按钮样式 - accent 填充 + 白色文字"""
+    c = get_colors()
+    return f"""
+        QPushButton {{
+            background-color: {c['accent']}; color: #fff; border: none;
+            border-radius: 8px; padding: 8px 12px; font-size: {SIZE_BODY_S}px; font-weight: 500;
+        }}
+        QPushButton:hover {{ background-color: {c['accent_hover']}; }}
+        QPushButton:pressed {{ background-color: {c['accent_dim']}; }}
+        QPushButton:disabled {{ background-color: {c['fg_disabled']}; color: #fff; }}
+    """
+
+
+def btn_secondary_qss() -> str:
+    """次按钮样式 - 透明背景 + 边框"""
+    c = get_colors()
+    return f"""
+        QPushButton {{
+            background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
+            border: 1px solid {c['border_strong']}; border-radius: 8px;
+            padding: 8px 12px; font-size: {SIZE_BODY_S}px;
+        }}
+        QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; color: {c['btn_secondary_hover_fg']}; }}
+        QPushButton:pressed {{ background-color: rgba(0,0,0,0.08); }}
+        QPushButton:disabled {{ color: {c['fg_disabled']}; border-color: {c['divider']}; }}
+    """
+
+
+def btn_ghost_qss() -> str:
+    """文字按钮样式 - 完全透明 + accent 文字"""
+    c = get_colors()
+    return f"""
+        QPushButton {{
+            background: transparent; color: {c['accent']}; border: none;
+            border-radius: 8px; padding: 8px 12px; font-size: {SIZE_BODY_S}px;
+        }}
+        QPushButton:hover {{ color: {c['accent_hover']}; }}
+        QPushButton:pressed {{ color: {c['accent_dim']}; }}
+        QPushButton:disabled {{ color: {c['fg_disabled']}; }}
+    """
+
+
+def menu_qss() -> str:
+    """下拉菜单样式"""
+    c = get_colors()
+    return f"""
+        QMenu {{
+            background-color: {c['bg_elevated']};
+            border: 1px solid {c['border_strong']};
+            border-radius: 8px;
+            padding: 4px;
+        }}
+        QMenu::item {{
+            padding: 8px 12px;
+            border-radius: 4px;
+            color: {c['fg_primary']};
+        }}
+        QMenu::item:selected {{
+            background-color: {c['accent_bg']};
+        }}
+        QMenu::item:disabled {{
+            color: {c['fg_disabled']};
+        }}
+        QMenu::separator {{
+            height: 1px;
+            background-color: {c['divider']};
+            margin: 4px 8px;
+        }}
+    """
+
+
+def create_context_menu(parent=None) -> object:
+    """创建右键菜单（自动应用样式和去阴影）
+    
+    使用方式：
+        from src.ui.styles.theme import create_context_menu
+        
+        menu = create_context_menu(self)
+        menu.add_item("编辑", self._edit)
+        menu.add_item("删除", self._delete)
+        menu.exec()
+    
+    关键点：
+        1. 使用自定义 QWidget 实现，完全避免 Windows 原生阴影
+        2. 自动显示在鼠标当前位置
+        3. 点击外部自动关闭
+    """
+    from src.ui.widgets.context_menu import ContextMenu
+    
+    return ContextMenu(parent)
+
+
+def dialog_qss() -> str:
+    """对话框样式"""
+    c = get_colors()
+    return f"""
+        QDialog {{
+            background-color: {c['bg_elevated']};
+        }}
+        QLabel {{
+            color: {c['fg_primary']};
+            font-size: {SIZE_BODY_S}px;
+            background: transparent;
+        }}
+        QLineEdit {{
+            background-color: {c['bg_input']};
+            border: 1px solid {c['border']};
+            border-radius: 4px;
+            padding: 8px 12px;
+            font-size: {SIZE_BODY_S}px;
+            color: {c['fg_primary']};
+        }}
+        QLineEdit:focus {{
+            border: 1px solid {c['accent']};
+        }}
+        QListWidget {{
+            background-color: {c['bg_input']};
+            border: 1px solid {c['border']};
+            border-radius: 8px;
+            font-size: {SIZE_BODY_S}px;
+            color: {c['fg_primary']};
+        }}
+        QListWidget::item {{
+            padding: 8px 12px;
+            border-radius: 4px;
+        }}
+        QListWidget::item:selected {{
+            background-color: {c['accent_bg']};
+        }}
+    """
+
+
+def fab_qss() -> str:
+    """浮动操作按钮样式 - 完全圆形"""
+    c = get_colors()
+    return f"""
+        QPushButton {{
+            background-color: {c['accent']}; color: #fff; border: none;
+            border-radius: 24px; font-size: 24px; font-weight: 600;
+        }}
+        QPushButton:hover {{ background-color: {c['accent_hover']}; }}
+        QPushButton:pressed {{ background-color: {c['accent_dim']}; }}
+    """
+
+
+def toggle_switch_qss() -> str:
+    """Toggle switch 样式 - 圆角框 + 圆形滑块"""
+    c = get_colors()
+    return f"""
+        QCheckBox {{ spacing: 8px; font-size: {SIZE_BODY_S}px; color: {c['fg_primary']}; }}
+        QCheckBox::indicator {{
+            width: 40px; height: 22px;
+            border-radius: 11px;
+            background-color: {c['fg_disabled']};
+            border: none;
+        }}
+        QCheckBox::indicator:checked {{
+            background-color: {c['accent']};
+        }}
+        QCheckBox::indicator::handle {{
+            width: 18px; height: 18px;
+            border-radius: 9px;
+            background-color: #fff;
+            margin: 2px;
+        }}
+        QCheckBox::indicator:checked::handle {{
+            margin-left: 20px;
+        }}
+    """
+
+
+def card_qss() -> str:
+    """卡片样式"""
+    c = get_colors()
+    return f"""
+        background-color: {c['card_bg']};
+        border-radius: 8px;
+    """
+
+
+def tag_qss() -> str:
+    """标签样式"""
+    c = get_colors()
+    return f"""
+        font-size: {SIZE_CAPTION}px;
+        font-weight: 500;
+        padding: 2px 10px;
+        border-radius: 4px;
+        border: none;
+    """

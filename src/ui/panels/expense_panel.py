@@ -320,20 +320,13 @@ class ExpensePanel(QWidget):
         self._dm.data_changed.emit("saving")
 
     def _show_cat_filter(self) -> None:
-        from PySide6.QtWidgets import QMenu
-        c = get_colors()
-        menu = QMenu(self)
-        menu.setStyleSheet(f"""
-            QMenu {{ background-color: {c['bg_elevated']}; color: {c['fg_primary']}; border-radius: 8px; padding: 4px; }}
-            QMenu::item {{ padding: 6px 24px 6px 12px; border-radius: 4px; }}
-            QMenu::item:selected {{ background-color: {c['accent_bg']}; }}
-        """)
-        all_action = menu.addAction("全部分类")
-        all_action.triggered.connect(lambda: self._apply_cat_filter(""))
-        menu.addSeparator()
+        from src.ui.widgets.context_menu import ContextMenu
+        
+        menu = ContextMenu(self)
+        menu.add_action("全部分类").triggered.connect(lambda: self._apply_cat_filter(""))
+        menu.add_separator()
         for cat in self._dm.expenses.categories:
-            action = menu.addAction(cat["name"])
-            action.triggered.connect(lambda checked, cid=cat["id"]: self._apply_cat_filter(cid))
+            menu.add_action(cat["name"]).triggered.connect(lambda checked, cid=cat["id"]: self._apply_cat_filter(cid))
         menu.exec(self._cat_btn.mapToGlobal(self._cat_btn.rect().bottomLeft()))
 
     def _apply_cat_filter(self, cat_id: str) -> None:
@@ -345,21 +338,13 @@ class ExpensePanel(QWidget):
         self._refresh()
 
     def _show_time_filter(self) -> None:
-        from PySide6.QtWidgets import QMenu, QWidgetAction, QDateEdit
-        c = get_colors()
-        menu = QMenu(self)
-        menu.setStyleSheet(f"""
-            QMenu {{ background-color: {c['bg_elevated']}; color: {c['fg_primary']}; border-radius: 8px; padding: 4px; }}
-            QMenu::item {{ padding: 6px 24px 6px 12px; border-radius: 4px; }}
-            QMenu::item:selected {{ background-color: {c['accent_bg']}; }}
-        """)
-        all_action = menu.addAction("全部时间")
-        all_action.triggered.connect(lambda: self._apply_time_filter("", ""))
-        menu.addSeparator()
-        # Basic presets
+        from src.ui.widgets.context_menu import ContextMenu
+        
+        menu = ContextMenu(self)
+        menu.add_action("全部时间").triggered.connect(lambda: self._apply_time_filter("", ""))
+        menu.add_separator()
         for label, start, end in [("今天", "today", "today"), ("本周", "week", "week"), ("本月", "month", "month")]:
-            action = menu.addAction(label)
-            action.triggered.connect(lambda checked, s=start, e=end: self._apply_time_preset(s, e))
+            menu.add_action(label).triggered.connect(lambda checked, s=start, e=end: self._apply_time_preset(s, e))
         menu.exec(self._time_btn.mapToGlobal(self._time_btn.rect().bottomLeft()))
 
     def _apply_time_preset(self, start: str, end: str) -> None:
