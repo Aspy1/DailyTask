@@ -7,7 +7,7 @@ from PySide6.QtWidgets import (
     QHeaderView,
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
-    QCheckBox, QMenu, QMessageBox,
+    QCheckBox, QMessageBox,
 )
 from PySide6.QtGui import QFont, QColor, QBrush
 
@@ -168,12 +168,12 @@ class TaskPanel(QWidget):
 
     def _btn_qss(self) -> str:
         c = get_colors()
-        return """
-            QPushButton { background-color: {c["btn_secondary_bg"]}; color: {c["fg_hint"]};
+        return f"""
+            QPushButton {{ background-color: {c["btn_secondary_bg"]}; color: {c["fg_hint"]};
                 border-radius: 8px;
-                padding: 4px 12px; font-size: 13px; }
-            QPushButton:hover { background-color: {c["btn_secondary_hover"]}; color: {c["fg_secondary"]}; }
-            QPushButton::menu-indicator { image: none; }
+                padding: 4px 12px; font-size: 13px; }}
+            QPushButton:hover {{ background-color: {c["btn_secondary_hover"]}; color: {c["fg_secondary"]}; }}
+            QPushButton::menu-indicator {{ image: none; }}
         """
 
     # ── Data ──────────────────────────────────────────────────
@@ -200,25 +200,20 @@ class TaskPanel(QWidget):
 
     def _show_course_filter(self) -> None:
         self._highlight_ddl = False
-        c = get_colors()
-        menu = QMenu(self)
-        menu.setStyleSheet(f"""
-            QMenu {{ background-color: {c['bg_elevated']}; color: {c['fg_primary']}; border: 1px solid {c['border_strong']}; border-radius: 8px; padding: 4px; }}
-            QMenu::item {{ padding: 6px 24px 6px 12px; border-radius: 4px; }}
-            QMenu::item:selected {{ background-color: {c['accent_bg']}; }}
-            QMenu::separator {{ height: 1px; background-color: {c['divider']}; margin: 4px 8px; }}
-        """)
+        from src.ui.widgets.context_menu import ContextMenu
+        
+        menu = ContextMenu(self)
 
-        all_action = menu.addAction("全部课程")
+        all_action = menu.add_action("全部课程")
         all_action.setCheckable(True)
         all_action.setChecked(not self._selected_courses)
         all_action.triggered.connect(lambda: self._apply_course_filter(set()))
 
-        menu.addSeparator()
+        menu.add_separator()
 
         courses = self._course_set()
         for cn in courses:
-            action = menu.addAction(cn)
+            action = menu.add_action(cn)
             action.setCheckable(True)
             action.setChecked(cn in self._selected_courses)
             action.triggered.connect(lambda checked, c=cn: self._toggle_course(c))
@@ -257,15 +252,11 @@ class TaskPanel(QWidget):
         self._refresh()
 
     def _show_time_filter(self) -> None:
-        c = get_colors()
-        menu = QMenu(self)
-        menu.setStyleSheet(f"""
-            QMenu {{ background-color: {c['bg_elevated']}; color: {c['fg_primary']}; border: 1px solid {c['border_strong']}; border-radius: 8px; padding: 4px; }}
-            QMenu::item {{ padding: 6px 24px 6px 12px; border-radius: 4px; }}
-            QMenu::item:selected {{ background-color: {c['accent_bg']}; }}
-        """)
+        from src.ui.widgets.context_menu import ContextMenu
+        
+        menu = ContextMenu(self)
         for label, key in TIME_BUCKETS:
-            action = menu.addAction(label)
+            action = menu.add_action(label)
             action.setCheckable(True)
             action.setChecked(key == self._time_bucket)
             action.triggered.connect(lambda checked, k=key: self._apply_time_filter(k))
@@ -319,7 +310,7 @@ class TaskPanel(QWidget):
                     lbl.setMinimumWidth(self._table.columnWidth(1) - 10)
                     lbl.setWordWrap(False)
                     lbl.setText(
-                        f'<span style="color:#e74856;font-size: 13px;">{due_display}</span>'
+                        f'<span style="color:{c["red"]};font-size: 13px;">{due_display}</span>'
                         f' <span style="color:{c["fg_secondary"]};font-size: 13px;">({days_left}天后)</span>'
                     )
                     self._table.setCellWidget(i, 1, lbl)
@@ -327,7 +318,7 @@ class TaskPanel(QWidget):
                     title_item = QTableWidgetItem(t.get("title", ""))
                     title_item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
                     if t.get("status") == "completed":
-                        title_item.setForeground(QBrush(QColor("#6e6e73")))
+                        title_item.setForeground(QBrush(QColor(c['fg_hint'])))
                     self._table.setItem(i, 2, title_item)
                     # Checkbox
                     cb = QCheckBox()
@@ -343,7 +334,7 @@ class TaskPanel(QWidget):
             title_item = QTableWidgetItem(t.get("title", ""))
             title_item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
             if t.get("status") == "completed":
-                title_item.setForeground(QBrush(QColor("#6e6e73")))
+                title_item.setForeground(QBrush(QColor(c['fg_hint'])))
             self._table.setItem(i, 2, title_item)
 
             # Checkbox

@@ -12,7 +12,13 @@ from PySide6.QtGui import QFont
 from src.i18n.loader import tr
 from src.services.settings_manager import SettingsManager
 from src.services.ai_service import AIService
+from src.services.api_service import ApiService
+from pathlib import Path
 from src.ui.styles.theme import get_colors, FONT_CN, SIZE_SUBTITLE, SIZE_TITLE
+from src.ui.widgets.toggle_switch import ToggleSwitch
+from src.ui.widgets.api_test_dialog import ApiTestDialog
+from src.models.scene_archive import SceneArchive
+from src.ui.widgets.scene_manager_dialog import SceneManagerDialog
 
 PROVIDERS = {
     "deepseek": {
@@ -35,6 +41,8 @@ class SettingsPanel(QWidget):
         self._ai_service = ai_service
         self._plugin_manager = plugin_manager
         self._data_manager = data_manager
+        self._api_service = ApiService()  # API 服务
+        self._archive = SceneArchive(Path("data"))  # 场景存档管理器
         # Keep references to opened plugin windows to avoid GC closing them
         self._open_plugin_windows = []
 
@@ -53,6 +61,10 @@ class SettingsPanel(QWidget):
         layout.addWidget(self._build_email_card())
         layout.addWidget(self._section_heading("余额提醒"))
         layout.addWidget(self._build_balance_card())
+        layout.addWidget(self._section_heading("天气设置"))
+        layout.addWidget(self._build_weather_card())
+        layout.addWidget(self._section_heading("场景管理"))
+        layout.addWidget(self._build_scene_card())
         # 插件管理
         if self._plugin_manager is not None:
             layout.addWidget(self._section_heading("插件"))
@@ -82,7 +94,7 @@ class SettingsPanel(QWidget):
         c = self._c()
         card = QWidget()
         card.setStyleSheet(
-            f"QWidget {{ background-color: {c['card_bg']}; border-radius: 12px; }}"
+            f"QWidget {{ background-color: {c['card_bg']}; border-radius: 8px; }}"
         )
         return card
 
@@ -199,6 +211,17 @@ class SettingsPanel(QWidget):
         """)
         save_btn.clicked.connect(self._save_ai_settings)
         sr.addWidget(save_btn)
+
+        test_btn = QPushButton("API 测试")
+        test_btn.setFixedSize(80, 30)  # 增加宽度以容纳文字
+        test_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        test_btn.setStyleSheet(f"""
+            QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
+                border: none; border-radius: 8px; font-weight: 500; font-size: 13px; }}
+            QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; }}
+        """)
+        test_btn.clicked.connect(self._open_api_test)
+        sr.addWidget(test_btn)
         layout.addWidget(status_row)
 
         self._on_provider_changed()
@@ -215,17 +238,17 @@ class SettingsPanel(QWidget):
         layout.setContentsMargins(0, 8, 0, 8)
         layout.setSpacing(0)
 
-        self._auto_start = QCheckBox()
+        self._auto_start = ToggleSwitch()
         self._auto_start.setChecked(self._settings.get_bool("General", "auto_start"))
         layout.addWidget(self._row(tr("settings.auto_start"), self._auto_start))
         layout.addWidget(self._divider())
 
-        self._minimize_tray = QCheckBox()
+        self._minimize_tray = ToggleSwitch()
         self._minimize_tray.setChecked(self._settings.get_bool("General", "minimize_to_tray"))
         layout.addWidget(self._row(tr("settings.minimize_to_tray"), self._minimize_tray))
         layout.addWidget(self._divider())
 
-        self._reminder = QCheckBox()
+        self._reminder = ToggleSwitch()
         self._reminder.setChecked(self._settings.get_bool("General", "reminder_enabled"))
         layout.addWidget(self._row(tr("settings.reminder_enabled"), self._reminder))
         layout.addWidget(self._divider())
@@ -274,6 +297,11 @@ class SettingsPanel(QWidget):
         else:
             self._status_label.setText("● " + tr("settings.status.not_configured"))
             self._status_label.setStyleSheet("color: #f48771; font-size: 13px; background: transparent;")
+
+    def _open_api_test(self) -> None:
+        """打开 API 测试窗口"""
+        dialog = ApiTestDialog(self._api_service, self)
+        dialog.exec()
 
     def _save_ai_settings(self) -> None:
         self._settings.api_key = self._api_key_input.text().strip()
@@ -392,6 +420,143 @@ class SettingsPanel(QWidget):
         self._settings.save()
         QMessageBox.information(self, "设置", "邮件设置已保存。")
 
+    # ── 天气设置卡片 ────────────────────────────────────────
+    def _build_weather_card(self) -> QFrame:
+        """天气设置卡片"""
+        c = self._c()
+        card = self._card()
+        layout = QVBoxLayout(card)
+        layout.setContentsMargins(0, 8, 0, 8)
+        layout.setSpacing(0)
+
+        # API Key
+        self._weather_api_key = QLineEdit()
+        self._weather_api_key.setEchoMode(QLineEdit.EchoMode.Password)
+        self._weather_api_key.setStyleSheet(self._input_qss())
+        self._weather_api_key.setText(self._settings.weather_api_key)
+        self._weather_api_key.setPlaceholderText("和风天气 API Key")
+        layout.addWidget(self._row("API Key", self._weather_api_key))
+        layout.addWidget(self._divider())
+
+        # API Host
+        self._weather_api_host = QLineEdit()
+        self._weather_api_host.setStyleSheet(self._input_qss())
+        self._weather_api_host.setText(self._settings.weather_api_host)
+        self._weather_api_host.setPlaceholderText("如: qh3qqthvqx.re.qweatherapi.com")
+        layout.addWidget(self._row("API Host", self._weather_api_host))
+        layout.addWidget(self._divider())
+
+        # 定时更新
+        self._weather_auto_update = ToggleSwitch()
+        self._weather_auto_update.setChecked(self._settings.weather_auto_update)
+        layout.addWidget(self._row("定时更新", self._weather_auto_update))
+        layout.addWidget(self._divider())
+
+        # 调用统计
+        stats_row = QWidget()
+        stats_row.setStyleSheet("background: transparent;")
+        sr = QHBoxLayout(stats_row)
+        sr.setContentsMargins(16, 12, 16, 12)
+        self._weather_stats_label = QLabel("本月调用: 0 次 / 50000")
+        self._weather_stats_label.setStyleSheet(f"color: {c['fg_hint']}; font-size: 13px;")
+        sr.addWidget(self._weather_stats_label)
+        sr.addStretch()
+        layout.addWidget(stats_row)
+        layout.addWidget(self._divider())
+
+        # 保存按钮
+        btn_row = QWidget()
+        btn_row.setStyleSheet("background: transparent;")
+        br = QHBoxLayout(btn_row)
+        br.setContentsMargins(16, 12, 16, 12)
+        br.addStretch()
+        save_btn = QPushButton("保存")
+        save_btn.setFixedSize(72, 30)
+        save_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        save_btn.setStyleSheet(f"""
+            QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['fg_primary']}; border: none;
+                border-radius: 8px; font-weight: 600; font-size: 13px; }}
+            QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; }}
+        """)
+        save_btn.clicked.connect(self._save_weather_settings)
+        br.addWidget(save_btn)
+        layout.addWidget(btn_row)
+
+        # 初始化后更新统计
+        self._update_weather_stats()
+        return card
+
+    def _update_weather_stats(self) -> None:
+        """更新天气API调用统计显示"""
+        import json
+        from pathlib import Path
+        from datetime import datetime
+
+        stats_file = Path("data/weather_stats.json")
+        if not stats_file.exists():
+            return
+
+        stats = json.loads(stats_file.read_text())
+        month = datetime.now().strftime("%Y-%m")
+        monthly = stats.get("monthly", {}).get(month, {}).get("total", 0)
+        self._weather_stats_label.setText(f"本月调用: {monthly} 次 / 50000")
+
+    def _save_weather_settings(self) -> None:
+        """保存天气设置"""
+        self._settings.weather_api_key = self._weather_api_key.text().strip()
+        self._settings.weather_api_host = self._weather_api_host.text().strip()
+        self._settings.weather_auto_update = self._weather_auto_update.isChecked()
+        self._settings.save()
+        self._update_weather_stats()
+        QMessageBox.information(self, "设置", "天气设置已保存。")
+
+    # ── 场景管理卡片 ────────────────────────────────────────
+    def _build_scene_card(self) -> QFrame:
+        """场景管理卡片"""
+        c = self._c()
+        card = self._card()
+        layout = QVBoxLayout(card)
+        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setSpacing(12)
+
+        current = self._archive.get_current_scene()
+        current_label = QLabel(f"当前场景：{current.get('name', '默认')}")
+        current_label.setStyleSheet(f"color: {c['fg_primary']}; font-size: 14px; font-weight: 500;")
+        layout.addWidget(current_label)
+
+        desc_label = QLabel("场景用于区分不同学期或在在家/在校数据")
+        desc_label.setStyleSheet(f"color: {c['fg_hint']}; font-size: 12px;")
+        layout.addWidget(desc_label)
+
+        open_btn = QPushButton("管理场景")
+        open_btn.setFixedWidth(100)
+        open_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        open_btn.setStyleSheet(f"""
+            QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
+                border: none; border-radius: 8px; padding: 8px 12px; font-size: 13px; }}
+            QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; }}
+        """)
+        open_btn.clicked.connect(self._open_scene_manager)
+        layout.addWidget(open_btn)
+
+        return card
+
+    def _open_scene_manager(self) -> None:
+        """打开场景管理对话框"""
+        from src.models.scene_archive import SceneArchive
+        from src.ui.widgets.scene_manager_dialog import SceneManagerDialog
+        from pathlib import Path
+        archive = SceneArchive(Path("data"))
+        dialog = SceneManagerDialog(archive, self)
+        if dialog.exec():
+            # 场景已切换，可能需要刷新 UI
+            self._refresh_current_scene()
+
+    def _refresh_current_scene(self) -> None:
+        """刷新当前场景显示"""
+        current = self._archive.get_current_scene()
+        QMessageBox.information(self, "场景已切换", f"已切换到场景：{current.get('name', '未知')}")
+
     # ── 插件卡片 ────────────────────────────────────────────
     def _build_plugins_card(self) -> QFrame:
         c = self._c()
@@ -429,19 +594,9 @@ class SettingsPanel(QWidget):
             name_lbl.setFixedWidth(180)
             name_lbl.setStyleSheet("font-weight:600; font-size:14px; color: " + self._c()['fg_primary'] + "; background: transparent;")
             rl.addWidget(name_lbl)
-            enabled_cb = QCheckBox("启用")
-            enabled_cb.setStyleSheet(f"""
-                QCheckBox {{ spacing: 8px; font-size: 13px; }}
-                QCheckBox::indicator {{
-                    width: 40px; height: 22px; border-radius: 11px;
-                    background-color: {self._c()['fg_disabled']};
-                }}
-                QCheckBox::indicator:checked {{
-                    background-color: {self._c()['accent']};
-                }}
-            """)
+            enabled_cb = ToggleSwitch()
             enabled_cb.setChecked(bool(pinfo.enabled))
-            enabled_cb.stateChanged.connect(lambda state, n=pinfo.name: self._toggle_plugin(n, state == 2))
+            enabled_cb.toggled.connect(lambda checked, n=pinfo.name: self._toggle_plugin(n, checked))
             rl.addWidget(enabled_cb)
             panels = self._plugin_manager.get_panels(pinfo.name)
             open_btn = QPushButton("打开面板")

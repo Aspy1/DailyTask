@@ -330,8 +330,6 @@ class ScheduleView(QWidget):
         self._refresh()
 
     def _refresh(self) -> None:
-        self._dm.reload_all()
-
         # Ensure slot tracking dicts exist for incremental updates
         if not hasattr(self, '_slot_cards'):
             self._slot_cards = {}
@@ -762,33 +760,29 @@ class ScheduleView(QWidget):
             self._dm.data_changed.emit("fill_prompt:" + prompt)
 
     def _plan_menu(self, pos, item, widget):
-        from PySide6.QtGui import QCursor
-        c = get_colors()
-        menu = QMenu()
-        menu.setStyleSheet(f"""
-            QMenu {{ background-color: {c['bg_elevated']}; color: {c['fg_primary']};
-                border-radius: 8px; padding: 4px; }}
-            QMenu::item {{ padding: 6px 24px 6px 12px; border-radius: 4px; }}
-            QMenu::item:selected {{ background-color: {c['accent_bg']}; }}
-        """)
-        done = menu.addAction("✓ 标记完成")
-        modify = menu.addAction("修改 DDL")
-        remove = menu.addAction("✕ 移除")
-        menu.addSeparator()
+        from src.ui.widgets.context_menu import ContextMenu
+        
+        menu = ContextMenu()
+        done_action = menu.add_action("✓ 标记完成")
+        modify_action = menu.add_action("修改 DDL")
+        remove_action = menu.add_action("✕ 移除")
+        menu.add_separator()
         plan_name = item.get("title", "")
         plan_date = self._target_date.isoformat()
         if self._has_email_reminder("plan", plan_name, plan_date):
-            cancel_rem = menu.addAction("📧 取消邮件提醒")
+            cancel_rem_action = menu.add_action("📧 取消邮件提醒")
         else:
-            add_rem = menu.addAction("📧 添加邮件提醒")
-        action = menu.exec(QCursor.pos())
-        if action and action.text() == "📧 添加邮件提醒":
+            add_rem_action = menu.add_action("📧 添加邮件提醒")
+        menu.exec()
+        
+        action = menu.last_action
+        if action and action.text == "📧 添加邮件提醒":
             self._add_email_reminder_dialog("plan", plan_name, plan_date)
             return
-        if action and action.text() == "📧 取消邮件提醒":
+        if action and action.text == "📧 取消邮件提醒":
             self._remove_email_reminder("plan", plan_name, plan_date)
             return
-        if action == remove:
+        if action == remove_action:
             plans = self._dm.daily_logs.get_plans(self._target_date.isoformat())
             for i, p in enumerate(plans):
                 if p == item["plan"]:
@@ -797,7 +791,7 @@ class ScheduleView(QWidget):
                     self._dm.data_changed.emit("plan")
                     self._refresh()
                     return
-        elif action == done:
+        elif action == done_action:
             # Treat plan as completed — remove it
             plans = self._dm.daily_logs.get_plans(self._target_date.isoformat())
             for i, p in enumerate(plans):
@@ -809,49 +803,45 @@ class ScheduleView(QWidget):
                     return
 
     def _habit_menu(self, pos, item, widget):
-        from PySide6.QtGui import QCursor
-        c = get_colors()
-        menu = QMenu()
-        menu.setStyleSheet(f"""
-            QMenu {{ background-color: {c['bg_elevated']}; color: {c['fg_primary']};
-                border-radius: 8px; padding: 4px; }}
-            QMenu::item {{ padding: 6px 24px 6px 12px; border-radius: 4px; }}
-            QMenu::item:selected {{ background-color: {c['accent_bg']}; }}
-        """)
+        from src.ui.widgets.context_menu import ContextMenu
+        
+        menu = ContextMenu()
         hid = item["habit"]["id"]
         done = self._dm.habits.is_done_today(hid)
         if done:
-            toggle = menu.addAction("○ 标记未完成")
+            toggle_action = menu.add_action("○ 标记未完成")
         else:
-            toggle = menu.addAction("✓ 标记完成")
-        postpone = menu.addAction("→ 推迟到明天")
-        cancel = menu.addAction("✕ 取消今天")
-        menu.addSeparator()
+            toggle_action = menu.add_action("✓ 标记完成")
+        postpone_action = menu.add_action("→ 推迟到明天")
+        cancel_action = menu.add_action("✕ 取消今天")
+        menu.add_separator()
         habit_name = item.get("name", "")
         habit_date = self._target_date.isoformat()
         if self._has_email_reminder("habit", habit_name, habit_date):
-            cancel_rem = menu.addAction("📧 取消邮件提醒")
+            cancel_rem_action = menu.add_action("📧 取消邮件提醒")
         else:
-            add_rem = menu.addAction("📧 添加邮件提醒")
-        action = menu.exec(QCursor.pos())
-        if action and action.text() == "📧 添加邮件提醒":
+            add_rem_action = menu.add_action("📧 添加邮件提醒")
+        menu.exec()
+        
+        action = menu.last_action
+        if action and action.text == "📧 添加邮件提醒":
             self._add_email_reminder_dialog("habit", habit_name, habit_date)
             return
-        if action and action.text() == "📧 取消邮件提醒":
+        if action and action.text == "📧 取消邮件提醒":
             self._remove_email_reminder("habit", habit_name, habit_date)
             return
-        if action == toggle:
+        if action == toggle_action:
             self._dm.habits.log(hid, not done)
             self._dm.habits.save()
             self._dm.data_changed.emit("habit")
             self._refresh()
-        elif action == postpone:
+        elif action == postpone_action:
             tomorrow = (self._target_date + timedelta(days=1)).isoformat()
             self._dm.habits.postpone(hid, tomorrow)
             self._dm.habits.save()
             self._dm.data_changed.emit("habit")
             self._refresh()
-        elif action == cancel:
+        elif action == cancel_action:
             self._dm.habits.cancel_today(hid)
             self._dm.habits.save()
             self._dm.data_changed.emit("habit")
