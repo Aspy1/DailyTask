@@ -119,3 +119,32 @@
 
 **Q-G2 文档必须可校验，或明确标注 `*（待补）*`**；禁止"参见源码"式占位
 - 现状：`✗` `task.py.md` 等为批量骨架。
+
+## H. UI 与设计令牌
+
+**Q-H1 颜色 / 字号 / 间距 / 圆角一律走 token，禁止字面量**（`#hex`、`rgb()/rgba()`、`Npx`、`QFont(..., int)`）
+- 检查：`scripts/check_ui_tokens.py`（见 PLAN G-2）；或先 `grep -rn "#[0-9a-fA-F]\{3,8\}" src/ui`。
+- 现状：`✗` `#fff` 约 15 处、`settings_panel.py:296/299`、`app.py:65/82/115`、`toggle_switch.py:46`、`ai_panel.py:20/173` 等。
+
+**Q-H2 令牌单一真值**：规格文档由令牌文件**生成**，禁止规格与实现两份手写
+- 现状：`✗` `DESIGN_TOKENS.md` 与 `theme.py:TOKENS` 已漂移。
+
+**Q-H3 令牌命名统一前缀/后缀**：`<domain>_<property>[_<state>]`，同用途必须同前缀（色 `bg_/fg_/border_/accent_/state_/btn_/badge_/nav_/card_/input_`；尺寸 `space_/radius_/size_/icon_/dur_`）
+- 现状：`✗` 混入 `red/green/yellow/orange` 等原始色名、`badge_radius` 混进颜色字典。
+
+**Q-H4 QSS 选择器仅 `#objectName`，禁止类名选择器**（= R-008）
+- 现状：`✗` `habit_panel.py:54/58` 的 `_HabitCard { … }`。
+
+**Q-H5 颜色必须属于主题 token 集合**（禁止 `settings_panel.py:296/299` 那种非主题色）
+
+**Q-H6 视觉克制**：accent 像素面积 < 5%；禁止第四种色相、纯黑/纯白（人工核对）
+
+## N. 命名约定
+
+**Q-N1 标识符**：模块 `snake_case`、类 `PascalCase`、常量 `UPPER_SNAKE`、私有 `_` 前缀
+
+**Q-N2 信号命名** `xxx_changed` / `xxx_requested` / `xxx_ready`，与语义一致
+
+**Q-N3 槽命名** `_on_<信号源>_<事件>`
+
+**Q-N4 文件与主类同名**（如 `habit_panel.py` ↔ `HabitPanel`）

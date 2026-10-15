@@ -137,6 +137,77 @@
 
 ---
 
+## G. UI 规范与设计令牌
+
+### G-0 现状（实测）
+
+- 令牌分散在 **3 处且已经漂移**：`MD-files/DESIGN_TOKENS.md`（规格）、`src/ui/styles/theme.py:TOKENS`（实现）、`design-showcase.html` / `sidebar-preview.html`（原型）。
+- 具体漂移：`bg_surface` 规格 `#E8E5DE` / 代码 `#E0DDD6`；`border` `rgba(0,0,0,0.06)` / `0.08`；暗色 `bg_root` `#1C1B18` / `#1E1D1A`；暗色 `red` `#E05555` / `#E06060`；字号 `SIZE_TINY/BODY_M/ICON/FAB` 代码有、规格无。
+- 规格文件头仍写"版本 1.0 | 分支 ui-redesign | 暗色后续修复"，已过期。
+- 组件内硬编码：`#fff` 约 15 处（accent 按钮文字，无对应 token）；`settings_panel.py:296/299` 的 `#4ec9b0`/`#f48771`（非主题色）；`app.py:65/82/115`、`toggle_switch.py:46`、`ai_panel.py:20/173`、`exam_panel.py:64-70`、`scene_manager_dialog.py:53`、`api_test_dialog.py:53`。
+- 类名 QSS 选择器（R-008 明禁）：`habit_panel.py:54/58` 的 `_HabitCard { … }`。
+- 字号/圆角/间距的 `Npx` 字面量散落各处；`QFont(..., 14)` 硬编码字号。
+
+### G-1 `[待议]` 令牌格式改造：单一真值 + 分层 + 命名约定
+
+- **单一真值**：令牌收敛到一个机器可读文件（`src/ui/styles/tokens.json` 或 `.py`）；
+  `theme.py` 从它加载生成 QSS；`MD-files/DESIGN_TOKENS.md` **由脚本生成**，不再手写（根治漂移）。
+- **分层**：primitive（原始色板）→ semantic（角色：bg/fg/border/state…）→ component（btn/badge/nav/card/input…）。
+- **命名约定**（回答"一种用途应有统一前缀/后缀"）：
+  - 颜色：`<domain>_<property>[_<state>]`；域 = `bg_` `fg_` `border_` `accent_` `state_`(danger/success/warning/info) `btn_` `badge_` `nav_` `card_` `input_`；状态 = `base`/`hover`/`active`/`disabled`/`on_accent`。
+  - 尺寸：`space_*`（4px 网格）、`radius_*`、`size_<role>`（字号）、`icon_*`。
+  - 图形资源：图标 `ic_<name>_<size>`，图片 `img_<name>`。
+  - 动画：`dur_*` / `ease_*`（R-008 禁动画调试，先占位常量）。
+- **类型标签**：每条令牌带 type（color/length/duration/shadow），供检查器判断"此处该用什么"。
+
+### G-2 `[待议]` 配套脚本：检查 + 可选改写
+
+- `scripts/check_ui_tokens.py`：
+  - **检查**：UI 目录内的字面 hex/rgb/rgba、`Npx`（字号/圆角/间距）、类名 QSS 选择器、
+    `QFont(..., int)`、引用不存在的 token、同义不同名。
+  - **输出**：`文件:行:违规类型:(建议的)token`。
+  - **`--fix`（可选）**：用 **libcst** 做安全 codemod 替换为 token 引用；改后必须跑 `pytest` + 截图对比。
+- 与 `CODE_STANDARDS.md` 的 Q-H 条目一一对应。
+
+---
+
+## H. 目录结构规范（项目内 + 发行版）
+
+### H-1 `[待议]` 项目目录约定
+
+- **顶层白名单**：`src/ scripts/ tests/ plugins/ data/ resources/ MD-files/ dev-logs/ .github/`
+  + 约定根文件（`main.py` `AGENTS.md` `README.md` `ERRORS.md` `PLAN.md` `pyproject.toml` `requirements*.txt` `.gitignore`）。
+- **新增顶层目录必须同时更新** `AllTheFiles.md` / `README.md` / 本节。
+- `data/` = 用户数据（含密钥），**永不进发行版**。
+- 资源归位：运行时资源放 `resources/`；根目录的 `image.png` 应移入 `resources/`。
+- `src/` 分层目录固定：`models/` `services/` `ui/{components,panels,widgets,styles}/` `i18n/`。
+
+### H-2 `[待议]` 发行版目录与命名
+
+- 产物目录 `dist/`；命名 `LifeAssistant-<version>-win64/`（版本与 `pyproject.toml` 单一来源）。
+- **包含**：入口、打包产物（`.pyc`/二进制）、`resources/`、`plugins/`、`README`。
+- **排除**：`data/`（密钥）、`.venv/`、`.git/`、`MD-files/`、`dev-logs/`、`tests/`、`PLAN.md`、`AGENTS.md`。
+- 打包工具与 `C-1` 一致（PyInstaller/Nuitka）。
+
+---
+
+## I. 其他待补规范（我补充，待你裁决）
+
+- **I-1 命名总约定**：模块 `snake_case`；类 `PascalCase`；常量 `UPPER_SNAKE`；私有 `_` 前缀；
+  信号 `xxx_changed` / `xxx_requested`；槽 `_on_xxx`；文件与主类同名。
+- **I-2 异常处理**：禁止裸 `except: pass`（现状约 80 处）；至少 `logger.debug` 记录或注释说明理由。
+- **I-3 i18n**：UI 显示文本必须经 `tr()`（现状全项目仅约 47 处调用，大量硬编码中文，违反 R-008）。
+- **I-4 类型注解**：公共函数/方法必须有参数与返回注解。
+- **I-5 导入规范**：分组排序、禁 `import *`（交给 ruff/isort）。
+- **I-6 时间日期**：统一 ISO 8601；`schedule_date()` 的 0–1 点算前一日语义必须全局一致。
+- **I-7 依赖规范**：新增依赖必须同时更新 `requirements.txt` 与 `requirements.lock.txt`。
+- **I-8 提交前钩子**：把 ruff + `check_standards.py` + `check_ui_tokens.py` 挂成 pre-commit。
+- **I-9 脚本契约**：`scripts/*` 的 CLI 参数、退出码、输出格式统一（供 AI/TG/CI 三方共用）。
+
+> 以上 G/H/I 均为 `[待议]`，需你裁决采纳范围与优先级。
+
+---
+
 ## F. 已完成的框架工作
 
 - `[已完成]` venv + 依赖锁定 + pytest 冒烟测试（commit `5788d61`）
