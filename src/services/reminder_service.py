@@ -32,6 +32,22 @@ DDL_EMAIL_HOURS = 6          # send email when DDL is within 6 hours
 EXAM_DAYS = [14, 7, 3]       # exam reminder thresholds (days before)
 
 
+def _looks_like_exam(task: dict) -> bool:
+    """旧数据的判定：标题或标签里带「考试」。"""
+    text = task.get("title", "") + " " + " ".join(task.get("tags", []))
+    return "考试" in text or "exam" in text.lower()
+
+
+def _add_exam_item(items: dict[str, dict], name: str, date_str: str) -> None:
+    """按 (名称, 日期) 归一化写入考试集合；名称/日期缺失则忽略。"""
+    name = (name or "").strip()
+    day = (date_str or "")[:10]
+    if not name or not day:
+        return
+    key = f"{name}@{day}"
+    items.setdefault(key, {"key": key, "name": name, "date": day})
+
+
 class ReminderService(QObject):
     reminder_notify = Signal(str, str)   # tray notification
     ddl_alert = Signal(int)             # urgent DDL count for red dot + flash
@@ -244,40 +260,53 @@ class ReminderService(QObject):
     # ── Exam email ────────────────────────────────────────
 
     def _check_exam_email(self) -> None:
-        """Send email for exams at 14/7/3 day thresholds."""
+        """考试提醒：14/7/3 天阈值，邮件 + 托盘。
+
+        数据源是**合并**的：`exams.json`（权威）+ 旧数据里标题/标签含「考试」的待办任务。
+        早期版本的考试是当普通任务建的，不合并会漏掉那批历史数据（ERRORS #022）。
+        """
         today = schedule_date()
+        for item in self._collect_exam_items():
+            self._check_exam_item(item, today)
+
+    def _collect_exam_items(self) -> list[dict]:
+        """合并 exams.json 与任务里的考试，按 (名称, 日期) 去重。"""
+        items: dict[str, dict] = {}
+        exams_model = getattr(self._dm, "exams", None)
+        for e in (exams_model.exams if exams_model is not None else []):
+            _add_exam_item(items, e.get("course_name", ""), e.get("exam_date", ""))
         for t in self._dm.tasks.pending:
-            self._check_exam_task(t, today)
+            if not _looks_like_exam(t):
+                continue
+            _add_exam_item(items, t.get("title", ""), t.get("due_date", ""))
+        return list(items.values())
 
-    def _check_exam_task(self, t: dict, today: date) -> None:
-        """单个任务的考试阈值检查，按 14/7/3 天发送邮件。"""
-        days_left = self._exam_days_left(t, today)
-        if days_left is None or days_left < 0:
-            return
-        due_str = (t.get("due_date", "") or "")[:10]
-        emailed = self._exam_emailed.setdefault(t.get("id", ""), set())
-        for d in EXAM_DAYS:
-            if days_left <= d and d not in emailed:
-                self._send_email(
-                    f"考试提醒 - {t.get('title', '')}",
-                    f"「{t.get('title', '')}」还有 {days_left} 天考试\n日期: {due_str}"
-                )
-                emailed.add(d)
+    def _check_exam_item(self, item: dict, today: date) -> None:
+        """单个考试的阈值检查：一次检查**只发一封**，其余命中的阈值一并登记。
 
-    @staticmethod
-    def _exam_days_left(t: dict, today: date) -> int | None:
-        """考试任务距今天数；非考试任务或日期非法返回 None。"""
-        title = t.get("title", "") + " " + " ".join(t.get("tags", []))
-        if "考试" not in title and "exam" not in title.lower():
-            return None
-        due_str = (t.get("due_date", "") or "")[:10]
-        if not due_str:
-            return None
+        历史缺陷：三个阈值用 `days_left <= d` 各自判定 → 剩 3 天时 14/7/3 一起命中，
+        同一场考试当天发 3 封（ERRORS #023）。
+        """
         try:
-            due_dt = date.fromisoformat(due_str)
+            days_left = (date.fromisoformat(item["date"]) - today).days
         except ValueError:
-            return None
-        return (due_dt - today).days
+            logger.debug("考试日期非法，跳过: %s", item.get("date"))
+            return
+        if days_left < 0:
+            return
+
+        emailed = self._exam_emailed.setdefault(item["key"], set())
+        hit = [d for d in EXAM_DAYS if days_left <= d and d not in emailed]
+        if not hit:
+            return
+        emailed.update(hit)
+
+        name = item["name"]
+        self._send_email(
+            f"考试提醒 - {name}",
+            f"「{name}」还有 {days_left} 天考试\n日期: {item['date']}",
+        )
+        self.reminder_notify.emit("考试提醒", f"「{name}」还有 {days_left} 天")
 
     # ── DDL red dot ───────────────────────────────────────
 

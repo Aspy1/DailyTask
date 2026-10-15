@@ -25,13 +25,25 @@ PERIOD_TIMES = [
 
 WEEKDAY_NAMES = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
 
+# 考试提醒阈值（天）——与 src/services/reminder_service.py 的 EXAM_DAYS 保持一致
+EXAM_ALERT_DAYS = (14, 7, 3)
+
 
 logger = logging.getLogger(__name__)
 
 
 def load_json(path: Path) -> dict:
-    with open(path, encoding="utf-8") as f:
-        return json.load(f)
+    """读 JSON；文件不存在时返回空 dict。
+
+    摘要脚本跑在 GitHub Actions 上，某个数据文件可能尚未生成
+    （如新装的 exams.json）；缺文件不应让整封日报失败。
+    """
+    try:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+    except FileNotFoundError:
+        logger.info("数据文件不存在，按空数据继续: %s", path.name)
+        return {}
 
 
 def _find_current_semester(courses_data: dict) -> dict | None:
@@ -144,6 +156,32 @@ def _beijing_today() -> date:
     return datetime.now(timezone(timedelta(hours=8))).date()
 
 
+def _looks_like_exam(task: dict) -> bool:
+    """旧数据的判定：标题或标签里带「考试」（与 reminder_service 保持一致）。"""
+    text = task.get("title", "") + " " + " ".join(task.get("tags", []))
+    return "考试" in text or "exam" in text.lower()
+
+
+def collect_exam_items(tasks_data: dict, exams_data: dict) -> list[dict]:
+    """考试来源：`exams.json`（权威）∪ 旧数据里当任务建的考试；按 (名称, 日期) 去重。"""
+    items: dict[str, dict] = {}
+    for e in exams_data.get("exams", []):
+        _add_exam_item(items, e.get("course_name", ""), e.get("exam_date", ""))
+    for t in tasks_data.get("tasks", []):
+        if t.get("status") != "completed" and _looks_like_exam(t):
+            _add_exam_item(items, t.get("title", ""), t.get("due_date", ""))
+    return sorted(items.values(), key=lambda i: i["date"])
+
+
+def _add_exam_item(items: dict[str, dict], name: str, date_str: str) -> None:
+    name = (name or "").strip()
+    day = (date_str or "")[:10]
+    if not name or not day:
+        return
+    key = f"{name}@{day}"
+    items.setdefault(key, {"key": key, "name": name, "date": day})
+
+
 def build_digest(data_dir: Path) -> str:
     """组装每日摘要文本（按分区拼接）。"""
     today = _beijing_today()
@@ -155,6 +193,7 @@ def build_digest(data_dir: Path) -> str:
     habits_data = load_json(data_dir / "habits.json")
     daily_data = load_json(data_dir / "daily_logs.json")
     pending = [t for t in tasks_data.get("tasks", []) if t.get("status") != "completed"]
+    exams = collect_exam_items(tasks_data, load_json(data_dir / "exams.json"))
 
     lines = [f"【每日日程】{today_str} {weekday}", ""]
     lines += _digest_summary(courses_data, pending, habits_data, today)
@@ -162,7 +201,7 @@ def build_digest(data_dir: Path) -> str:
     lines += _digest_plans(daily_data, today_str)
     lines += _digest_habits(habits_data, today)
     lines += _digest_urgent(pending, today)
-    lines += _digest_exams(pending, today)
+    lines += _digest_exams(exams, today)
     lines += _digest_balance(data_dir)
     lines += _digest_expenses(data_dir, today_str)
     lines += _digest_shopping(data_dir)
@@ -254,34 +293,22 @@ def _urgent_line(t: dict, today) -> str:
     return f"  • {due}: {t.get('title', '')}{c_str} {days_left}"
 
 
-def _exam_alert_days(t: dict, today) -> int | None:
-    """任务若为考试且临近（14/7/3 天或 ≤3 天），返回剩余天数，否则 None。"""
-    if "考试" not in (t.get("title", "") + " ".join(t.get("tags", []))):
-        return None
-    due_str = (t.get("due_date", "") or "")[:10]
-    if not due_str:
-        return None
-    try:
-        days_left = (date.fromisoformat(due_str) - today).days
-    except ValueError:
-        return None
-    if days_left >= 0 and (days_left in (14, 7, 3) or days_left <= 3):
-        return days_left
-    return None
-
-
-def _digest_exams(pending: list, today) -> list[str]:
+def _digest_exams(exam_items: list[dict], today) -> list[str]:
+    """考试分区：14 天内的考试按剩余天数升序列出。"""
     lines = ["", "── 考试提醒 ──"]
     alerts = []
-    for t in pending:
-        days_left = _exam_alert_days(t, today)
-        if days_left is not None:
-            alerts.append((days_left, t))
+    for e in exam_items:
+        try:
+            days_left = (date.fromisoformat(e["date"]) - today).days
+        except ValueError:
+            continue
+        if 0 <= days_left <= max(EXAM_ALERT_DAYS):
+            alerts.append((days_left, e))
     if not alerts:
         lines.append("  （近期无考试）")
         return lines
-    for days_left, t in sorted(alerts, key=lambda x: x[0]):
-        lines.append(f"  • ⚠ 距「{t.get('title', '')}」还有 {days_left} 天（{t.get('due_date', '')[:10]}）")
+    for days_left, e in sorted(alerts, key=lambda x: x[0]):
+        lines.append(f"  • ⚠ 距「{e['name']}」还有 {days_left} 天（{e['date']}）")
     return lines
 
 

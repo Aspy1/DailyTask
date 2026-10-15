@@ -1,3 +1,4 @@
+import copy
 import json
 import os
 import shutil
@@ -19,7 +20,10 @@ class BaseJsonModel:
     def _ensure_file(self) -> None:
         if not self.file_path.exists():
             self.file_path.parent.mkdir(parents=True, exist_ok=True)
-            self._data = dict(self._default_data)
+            # 必须**深拷贝**：DEFAULT_* 是模块级常量，浅拷贝会让所有实例共享同一个
+            # 嵌套 list/dict，一个实例 append 后，之后新建的实例（哪怕指向另一个数据
+            # 目录）会凭空多出这些条目（ERRORS #024）。
+            self._data = copy.deepcopy(self._default_data)
             self.save()
         else:
             self.load()

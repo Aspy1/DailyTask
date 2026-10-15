@@ -27,6 +27,8 @@ TOKENS_FILE = ROOT / "src/ui/styles/tokens.json"
 
 RE_HEX = re.compile(r"#[0-9a-fA-F]{3,8}\b")
 RE_RGB = re.compile(r"\brgba?\([^)]*\)")
+# 误报豁免：`ERRORS #020` / `条目 #012` 这类**问题编号**不是颜色字面量
+RE_ISSUE_REF = re.compile(r"(?:ERRORS|ERR|条目|问题|issue)\s*#\d+\b", re.IGNORECASE)
 RE_QSS_CLASS = re.compile(r"(?<![\w.])(_?[A-Z][A-Za-z0-9_]*)\s*\{\{")
 RE_PX = re.compile(r"font-size:\s*(\d+)px")
 RE_SUBSCRIPT = re.compile(r"\[['\"]([a-z][a-z0-9_]{2,})['\"]\]")
@@ -106,9 +108,12 @@ def _color_finding(lit: str, value_to_name: dict[str, str]) -> tuple[str, str, s
 
 def _find_color_findings(line: str, value_to_name: dict[str, str]) -> list:
     """字面量颜色（#hex / rgb() / rgba()）。"""
+    exempt = [m.span() for m in RE_ISSUE_REF.finditer(line)]
     findings = []
     for regex in (RE_HEX, RE_RGB):
         for m in regex.finditer(line):
+            if any(lo <= m.start() < hi for lo, hi in exempt):
+                continue
             findings.append(_color_finding(m.group(0), value_to_name))
     return findings
 

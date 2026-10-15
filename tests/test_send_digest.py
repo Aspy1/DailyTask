@@ -33,6 +33,9 @@ def test_build_digest_sections(tmp_path) -> None:
         "budget": {"monthly": 1500}, "categories": []})
     _write(tmp_path, "inventory.json", {"items": [
         {"id": "i_001", "name": "洗衣液", "status": "need"}], "categories": []})
+    _write(tmp_path, "exams.json", {"exams": [
+        {"id": "e_001", "course_name": "大学物理",
+         "exam_date": (today + timedelta(days=5)).isoformat()}]})
 
     text = build_digest(tmp_path)
 
@@ -42,8 +45,44 @@ def test_build_digest_sections(tmp_path) -> None:
     assert "── 今日习惯 ──" in text and "跑步" in text
     assert "── 即将截止的任务（3天内）──" in text and "作业A" in text
     assert "── 考试提醒 ──" in text and "考试B" in text
+    assert "大学物理" in text and "还有 5 天" in text      # exams.json 来源
     assert "── 支出 ──" in text and "12.5" in text
     assert "── 购物需求 ──" in text and "洗衣液" in text
+
+
+def test_digest_exam_from_exams_json_only(tmp_path) -> None:
+    """回归：考试模块（exams.json）此前完全进不了摘要，只认 tasks 里的「考试」。"""
+    today = date.today()
+    _write(tmp_path, "tasks.json", {"tasks": [], "archived": []})
+    _write(tmp_path, "exams.json", {"exams": [
+        {"id": "e_001", "course_name": "线性代数",
+         "exam_date": (today + timedelta(days=3)).isoformat()}]})
+    text = build_digest(tmp_path)
+    assert "── 考试提醒 ──" in text and "线性代数" in text
+    assert "还有 3 天" in text
+
+
+def test_digest_dedupes_same_exam_in_both_sources(tmp_path) -> None:
+    """同一场考试同时存在于 exams.json 与 tasks 时，考试分区只列一次。"""
+    today = date.today()
+    day = (today + timedelta(days=2)).isoformat()
+    _write(tmp_path, "tasks.json", {"tasks": [
+        {"id": "t_001", "title": "高等数学", "status": "pending", "tags": ["考试"],
+         "due_date": day}], "archived": []})
+    _write(tmp_path, "exams.json", {"exams": [
+        {"id": "e_001", "course_name": "高等数学", "exam_date": day}]})
+    text = build_digest(tmp_path)
+    exam_section = text.split("── 考试提醒 ──")[1]
+    assert exam_section.count("高等数学") == 1, text
+
+
+def test_digest_ignores_far_exams(tmp_path) -> None:
+    today = date.today()
+    _write(tmp_path, "exams.json", {"exams": [
+        {"id": "e_001", "course_name": "遥远的考试",
+         "exam_date": (today + timedelta(days=40)).isoformat()}]})
+    text = build_digest(tmp_path)
+    assert "遥远的考试" not in text
 
 
 def test_build_digest_empty_data(tmp_path) -> None:

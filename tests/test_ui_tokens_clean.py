@@ -21,3 +21,13 @@ def test_no_ui_token_violations() -> None:
             for kind, frag, _hint in check_line(line, names, value_to_name, False):
                 problems.append(f"{f.relative_to(ROOT)}:{i} [{kind}] {frag}")
     assert not problems, "UI 令牌违规:\n" + "\n".join(problems[:20])
+
+
+def test_issue_reference_is_not_a_color() -> None:
+    """`ERRORS #020` 这类问题编号不能被当成颜色字面量（否则代码注释没法写引用）。"""
+    names, value_to_name = load_tokens()
+    assert not check_line("    # 见 ERRORS #020", names, value_to_name, False)
+    assert not check_line("    # 见 条目 #012 说明", names, value_to_name, False)
+    # 真颜色仍要报出来
+    assert check_line('    color = "#ff0000"', names, value_to_name, False)
+
