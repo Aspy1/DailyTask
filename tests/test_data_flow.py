@@ -95,6 +95,23 @@ def test_save_all_writes_every_model(tmp_path, qapp) -> None:
     assert any(p["title"] == "复习" for p in _disk("daily_logs.json")["plans"]["2026-11-11"])
 
 
+def test_timer_periods_match_architecture(tmp_path, qapp) -> None:
+    """定时器周期是架构契约（ARCHITECTURE §6），改动需同步文档。
+
+    ⚠ 必须保住引用：QObject/QTimer 被 GC 后会变成"already deleted"。
+    """
+    from src.services.git_sync import GitSync
+    from src.services.reminder_service import ReminderService
+
+    dm, _ws = _workspace(tmp_path)
+    reminder = ReminderService(SettingsManager(tmp_path / "settings.ini"), dm)
+    git = GitSync(tmp_path, tmp_path)
+
+    assert dm._reload_timer.interval() == 3000        # 3s 外部改动轮询
+    assert reminder._timer.interval() == 60_000       # 60s 提醒检查
+    assert git._debounce.interval() == 30_000         # 30s Git 同步防抖
+
+
 def test_auto_reload_reminder_recomputes_ddl_on_external(tmp_path, qapp) -> None:
     """外部改动后 DDL 计数也要重算（原先只认 "task" 域）。"""
     from src.services.reminder_service import ReminderService
