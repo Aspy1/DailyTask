@@ -1,25 +1,39 @@
 # ERRORS.md — 已踩过的坑
 
-> 索引优先查阅。Agent 禁止通读全文——先扫索引，锁定了条目号再跳转。
+> 查阅方式：**先扫索引，锁定条目号，再跳转**。不要通读全文。
+> 每条 ≤20 行；新增请追加编号并登记索引。
+> 关联：`MD-files/ARCHITECTURE.md`（运作原理）· `MD-files/CODE_STANDARDS.md`（规范）。
+>
+> 【2026-10-15】本文件已合并原 `MD-files/ERRORS.md`（13 条）→ 现为**唯一**避坑记录；
+> 索引不再写死行号（原按行号跳转，条目一动即失效）。
 
 ## 索引
 
-> 格式: 条目 → L{起始}-{结束} 行号范围
-
-| 关键词 | 条目 | 行号 |
+| 关键词 | 条目 | 类别 |
 |---|---|---|
-| 调整按钮/undo/save/安排/整理/.../arrange_pending | #001 | L28-L50 |
-| 信号/emit/finished_with_instructions/Agent Loop | #001 | L33-L38 |
-| prompt格式/JSON/sh冲突/_quick_arrange/输出格式 | #001 | L40-L43 |
-| 指令重复执行/double-exec/_on_response_with_instructions | #001 | L45-L47 |
-| 启动慢/show/首屏 | #002 | L55-L60 |
-| 未响应/卡顿/_refresh/deleteLater/全量重建 | #002 | L62-L70 |
-| subprocess/子进程/actions.py/启动开销 | #002 | L73-L82 |
-| 分类/全部分类/只显示其他/categories/fallback | #003 | L87-L97 |
-| parse_date/这周五/中午12点/中文时间/日期解析 | #004 | L102-L113 |
-| fill_ai_prompt/右键菜单/填充AI/AI面板不展开 | #004 | L115-L122 |
-| run_in_process/Namespace/AttributeError/默认值/argparse | #005 | L127-L146 |
-| 替换/breadcrumb/递归/hide/_update_breadcrumb | #006 | L151-L163 |
+| 调整按钮/undo/save/安排/arrange_pending/信号未 emit | #001 | 信号链 |
+| prompt 格式/JSON 与 sh 冲突/指令重复执行 | #001 | AI |
+| 启动慢/首屏/show 顺序 | #002 | 性能 |
+| 未响应/卡顿/_refresh/deleteLater/全量重建 | #002 | 性能 |
+| subprocess/actions.py/启动开销 | #002 | 性能 |
+| 分类只显示"其他"/categories fallback | #003 | 数据 |
+| parse_date/这周五/中午12点/中文时间 | #004 | AI |
+| fill_ai_prompt/右键填充/AI 面板不展开 | #004 | UI |
+| run_in_process/Namespace/AttributeError/argparse 默认值 | #005 | AI |
+| content.replace 批量替换/递归/_update_breadcrumb | #006 | 流程 |
+| clicked 传参/checked=False 覆盖默认参数 | #007 | 信号 |
+| `_file_path`/`file_path` 属性名 | #008 | 数据 |
+| f-string 花括号未转义 | #009 | 流程 |
+| sep4 未定义/分隔符编号混乱 | #010 | UI |
+| "未知操作"/执行器未注册 action | #011 | AI |
+| 信号冲突/两个 handler 接同一信号 | #012 | 信号 |
+| 替换文本未精确匹配/旧代码残留/文件变大 | #013 | 流程 |
+| execute_code 忘记 import | #014 | 环境 |
+| Windows bash/MSYS/exit 126/缺 DLL | #015 | 环境 |
+| 语法检查缺失/连锁报错 | #016 | 流程 |
+| DDL 计数按精确时间而非按天 | #017 | 数据 |
+| 状态栏残留占位 widget | #018 | UI |
+| mousePressEvent 右键也触发点击 | #019 | UI |
 
 ---
 
@@ -27,121 +41,181 @@
 
 ### #001 | 2026-06-08 | 调整按钮点后"..."挂死，撤销/保存按钮不出现
 
-L28-50 完整条目
-
-**症状**: 点击日程视图的"调整"按钮 → 按钮变为"..."并 disabled → AI 确实执行了数据修改 → 但按钮永远不恢复，撤销/保存按钮从不出现
+**症状**: 点"调整" → 按钮变"..."且 disabled → AI 确实改了数据 → 但按钮永不恢复，撤销/保存从不出现。
 
 **根因（三重链）**:
-1. `AIWorker.finished_with_instructions` 信号声明但从未 emit — Worker.run() 内部执行指令后只发 `finished`
-2. `_quick_arrange` 的 prompt 要求 JSON 输出格式，但 `SYSTEM_PROMPT_BASE` 要求 `\`\`\`sh 代码块 — AI 收到冲突指令
-3. `_arrange_pending` 只在 `_on_instructions_done`（永不被调用的死代码）里重置
+1. `AIWorker.finished_with_instructions` 信号**声明但从未 emit**
+2. `_quick_arrange` 的 prompt 要求 JSON 输出，与 `SYSTEM_PROMPT_BASE` 要求的 ```sh 冲突
+3. `_arrange_pending` 只在 `_on_instructions_done`（死代码）里重置
 
-**修复**:
-- `src/services/ai_service.py` L134: Worker.run() 新增 `all_instructions` 追踪，有指令时 emit `finished_with_instructions`
-- `src/ui/widgets/schedule_view.py` L282-287: prompt 从 JSON 格式改为 `\`\`\`sh` + `python scripts/actions.py` 命令
-- `src/ui/main_window.py` L266-267: `response_received` 改为经 `_on_ai_response` 中转，兜底清 `_arrange_pending`
-- `src/services/ai_service.py` L430-442: `_on_response_with_instructions` 去掉 `InstructionParser.execute()` 重复执行
+**修复**: Worker 追踪 `all_instructions` 并在有指令时 emit；prompt 改为 ```sh + `actions.py` 命令；
+`response_received` 经 `_on_ai_response` 中转兜底清 `_arrange_pending`；去掉重复执行。
 
-**涉及文件**: `ai_service.py`, `schedule_view.py`, `main_window.py`
+**涉及**: `ai_service.py` `schedule_view.py` `main_window.py`
 
-**教训**: 声明但未 emit 的 Qt 信号是 typo-like bug——连接了但永远不走。新增信号时必须在 emit 侧加搜索确认：`grep 'emit'` 能找到所有发射点。
+**教训**: **声明但未 emit 的 Qt 信号 = typo-like bug**。新增信号必须 `grep 'emit'` 确认有发射点。
 
 ---
 
 ### #002 | 2026-06-08 | 启动延迟 + AI 操作后 UI "未响应"
 
-L55-82
+**根因（三源）**:
+1. `show()` 在 `__init__` 末尾，之前已等 JSON 加载 + MainWindow 全量构建
+2. `schedule_view._refresh()` 每次销毁全部卡片再重建（layout pass + QSS 重解析 + paint）
+3. `InstructionParser.execute()` 每条指令都 `subprocess.run("python scripts/actions.py")`
 
-**症状**: 启动后有明显黑屏等待；点击"调整"或 AI 操作后窗口短暂冻结、"未响应"。
+**修复**: `show()` 提前；`_refresh()` 改 hash 增量（未变则跳过）；新增 `actions.run_in_process()` 内存调用替代 subprocess。
 
-**根因（三重源）**:
-1. `app.py`: `self._window.show()` 在 init 末尾（L163），之前已等了 JSON 加载 + MainWindow 全量构建
-2. `schedule_view._refresh()`: 每次都 `while layout.count > 1: takeAt → deleteLater` 销毁全部卡片再从头 `insertWidget` 重建——即使只改了一个时段的数据
-3. `InstructionParser.execute()`: 每条 AI 指令执行 `subprocess.run("python scripts/actions.py ...")` ——完整 Python 启动 + import + JSON 读写 + 退出
+**涉及**: `app.py` `schedule_view.py` `scripts/actions.py` `ai_service.py`
 
-**修复**:
-- `app.py` L144-163: `show()` 移到 MainWindow 创建后立即执行，tray/reminder/instance 在窗口可见后初始化
-- `schedule_view.py` L332-591: `_refresh()` 改为增量更新——用 `hashlib.md5` 对每时段内容做 hash，hash 未变则跳过（不销毁不重建），新增 `_slot_cards`/`_slot_hashes` dict 追踪
-- `scripts/actions.py`: 新增 `run_in_process(cmd_str)` ——`shlex.split` 解析命令 → 构建 `argparse.Namespace` → 直接调 handler，用 `contextlib.redirect_stdout` 捕获输出
-- `ai_service.py` InstructionParser.execute: 优先 `from scripts.actions import run_in_process` 内存调用，ImportError 时 fallback 到 subprocess
-
-**涉及文件**: `app.py`, `schedule_view.py`, `scripts/actions.py`, `ai_service.py`
-
-**教训**: Widget 全量销毁+重建是 PySide6 最高频的性能杀手——`deleteLater()` + `insertWidget()` 触发完整 layout pass + QSS 重解析 + paint。hash-based 跳过可减少 80%+ 的重建次数。
+**教训**: Widget 全量销毁+重建是 PySide6 最高频的性能杀手。
 
 ---
 
 ### #003 | 2026-06-09 | 分类 filter 只显示"其他"
 
-L87-L97
+**根因**: `InventoryModel.categories` property 的 fallback 硬编码为 `["其他"]`；旧数据文件无 `categories` 键时只返回这一项。
 
-**症状**: 点击"全部分类"只弹出一个选项"其他"，五个分类全不显示。
+**修复**: 缺键时从 `DEFAULT_INVENTORY["categories"]` 读完整列表并写回（自动修复旧数据）。
 
-**根因**: `InventoryModel.categories` property 的 fallback 硬编码为 `["其他"]`——当 JSON 文件中无 `categories` 键时（旧版本数据文件），返回此单元素列表。filter 从 property 读分类 → 只得到一个"其他"。
-
-**修复**: `inventory.py` `categories` property：缺键时从 `DEFAULT_INVENTORY["categories"]` 读取完整列表并写入 `_data`（自动修复旧数据文件）。
-
-**涉及文件**: `src/models/inventory.py`
-
-**教训**: property 的 fallback 值不应硬编码业务数据。应引用常量（`DEFAULT_INVENTORY["categories"]`）作为权威来源，确保 fallback 与初始值一致。
-
-**补充说明**: 此 bug 之前被另一个设计掩盖——filter 原本从已有物品提取分类（`set(it["category"] for it in items)`），只显示有物品的分类。该行为是设计选择而非 bug，但掩盖了 property fallback 的硬编码问题。
+**教训**: property 的 fallback 不应硬编码业务数据，应引用权威常量。
 
 ---
 
 ### #004 | 2026-06-10 | 中文日期解析失败 + AI 面板不展开
 
-L102-L122
+**症状 1**: DDL "这周五中午12点" → `due_date` 变成垃圾值 `"这周五中午12点T23:00:00"`。
+**根因 1**: `parse_date` 的 `(?:本周)?周(.)` 不匹配"这周X"；"中午12点"未处理。
+**修复 1**: 正则改 `(?:这|本)?周(.)`；`normalize_time` 支持 中午/下午/上午/晚上 + N点(半)。
 
-**症状 1**: AI 收到的作业 DDL 是"这周五中午12点"，任务虽然创建了但 `due_date` 字段是垃圾值 `"这周五中午12点T23:00:00"`。
+**症状 2**: 课程表右键后 AI 面板不出现，看不到已填充的提示词。
+**修复 2**: 改连 `_on_course_fill_ai`，先展开 AI 面板再 `fill_input`。
 
-**根因 1**: `parse_date()` 的"本周X"正则 `(?:本周)?周(.)` 不匹配"这周X"（`这`≠`本`）。时间"中午12点"完全未处理，`normalize_time()` 只追加默认 T23:00:00。
+**补充**: task/expense/habit 三面板对 `ai_action` 不刷新 → 统一加 `or is_ai`。
 
-**修复 1**: `parse_date`: `(?:这|本)?周(.)` 同时匹配"这周"和"本周"。`normalize_time`: 新增中文时间提取——中午/下午/上午/晚上 + 数字点 ± 半 → HH:MM:SS。
-
-**症状 2**: 课程表右键"布置了作业"等操作后，AI 面板不自动出现，用户看不到已填充的提示词。
-
-**根因 2**: `fill_input()` 只设置文本不展开面板。AI 面板初始 splitter 宽度为 0（隐藏）。
-
-**修复 2**: `_connect_course_table` 改为连接 `_on_course_fill_ai` 方法，先 `_on_ai_toggle(True)` 展开面板再 `fill_input(prompt)`。
-
-**涉及文件**: `scripts/actions.py`, `src/ui/main_window.py`, `src/ui/components/main_workspace.py`
-
-**补充**: 修复后 task 面板仍不刷新——`_on_data_changed` 只对 `"task" in action` 刷新 task_panel，AI 操作发 `"ai_action"` 不匹配。task/expense/habit 三面板均遗漏 `is_ai` 检查。已在所有面板统一加 `or is_ai`。
-
-**教训**: 正则边界条件（`这` vs `本`）和 UI 可见性（隐藏面板填充不可见）是"静默失败"的高发区。
+**教训**: 正则边界（这/本）+ UI 可见性（隐藏面板填充不可见）是"静默失败"高发区。
 
 ---
 
-### #005 | 2026-06-10 | run_in_process 缺 argparse 默认值导致全线 crash
+### #005 | 2026-06-10 | `run_in_process` 缺 argparse 默认值导致全线 crash
 
-L127-L146
+**症状**: AI 说"已添加任务"但未创建；所有不传可选参数的命令静默失败。
+**根因**: 手搓 `shlex`→`Namespace` 只设命令行里出现的参数，绕过 argparse 的 `default=`。
+`args.priority or "medium"` 先求值 `args.priority` → `AttributeError`（`or` 不保护）。
+**修复**: 调用 handler 前用默认值 dict 遍历补齐 22 个可选参数。
 
-**症状**: AI 说"已添加任务"但任务未创建，tasks.json 无记录。后续发现 add_plan 等也受影响——所有不传可选参数的 AI 命令静默失败。
-
-**根因**: `run_in_process()` 手动 `shlex.split` 解析命令行构建 `argparse.Namespace`，但只设置了 CLI 中明确出现的 `--key value`。argparse 的 `default=` 机制完全被绕过。如 `--priority medium` 未出现在命令中 → Namespace 无 `priority` 属性 → `args.priority or "medium"` 先求值 `args.priority` 即抛 `AttributeError`（`or` 保护无效——Python 求值顺序）。
-
-**修复**: `run_in_process()` 中在调用 handler 前遍历所有已知可选参数的默认值 dict，用 `hasattr` 检查 + `setattr` 补全。共覆盖 22 个可选参数（priority/schedule/duration/slot/type/weeks/slots/parity/category/quantity/min_qty/tags/notes/location/scope/teacher/course/reminder/unit/status/due/note）。
-
-**模拟验证**: 全部 16 条命令（add_task/complete_task/add_exam/add_habit/log_habit/add_plan/replace_plans/delete_plan/add_course/delete_course/add_item/update_item/need_restock/lookup_item/status/delete_item）零 crash。
-
-**涉及文件**: `scripts/actions.py`
-
-**教训**: 手动实现 arg parser 时必须同步 argparse 的 `default=` 值。`args.xxx or default` 不防 AttributeError——Python 先求值左侧才到 `or`。正确写法：`getattr(args, 'xxx', default)` 或预填充 Namespace。
+**教训**: 手写 parser 必须同步 argparse 默认值；`args.x or d` 不防 `AttributeError`，应 `getattr(args,'x',d)`。
 
 ---
 
-### #006 | 2026-06-12 | content.replace 批量替换导致递归 + AttributeError
+### #006 | 2026-06-12 | `content.replace` 批量替换导致递归 + `AttributeError`
 
-L151-L163
+**症状**: 启动崩溃 `AttributeError: 'InventoryPanel' object has no attribute '_bc_cat'`；
+修复后 `RecursionError`（自调用）。
+**根因**: 把多处 `self._breadcrumb.hide()` 批量替换为 `_update_breadcrumb()`，
+其中一处是 `_update_breadcrumb` 自身的 `else` 分支 → 自调用死循环；另一处在控件未创建时调用。
+**修复**: 还原 else 分支的 `hide()`；移除 `__init__` 中的过早调用。
 
-**症状 1**: 启动崩溃 `AttributeError: 'InventoryPanel' object has no attribute '_bc_cat'`
-**症状 2**: 修复后启动崩溃 `RecursionError: maximum recursion depth exceeded` (L227 自调用)
+**教训**: `content.replace()` 批量替换极其危险，**涉及自身引用的改动必须精确定位**（见 `CODE_STANDARDS` §4）。
 
-**根因**: 将旧代码中多处 `self._breadcrumb.hide()` 批量 replace 为 `self._update_breadcrumb()`。其中一处是 `_update_breadcrumb` 自身的 `else` 分支——替换后变成自调用死循环。另一处是 `__init__` 中控件尚未创建时的调用。
+---
 
-**修复**: 
-- `_update_breadcrumb` else 分支恢复 `self._breadcrumb.hide()`
-- `__init__` 中移除过早调用（末尾 `_refresh()` 会自动触发）
+### #007 | clicked 信号传参污染
 
-**教训**: `content.replace()` 批量替换文本时，若替换目标出现在被替换函数自身的内部，会造成递归或逻辑错误。涉及自身引用的改动必须精确定位编辑（patch tool），不能靠全局替换。——连接了但永远不走。新增信号时必须在 emit 侧加搜索确认：`grep 'emit'` 能找到所有发射点。
+**症状**: 点"调整"按钮，`_quick_arrange(days)` 的 `days` 变成 `False`（快照显示"未来 False 天"）。
+**根因**: `QPushButton.clicked` 自动传 `checked=False` 覆盖了默认参数。
+**修复**: `btn.clicked.connect(lambda: self._quick_arrange())`。
+
+---
+
+### #008 | `_file_path` → `file_path` 属性名错误
+
+**症状**: `AttributeError: 'DailyLogModel' object has no attribute '_file_path'`。
+**根因**: `BaseJsonModel` 的属性名是 `file_path`，不是 `_file_path`。
+
+---
+
+### #009 | f-string 内花括号未转义
+
+**症状**: JSON 示例 `{"action":"add_plan"}` 被当作 f-string 插值解析。
+**修复**: f-string 内的花括号必须双写 `{{"action":"add_plan"}}`（见 R-008）。
+
+---
+
+### #010 | 分隔符变量编号混乱（`sep4` 未定义）
+
+**症状**: `UnboundLocalError: cannot access local variable 'sep4'`。
+**根因**: 往已有 sep1–sep4 的状态栏插入新组件，只改局部编号，后面仍引用旧变量名。
+**修复**: 新增分隔符用独立命名（如 `sep_exam`），或整体重写该段。
+
+---
+
+### #011 | AI 输出"未知操作: xxx"
+
+**症状**: AI 生成 `replace_plans` 指令，执行器报"未知操作"。
+**根因**: prompt 里文档化了该操作，但执行器未注册对应分支。
+**修复**: prompt 提到的每个 action 都必须在执行器实现（现由 `tests/test_prompt_consistency.py` 把关）。
+
+---
+
+### #012 | 信号冲突（两个 handler 接同一信号）
+
+**症状**: "快速安排"点击没反应。
+**根因**: `quick_adjust_requested` 同时被 `_on_quick_adjust`（填充 AI 输入框）与 `_on_quick_arrange`（直接发 AI）连接，产生竞争。
+**修复**: 新建独立信号 `arrange_requested`，不再共享。
+
+---
+
+### #013 | 替换文本未精确匹配导致代码残留
+
+**症状**: 多次替换后文件越来越大、含大量死代码。
+**根因**: `old_string` 与文件实际文本不完全一致（空格/换行差异），工具静默跳过。
+**修复**: `git checkout` 回滚干净版 → 精确行级替换 → 编译验证。
+
+---
+
+### #014 | 工具调用忘记 import（环境）
+
+**症状**: `NameError: name 'os' is not defined`。
+**根因**: 每次独立进程执行代码，不共享之前的 import。
+**修复**: 每个代码块开头写全 import。
+
+---
+
+### #015 | Windows bash（MSYS）工具故障（环境）
+
+**症状**: 文件/终端工具全报 exit code 126 "builtin: not found"。
+**根因**: w64devkit 缺运行时 DLL。
+**应对**: 文件操作改用 Python `open()`（见 `AGENTS.md` §4）。
+
+---
+
+### #016 | 语法检查缺失导致连锁错误
+
+**症状**: 改 A 文件 → 提交 → B 文件报错（B 依赖 A 的改动）。
+**修复**: 每次改完全量 `compileall`（见 `AGENTS.md` §3 步骤 6）。
+
+---
+
+### #017 | DDL 计数按精确时间而非按天
+
+**症状**: 下午 3 点查看，3 天后 23:00 截止的作业不计入 DDL。
+**根因**: `datetime.now() + timedelta(days=3)` 精确到时分秒。
+**修复**: 改用 `date` 比较（`date.today() + timedelta(days=3)`）。
+
+---
+
+### #018 | 状态栏残留占位 widget
+
+**症状**: "备考1科"与日期之间有空白。
+**根因**: `_shopping_label`/`sep4` 不再更新数据，但永久 widget 仍挂在 `QStatusBar`。
+**修复**: 从 `_setup_statusbar` 彻底移除不用的 widget。
+> 关联现状：`main_window._shopping_label` 至今仍是"从未创建"的悬空引用（`CODE_STANDARDS Q-A4`）。
+
+---
+
+### #019 | `mousePressEvent` 右键也触发点击
+
+**症状**: 右键点 DDL 线或状态栏标签也会跳转。
+**根因**: `ClickLabel.mousePressEvent` 未区分鼠标按键。
+**修复**: 加 `if ev.button() == Qt.MouseButton.LeftButton:` 判断。

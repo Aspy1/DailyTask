@@ -144,7 +144,7 @@
 - 现状：`✔` 2026-10-15 完成（34 份 `.py.md` 与 `FORMAT_SPEC.md` 已删，新增 `ARCHITECTURE.md`）。
 
 **Q-G4 单一真值**：同一事实只允许一处权威来源；文档与代码冲突时以**代码**为准并立即修文档
-- 现状：`✗` `DESIGN_TOKENS.md`(规格) 与 `theme.py`(实现) 漂移；根 `ERRORS.md` 与 `MD-files/ERRORS.md` 重复。
+- 现状：`✗` `DESIGN_TOKENS.md`(规格) 与 `theme.py`(实现) 漂移（待 `G-1`）；`ERRORS.md` 重复问题已于 2026-10-15 解决。
 
 ## H. UI 与设计令牌
 
