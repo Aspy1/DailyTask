@@ -189,7 +189,7 @@ class Sidebar(QWidget):
         bl = QVBoxLayout(bottom)
         bl.setContentsMargins(0, 0, 0, 0)
         bl.setSpacing(0)
-        for key, label in [("settings", "设置"), ("about", "关于")]:
+        for key, label in [("settings", "设置"), ("about", "关于"), ("more", "更多…")]:
             btn = NavItem(key, label, indent=False)
             btn.clicked_with_key.connect(self._on_nav_clicked)
             self._nav_items[key] = btn
