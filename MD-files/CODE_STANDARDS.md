@@ -11,7 +11,7 @@
 > - `PLAN.md` —— 待做的整改项与体检结果
 >
 > 每条格式：**规则 → 为什么 → 如何检查 → 现状**。
-> `现状`：`✔ 达标` / `✗ 违规（见 PLAN）` / `? 未核查`。
+> `现状`：`✔ 达标` / `✗ 违规（见 PLAN）` / `🔄 进行中` / `? 未核查`。
 > 章节：**A** 结构分层 · **B** 线程并发 · **C** 复杂度资源 · **D** 日志调试 · **E** 安全数据 ·
 > **F** 测试 · **G** 文档 · **H** UI 与令牌 · **I** 异常处理 · **N** 命名约定 · **P** 目录结构。
 
@@ -153,7 +153,7 @@
 - 现状：`✗` `#fff` 约 15 处、`settings_panel.py:296/299`、`app.py:65/82/115`、`toggle_switch.py:46`、`ai_panel.py:20/173` 等。
 
 **Q-H2 令牌单一真值**：规格文档由令牌文件**生成**，禁止规格与实现两份手写
-- 现状：`✗` `DESIGN_TOKENS.md` 与 `theme.py:TOKENS` 已漂移。
+- 现状：`🔄` 2026-10-16：单一真值 `src/ui/styles/tokens.json` 已建、`theme.py` 已改为加载；`DESIGN_TOKENS.md` 仍为手写（待 `G-1b` 由脚本生成）。
 
 **Q-H3 令牌命名：`<domain>_<variant>_<property>_<state>`，各槽取受控词表**
 
@@ -180,7 +180,7 @@
 
 **Q-H8 令牌文件与生成链**：`src/ui/styles/tokens.json`（唯一真值）→ `theme.py` 加载并生成 QSS →
 `MD-files/DESIGN_TOKENS.md` 由脚本生成；组件经 `get_colors()` 取 `semantic` / `component` 名
-- 现状：`✗` 真值目前是 `theme.py` 里的 Python 字面量，且规格文档手写。
+- 现状：`🔄` 2026-10-16：真值已移至 `src/ui/styles/tokens.json`（`theme.py` 加载）；`DESIGN_TOKENS.md` 待由脚本生成；`palette` 分层（`Q-H7`）尚未引入。
 
 ## I. 异常与错误处理
 

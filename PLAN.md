@@ -29,7 +29,7 @@
 **P1b 规范落地（把决策应用到代码与文档）**
 - `A-1` ✅ 写 `ARCHITECTURE.md` + `git rm` 34 份 `.py.md` + `FORMAT_SPEC.md`
 - `A-2` ✅ 合并两份 `ERRORS.md`；`A-3` `AllTheFiles.md` 瘦身（待办）
-- `G-1` 建 `src/ui/styles/tokens.json`（三层）→ `theme.py` 改为加载 → 生成 `DESIGN_TOKENS.md`
+- `G-1` 🔄 `tokens.json` 已建 + `theme.py` 已改加载（G-1a ✅）；生成 `DESIGN_TOKENS.md` 待办（G-1b）
 - `H-1` / `Q-P1` ✅ 建 `resources/`、`image.png` 归位（`app.py` `_ICON_PATH` 同步；`rewrite_history.py` 路径同步）
 - `Q-N5` i18n key 命名空间落地
 
@@ -205,7 +205,13 @@
 - 类名 QSS 选择器（R-008 明禁）：`habit_panel.py:54/58` 的 `_HabitCard { … }`。
 - 字号/圆角/间距的 `Npx` 字面量散落各处；`QFont(..., 14)` 硬编码字号。
 
-### G-1 `[待议]` 令牌格式改造：单一真值 + 分层 + 命名约定
+### G-1 `[进行中]` 令牌格式改造：单一真值 + 分层 + 命名约定
+
+- ✅ **G-1a（2026-10-16）**：建 `src/ui/styles/tokens.json`（48 色键 × 2 模式 + 11 字号 + 字体，值由脚本从 `theme.py` 导出，零转录风险）；
+  `theme.py` 改为加载；**逐键比对确认色值/字号完全未变**。
+- ⏳ **G-1b**：写生成器，产出手写的 `DESIGN_TOKENS.md` 令牌表（消除规格漂移）。
+- ⏳ **G-1c**：引入 `palette → semantic → component` 分层（`Q-H7`）。
+- 命名约定与受控词表见 `CODE_STANDARDS Q-H3`。
 
 - **单一真值**：令牌收敛到一个机器可读文件（`src/ui/styles/tokens.json` 或 `.py`）；
   `theme.py` 从它加载生成 QSS；`MD-files/DESIGN_TOKENS.md` **由脚本生成**，不再手写（根治漂移）。

@@ -1,147 +1,37 @@
-"""Design system — Warm Paper Study palette (light-first)."""
+"""Design system — Warm Paper Study palette (light-first).
+
+Tokens 的**单一真值**是同目录的 tokens.json（见 CODE_STANDARDS Q-H8）。
+改色值/字号请改 tokens.json，本文件只负责加载并生成 QSS。
+"""
+
+import json
+from pathlib import Path
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont, QFontDatabase
 from PySide6.QtWidgets import QApplication, QMenu
 
-FONT_CN = "Microsoft YaHei"
-FONT_MONO = "Consolas"
+# ── Tokens：从单一真值 tokens.json 加载（CODE_STANDARDS Q-H8）──
+_TOKENS_DATA = json.loads((Path(__file__).parent / "tokens.json").read_text(encoding="utf-8"))
 
-# ── Type scale (see DESIGN_TOKENS.md §2.2) ──────────────
-SIZE_TINY      = 10   # tags, badges
-SIZE_CAPTION   = 12   # table data, status bar
-SIZE_BODY_S    = 13   # secondary text, labels, footnotes
-SIZE_BODY      = 14   # body (default)
-SIZE_BODY_M    = 15   # emphasized body text
-SIZE_BODY_L    = 16   # card titles, emphasized body
-SIZE_ICON      = 18   # icon font size
-SIZE_SUBTITLE  = 20   # section headings
-SIZE_TITLE     = 28   # page titles
-SIZE_HEADING   = 36   # hero / empty-state headings
-SIZE_FAB       = 24   # floating action button
+FONT_CN = _TOKENS_DATA["font"]["cn"]
+FONT_MONO = _TOKENS_DATA["font"]["mono"]
 
-# ── Design tokens (see DESIGN_TOKENS.md §1) ─────────────
+# ── Type scale ─────────────────────────────────────────
+SIZE_TINY = _TOKENS_DATA["sizes"]["SIZE_TINY"]
+SIZE_CAPTION = _TOKENS_DATA["sizes"]["SIZE_CAPTION"]
+SIZE_BODY_S = _TOKENS_DATA["sizes"]["SIZE_BODY_S"]
+SIZE_BODY = _TOKENS_DATA["sizes"]["SIZE_BODY"]
+SIZE_BODY_M = _TOKENS_DATA["sizes"]["SIZE_BODY_M"]
+SIZE_BODY_L = _TOKENS_DATA["sizes"]["SIZE_BODY_L"]
+SIZE_ICON = _TOKENS_DATA["sizes"]["SIZE_ICON"]
+SIZE_SUBTITLE = _TOKENS_DATA["sizes"]["SIZE_SUBTITLE"]
+SIZE_TITLE = _TOKENS_DATA["sizes"]["SIZE_TITLE"]
+SIZE_HEADING = _TOKENS_DATA["sizes"]["SIZE_HEADING"]
+SIZE_FAB = _TOKENS_DATA["sizes"]["SIZE_FAB"]
 
-TOKENS = {
-    "light": {
-        # Backgrounds
-        "bg_root":          "#F2EFE9",
-        "bg_surface":       "#E0DDD6",
-        "bg_card":          "#FDFCFA",
-        "bg_elevated":      "#FDFCFA",
-        "bg_input":         "#F2EFE9",
-        # Foregrounds
-        "fg_primary":       "#2D2A26",
-        "fg_secondary":     "#6E6B66",
-        "fg_hint":          "#9E9B96",
-        "fg_disabled":      "#C6C4BF",
-        # Accent
-        "accent":           "#B0823A",
-        "accent_hover":     "#C99845",
-        "accent_dim":       "#966C2E",
-        "accent_bg":        "rgba(176,130,58,0.08)",
-        # Borders
-        "border":           "rgba(0,0,0,0.08)",
-        "border_strong":    "rgba(0,0,0,0.12)",
-        "divider":          "rgba(0,0,0,0.04)",
-        # Functional
-        "red":              "#D14343",
-        "green":            "#4A8B5F",
-        "yellow":           "#B0823A",
-        "orange":           "#C5702A",
-        # Course colors
-        "course_color_1":   "rgba(176,130,58,0.12)",   # amber
-        "course_color_2":   "rgba(90,140,110,0.10)",   # sage
-        "course_color_3":   "rgba(160,110,80,0.10)",   # terracotta
-        "course_color_4":   "rgba(100,130,170,0.10)",  # slate blue
-        "course_color_5":   "rgba(140,120,90,0.10)",   # warm taupe
-        "course_color_6":   "rgba(80,150,130,0.10)",   # teal
-        "course_color_7":   "rgba(170,100,120,0.10)",  # rose
-        "course_color_8":   "rgba(110,140,100,0.10)",  # olive
-        # Button states
-        "btn_pressed_bg":   "rgba(0,0,0,0.08)",
-        # Badge
-        "badge_bg":         "rgba(176,130,58,0.10)",
-        "badge_fg":         "#B0823A",
-        "badge_radius":     8,
-        # Navigation
-        "sidebar_bg":       "#D0CCC4",
-        "chat_bg":          "#FDFCFA",
-        "input_bg":         "#F2EFE9",
-        "input_border":     "rgba(0,0,0,0.10)",
-        "btn_secondary_bg":       "rgba(0,0,0,0.04)",
-        "btn_secondary_fg":       "#6E6B66",
-        "btn_secondary_hover":    "rgba(0,0,0,0.06)",
-        "btn_secondary_hover_fg": "#2D2A26",
-        "table_alt":        "rgba(0,0,0,0.02)",
-        "card_bg":          "#F9F6F0",
-        "card_border":      "rgba(0,0,0,0.06)",
-        "section_heading":  "#B0823A",
-        "nav_bg":           "#D0CCC4",
-        "status_bar_bg":    "#E3E0D9",
-        "nav_selected_bg":  "rgba(176,130,58,0.10)",
-        "nav_selected_fg":  "#966C2E",
-    },
-    "dark": {
-        # Backgrounds — warm dark paper tones
-        "bg_root":          "#1E1D1A",
-        "bg_surface":       "#252421",
-        "bg_card":          "#2C2B27",
-        "bg_elevated":      "#33322E",
-        "bg_input":         "#252421",
-        # Foregrounds — warm off-white, never pure #FFF
-        "fg_primary":       "#E8E5DF",
-        "fg_secondary":     "#A8A59F",
-        "fg_hint":          "#706D68",
-        "fg_disabled":      "#504D48",
-        # Accent — warmer amber for dark bg
-        "accent":           "#D4A853",
-        "accent_hover":     "#E0BC6B",
-        "accent_dim":       "#C49840",
-        "accent_bg":        "rgba(212,168,83,0.10)",
-        # Borders — subtle
-        "border":           "rgba(255,255,255,0.05)",
-        "border_strong":    "rgba(255,255,255,0.09)",
-        "divider":          "rgba(255,255,255,0.03)",
-        # Functional — softened
-        "red":              "#E06060",
-        "green":            "#5FA87A",
-        "yellow":           "#D4A853",
-        "orange":           "#D48A40",
-        # Course colors (adjusted for dark bg)
-        "course_color_1":   "rgba(212,168,83,0.15)",   # amber
-        "course_color_2":   "rgba(95,168,122,0.12)",   # sage
-        "course_color_3":   "rgba(200,140,100,0.12)",   # terracotta
-        "course_color_4":   "rgba(130,160,200,0.12)",  # slate blue
-        "course_color_5":   "rgba(170,150,110,0.12)",   # warm taupe
-        "course_color_6":   "rgba(100,180,160,0.12)",   # teal
-        "course_color_7":   "rgba(200,130,150,0.12)",  # rose
-        "course_color_8":   "rgba(140,170,130,0.12)",  # olive
-        # Button states
-        "btn_pressed_bg":   "rgba(255,255,255,0.06)",
-        # Badge
-        "badge_bg":         "rgba(212,168,83,0.12)",
-        "badge_fg":         "#D4A853",
-        "badge_radius":     8,
-        # Navigation — darker sidebar, distinct
-        "sidebar_bg":       "#1A1917",
-        "chat_bg":          "#1E1D1A",
-        "input_bg":         "#252421",
-        "input_border":     "rgba(255,255,255,0.07)",
-        "btn_secondary_bg":       "rgba(255,255,255,0.03)",
-        "btn_secondary_fg":       "#A8A59F",
-        "btn_secondary_hover":    "rgba(255,255,255,0.06)",
-        "btn_secondary_hover_fg": "#E8E5DF",
-        "table_alt":        "rgba(255,255,255,0.015)",
-        "card_bg":          "#2C2B27",
-        "card_border":      "rgba(255,255,255,0.06)",
-        "section_heading":  "#D4A853",
-        "nav_bg":           "#1A1917",
-        "status_bar_bg":    "#2C2B27",
-        "nav_selected_bg":  "rgba(212,168,83,0.12)",
-        "nav_selected_fg":  "#D4A853",
-    },
-}
+# ── Design tokens（colors：light / dark）───────────────
+TOKENS: dict = _TOKENS_DATA["colors"]
 
 _current_mode: str = "light"
 _color_cache: dict | None = None
