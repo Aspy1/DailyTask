@@ -699,7 +699,8 @@ class HabitDialog(QDialog):
             name = item_id
             for it in self._dm.inventory.items:
                 if it["id"] == item_id:
-                    name = it["name"]; break
+                    name = it["name"]
+                    break
             consume = li.get("consume_per_use", 1)
             self._linked_list.addItem(f"{name}  -{consume}次/回")
 
@@ -710,7 +711,8 @@ class HabitDialog(QDialog):
             return
         c = get_colors()
         dlg = QDialog(self)
-        dlg.setWindowTitle("选择消耗物品"); dlg.setMinimumWidth(350)
+        dlg.setWindowTitle("选择消耗物品")
+        dlg.setMinimumWidth(350)
         dlg.setStyleSheet(f"QDialog {{ background-color: {c['bg_card']}; color: {c['fg_primary']}; }}")
         layout = QVBoxLayout(dlg)
         lst = QListWidget()
@@ -720,11 +722,15 @@ class HabitDialog(QDialog):
         lst.itemDoubleClicked.connect(dlg.accept)
         layout.addWidget(lst)
         form = QFormLayout()
-        self._consume_spin = QSpinBox(); self._consume_spin.setRange(1,99); self._consume_spin.setValue(1)
+        self._consume_spin = QSpinBox()
+        self._consume_spin.setRange(1,99)
+        self._consume_spin.setValue(1)
         form.addRow("每次消耗:", self._consume_spin)
         layout.addLayout(form)
         btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
-        btns.accepted.connect(dlg.accept); btns.rejected.connect(dlg.reject); layout.addWidget(btns)
+        btns.accepted.connect(dlg.accept)
+        btns.rejected.connect(dlg.reject)
+        layout.addWidget(btns)
         if dlg.exec() and lst.currentItem():
             idx = lst.currentRow()
             if 0 <= idx < len(items):

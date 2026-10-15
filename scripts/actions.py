@@ -421,15 +421,24 @@ def cmd_update_item(args):
     data = load("inventory.json")
     for it in data.get("items", []):
         if it["id"] == args.id:
-            if args.name: it["name"] = args.name
-            if args.group is not None and args.group != "": it["group"] = args.group
-            if args.category: it["category"] = args.category
-            if args.quantity is not None: it["quantity"] = args.quantity
-            if args.unit: it["unit"] = args.unit
-            if args.status: it["status"] = args.status
-            if args.min_qty is not None: it["min_quantity"] = args.min_qty
-            if args.location: it["location"] = args.location
-            if args.tags: it["tags"] = [t.strip() for t in args.tags.split(",") if t.strip()]
+            if args.name:
+                it["name"] = args.name
+            if args.group is not None and args.group != "":
+                it["group"] = args.group
+            if args.category:
+                it["category"] = args.category
+            if args.quantity is not None:
+                it["quantity"] = args.quantity
+            if args.unit:
+                it["unit"] = args.unit
+            if args.status:
+                it["status"] = args.status
+            if args.min_qty is not None:
+                it["min_quantity"] = args.min_qty
+            if args.location:
+                it["location"] = args.location
+            if args.tags:
+                it["tags"] = [t.strip() for t in args.tags.split(",") if t.strip()]
             it["updated_at"] = now_iso()
             save("inventory.json", data)
             print(f"OK update_item {args.id}")

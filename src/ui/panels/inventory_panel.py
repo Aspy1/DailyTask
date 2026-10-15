@@ -225,14 +225,19 @@ class InventoryPanel(QWidget):
         self._refresh()
 
     def _update_breadcrumb(self) -> None:
-        self._bc_cat.hide(); self._bc_sep1.hide()
-        self._bc_group.hide(); self._bc_sep2.hide(); self._bc_item.hide()
+        self._bc_cat.hide()
+        self._bc_sep1.hide()
+        self._bc_group.hide()
+        self._bc_sep2.hide()
+        self._bc_item.hide()
         if self._current_category:
             self._breadcrumb.show()
-            self._bc_cat.setText(self._current_category); self._bc_cat.show()
+            self._bc_cat.setText(self._current_category)
+            self._bc_cat.show()
             if self._current_group:
                 self._bc_sep1.show()
-                self._bc_group.setText(self._current_group); self._bc_group.show()
+                self._bc_group.setText(self._current_group)
+                self._bc_group.show()
         else:
             self._breadcrumb.hide()
 
@@ -432,7 +437,8 @@ class InventoryPanel(QWidget):
         parts = []
         for k in ["location", "notes"]:
             v = it.get(k, "")
-            if v: parts.append(v)
+            if v:
+                parts.append(v)
         if parts:
             detail = QLabel(" · ".join(parts))
             detail.setWordWrap(True)
@@ -606,12 +612,18 @@ class InventoryPanel(QWidget):
         menu.exec()
 
     def _quick_update(self, iid, data) -> None:
-        self._dm.inventory.update_item(iid, data); self._dm.inventory.save(); self._dm.data_changed.emit("inventory"); self._refresh()
+        self._dm.inventory.update_item(iid, data)
+        self._dm.inventory.save()
+        self._dm.data_changed.emit("inventory")
+        self._refresh()
 
     def _delete_item(self, iid) -> None:
         name = next((it.get("name", iid) for it in self._dm.inventory.items if it["id"] == iid), iid)
         if QMessageBox.question(self, "确认", f"删除「{name}」？") == QMessageBox.StandardButton.Yes:
-            self._dm.inventory.delete_item(iid); self._dm.inventory.save(); self._dm.data_changed.emit("inventory"); self._refresh()
+            self._dm.inventory.delete_item(iid)
+            self._dm.inventory.save()
+            self._dm.data_changed.emit("inventory")
+            self._refresh()
 
     def _edit_tags(self, item: dict) -> None:
         """Open dialog to add/remove/edit tags on an item."""
@@ -620,7 +632,9 @@ class InventoryPanel(QWidget):
         dlg.setWindowTitle(f"修改标签 - {item.get('name', '')}")
         dlg.setMinimumWidth(360)
         dlg.setStyleSheet(f"QDialog {{ background-color: {c['card_bg']}; }} QLabel {{ color: {c['fg_primary']}; font-size: 13px; background: transparent; border: none; }} QLineEdit {{ background-color: {c['bg_input']}; color: {c['fg_primary']}; border: 1px solid {c['border']}; padding: 6px 10px; font-size: 13px; }} QPushButton {{ background-color: {c['accent_bg']}; color: {c['fg_primary']}; border: none; border-radius: 4px; padding: 4px 12px; font-size: 12px; }} QPushButton:hover {{ background-color: {c['accent']}; color: {c['fg_on_fill']}; }}")
-        layout = QVBoxLayout(dlg); layout.setSpacing(10); layout.setContentsMargins(20, 16, 20, 16)
+        layout = QVBoxLayout(dlg)
+        layout.setSpacing(10)
+        layout.setContentsMargins(20, 16, 20, 16)
 
         tag_list = QListWidget()
         tag_list.setStyleSheet(f"QListWidget {{ background-color: {c['bg_input']}; color: {c['fg_primary']}; border: 1px solid {c['border']}; border-radius: 4px; font-size: 13px; }}")
@@ -643,8 +657,11 @@ class InventoryPanel(QWidget):
 
         # Add new tag
         add_row = QHBoxLayout()
-        self._tag_input = QLineEdit(); self._tag_input.setPlaceholderText("新标签..."); add_row.addWidget(self._tag_input)
-        add_btn = QPushButton("添加"); add_row.addWidget(add_btn)
+        self._tag_input = QLineEdit()
+        self._tag_input.setPlaceholderText("新标签...")
+        add_row.addWidget(self._tag_input)
+        add_btn = QPushButton("添加")
+        add_row.addWidget(add_btn)
         layout.addLayout(add_row)
 
         def add_tag():
@@ -657,18 +674,22 @@ class InventoryPanel(QWidget):
         self._tag_input.returnPressed.connect(add_tag)
 
         # Remove selected
-        del_btn = QPushButton("删除选中"); del_btn.clicked.connect(lambda: tag_list.takeItem(tag_list.currentRow()) if tag_list.currentRow() >= 0 else None)
+        del_btn = QPushButton("删除选中")
+        del_btn.clicked.connect(lambda: tag_list.takeItem(tag_list.currentRow()) if tag_list.currentRow() >= 0 else None)
         layout.addWidget(del_btn)
 
         # OK / Cancel
         btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
-        btns.accepted.connect(dlg.accept); btns.rejected.connect(dlg.reject)
+        btns.accepted.connect(dlg.accept)
+        btns.rejected.connect(dlg.reject)
         layout.addWidget(btns)
 
         if dlg.exec():
             new_tags = [tag_list.item(i).text() for i in range(tag_list.count())]
             self._dm.inventory.update_item(item["id"], {"tags": new_tags})
-            self._dm.inventory.save(); self._dm.data_changed.emit("inventory"); self._refresh()
+            self._dm.inventory.save()
+            self._dm.data_changed.emit("inventory")
+            self._refresh()
 
     def _email_reminder(self, item) -> None:
         from datetime import datetime, timedelta
@@ -676,15 +697,27 @@ class InventoryPanel(QWidget):
         from PySide6.QtCore import QLocale
         from PySide6.QtWidgets import QDateTimeEdit
         c = get_colors()
-        dlg = QDialog(self); dlg.setWindowTitle(f"邮件提醒 - {item.get('name','')}"); dlg.setMinimumWidth(320)
+        dlg = QDialog(self)
+        dlg.setWindowTitle(f"邮件提醒 - {item.get('name','')}")
+        dlg.setMinimumWidth(320)
         dlg.setStyleSheet(f"QDialog {{ background-color: {c['card_bg']}; }} QLabel {{ color: {c['fg_primary']}; font-size: 13px; }}")
-        layout = QVBoxLayout(dlg); layout.setSpacing(12)
+        layout = QVBoxLayout(dlg)
+        layout.setSpacing(12)
         layout.addWidget(QLabel(f"为「{item.get('name','')}」设置补货提醒"))
-        dt = QDateTimeEdit(); dt.setLocale(QLocale(QLocale.Language.English, QLocale.Country.UnitedStates))
-        dt.setCalendarPopup(True); dt.setDateTime(datetime.now() + timedelta(days=3)); dt.setDisplayFormat("yyyy-MM-dd HH:mm")
+        dt = QDateTimeEdit()
+        dt.setLocale(QLocale(QLocale.Language.English, QLocale.Country.UnitedStates))
+        dt.setCalendarPopup(True)
+        dt.setDateTime(datetime.now() + timedelta(days=3))
+        dt.setDisplayFormat("yyyy-MM-dd HH:mm")
         layout.addWidget(dt)
         btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
-        btns.accepted.connect(dlg.accept); btns.rejected.connect(dlg.reject); layout.addWidget(btns)
-        if dlg.exec(): self._dm.daily_logs.add_reminder("inventory", item.get("name", ""), datetime.now().strftime("%Y-%m-%d"), dt.dateTime().toPython().isoformat()); self._dm.daily_logs.save(); QMessageBox.information(self, "已设置", "已设置补货提醒")
+        btns.accepted.connect(dlg.accept)
+        btns.rejected.connect(dlg.reject)
+        layout.addWidget(btns)
+        if dlg.exec():
+            self._dm.daily_logs.add_reminder("inventory", item.get("name", ""), datetime.now().strftime("%Y-%m-%d"), dt.dateTime().toPython().isoformat())
+        self._dm.daily_logs.save()
+        QMessageBox.information(self, "已设置", "已设置补货提醒")
 
-    def refresh_theme(self) -> None: self._refresh()
+    def refresh_theme(self) -> None:
+        self._refresh()

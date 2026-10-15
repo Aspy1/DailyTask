@@ -59,14 +59,16 @@ class CourseDetailDialog(QDialog):
 
         # 日程 tab
         sched = QWidget()
-        sl = QVBoxLayout(sched); sl.setContentsMargins(0, 8, 0, 0)
+        sl = QVBoxLayout(sched)
+        sl.setContentsMargins(0, 8, 0, 0)
         self._sched_list = QListWidget()
         sl.addWidget(self._sched_list)
         tabs.addTab(sched, "日程")
 
         # 作业 tab
         tasks_w = QWidget()
-        tl = QVBoxLayout(tasks_w); tl.setContentsMargins(0, 8, 0, 0)
+        tl = QVBoxLayout(tasks_w)
+        tl.setContentsMargins(0, 8, 0, 0)
         self._task_list = QListWidget()
         tl.addWidget(self._task_list)
         tabs.addTab(tasks_w, "作业")
