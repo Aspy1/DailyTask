@@ -122,6 +122,7 @@ def _beijing_today() -> date:
 
 
 def build_digest(data_dir: Path) -> str:
+    """组装每日摘要文本（按分区拼接）。"""
     today = _beijing_today()
     today_str = today.isoformat()
     weekday = WEEKDAY_NAMES[today.weekday()]
@@ -130,112 +131,127 @@ def build_digest(data_dir: Path) -> str:
     tasks_data = load_json(data_dir / "tasks.json")
     habits_data = load_json(data_dir / "habits.json")
     daily_data = load_json(data_dir / "daily_logs.json")
+    pending = [t for t in tasks_data.get("tasks", []) if t.get("status") != "completed"]
 
     lines = [f"【每日日程】{today_str} {weekday}", ""]
+    lines += _digest_summary(courses_data, pending, habits_data, today)
+    lines += _digest_courses(courses_data, today)
+    lines += _digest_plans(daily_data, today_str)
+    lines += _digest_habits(habits_data, today)
+    lines += _digest_urgent(pending, today)
+    lines += _digest_exams(pending, today)
+    lines += _digest_balance(data_dir)
+    lines += _digest_expenses(data_dir, today_str)
+    lines += _digest_shopping(data_dir)
+    return "\n".join(lines)
 
-    # Quick stats
-    pending = [t for t in tasks_data.get("tasks", []) if t.get("status") != "completed"]
+
+def _digest_summary(courses_data: dict, pending: list, habits_data: dict, today) -> list[str]:
     threshold_3d = (today + timedelta(days=3)).isoformat()
     urgent_ddl = len([t for t in pending if t.get("due_date", "") and t["due_date"] < threshold_3d])
+    logs = habits_data.get("logs", {})
     active_h = [h for h in habits_data.get("habits", []) if is_habit_active_today(h, today)]
-    done_h = sum(1 for h, _ in [(h, is_habit_done_today(h, habits_data.get("logs", {}), today)) for h in active_h])
-    lines.append(f"📋 {len(get_courses_for_date(courses_data, today))}节课 | {done_h}/{len(active_h)}项日常"
-                 f"{' | ⚠ ' + str(urgent_ddl) + '项DDL' if urgent_ddl else ''}")
-    lines.append("")
+    done_h = sum(1 for h in active_h if is_habit_done_today(h, logs, today))
+    ddl_str = f" | ⚠ {urgent_ddl}项DDL" if urgent_ddl else ""
+    return [
+        f"📋 {len(get_courses_for_date(courses_data, today))}节课 | {done_h}/{len(active_h)}项日常{ddl_str}",
+        "",
+    ]
 
-    # ── Courses ──────────────────────────────────────────
+
+def _digest_courses(courses_data: dict, today) -> list[str]:
+    lines = ["── 今日课程 ──"]
     courses = get_courses_for_date(courses_data, today)
-    lines.append("── 今日课程 ──")
-    if courses:
-        for c in courses:
-            name = c.get("name", "")
-            slots = c.get("time_slots", [])
-            time_str = ""
-            if slots:
-                s_idx = slots[0]["start"] - 1
-                try:
-                    e_idx = min(max(s["end"] for s in slots) - 1, len(PERIOD_TIMES) - 1)
-                except (IndexError, KeyError):
-                    e_idx = s_idx
-                if 0 <= s_idx < len(PERIOD_TIMES) and 0 <= e_idx < len(PERIOD_TIMES):
-                    time_str = f" {PERIOD_TIMES[s_idx][0]}-{PERIOD_TIMES[e_idx][1]}"
-            location = c.get("location", "")
-            loc_str = f" ({location})" if location else ""
-            lines.append(f"  • {name}{time_str}{loc_str}")
-    else:
+    if not courses:
         lines.append("  （无课）")
+        return lines
+    for c in courses:
+        time_str = ""
+        slots = c.get("time_slots", [])
+        if slots:
+            s_idx = slots[0]["start"] - 1
+            try:
+                e_idx = min(max(s["end"] for s in slots) - 1, len(PERIOD_TIMES) - 1)
+            except (IndexError, KeyError):
+                e_idx = s_idx
+            if 0 <= s_idx < len(PERIOD_TIMES) and 0 <= e_idx < len(PERIOD_TIMES):
+                time_str = f" {PERIOD_TIMES[s_idx][0]}-{PERIOD_TIMES[e_idx][1]}"
+        location = c.get("location", "")
+        loc_str = f" ({location})" if location else ""
+        lines.append(f"  • {c.get('name', '')}{time_str}{loc_str}")
+    return lines
 
-    # ── Plans ────────────────────────────────────────────
+
+def _digest_plans(daily_data: dict, today_str: str) -> list[str]:
     plans = daily_data.get("plans", {}).get(today_str, [])
-    if plans:
-        lines.append("")
-        lines.append("── 今日计划 ──")
-        for p in plans:
-            ts = p.get("time_slot", "?")
-            lines.append(f"  • 时段{ts}: {p.get('title', '')}")
+    if not plans:
+        return []
+    lines = ["", "── 今日计划 ──"]
+    for p in plans:
+        lines.append(f"  • 时段{p.get('time_slot', '?')}: {p.get('title', '')}")
+    return lines
 
-    # ── Habits ───────────────────────────────────────────
-    lines.append("")
-    lines.append("── 今日习惯 ──")
-    active_habits = []
-    for h in habits_data.get("habits", []):
-        if is_habit_active_today(h, today):
-            done = is_habit_done_today(h, habits_data.get("logs", {}), today)
-            active_habits.append((h, done))
-    if active_habits:
-        for h, done in active_habits:
-            rt = h.get("reminder_time", "")
-            rt_str = f" ({rt})" if rt else ""
-            status = "✓" if done else "○"
-            lines.append(f"  {status} {h.get('name', '')}{rt_str}")
-    else:
+
+def _digest_habits(habits_data: dict, today) -> list[str]:
+    logs = habits_data.get("logs", {})
+    active = [(h, is_habit_done_today(h, logs, today))
+              for h in habits_data.get("habits", []) if is_habit_active_today(h, today)]
+    lines = ["", "── 今日习惯 ──"]
+    if not active:
         lines.append("  （无）")
+        return lines
+    for h, done in active:
+        rt = h.get("reminder_time", "")
+        rt_str = f" ({rt})" if rt else ""
+        lines.append(f"  {'✓' if done else '○'} {h.get('name', '')}{rt_str}")
+    return lines
 
-    # ── Urgent DDL (within 3 days) ───────────────────────
-    lines.append("")
-    lines.append("── 即将截止的任务（3天内）──")
-    pending_tasks = [t for t in tasks_data.get("tasks", []) if t.get("status") != "completed"]
+
+def _digest_urgent(pending: list, today) -> list[str]:
     threshold_3d = (today + timedelta(days=3)).isoformat()
-    urgent = [t for t in pending_tasks if t.get("due_date", "") and t["due_date"] < threshold_3d]
-    if urgent:
-        urgent.sort(key=lambda t: t.get("due_date", ""))
-        for t in urgent:
-            due = (t.get("due_date", "") or "")[:10]
-            due_dt = date.fromisoformat(due) if due else None
-            days_left = f"（{(due_dt - today).days}天后）" if due_dt and due_dt >= today else "（已过期）"
-            course = t.get("course_name", "") or ""
-            c_str = f" [{course}]" if course else ""
-            lines.append(f"  • {due}: {t.get('title', '')}{c_str} {days_left}")
-    else:
+    urgent = [t for t in pending if t.get("due_date", "") and t["due_date"] < threshold_3d]
+    lines = ["", "── 即将截止的任务（3天内）──"]
+    if not urgent:
         lines.append("  （无即将截止的任务）")
+        return lines
+    for t in sorted(urgent, key=lambda t: t.get("due_date", "")):
+        due = (t.get("due_date", "") or "")[:10]
+        try:
+            due_dt = date.fromisoformat(due) if due else None
+        except ValueError:
+            due_dt = None
+        days_left = f"（{(due_dt - today).days}天后）" if due_dt and due_dt >= today else "（已过期）"
+        course = t.get("course_name", "") or ""
+        c_str = f" [{course}]" if course else ""
+        lines.append(f"  • {due}: {t.get('title', '')}{c_str} {days_left}")
+    return lines
 
-    # ── Exam reminders ────────────────────────────────────
-    lines.append("")
-    lines.append("── 考试提醒 ──")
-    exam_tasks = [t for t in pending_tasks if "考试" in (t.get("title", "") + " ".join(t.get("tags", [])))]
-    exam_alerts = []
-    for t in exam_tasks:
+
+def _digest_exams(pending: list, today) -> list[str]:
+    lines = ["", "── 考试提醒 ──"]
+    alerts = []
+    for t in pending:
+        if "考试" not in (t.get("title", "") + " ".join(t.get("tags", []))):
+            continue
         due_str = (t.get("due_date", "") or "")[:10]
         if not due_str:
             continue
         try:
-            due_dt = date.fromisoformat(due_str)
+            days_left = (date.fromisoformat(due_str) - today).days
         except ValueError:
             continue
-        days_left = (due_dt - today).days
-        if days_left < 0:
-            continue
-        if days_left in (14, 7, 3) or days_left <= 3:
-            exam_alerts.append((days_left, t))
-    if exam_alerts:
-        exam_alerts.sort(key=lambda x: x[0])
-        for days_left, t in exam_alerts:
-            lines.append(f"  • ⚠ 距「{t.get('title', '')}」还有 {days_left} 天（{t.get('due_date', '')[:10]}）")
-    else:
+        if days_left >= 0 and (days_left in (14, 7, 3) or days_left <= 3):
+            alerts.append((days_left, t))
+    if not alerts:
         lines.append("  （近期无考试）")
+        return lines
+    for days_left, t in sorted(alerts, key=lambda x: x[0]):
+        lines.append(f"  • ⚠ 距「{t.get('title', '')}」还有 {days_left} 天（{t.get('due_date', '')[:10]}）")
+    return lines
 
-    # ── Balance ──────────────────────────────────────────
-    # Read settings.ini for balance info
+
+def _digest_balance(data_dir: Path) -> list[str]:
+    """余额分区（读 settings.ini；缺文件/缺配置则静默跳过）。"""
     try:
         import configparser
         config = configparser.ConfigParser()
@@ -244,58 +260,59 @@ def build_digest(data_dir: Path) -> str:
         for key, label in [("campus_card", "校园卡"), ("water_card", "水卡"), ("electricity", "电费")]:
             bal = config.get("Balance", f"{key}_balance", fallback="")
             thr = config.get("Balance", f"{key}_threshold", fallback="")
-            if bal:
-                try:
-                    b = float(bal)
-                    t = float(thr) if thr else 0
-                    s = f"  {label}: ¥{b:.1f}"
-                    if b <= t:
-                        s += f" ⚠ 低于阈值 {t:.0f} 元"
-                    bal_lines.append(s)
-                except ValueError:
-                    logger.debug("build_digest 中忽略异常", exc_info=True)
-        if bal_lines:
-            lines.append("")
-            lines.append("── 余额 ──")
-            lines.extend(bal_lines)
+            if not bal:
+                continue
+            try:
+                b = float(bal)
+                t = float(thr) if thr else 0
+            except ValueError:
+                continue
+            s = f"  {label}: ¥{b:.1f}"
+            if b <= t:
+                s += f" ⚠ 低于阈值 {t:.0f} 元"
+            bal_lines.append(s)
+        if not bal_lines:
+            return []
+        return ["", "── 余额 ──", *bal_lines]
     except Exception:
-        logger.debug("build_digest 中忽略异常", exc_info=True)
+        logger.debug("_digest_balance 中忽略异常", exc_info=True)
+        return []
 
-    # ── Today's spending ───────────────────────────────────
+
+def _digest_expenses(data_dir: Path, today_str: str) -> list[str]:
     try:
-        expenses_data = load_json(data_dir / "expenses.json")
-        today_records = [r for r in expenses_data.get("records", [])
-                         if (r.get("date", "") or "")[:10] == today_str]
-        if today_records:
-            today_total = sum(r.get("amount", 0) for r in today_records)
-            month_records = [r for r in expenses_data.get("records", [])
-                             if (r.get("date", "") or "")[:7] == today_str[:7]]
-            month_total = sum(r.get("amount", 0) for r in month_records)
-            budget = expenses_data.get("budget", {}).get("monthly", 0)
-            lines.append("")
-            lines.append("── 支出 ──")
-            lines.append(f"  今日: ¥{today_total:.1f}（{len(today_records)}笔）")
-            budget_str = f" / 预算 ¥{budget:.0f}" if budget else ""
-            lines.append(f"  本月: ¥{month_total:.1f}{budget_str}")
+        expenses = load_json(data_dir / "expenses.json")
+        records = expenses.get("records", [])
+        today_records = [r for r in records if (r.get("date", "") or "")[:10] == today_str]
+        if not today_records:
+            return []
+        month_records = [r for r in records if (r.get("date", "") or "")[:7] == today_str[:7]]
+        budget = expenses.get("budget", {}).get("monthly", 0)
+        budget_str = f" / 预算 ¥{budget:.0f}" if budget else ""
+        return [
+            "", "── 支出 ──",
+            f"  今日: ¥{sum(r.get('amount', 0) for r in today_records):.1f}（{len(today_records)}笔）",
+            f"  本月: ¥{sum(r.get('amount', 0) for r in month_records):.1f}{budget_str}",
+        ]
     except Exception:
-        logger.debug("build_digest 中忽略异常", exc_info=True)
+        logger.debug("_digest_expenses 中忽略异常", exc_info=True)
+        return []
 
-    # ── Shopping needs ─────────────────────────────────────
+
+def _digest_shopping(data_dir: Path) -> list[str]:
     try:
-        inventory_data = load_json(data_dir / "inventory.json")
-        items = inventory_data.get("items", [])
-        needs = [i for i in items if i.get("status") == "need"]
-        if needs:
-            lines.append("")
-            lines.append("── 购物需求 ──")
-            for i in needs:
-                cat = i.get("category", "")
-                cat_str = f" [{cat}]" if cat else ""
-                lines.append(f"  • {i.get('name', '')}{cat_str}")
+        needs = [i for i in load_json(data_dir / "inventory.json").get("items", [])
+                 if i.get("status") == "need"]
+        if not needs:
+            return []
+        lines = ["", "── 购物需求 ──"]
+        for i in needs:
+            cat = i.get("category", "")
+            lines.append(f"  • {i.get('name', '')}{f' [{cat}]' if cat else ''}")
+        return lines
     except Exception:
-        logger.debug("build_digest 中忽略异常", exc_info=True)
-
-    return "\n".join(lines)
+        logger.debug("_digest_shopping 中忽略异常", exc_info=True)
+        return []
 
 
 def send_email(subject: str, body: str) -> None:

@@ -158,113 +158,128 @@ class ScheduleView(QWidget):
     # ── Quick Arrange ──────────────────────────────────────
 
     def _build_snapshot(self, days: int = 1) -> str:
-        """Build a human+AI readable snapshot for N days."""
-        day_names = ["周一","周二","周三","周四","周五","周六","周日"]
+        """构建供人与 AI 阅读的 N 天日程快照。"""
+        day_names = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
         target = self._target_date
         today = date.today()
-        lines = [f"========== 日程快照: {days}天 (从{target.isoformat()}起) =========="]
-        lines.append("当前日期: " + today.isoformat())
-        lines.append("")
+        lines = [
+            f"========== 日程快照: {days}天 (从{target.isoformat()}起) ==========",
+            "当前日期: " + today.isoformat(),
+            "",
+        ]
+        lines += self._snapshot_ddl_lines()
+        lines += self._snapshot_exam_lines(today)
 
-        # ── DDLs (global, same for all days) ──
+        period_count = self._dm.courses.get_period_count()
+        for d in range(days):
+            day = target + timedelta(days=d)
+            lines += self._snapshot_day_lines(day, day_names[day.weekday()], today, period_count)
+
+        lines += self._snapshot_instructions(days)
+        return "\n".join(lines)
+
+    def _snapshot_ddl_lines(self) -> list[str]:
+        """全局 DDL（各天共用）。"""
         pending = self._dm.tasks.pending
-        lines.append(f"--- DDL/截止日期 (共{len(pending)}项, 不可移动的红线) ---")
+        out = [f"--- DDL/截止日期 (共{len(pending)}项, 不可移动的红线) ---"]
         for t in pending:
             due = t.get("due_date", "")[:16].replace("T", " ") if t.get("due_date") else "无截止"
             course = t.get("course_name", "") or ""
             c_str = f" [{course}]" if course else ""
-            lines.append(f"  ● {t.get('title','')}{c_str}  截止: {due}")
+            out.append(f"  ● {t.get('title', '')}{c_str}  截止: {due}")
+        out.append("")
+        return out
+
+    def _snapshot_exam_lines(self, today) -> list[str]:
+        """未来考试列表（无则空）。"""
+        exams = getattr(self._dm, "exams", None)
+        if exams is None:
+            return []
+        upcoming = [e for e in exams.exams if e.get("exam_date", "") >= today.isoformat()]
+        if not upcoming:
+            return []
+        out = [f"--- 考试安排 (共{len(upcoming)}场) ---"]
+        for e in sorted(upcoming, key=lambda x: x.get("exam_date", "")):
+            scope = e.get("scope", "") or ""
+            scope_str = f"  范围: {scope}" if scope else ""
+            out.append(f"  📝 {e.get('course_name', '')}  {e.get('exam_date', '')}{scope_str}")
+        out.append("")
+        return out
+
+    def _snapshot_day_lines(self, day, day_name: str, today, period_count: int) -> list[str]:
+        """单天：课程 / 习惯 / 已有安排 / 空闲时段。"""
+        day_str = day.isoformat()
+        marker = " ★今天" if day == today else ""
+        lines = [f"========== {day_str} {day_name}{marker} =========="]
+
+        courses = self._dm.courses.get_courses_for_date(day)
+        lines.append(f"  课程({len(courses)}门):")
+        for c in courses:
+            slot_strs = [f"第{s.get('start', '?')}-{s.get('end', '?')}节"
+                         for s in c.get("time_slots", [])]
+            loc = c.get("location", "") or ""
+            loc_str = f" @{loc}" if loc else ""
+            lines.append(f"    [{','.join(slot_strs)}] {c.get('name', '')}{loc_str}")
+
+        active = [h for h in self._dm.habits.habits if self._habit_active_on(h, day)]
+        if active:
+            lines.append(f"  习惯({len(active)}项):")
+            for h in active:
+                rt = h.get("reminder_time", "") or ""
+                rt_str = f" @{rt}" if rt else ""
+                lines.append(f"    {h.get('name', '')}{rt_str} ({h.get('duration_minutes', 30)}分钟)")
+
+        plans = self._dm.daily_logs.get_plans(day_str)
+        if plans:
+            lines.append(f"  已有安排({len(plans)}项):")
+            for p in plans:
+                lines.append(f"    第{p.get('time_slot', '?')}节: {p.get('title', '')}")
+        else:
+            lines.append("  已有安排: (无)")
+
+        lines.append(f"  空闲: {self._free_slots_text(courses, period_count)}")
         lines.append("")
+        return lines
 
-        # ── Exams ──
-        if hasattr(self._dm, 'exams'):
-            exams = self._dm.exams.exams
-            upcoming = [e for e in exams if e.get('exam_date', '') >= today.isoformat()]
-            if upcoming:
-                lines.append(f"--- 考试安排 (共{len(upcoming)}场) ---")
-                for e in sorted(upcoming, key=lambda x: x.get('exam_date', '')):
-                    scope = e.get('scope', '') or ''
-                    scope_str = f"  范围: {scope}" if scope else ''
-                    lines.append(f"  📝 {e.get('course_name','')}  {e.get('exam_date','')}{scope_str}")
-                lines.append("")
+    @staticmethod
+    def _habit_active_on(habit: dict, day) -> bool:
+        sched = habit.get("schedule", {})
+        st = sched.get("type", "daily")
+        if st in ("daily", "interval"):
+            return True
+        if st == "weekly":
+            return (day.weekday() + 1) in sched.get("days", [])
+        return False
 
-        # ── Per-day breakdown ──
-        period_count = self._dm.courses.get_period_count()
-        for d in range(days):
-            day = target + timedelta(days=d)
-            day_str = day.isoformat()
-            day_name = day_names[day.weekday()]
-            is_today = day == today
-            marker = " ★今天" if is_today else ""
-            lines.append(f"========== {day_str} {day_name}{marker} ==========")
-
-            # Courses
-            courses = self._dm.courses.get_courses_for_date(day)
-            lines.append(f"  课程({len(courses)}门):")
-            for c in courses:
-                slots = c.get("time_slots", [])
-                slot_strs = []
-                for s in slots:
-                    slot_strs.append(f"第{s.get('start','?')}-{s.get('end','?')}节")
-                loc = c.get("location", "") or ""
-                loc_str = f" @{loc}" if loc else ""
-                lines.append(f"    [{','.join(slot_strs)}] {c.get('name','')}{loc_str}")
-
-            # Habits active on this day
-            active_habits = []
-            for h in self._dm.habits.habits:
-                sched = h.get("schedule", {})
-                st = sched.get("type", "daily")
-                if st == "daily" or st == "interval":
-                    active_habits.append(h)
-                elif st == "weekly":
-                    wd = day.weekday() + 1
-                    if wd in sched.get("days", []):
-                        active_habits.append(h)
-            if active_habits:
-                lines.append(f"  习惯({len(active_habits)}项):")
-                for h in active_habits:
-                    dur = h.get("duration_minutes", 30)
-                    rt = h.get("reminder_time", "") or ""
-                    rt_str = f" @{rt}" if rt else ""
-                    lines.append(f"    {h.get('name','')}{rt_str} ({dur}分钟)")
-
-            # Existing plans
-            plans = self._dm.daily_logs.get_plans(day_str)
-            if plans:
-                lines.append(f"  已有安排({len(plans)}项):")
-                for p in plans:
-                    lines.append(f"    第{p.get('time_slot','?')}节: {p.get('title','')}")
+    @staticmethod
+    def _free_slots_text(courses: list[dict], period_count: int) -> str:
+        occupied: set[int] = set()
+        for c in courses:
+            for s in c.get("time_slots", []):
+                occupied.update(range(s["start"], s["end"] + 1))
+        times = []
+        for p in range(1, period_count + 1):
+            if p in occupied:
+                continue
+            if p <= len(PERIOD_TIMES):
+                st_t, en_t = PERIOD_TIMES[p - 1]
+                times.append(f"第{p}节({st_t}-{en_t})")
             else:
-                lines.append("  已有安排: (无)")
+                times.append(f"第{p}节")
+        return ", ".join(times) if times else "(无)"
 
-            # Free slots
-            occupied = set()
-            for c in courses:
-                for s in c.get("time_slots", []):
-                    for p in range(s["start"], s["end"] + 1):
-                        occupied.add(p)
-            free = [i for i in range(1, period_count + 1) if i not in occupied]
-            times = []
-            for p in free:
-                if p <= len(PERIOD_TIMES):
-                    st_t, en_t = PERIOD_TIMES[p - 1]
-                    times.append(f"第{p}节({st_t}-{en_t})")
-                else:
-                    times.append(f"第{p}节")
-            lines.append(f"  空闲: {', '.join(times) if times else '(无)'}")
-            lines.append("")
-
-        # ── Arrange instructions ──
-        lines.append("========== 安排指令 ==========")
-        lines.append(f"请为以上{days}天安排日程。规则：")
-        lines.append("1. 课程时段不可占用，DDL截止时间不可移动")
-        lines.append("2. 将习惯安排到对应日期的空闲时段")
-        lines.append("3. 根据DDL紧迫度，将任务分配到各天空闲时段（越临近截止越优先）")
-        lines.append("4. 如有考试，优先安排考前复习时间")
-        lines.append("5. 允许在上课时段安排自习任务")
-        lines.append("6. 用JSON输出修改方案，每条计划指定date字段")
-        return "\n".join(lines)
+    @staticmethod
+    def _snapshot_instructions(days: int) -> list[str]:
+        return [
+            "========== 安排指令 ==========",
+            f"请为以上{days}天安排日程。规则：",
+            "1. 课程时段不可占用，DDL截止时间不可移动",
+            "2. 将习惯安排到对应日期的空闲时段",
+            "3. 根据DDL紧迫度，将任务分配到各天空闲时段（越临近截止越优先）",
+            "4. 如有考试，优先安排考前复习时间",
+            "5. 允许在上课时段安排自习任务",
+            "6. 用 ```sh 代码块输出 actions.py 命令（replace_plans / add_plan），不要用 JSON",
+        ]
 
 
     def _quick_arrange(self, days: int = 3) -> None:
@@ -336,38 +351,27 @@ class ScheduleView(QWidget):
         self._dm.data_changed.emit("plan")
         self._refresh()
 
-    def _refresh(self) -> None:
-        # Ensure slot tracking dicts exist for incremental updates
-        if not hasattr(self, '_slot_cards'):
-            self._slot_cards = {}
-            self._slot_hashes = {}
+    # ── Refresh 辅助方法（拆分自原 60 复杂度的 _refresh）────────
 
-        c = get_colors()
-        target = self._target_date
-        target_str = target.isoformat()
-
-        day_names = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
-        self._date_label.setText(f"{target_str} {day_names[target.weekday()]}")
-
-        courses = self._dm.courses.get_courses_for_date(target)
-        plans = self._dm.daily_logs.get_plans(target_str)
-        habits = self._dm.habits.habits
-
-        # Now: for time axis indicator
-        now = datetime.now().time()
-        now_minutes = now.hour * 60 + now.minute
-        current_slot = None
-        for i, (start_s, end_s) in enumerate(PERIOD_TIMES):
+    @staticmethod
+    def _slot_for_minutes(minutes: int, period_count: int | None = None) -> int | None:
+        """把「当天分钟数」映射到节次（1 起）；不在任何时段返回 None。"""
+        periods = PERIOD_TIMES if period_count is None else PERIOD_TIMES[:period_count]
+        for i, (start_s, end_s) in enumerate(periods):
             s = int(start_s[:2]) * 60 + int(start_s[3:])
             e = int(end_s[:2]) * 60 + int(end_s[3:])
-            if s <= now_minutes <= e:
-                current_slot = i + 1
-                break
+            if s <= minutes <= e:
+                return i + 1
+        return None
 
-        # Build slot data
+    def _current_slot(self) -> int | None:
+        now = datetime.now()
+        return self._slot_for_minutes(now.hour * 60 + now.minute)
+
+    def _build_slot_data(self, courses: list, plans: list, habits: list) -> dict[int, list[dict]]:
+        """把课程 / 计划 / 当日活跃习惯归入 1–6 时段。"""
         slot_data: dict[int, list[dict]] = {i: [] for i in range(1, 7)}
 
-        # Courses
         for course in courses:
             for slot in course.get("time_slots", []):
                 for s in range(slot["start"], slot["end"] + 1):
@@ -379,7 +383,6 @@ class ScheduleView(QWidget):
                             "location": course.get("location", ""),
                         })
 
-        # Plans
         for plan in plans:
             ts = plan.get("time_slot", 0)
             if 1 <= ts <= 6:
@@ -392,27 +395,18 @@ class ScheduleView(QWidget):
                     "note": plan.get("note", ""),
                 })
 
-        # Habits — only active today, insert by reminder_time
         for h in habits:
             if not self._dm.habits.is_active_today(h["id"]):
                 continue
             rt = h.get("reminder_time", "").strip()
+            h_min = 0
             if rt:
                 try:
                     hh, mm = rt.split(":")
                     h_min = int(hh) * 60 + int(mm)
                 except ValueError:
                     h_min = 0
-            else:
-                h_min = 0
-            # Map to time slot
-            slot = 1
-            for i, (start_s, end_s) in enumerate(PERIOD_TIMES):
-                s = int(start_s[:2]) * 60 + int(start_s[3:])
-                e = int(end_s[:2]) * 60 + int(end_s[3:])
-                if s <= h_min <= e:
-                    slot = i + 1
-                    break
+            slot = self._slot_for_minutes(h_min) or 1
             if 1 <= slot <= 6:
                 slot_data[slot].append({
                     "type": "habit",
@@ -421,10 +415,10 @@ class ScheduleView(QWidget):
                     "duration": h.get("duration_minutes", 30),
                     "reminder_time": rt,
                 })
+        return slot_data
 
-        period_count = self._dm.courses.get_period_count()
-
-        # ── DDL markers: collect tasks due today ────────────
+    def _build_ddl_by_slot(self, target, period_count: int) -> dict[int, list[dict]]:
+        """收集「今日截止」的任务，并按截止时刻归入节次。"""
         ddl_by_slot: dict[int, list[dict]] = {i: [] for i in range(1, period_count + 1)}
         for t in self._dm.tasks.pending:
             due_str = t.get("due_date", "")
@@ -436,195 +430,212 @@ class ScheduleView(QWidget):
                 continue
             if due_dt.date() != target:
                 continue
-            due_minutes = due_dt.hour * 60 + due_dt.minute
-            # Map to period
-            slot = None
-            for i, (start_s, end_s) in enumerate(PERIOD_TIMES[:period_count]):
-                s = int(start_s[:2]) * 60 + int(start_s[3:])
-                e = int(end_s[:2]) * 60 + int(end_s[3:])
-                if s <= due_minutes <= e:
-                    slot = i + 1
-                    break
-            if slot is None:
-                # Before first slot or after last — put in nearest
+            minutes = due_dt.hour * 60 + due_dt.minute
+            slot = self._slot_for_minutes(minutes, period_count)
+            if slot is None:  # 早于第一节 / 晚于最后一节 → 就近归入
                 first_start = int(PERIOD_TIMES[0][0][:2]) * 60 + int(PERIOD_TIMES[0][0][3:])
-                slot = 1 if due_minutes < first_start else period_count
+                slot = 1 if minutes < first_start else period_count
             ddl_by_slot[slot].append(t)
+        return ddl_by_slot
 
+    @staticmethod
+    def _content_hash(items: list[dict], ddls: list[dict], is_current: bool) -> str:
+        """时段内容指纹，用于增量刷新时跳过未变的卡片。"""
         import hashlib
         import json
+        content_key = json.dumps({
+            'items': [{'t': i['type'], 'n': i.get('name', '') or i.get('title', ''),
+                       'nt': i.get('note', ''), 'd': i.get('duration', 0),
+                       'l': i.get('location', ''), 'rt': i.get('reminder_time', ''),
+                       'pt': i.get('plan_type', ''), 'cn': i.get('course_name', '')}
+                      for i in items],
+            'ddls': [{'t': d.get('title', ''), 'd': d.get('due_date', '')[:16]} for d in ddls],
+            'cur': is_current,
+        }, sort_keys=True).encode()
+        return hashlib.md5(content_key, usedforsecurity=False).hexdigest()
+
+    def _create_slot_card(self, period: int, items: list[dict], ddls: list[dict],
+                          plans: list[dict], is_current: bool, c: dict) -> QWidget:
+        """构建单个时段卡片（时间头 + 条目 + DDL 标记）。"""
+        if period <= len(PERIOD_TIMES):
+            start_t, end_t = PERIOD_TIMES[period - 1]
+            time_str = f"{start_t} - {end_t}"
+        else:
+            time_str = f"时段{period}"
+
+        card = QWidget()
+        card.setStyleSheet(f"""
+            QWidget {{ background-color: {c['card_bg']}; border-radius: 8px; }}
+        """)
+        cl = QVBoxLayout(card)
+        cl.setContentsMargins(16, 12, 16, 8)
+        cl.setSpacing(8)
+
+        hdr = QHBoxLayout()
+        hdr.setSpacing(6)
+        if is_current:
+            arrow = QLabel("▶")
+            arrow.setStyleSheet(f"color: {c['accent']}; font-size: 16px; font-weight: bold; border: none;")
+            hdr.addWidget(arrow)
+        time_label = QLabel(time_str)
+        time_label.setStyleSheet(
+            f"color: {c['accent'] if is_current else c['fg_hint']}; font-size: 16px; font-weight: 600;"
+        )
+        hdr.addWidget(time_label)
+        hdr.addStretch()
+        cl.addLayout(hdr)
+
+        if not items:
+            empty = QLabel("空闲")
+            empty.setStyleSheet(f"color: {c['fg_disabled']}; font-size: 13px; padding: 4px 0;")
+            cl.addWidget(empty)
+        else:
+            for item in items:
+                widget = self._create_item_widget(item, plans, c)
+                if widget is not None:
+                    cl.addWidget(widget)
+
+        for t in ddls:
+            cl.addWidget(self._create_ddl_label(t, c))
+        return card
+
+    def _create_item_widget(self, item: dict, plans: list[dict], c: dict) -> QWidget | None:
+        """按条目类型构建卡片内的小部件。"""
+        if item["type"] == "course":
+            return self._create_course_item(item, plans, c)
+        if item["type"] == "plan":
+            return self._create_plan_item(item, c)
+        if item["type"] == "habit":
+            return self._create_habit_item(item, c)
+        return None
+
+    def _create_course_item(self, item: dict, plans: list[dict], c: dict) -> QWidget:
+        course_card = QWidget()
+        course_card.setStyleSheet(
+            f"QWidget {{ background-color: {c['bg_elevated']}; border-radius: 8px; }}")
+        course_card.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        course_card.customContextMenuRequested.connect(
+            lambda pos, ci=item, card=course_card: self._course_menu(pos, ci, card))
+        ccl = QVBoxLayout(course_card)
+        ccl.setContentsMargins(12, 8, 12, 8)
+        ccl.setSpacing(4)
+        name_lbl = QLabel(f"📖 {item['name']}")
+        name_lbl.setStyleSheet(f"color: {c['fg_primary']}; font-size: 13px; font-weight: 600;")
+        name_lbl.setWordWrap(True)
+        ccl.addWidget(name_lbl)
+        loc = item.get("location", "")
+        if loc:
+            loc_lbl = QLabel(loc)
+            loc_lbl.setStyleSheet(f"color: {c['fg_hint']}; font-size: 13px;")
+            ccl.addWidget(loc_lbl)
+        for plan in plans:
+            if plan.get("course_name") == item["name"] and plan.get("type") == "course_note":
+                note_lbl = QLabel(f"📌 {plan.get('title', '')}")
+                note_lbl.setStyleSheet(f"color: {c['accent']}; font-size: 16px; font-weight: 600;")
+                note_lbl.setWordWrap(True)
+                ccl.addWidget(note_lbl)
+        return course_card
+
+    def _create_plan_item(self, item: dict, c: dict) -> QWidget:
+        plan_card = QWidget()
+        plan_card.setStyleSheet(
+            f"QWidget {{ background-color: {c['accent_bg']}; border-radius: 8px; }}")
+        plan_card.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        plan_card.customContextMenuRequested.connect(
+            lambda pos, pi=item, card=plan_card: self._plan_menu(pos, pi, card))
+        pcl = QVBoxLayout(plan_card)
+        pcl.setContentsMargins(12, 8, 12, 8)
+        pcl.setSpacing(4)
+        prefix = "📅" if item.get("plan_type") == "custom" else "🔄"
+        title_lbl = QLabel(f"{prefix} {item['title']}")
+        title_lbl.setStyleSheet(f"color: {c['fg_primary']}; font-size: 13px; font-weight: 600;")
+        title_lbl.setWordWrap(True)
+        pcl.addWidget(title_lbl)
+        note = item.get("note", "")
+        if note:
+            n = QLabel(note)
+            n.setStyleSheet(f"color: {c['fg_secondary']}; font-size: 13px;")
+            n.setWordWrap(True)
+            pcl.addWidget(n)
+        return plan_card
+
+    def _create_habit_item(self, item: dict, c: dict) -> QWidget:
+        hab_card = QWidget()
+        hab_card.setStyleSheet(
+            f"QWidget {{ background-color: {c['bg_elevated']}; border-radius: 8px; }}")
+        hab_card.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        hab_card.customContextMenuRequested.connect(
+            lambda pos, hi=item, card=hab_card: self._habit_menu(pos, hi, card))
+        hcl = QVBoxLayout(hab_card)
+        hcl.setContentsMargins(12, 8, 12, 8)
+        hcl.setSpacing(4)
+        done = self._dm.habits.is_done_today(item["habit"]["id"])
+        status = "✓" if done else "○"
+        dur = item.get("duration", 30)
+        rt = item.get("reminder_time", "")
+        rt_str = f" {rt}" if rt else ""
+        name_lbl = QLabel(f"{status} {item['name']}{rt_str}  ({dur}分钟)")
+        name_lbl.setStyleSheet(
+            f"color: {c['fg_hint'] if done else c['fg_primary']}; font-size: 13px;")
+        hcl.addWidget(name_lbl)
+        return hab_card
+
+    def _create_ddl_label(self, t: dict, c: dict) -> ClickLabel:
+        due_str = t.get("due_date", "")
+        try:
+            due_time = datetime.fromisoformat(due_str).strftime("%H:%M")
+        except (ValueError, TypeError):
+            due_time = ""
+        course_name = t.get("course_name", "") or ""
+        ddl_label = ClickLabel()
+        ddl_label.setWordWrap(False)
+        ddl_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        suffix = f" 截止 {due_time}" if due_time else ""
+        ddl_label.setText(f"—— {t.get('title', '')}{suffix} ——")
+        ddl_label.setStyleSheet(
+            f"color: {c['red']}; font-size: 15px; font-weight: 600; border: none; background: transparent; padding: 6px 0;")
+        ddl_label.clicked.connect(lambda cn=course_name: self.task_focus_requested.emit(cn))
+        return ddl_label
+
+    def _refresh(self) -> None:
+        """重建当日时段视图（hash 增量：内容未变的时段跳过）。"""
+        if not hasattr(self, '_slot_cards'):
+            self._slot_cards = {}
+            self._slot_hashes = {}
+
+        c = get_colors()
+        target = self._target_date
+        target_str = target.isoformat()
+        day_names = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
+        self._date_label.setText(f"{target_str} {day_names[target.weekday()]}")
+
+        courses = self._dm.courses.get_courses_for_date(target)
+        plans = self._dm.daily_logs.get_plans(target_str)
+        current_slot = self._current_slot()
+        period_count = self._dm.courses.get_period_count()
+
+        slot_data = self._build_slot_data(courses, plans, self._dm.habits.habits)
+        ddl_by_slot = self._build_ddl_by_slot(target, period_count)
 
         for period in range(1, period_count + 1):
             items = slot_data.get(period, [])
             ddls = ddl_by_slot.get(period, [])
-
-            # Hash slot content for incremental update detection
-            is_current_slot = (period == current_slot and self._day_offset == 0)
-            content_key = json.dumps({
-                'items': [{'t': i['type'], 'n': i.get('name','') or i.get('title',''),
-                           'nt': i.get('note',''), 'd': i.get('duration',0),
-                           'l': i.get('location',''), 'rt': i.get('reminder_time',''),
-                           'pt': i.get('plan_type',''), 'cn': i.get('course_name','')}
-                          for i in items],
-                'ddls': [{'t': d.get('title',''), 'd': d.get('due_date','')[:16]}
-                         for d in ddls],
-                'cur': is_current_slot
-            }, sort_keys=True).encode()
-            new_hash = hashlib.md5(content_key, usedforsecurity=False).hexdigest()
+            is_current = (period == current_slot and self._day_offset == 0)
+            new_hash = self._content_hash(items, ddls, is_current)
 
             if period in self._slot_cards and self._slot_hashes.get(period) == new_hash:
-                continue  # unchanged
+                continue  # 未变，跳过重建
 
-            # Remove old card if replacing
             if period in self._slot_cards:
-                old_card = self._slot_cards[period]
-                self._content_layout.removeWidget(old_card)
-                old_card.deleteLater()
+                self._content_layout.removeWidget(self._slot_cards[period])
+                self._slot_cards[period].deleteLater()
 
-            if period <= len(PERIOD_TIMES):
-                start_t, end_t = PERIOD_TIMES[period - 1]
-                time_str = f"{start_t} - {end_t}"
-            else:
-                time_str = f"时段{period}"
-
-            is_current = (period == current_slot and self._day_offset == 0)
-
-            card = QWidget()
-            card.setStyleSheet(f"""
-                QWidget {{ background-color: {c['card_bg']}; border-radius: 8px; }}
-            """)
-            cl = QVBoxLayout(card)
-            cl.setContentsMargins(16, 12, 16, 8)
-            cl.setSpacing(8)
-
-            # Time header row with optional arrow indicator
-            hdr = QHBoxLayout()
-            hdr.setSpacing(6)
-
-            if is_current:
-                arrow = QLabel("▶")
-                arrow.setStyleSheet(f"color: {c['accent']}; font-size: 16px; font-weight: bold; border: none;")
-                hdr.addWidget(arrow)
-
-            time_label = QLabel(time_str)
-            time_label.setStyleSheet(
-                f"color: {c['accent'] if is_current else c['fg_hint']}; font-size: 16px; font-weight: 600;"
-            )
-            hdr.addWidget(time_label)
-            hdr.addStretch()
-            cl.addLayout(hdr)
-
-            if not items:
-                empty = QLabel("空闲")
-                empty.setStyleSheet(f"color: {c['fg_disabled']}; font-size: 13px; padding: 4px 0;")
-                cl.addWidget(empty)
-            else:
-                for item in items:
-                    if item["type"] == "course":
-                        course_card = QWidget()
-                        course_card.setStyleSheet(
-                            f"QWidget {{ background-color: {c['bg_elevated']}; border-radius: 8px; }}"
-                        )
-                        course_card.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-                        course_card.customContextMenuRequested.connect(
-                            lambda pos, ci=item, card=course_card: self._course_menu(pos, ci, card)
-                        )
-                        ccl = QVBoxLayout(course_card)
-                        ccl.setContentsMargins(12, 8, 12, 8)
-                        ccl.setSpacing(4)
-                        name_lbl = QLabel(f"📖 {item['name']}")
-                        name_lbl.setStyleSheet(f"color: {c['fg_primary']}; font-size: 13px; font-weight: 600;")
-                        name_lbl.setWordWrap(True)
-                        ccl.addWidget(name_lbl)
-                        loc = item.get("location", "")
-                        if loc:
-                            loc_lbl = QLabel(loc)
-                            loc_lbl.setStyleSheet(f"color: {c['fg_hint']}; font-size: 13px;")
-                            ccl.addWidget(loc_lbl)
-                        for plan in plans:
-                            if plan.get("course_name") == item["name"] and plan.get("type") == "course_note":
-                                note_lbl = QLabel(f"📌 {plan.get('title', '')}")
-                                note_lbl.setStyleSheet(f"color: {c['accent']}; font-size: 16px; font-weight: 600;")
-                                note_lbl.setWordWrap(True)
-                                ccl.addWidget(note_lbl)
-                        cl.addWidget(course_card)
-
-                    elif item["type"] == "plan":
-                        plan_card = QWidget()
-                        plan_card.setStyleSheet(
-                            f"QWidget {{ background-color: {c['accent_bg']}; border-radius: 8px; }}"
-                        )
-                        plan_card.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-                        plan_card.customContextMenuRequested.connect(
-                            lambda pos, pi=item, card=plan_card: self._plan_menu(pos, pi, card)
-                        )
-                        pcl = QVBoxLayout(plan_card)
-                        pcl.setContentsMargins(12, 8, 12, 8)
-                        pcl.setSpacing(4)
-                        prefix = "📅" if item.get("plan_type") == "custom" else "🔄"
-                        title_lbl = QLabel(f"{prefix} {item['title']}")
-                        title_lbl.setStyleSheet(f"color: {c['fg_primary']}; font-size: 13px; font-weight: 600;")
-                        title_lbl.setWordWrap(True)
-                        pcl.addWidget(title_lbl)
-                        note = item.get("note", "")
-                        if note:
-                            n = QLabel(note)
-                            n.setStyleSheet(f"color: {c['fg_secondary']}; font-size: 13px;")
-                            n.setWordWrap(True)
-                            pcl.addWidget(n)
-                        cl.addWidget(plan_card)
-
-                    elif item["type"] == "habit":
-                        hab_card = QWidget()
-                        hab_card.setStyleSheet(
-                            f"QWidget {{ background-color: {c['bg_elevated']}; border-radius: 8px; }}"
-                        )
-                        hab_card.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-                        hab_card.customContextMenuRequested.connect(
-                            lambda pos, hi=item, card=hab_card: self._habit_menu(pos, hi, card)
-                        )
-                        hcl = QVBoxLayout(hab_card)
-                        hcl.setContentsMargins(12, 8, 12, 8)
-                        hcl.setSpacing(4)
-                        done = self._dm.habits.is_done_today(item["habit"]["id"])
-                        status = "✓" if done else "○"
-                        dur = item.get("duration", 30)
-                        rt = item.get("reminder_time", "")
-                        rt_str = f" {rt}" if rt else ""
-                        name_lbl = QLabel(f"{status} {item['name']}{rt_str}  ({dur}分钟)")
-                        name_lbl.setStyleSheet(
-                            f"color: {c['fg_hint'] if done else c['fg_primary']}; font-size: 13px;"
-                        )
-                        hcl.addWidget(name_lbl)
-                        cl.addWidget(hab_card)
-
-            # ── DDL markers for this slot ──────────────────────
-            for t in ddl_by_slot.get(period, []):
-                due_str = t.get("due_date", "")
-                try:
-                    due_dt = datetime.fromisoformat(due_str)
-                    due_time = due_dt.strftime("%H:%M")
-                except (ValueError, TypeError):
-                    due_time = ""
-                task_title = t.get("title", "")
-                course_name = t.get("course_name", "") or ""
-
-                ddl_label = ClickLabel()
-                ddl_label.setWordWrap(False)
-                ddl_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-                suffix = f" 截止 {due_time}" if due_time else ""
-                ddl_label.setText(f"—— {task_title}{suffix} ——")
-                ddl_label.setStyleSheet(
-                    f"color: {c['red']}; font-size: 15px; font-weight: 600; border: none; background: transparent; padding: 6px 0;"
-                )
-                ddl_label.clicked.connect(lambda cn=course_name: self.task_focus_requested.emit(cn))
-                cl.addWidget(ddl_label)
-
+            card = self._create_slot_card(period, items, ddls, plans, is_current, c)
             self._content_layout.insertWidget(self._content_layout.count() - 1, card)
             self._slot_cards[period] = card
             self._slot_hashes[period] = new_hash
 
-        # Clean up cards for removed periods (e.g. period_count shrank)
+        # 清理已消失的时段（如 period_count 变小）
         for p in list(self._slot_cards.keys()):
             if p > period_count:
                 self._content_layout.removeWidget(self._slot_cards[p])
