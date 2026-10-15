@@ -20,6 +20,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -215,7 +216,23 @@ def _print_summary(file_count: int, total: int, by_kind: dict[str, int],
             print(f"    {n:>3}  {name}")
 
 
+def _force_utf8_stdout() -> None:
+    """让本脚本的输出不依赖控制台编码。
+
+    Windows（含 GitHub Actions 的 windows runner）控制台默认 cp1252，
+    直接 print 中文会 `UnicodeEncodeError` 并让整个检查以非零码退出
+    （dev-logs/2026-10-16-功能可用性排查.md 里 CI 十连败的根因）。
+    只改本进程的 stdout/stderr，不动环境变量。
+    """
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, OSError):
+            pass
+
+
 def main() -> None:
+    _force_utf8_stdout()
     args = _parse_args()
 
     names, value_to_name = load_tokens()

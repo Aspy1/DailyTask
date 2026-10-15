@@ -10,6 +10,9 @@ jobs:
   check:
     # 与目标平台一致（PySide6 的 Qt 库在 Windows runner 上开箱可用）
     runs-on: windows-latest
+    env:
+      # Windows runner 控制台默认 cp1252，中文输出会 UnicodeEncodeError
+      PYTHONUTF8: "1"
     steps:
       - uses: actions/checkout@v4
 
