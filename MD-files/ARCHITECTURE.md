@@ -98,6 +98,13 @@ ui ──→ services ──→ models ──→ base(BaseJsonModel)
 | `WeatherService` | `weather_updated(dict)` / `forecast_updated(list)` | `MainWindow` / `WeatherDetailDialog` | 天气刷新 |
 | `QLocalServer` | `newConnection` | `App._on_second_instance` | 第二实例唤醒 |
 
+> **`data_changed(str)` 的消费约定（`ERRORS #025`）**：`external` / `internal` **不带域名**，
+> 消费方必须当作"不知道改了什么"处理 —— `MainWorkspace` 全刷、`ReminderService` 重算 DDL；
+> 只有具体域名（`task` 等）才允许走"按子串匹配只刷一个面板"的增量路径。
+
+> **考试数据的两个来源（`ERRORS #022`）**：`exams.json` 是权威来源，但历史数据把考试
+> 建成普通任务（标题/标签含「考试」）。提醒与日报都按 `(名称, 日期)` 合并去重后消费。
+
 ## 6. 并发模型
 
 | 线程载体 | 位置 | 职责 |
@@ -110,13 +117,14 @@ ui ──→ services ──→ models ──→ base(BaseJsonModel)
 **主线程定时器**：`DataManager._auto_reload`（3s，比对 7 个文件 mtime）、`ReminderService._check`（60s）、
 `MainWindow._status_timer`（30s）、`WeatherService` 自动更新（10min / 1min 轮询）。
 
-**已知线程安全问题**（见 `CODE_STANDARDS §B`；2026-10-16 整改后状态）：
+**已知线程安全问题**（见 `CODE_STANDARDS §B`；2026-10-16 两轮整改后状态）：
 - ✅ AI worker 不再触碰 Model：`InstructionParser.execute` 只跑命令，重载/通知由主线程 `_on_response_with_instructions` 负责
 - ✅ 余额/天气缓存由类属性改为实例属性；`RUF012` 清零
 - ✅ `QThread.terminate()` 已移除（改按 `sender()` 丢弃过期结果）
 - ✅ `weather_service` 按接口类型管理 worker；`git_sync`/`api_service` 均 `deleteLater`
+- ✅ **系统提示词构建不再同步发网络请求**：余额/天气缓存改由一次性守护线程预热
+  （`AIService._warm_context_cache`），`_build_system_prompt` 只读缓存；预热不触碰主线程属主的 `WeatherService`
 - 🔄 `actions.run_in_process` 仍用 `contextlib.redirect_stdout`（已加锁串行化；彻底修复需 handler 返回字符串）
-- ✗ **未修**：`ai_service._fetch_deepseek_balance()` / `_fetch_weather_for_prompt()` 仍在**主线程**同步请求（`Q-C2`）
 
 ## 7. 关键不变量
 

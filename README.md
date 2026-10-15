@@ -45,26 +45,29 @@ python -m venv .venv
 ├── requirements.lock.txt           # 精确锁定版本
 ├── src/
 │   ├── app.py                      # 应用入口 · 托盘 · 单实例
-│   ├── models/                     # 数据模型 (7 models)
+│   ├── models/                     # 数据模型 (7 models + base + scene_archive)
 │   │   ├── base.py                 #   BaseJsonModel (原子写入)
 │   │   ├── course.py               #   课程 · 学期 · 假期
 │   │   ├── task.py                 #   作业 · DDL
 │   │   ├── habit.py                #   日常 · 周期 · 打卡
 │   │   ├── expense.py              #   支出 · 预算 · 余额
 │   │   ├── exam.py                 #   考试 · 日期 · 范围
-│   │   ├── daily_log.py            #   日程计划 · 储蓄
-│   │   └── inventory.py            #   物品库存 · 5 分类
-│   ├── services/                   # 业务服务 (6 services)
+│   │   ├── daily_log.py            #   日程计划 · 储蓄 · 自定义提醒
+│   │   ├── inventory.py            #   物品库存 · 5 分类
+│   │   └── scene_archive.py        #   场景档案 · 位置
+│   ├── services/                   # 业务服务 (8)
 │   │   ├── ai_service.py           #   AI 对话 · Agent Loop · DeepSeek 余额
 │   │   ├── data_manager.py         #   数据聚合 · 3s 自动 reload
 │   │   ├── reminder_service.py     #   提醒 · 邮件 · DDL
 │   │   ├── settings_manager.py     #   配置读写
+│   │   ├── weather_service.py      #   和风天气 · 实时/7 天预报
+│   │   ├── api_service.py          #   Open-Meteo / 余额查询 worker
 │   │   ├── git_sync.py             #   Git 自动同步
 │   │   └── plugin_manager.py       #   插件加载
 │   └── ui/                         # 用户界面
 │       ├── main_window.py          #   主窗口 · 状态栏 · AI 调整链路
 │       ├── components/             #   布局组件
-│       │   ├── sidebar.py          #     手风琴侧边栏
+│       │   ├── sidebar.py          #     手风琴侧边栏（含「更多」菜单）
 │       │   ├── main_workspace.py   #     面板切换 (9 面板)
 │       │   ├── ai_panel.py         #     AI 助手聊天面板
 │       │   └── click_label.py      #     可点击 Label 公共组件
@@ -73,40 +76,42 @@ python -m venv .venv
 │       │   ├── task_panel.py       #     作业 (多选筛选 + 分页)
 │       │   ├── exam_panel.py       #     考试
 │       │   ├── habit_panel.py      #     日常 (卡片网格)
-│       │   ├── expense_panel.py    #     记账 (5 分类)
+│       │   ├── expense_panel.py    #     记账 (6 分类)
 │       │   ├── inventory_panel.py  #     有什么 (分类筛选 + 标签编辑)
 │       │   ├── settings_panel.py   #     设置
 │       │   └── plugins_panel.py    #     插件管理
 │       ├── widgets/                #   自定义控件
 │       │   ├── schedule_view.py    #     日程视图 (增量更新 + AI 调整)
 │       │   ├── course_table.py     #     课程表表格
-│       │   └── course_detail_dialog.py
+│       │   ├── course_detail_dialog.py
+│       │   ├── context_menu.py     #     通用右键菜单
+│       │   ├── toggle_switch.py    #     开关控件
+│       │   ├── api_test_dialog.py  #     API 连通性测试
+│       │   └── scene_manager_dialog.py
 │       └── styles/
-│           └── theme.py            #     设计令牌 · QSS
+│           ├── theme.py            #     设计令牌加载 · QSS
+│           └── tokens.json         #     设计令牌单一真值
 ├── scripts/
-│   ├── actions.py                  # 统一数据操作 (15 命令 + 内存调用)
+│   ├── actions.py                  # 统一数据操作 (16 命令 + 内存调用)
 │   ├── build_index.py              # 模糊搜索索引
+│   ├── send_digest.py              # GitHub Actions 邮件摘要
 │   ├── gen_design_tokens.py        # 从 tokens.json 生成 DESIGN_TOKENS.md
-│   ├── check_ui_tokens.py          # UI 令牌约束检查（只报告）
-│   └── send_digest.py              # GitHub Actions 邮件摘要
-├── tests/                          # pytest 测试
-│   ├── test_actions_smoke.py       #   actions.py 命令冒烟
-│   └── test_prompt_consistency.py  #   prompt↔actions 一致性
+│   ├── check_ui_tokens.py          # UI 令牌约束检查（--strict 供 CI）
+│   └── rewrite_history.py          # 历史重写脚本（一次性工具）
+├── tests/                          # pytest 测试（9 个测试文件 + conftest/helpers）
 ├── MD-files/                       # 文档体系
 │   ├── ARCHITECTURE.md             #   项目运作原理（分层/数据流/信号/不变量/schema）
 │   ├── CODE_STANDARDS.md           #   代码与工程规范（Q-xxx，可检查）
 │   ├── DEV_PRINCIPLES.md           #   可迁移的通用开发准则
+│   ├── DESIGN_TOKENS.md            #   设计令牌（由脚本生成）
+│   ├── PLUGINS.md                  #   插件开发约定
 │   ├── AllTheFiles.md              #   索引 · 术语映射 · 决策记录
-│   └── DESIGN_TOKENS.md            #   设计令牌
+│   ├── 规划书.md · 接口文档.md · 修改说明.md
 ├── dev-logs/                       # 开发日志
-├── plugins/pomodoro/               # 番茄钟插件
-├── resources/                      # 运行时资源（image.png 等）
-├── data/                           # JSON 数据 (8 files)
-│   └── backup/                     #   自动备份
-├── DESIGN_TOKENS.md
-├── 规划书.md
-├── 接口文档.md
-└── 修改说明.md
+├── plugins/pomodoro/               # 番茄钟插件（当前禁用：IsOpen.able.disable）
+├── resources/                      # 运行时资源（image.png）
+└── data/                           # 用户数据（JSON + settings.ini，永不进发行版）
+    └── backup/                     #   自动备份
 ```
 
 ## 功能
@@ -128,7 +133,7 @@ python -m venv .venv
 
 ### 考试 (新增)
 - 日期/课程/范围/地点/备注
-- 按日期排序，3天内红色高亮，7天内橙色
+- 按日期排序，**7天内红色、15天内橙色**高亮
 - AI 识别："老师说下周五考试，范围发到微信群"
 
 ### 日常
@@ -150,22 +155,22 @@ python -m venv .venv
 
 ### AI 助手
 - 自然语言 → **sh 命令** → 内存调用 actions.py (无 subprocess 开销)
-- 15 种数据操作：add/complete/delete task, add/delete exam, add/log habit, add/replace/delete plan, add/delete course, add/update/delete/lookup item, need_restock, status
-- 统一脚本处理：模糊匹配课程名、中文日期解析、ID 生成、JSON 写入
+- 16 种数据操作：add/complete task, add exam, add/log habit, add/replace/delete plan, add/delete course, add/update/delete/lookup item, need_restock, status
+- 统一脚本处理：模糊匹配课程名、中文日期解析（含"下周X"/"下午3点"，保留具体时间）、ID 生成、JSON 写入
 - Agent Loop 最多 5 轮自动调用
 - 聊天气泡，16 条自动压缩
 - 快速调整：一键生成日程快照 → AI 排程 → 备份 → 撤销/保存
 
 ### 提醒
-- DDL 6h 邮件，考试 14/7/3 天托盘+邮件
+- DDL 6h 邮件，考试 14/7/3 天**托盘 + 邮件**（每个阈值各提醒一次，不重复轰炸）
 - 日常提前 5 分钟托盘
-- 余额低阈值弹窗
-- GitHub Actions 每日摘要
+- 余额低阈值托盘 + 邮件
+- GitHub Actions 每日摘要（含 exams.json 的考试提醒）
 
 ### 系统
-- 系统托盘，深色/浅色主题切换
+- 系统托盘，深色/浅色主题切换（侧边栏「更多…」）
 - 单实例锁，Git 自动同步
-- 3s 自动检测外部 JSON 修改 (TG bot 写入即时可见)
+- 3s 自动检测外部 JSON 修改 (TG bot 写入即时刷新界面)
 
 ## 设计令牌
 
@@ -177,6 +182,18 @@ python -m venv .venv
 | `accent` | #B0823A | 强调色 |
 
 ## 更新日志
+
+### v0.9.1
+- 功能可用性排查（15 项缺陷）与修复，详见 `dev-logs/2026-10-16-功能可用性排查.md`
+- 修复作业 DDL **具体时间被丢弃**（`14:30`/`下午3点` 一律变 `23:00`），并拒绝无法解析的日期
+- 修复"下周X"比正确日期晚一周；支持 `10-25` 月日格式
+- 考试提醒/每日摘要改为读 `exams.json`（此前考试模块的提醒从未触发），且每个阈值只提醒一次
+- 外部（TG）写入后界面就地刷新；`save_all()` 补全 7 个模型
+- 侧边栏新增「更多…」入口，深浅色主题切换从此可达
+- AI 提示词与 `actions.py` 命令集双向对齐（删 3 条不存在的命令、补 3 条漏宣传的、补 `delete_item` CLI）
+- `add_item --quantity 0` 正确记为"需购"
+- AI 系统提示词不再在主线程同步查余额/天气（改后台预热）
+- 模型默认值改深拷贝，避免实例之间数据串味
 
 ### v0.9.0
 - 性能优化三刀：show 提前 / 增量 refresh (hash skip) / actions 内存调用

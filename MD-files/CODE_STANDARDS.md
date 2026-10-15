@@ -88,7 +88,9 @@
   拆分中抽出约 40 个语义化辅助函数；期间发现并修复 1 个真实崩溃（见 dev-log）。
 
 **Q-C2 主线程禁止阻塞**（网络/IO/大循环）
-- 现状：`✗` `ai_service._fetch_deepseek_balance()` / `_fetch_weather_for_prompt()` 在发送路径同步请求。
+- 现状：`✔` 2026-10-16：系统提示词构建改为**只读缓存**，余额/天气由一次性守护线程预热
+  （`AIService._warm_context_cache`，预热不触碰主线程属主的 `WeatherService`）；
+  `tests/test_ai_service_context.py` 断言构建期间任何 `requests` 调用都算失败。
 
 **Q-C3 全表扫描类统计需评估规模上限或加缓存**
 - 为什么：面板刷新 + 30s 状态栏会反复触发。
@@ -137,8 +139,11 @@
 ## F. 测试与可验证性
 
 **Q-F1 新增/修改行为必须有测试**（见 `AGENTS.md` DoD）
-- 现状：`🔄` 2026-10-16：覆盖率 **8%**（7612 语句）。已有：actions 命令冒烟、提示词↔实现一致性、
-  令牌同步/合规、`send_digest`、`TaskPanel` 回归、数据 schema 守卫。UI 与大部分服务层仍无覆盖。
+- 现状：`🔄` 2026-10-16：覆盖率 **42%**（7650 语句），**149 passed / 0 xfailed**。
+  已有：actions 命令冒烟 + 日期解析、提示词↔实现**双向**一致性、令牌同步/合规、
+  `send_digest`（含 exams.json）、考试提醒阈值、数据流（外部刷新 / save_all）、
+  UI 接线（导航/主题/三态筛选）、AI 上下文非阻塞、数据 schema 守卫。
+  存量 5 个 xfail 已全部转为真实断言；UI 布局与部分服务仍无覆盖。
 
 **Q-F2 契约必须可校验**：prompt ↔ `actions.py` ↔ TG skill 的命令集一致
 - 现状：`✔` `tests/test_prompt_consistency.py`（3 处已知缺口以 xfail 固化）。
