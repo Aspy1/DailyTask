@@ -311,7 +311,9 @@ class ReminderService(QObject):
     # ── DDL red dot ───────────────────────────────────────
 
     def _check_ddl(self) -> None:
-        threshold_date = date.today() + timedelta(days=3)
+        # 与 _check_exam_email 统一用 schedule_date()：0:00–1:00 视为前一天
+        # （ARCHITECTURE §7 不变量 4）
+        threshold_date = schedule_date() + timedelta(days=3)
         pending = self._dm.tasks.pending
         urgent_count = 0
         for t in pending:

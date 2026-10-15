@@ -2,6 +2,7 @@
 
 import logging
 import re
+import threading
 from datetime import date
 from typing import Any, Protocol
 
@@ -254,6 +255,7 @@ class AIService(QObject):
         # 实例级缓存（原为类属性 → 跨实例共享可变状态，见 CODE_STANDARDS Q-B2 / RUF012）
         self._ds_balance_cache: dict[str, Any] = {}
         self._weather_cache: dict[str, Any] = {}
+        self._context_warming = False
 
     def set_weather_service(self, weather_service) -> None:
         """设置天气服务"""
@@ -345,8 +347,12 @@ class AIService(QObject):
         self._ds_balance_cache = {"value": val, "fetched_at": now}
         return val
 
-    def _fetch_weather_for_prompt(self) -> str:
-        """获取天气信息用于系统提示词。优先使用WeatherService，否则回退到Open-Meteo。"""
+    def _fetch_weather_for_prompt(self, allow_service: bool = True) -> str:
+        """获取天气信息用于系统提示词。
+
+        `allow_service=False` 时只走 Open-Meteo（后台预热线程用：不触碰
+        主线程属主的 WeatherService）。
+        """
         import time
         now = time.time()
         cached = self._weather_cache
@@ -354,7 +360,7 @@ class AIService(QObject):
             return cached.get("value", "  天气信息暂不可用")
 
         # 优先使用WeatherService
-        val = self._weather_from_service()
+        val = self._weather_from_service() if allow_service else None
         if val is None:
             # 回退到Open-Meteo（保留旧逻辑作为备用）
             val = self._weather_from_open_meteo()
@@ -468,7 +474,7 @@ class AIService(QObject):
         return "\n".join(plan_lines) if plan_lines else "  （无日程计划）"
 
     def _build_balance_info(self) -> str:
-        """余额清单：校园卡/水卡/电费 + DeepSeek API。"""
+        """余额清单：校园卡/水卡/电费 + DeepSeek API（API 余额只读缓存）。"""
         balance_lines = []
         for key, label in [("campus_card", "校园卡"), ("water_card", "水卡"), ("electricity", "电费")]:
             bal = self._settings.get("Balance", f"{key}_balance")
@@ -479,11 +485,43 @@ class AIService(QObject):
             else:
                 b = "未设置"
             balance_lines.append(f"  {label}: {b}")
-        # DeepSeek API balance
-        ds_balance = self._fetch_deepseek_balance()
+        # DeepSeek API 余额：只读缓存，网络预热在后台线程（Q-C2）
+        ds_balance = self._ds_balance_cache.get("value", "")
         if ds_balance:
             balance_lines.append(f"  DeepSeek API: {ds_balance}")
         return "\n".join(balance_lines)
+
+    def _warm_context_cache(self) -> None:
+        """后台线程预热余额 / 天气上下文，避免主线程同步网络请求（CODE_STANDARDS Q-C2）。
+
+        构建系统提示词的路径**不允许**发网络请求：有 API key 时至少 5s 超时，
+        会卡住 UI（原来是主线程 `requests.get`）。这里用一次性守护线程预热，
+        构建时只读缓存；首次预热完成前的 prompt 就用空值，下一条消息即为实时值。
+        """
+        if self._context_warming:
+            return
+        self._context_warming = True
+
+        def work() -> None:
+            try:
+                if self.is_configured:
+                    self._fetch_deepseek_balance()
+                # 不碰 WeatherService（QObject 属主在主线程），只用 Open-Meteo 兜底
+                self._fetch_weather_for_prompt(allow_service=False)
+            except Exception:
+                logger.debug("上下文预热失败", exc_info=True)
+            finally:
+                self._context_warming = False
+
+        threading.Thread(target=work, name="ai-context-warmup", daemon=True).start()
+
+    def _weather_context_for_prompt(self) -> str:
+        """天气文本：优先 WeatherService（本地缓存），否则用预热结果。"""
+        text = self._weather_from_service()
+        if text:
+            return text
+        self._warm_context_cache()
+        return self._weather_cache.get("value", "  天气信息暂不可用")
 
     def _build_system_prompt(self) -> str:
         today = date.today()
@@ -500,8 +538,8 @@ class AIService(QObject):
         plan_list = self._build_plan_list()
         balance_info = self._build_balance_info()
 
-        # 获取天气信息
-        weather_info = self._fetch_weather_for_prompt()
+        # 获取天气信息（本地缓存；网络预热在后台线程）
+        weather_info = self._weather_context_for_prompt()
 
         context = f"""当前日期: {today.isoformat()} {weekday}
 当前学期: {self._dm.courses.current_semester or '未设置'}
