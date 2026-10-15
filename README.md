@@ -87,6 +87,7 @@ python -m venv .venv
 │   ├── actions.py                  # 统一数据操作 (15 命令 + 内存调用)
 │   ├── build_index.py              # 模糊搜索索引
 │   ├── gen_design_tokens.py        # 从 tokens.json 生成 DESIGN_TOKENS.md
+│   ├── check_ui_tokens.py          # UI 令牌约束检查（只报告）
 │   └── send_digest.py              # GitHub Actions 邮件摘要
 ├── tests/                          # pytest 测试
 │   ├── test_actions_smoke.py       #   actions.py 命令冒烟

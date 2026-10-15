@@ -219,14 +219,16 @@
 - 命名约定：受控词表见 `CODE_STANDARDS Q-H3`；尺寸域 `space_/radius_/size_/icon_/dur_` 尚未落地
 - 类型标签 ⏳；图形资源命名 `ic_<name>_<size>` 见 `Q-N6`
 
-### G-2 `[待议]` 配套脚本：检查 + 可选改写
+### G-2 `[进行中]` 令牌检查器
 
-- `scripts/check_ui_tokens.py`：
-  - **检查**：UI 目录内的字面 hex/rgb/rgba、`Npx`（字号/圆角/间距）、类名 QSS 选择器、
-    `QFont(..., int)`、引用不存在的 token、同义不同名。
-  - **输出**：`文件:行:违规类型:(建议的)token`。
-  - **`--fix`（可选）**：用 **libcst** 做安全 codemod 替换为 token 引用；改后必须跑 `pytest` + 截图对比。
-- 与 `CODE_STANDARDS.md` 的 Q-H 条目一一对应。
+- ✅ **G-2a（2026-10-16）**：`scripts/check_ui_tokens.py` 完成，检查四类问题：
+  `COLOR`（字面 `#hex`/`rgb()`/`rgba()`，并据 `tokens.json` 给出建议 token）、
+  `QSS-CLASS`（非 Qt 的自定义类选择器）、`QFONT`（硬编码字号）、`TOKEN-NAME`（疑似拼写错误）；
+  `--check-px` 可选；默认**只报告**，`--strict` 返回 1 供 CI。
+  **首轮基线：50 处**（COLOR 43 / QFONT 5 / QSS-CLASS 2）。
+- ⏳ **G-2b**：`--fix`（libcst codemod 替换为 token 引用）；清理后再接 `I-8` pre-commit / `B-6` CI。
+- 已知局限：值→名映射是**提示**而非语义等价
+  （如 `rgba(0,0,0,0.08)` 会提示 `border`，但语义上可能是 `btn_pressed_bg`）；`TOKEN-NAME` 目前靠前缀启发式。
 
 ---
 
