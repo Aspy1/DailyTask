@@ -169,9 +169,8 @@ def normalize_time(due_str: str) -> str:
         if period in ('下午', '晚上'):
             if hour != 12:
                 hour += 12
-        elif period in ('中午',):
-            if hour < 12:  # 中午1点→13点
-                hour += 12
+        elif period in ('中午',) and hour < 12:  # 中午1点→13点
+            hour += 12
         # 上午/早晨: keep as is (but 12→0 for midnight)
         if period == '上午' and hour == 12:
             hour = 0

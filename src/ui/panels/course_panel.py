@@ -106,10 +106,7 @@ class CoursePanel(QWidget):
     def _refresh(self) -> None:
         week = self._week_number
         semester = self._dm.courses.get_semester(self._dm.courses.current_semester)
-        if semester:
-            total = semester.get("total_weeks", 20)
-        else:
-            total = "?"
+        total = semester.get("total_weeks", 20) if semester else "?"
         self._week_label.setText(f"第 {week} / {total} 周")
 
         courses = []
@@ -192,7 +189,7 @@ class CoursePanel(QWidget):
 
         # labels
         try:
-            self._week_label.setStyleSheet("font-weight: 600; border: none; color: %s;" % c['fg_primary'])
+            self._week_label.setStyleSheet("font-weight: 600; border: none; color: {};".format(c['fg_primary']))
         except Exception:
             logger.debug("CoursePanel.refresh_theme 中忽略异常", exc_info=True)
 

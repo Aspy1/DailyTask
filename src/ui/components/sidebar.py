@@ -107,7 +107,8 @@ class SidebarSection(QWidget):
         else:
             self._items_container.hide()
 
-    def set_expanded(self, val: bool, animated: bool = False):
+    def set_expanded(self, val: bool) -> None:
+        """展开 / 收起该分区（即时切换，不做动画 —— 见 R-008）。"""
         self._expanded = val
         if val:
             self._items_container.show()

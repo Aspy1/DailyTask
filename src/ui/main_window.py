@@ -370,7 +370,6 @@ class MainWindow(QMainWindow):
         self._update_expense()
         self._update_habit_count()
         self._update_exam_alert()
-        self._update_shopping()
 
     # ── Weather ───────────────────────────────────────────────
 
@@ -543,19 +542,6 @@ class MainWindow(QMainWindow):
 
     def _on_exam_alert_click(self) -> None:
         self._workspace.switch_to("exams")
-
-    def _update_shopping(self) -> None:
-        if not hasattr(self, '_shopping_label'):
-            return
-        c2 = get_colors()
-        needs = self._data_manager.inventory.need_restock
-        if needs:
-            self._shopping_label.setText(f"需购{len(needs)}")
-            self._shopping_label.setStyleSheet(
-                f"color: {c2['red']}; font-size: 12px; font-weight: 600; padding: 0 3px;")
-            self._shopping_label.show()
-        else:
-            self._shopping_label.hide()
 
     def _on_ddl_alert_click(self) -> None:
         self._workspace.show_ddl_tasks()

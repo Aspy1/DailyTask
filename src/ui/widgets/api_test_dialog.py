@@ -1,5 +1,7 @@
 """API 测试窗口 - 用于验证外部 API 调用"""
 
+from datetime import datetime
+
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QDialog,
@@ -179,6 +181,3 @@ class ApiTestDialog(QDialog):
 
     def _on_error(self, error: str) -> None:
         self._result_text.append(f"[网络错误] {error}")
-
-
-from datetime import datetime

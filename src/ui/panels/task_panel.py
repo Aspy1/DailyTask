@@ -277,7 +277,7 @@ class TaskPanel(QWidget):
         self._time_bucket = bucket
         self._page = 0
         if bucket:
-            label = next((l for l, k in TIME_BUCKETS if k == bucket), bucket)
+            label = next((lbl for lbl, k in TIME_BUCKETS if k == bucket), bucket)
             self._time_btn.setText(f"时间: {label} ")
         else:
             self._time_btn.setText("时间筛选")
@@ -301,7 +301,7 @@ class TaskPanel(QWidget):
         for i, t in enumerate(page_tasks):
             self._table.insertRow(i)
 
-            course_name = t.get("course_name", "") or "" or "—"
+            course_name = t.get("course_name", "") or "—"
             course_item = QTableWidgetItem(course_name)
             course_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             self._table.setItem(i, 0, course_item)

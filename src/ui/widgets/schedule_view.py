@@ -448,10 +448,7 @@ class ScheduleView(QWidget):
             if slot is None:
                 # Before first slot or after last — put in nearest
                 first_start = int(PERIOD_TIMES[0][0][:2]) * 60 + int(PERIOD_TIMES[0][0][3:])
-                if due_minutes < first_start:
-                    slot = 1
-                else:
-                    slot = period_count
+                slot = 1 if due_minutes < first_start else period_count
             ddl_by_slot[slot].append(t)
 
         import hashlib
@@ -816,10 +813,7 @@ class ScheduleView(QWidget):
         menu = ContextMenu()
         hid = item["habit"]["id"]
         done = self._dm.habits.is_done_today(hid)
-        if done:
-            toggle_action = menu.add_action("○ 标记未完成")
-        else:
-            toggle_action = menu.add_action("✓ 标记完成")
+        toggle_action = menu.add_action("○ 标记未完成") if done else menu.add_action("✓ 标记完成")
         postpone_action = menu.add_action("→ 推迟到明天")
         cancel_action = menu.add_action("✕ 取消今天")
         menu.add_separator()

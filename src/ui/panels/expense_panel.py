@@ -215,17 +215,17 @@ class ExpensePanel(QWidget):
         c = get_colors()
         w = QWidget()
         w.setStyleSheet(f"background-color: {c['card_bg']}; border-radius: 8px;")
-        l = QVBoxLayout(w)
-        l.setContentsMargins(16, 8, 16, 8)
+        lay = QVBoxLayout(w)
+        lay.setContentsMargins(16, 8, 16, 8)
         title = QLabel(label)
         title.setStyleSheet(f"color: {c['fg_hint']}; font-size: 13px; border: none;")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        l.addWidget(title)
+        lay.addWidget(title)
         amount = QLabel("¥0")
         amount.setStyleSheet(f"color: {c['fg_primary']}; font-size: 16px; font-weight: 600; border: none;")
         amount.setAlignment(Qt.AlignmentFlag.AlignCenter)
         amount.setObjectName(f"sum_{label}")
-        l.addWidget(amount)
+        lay.addWidget(amount)
         return w
 
     def _find_sum_label(self, key: str) -> QLabel:

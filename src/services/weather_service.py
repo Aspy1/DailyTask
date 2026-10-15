@@ -246,10 +246,10 @@ class WeatherService(QObject):
             return
 
         # 检查缓存（除非force=True）
-        if not force and self._now_cache and self._now_cache_time:
-            if (datetime.now() - self._now_cache_time).total_seconds() < self.CACHE_NOW:
-                self.weather_updated.emit(self._now_cache)
-                return
+        if (not force and self._now_cache and self._now_cache_time
+                and (datetime.now() - self._now_cache_time).total_seconds() < self.CACHE_NOW):
+            self.weather_updated.emit(self._now_cache)
+            return
 
         # 检查配额
         ok, msg = self.check_quota()
@@ -266,10 +266,10 @@ class WeatherService(QObject):
             return
 
         # 检查缓存（除非force=True）
-        if not force and self._7d_cache and self._7d_cache_time:
-            if (datetime.now() - self._7d_cache_time).total_seconds() < self.CACHE_7D:
-                self.forecast_updated.emit(self._7d_cache)
-                return
+        if (not force and self._7d_cache and self._7d_cache_time
+                and (datetime.now() - self._7d_cache_time).total_seconds() < self.CACHE_7D):
+            self.forecast_updated.emit(self._7d_cache)
+            return
 
         # 检查配额
         ok, msg = self.check_quota()

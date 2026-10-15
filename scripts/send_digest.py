@@ -67,9 +67,8 @@ def get_courses_for_date(courses_data: dict, target: date) -> list[dict]:
         if c.get("day_of_week") != day_of_week:
             continue
         weeks = c.get("weeks", {})
-        if weeks:
-            if week_number < weeks.get("start", 1) or week_number > weeks.get("end", 20):
-                continue
+        if weeks and (week_number < weeks.get("start", 1) or week_number > weeks.get("end", 20)):
+            continue
         if week_number in c.get("excluded_weeks", []):
             continue
         parity = c.get("week_parity", "all")

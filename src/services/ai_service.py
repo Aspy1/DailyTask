@@ -130,7 +130,7 @@ class DeepSeekProvider:
 
     def chat(self, system_prompt: str, messages: list[dict], model: str,
              max_tokens: int, temperature: float) -> str:
-        full_messages = [{"role": "system", "content": system_prompt}] + messages
+        full_messages = [{"role": "system", "content": system_prompt}, *messages]
         response = self._client.chat.completions.create(
             model=model or "deepseek-chat",
             messages=full_messages,
@@ -645,7 +645,7 @@ class AIService(QObject):
             return
         kept = self._history[-16:]
         summary = "（之前的对话已被压缩。用户进行了日程管理、数据操作等。）"
-        self._history = [{"role": "user", "content": summary}] + kept
+        self._history = [{"role": "user", "content": summary}, *kept]
         logger.info("Context compressed to %d messages", len(self._history))
 
     def compress_context(self) -> None:

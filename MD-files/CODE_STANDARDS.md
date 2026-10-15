@@ -38,7 +38,8 @@
 **Q-A4 禁止死代码**
 - 为什么：误导读者、掩盖真实路径。
 - 检查：`vulture src scripts --min-confidence 80`。
-- 现状：`✗` `main_window._shopping_label`（从未创建）、`_placeholder("吃什么")`。
+- 现状：`✔` 2026-10-16：`main_window._shopping_label` 死代码路径（引用从未创建的控件）已删除；
+  `vulture --min-confidence 80` 现为 **0**。
 
 **Q-A5 不用继承表达"部分复用"**
 - 为什么：继承是 is-a，不是"借用几个方法"。
@@ -96,7 +97,7 @@
 **Q-D1 非脚本代码禁用裸 `print()`，统一 `logging`**
 - 为什么：无法分级、无法关闭、污染 stdout（还会与 `redirect_stdout` 互相干扰）。
 - 检查：`ruff` 规则 `T20`，或 `grep -rn "print(" src`。
-- 现状：`✗` `src/` 内 **5 处**，全部在 `models/task.py:85-97`（`TaskModel.complete()` 的调试输出）。`scripts/*` 的 print 属 CLI 契约，已在 ruff 配置中排除。
+- 现状：`✔` 2026-10-16：`src/` 内 `print()` 已清零（`task.py` 的调试输出移除）；`scripts/*` 的 CLI 输出按契约保留。
 
 **Q-D2 日志按级别使用**：`debug` 默认关闭；异常路径 `logger.error(..., exc_info=True)`；不在热点循环里做字符串拼接。
 

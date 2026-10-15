@@ -195,9 +195,8 @@ class App(QApplication):
         elif status == "idle":
             if hasattr(self, "_tray"):
                 self._tray.setToolTip(tr("app.name"))
-        elif status.startswith("error"):
-            if hasattr(self, "_tray"):
-                self._tray.setToolTip(f"{tr('app.name')} — 同步失败")
+        elif status.startswith("error") and hasattr(self, "_tray"):
+            self._tray.setToolTip(f"{tr('app.name')} — 同步失败")
 
     def _on_ddl_alert(self, count: int) -> None:
         self._ddl_count = count

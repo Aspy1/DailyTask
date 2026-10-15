@@ -135,10 +135,7 @@ class CourseModel(BaseJsonModel):
         parity = course.get("week_parity", "all")
         if parity == "odd" and week_number % 2 == 0:
             return False
-        if parity == "even" and week_number % 2 == 1:
-            return False
-
-        return True
+        return not (parity == "even" and week_number % 2 == 1)
 
     def get_courses_for_day(self, day_of_week: int, week_number: int) -> list[dict]:
         result = []
