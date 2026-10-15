@@ -2,7 +2,7 @@
 
 > 用途：记录本项目**工程/架构层面**的整改项与决策，避免散落在对话里丢失。
 > 与 `dev-logs/` 的分工：dev-logs 记"已发生的变更"；本文件记"待做 / 在做 / 已定方向"。
-> 最后更新：2026-10-15
+> 最后更新：2026-10-16
 
 ## 状态图例
 
@@ -29,7 +29,8 @@
 **P1b 规范落地（把决策应用到代码与文档）**
 - `A-1` ✅ 写 `ARCHITECTURE.md` + `git rm` 34 份 `.py.md` + `FORMAT_SPEC.md`
 - `A-2` ✅ 合并两份 `ERRORS.md`；`A-3` ✅ `AllTheFiles.md` 瘦身（430→311 行）
-- `G-1` 🔄 `tokens.json` 已建 + `theme.py` 已改加载（G-1a ✅）；生成 `DESIGN_TOKENS.md` 待办（G-1b）
+- `G-1` ✅ `tokens.json` 单一真值 + `theme.py` 改加载（G-1a）+ `gen_design_tokens.py` 生成 `DESIGN_TOKENS.md`（G-1b）；
+  ⏳ G-1c `palette → semantic → component` 分层未做
 - `H-1` / `Q-P1` ✅ 建 `resources/`、`image.png` 归位（`app.py` `_ICON_PATH` 同步；`rewrite_history.py` 路径同步）
 - `Q-N5` i18n key 命名空间落地
 
@@ -45,7 +46,7 @@
 - ✅ ① `B-5` 线程安全 + `RUF012`（2026-10-16 完成）→ 详见 `dev-logs/2026-10-16-线程安全整改.md`
 - ✅ ② `I-2` 异常处理（2026-10-16 完成）→ 详见 `dev-logs/2026-10-16-异常处理整改.md`
 - ✅ ③ `B-2` 复杂度长尾（2026-10-16 完成：**radon ≥C 清零**）→ `dev-logs/2026-10-16-复杂度重构.md`
-- ④ `Q-B6` 闭包捕获循环变量（`B023` ×3）
+- ✅ ④ `Q-B6` 闭包捕获循环变量（`B023` ×3 已于 2026-10-16 修复：`a189421`，ruff 现为 0）
 - ✅ ⑤ 死代码 / 未用导入清理（2026-10-16 完成，ruff 315 → **0**）→ `dev-logs/2026-10-16-静态检查清零.md`
 - ✅ ⑥a `I-4` 类型注解（2026-10-16）：返回类型全量补齐并纳入 ruff 规则集 → `dev-logs/2026-10-16-类型注解与schema.md`
 - ✅ ⑥b `I-10` 数据 schema 守卫（2026-10-16）：`_version` 自愈 + 守卫测试（并据此补齐 `data/inventory.json`）
