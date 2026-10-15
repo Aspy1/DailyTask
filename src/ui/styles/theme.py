@@ -98,7 +98,6 @@ def init_theme(app: QApplication, mode: str = "light") -> str:
 
 def build_theme(mode: str) -> str:
     t = TOKENS.get(mode, TOKENS["light"])
-    nav_h = 52  # DESIGN_TOKENS.md §3.3
     return f"""
 * {{ font-family: "{FONT_CN}", "Microsoft YaHei", sans-serif; }}
 
@@ -388,7 +387,6 @@ def card_qss() -> str:
 
 def tag_qss() -> str:
     """标签样式"""
-    c = get_colors()
     return f"""
         font-size: {SIZE_CAPTION}px;
         font-weight: 500;

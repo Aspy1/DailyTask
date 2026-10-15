@@ -8,7 +8,8 @@ def build_index():
     index = {"courses": {}, "habits": {}, "items": {}}
 
     # Courses
-    courses = json.load(open(DATA / "courses.json", encoding="utf-8")).get("courses", [])
+    with open(DATA / "courses.json", encoding="utf-8") as f:
+        courses = json.load(f).get("courses", [])
     for c in courses:
         name = c["name"]
         # Generate abbreviations
@@ -25,7 +26,8 @@ def build_index():
             index["courses"].setdefault(k, []).append(name)
 
     # Habits
-    habits = json.load(open(DATA / "habits.json", encoding="utf-8")).get("habits", [])
+    with open(DATA / "habits.json", encoding="utf-8") as f:
+        habits = json.load(f).get("habits", [])
     for h in habits:
         name = h["name"]
         keys = {name.lower()}
@@ -35,8 +37,8 @@ def build_index():
         for k in keys:
             index["habits"].setdefault(k, []).append(name)
 
-    json.dump(index, open(DATA / "search_index.json", "w", encoding="utf-8"),
-              ensure_ascii=False, indent=2)
+    with open(DATA / "search_index.json", "w", encoding="utf-8") as f:
+        json.dump(index, f, ensure_ascii=False, indent=2)
     print(f"Index built: {len(index['courses'])} course keys, {len(index['habits'])} habit keys")
 
 if __name__ == "__main__":

@@ -482,7 +482,6 @@ def cmd_status(args):
     pending = sum(1 for x in t.get("tasks", []) if x.get("status") != "completed")
     habits = len(h.get("habits", []))
     courses = len(c.get("courses", []))
-    exams = len(e.get("exams", []))
     upcoming = [x for x in e.get("exams", []) if x.get("exam_date", "") >= date.today().isoformat()]
     print(f"tasks={pending} habits={habits} courses={courses} exams={len(upcoming)}")
 

@@ -473,7 +473,7 @@ class ScheduleView(QWidget):
                          for d in ddls],
                 'cur': is_current_slot
             }, sort_keys=True).encode()
-            new_hash = hashlib.md5(content_key).hexdigest()
+            new_hash = hashlib.md5(content_key, usedforsecurity=False).hexdigest()
 
             if period in self._slot_cards and self._slot_hashes.get(period) == new_hash:
                 continue  # unchanged
@@ -530,7 +530,7 @@ class ScheduleView(QWidget):
                         )
                         course_card.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
                         course_card.customContextMenuRequested.connect(
-                            lambda pos, ci=item: self._course_menu(pos, ci, course_card)
+                            lambda pos, ci=item, card=course_card: self._course_menu(pos, ci, card)
                         )
                         ccl = QVBoxLayout(course_card)
                         ccl.setContentsMargins(12, 8, 12, 8)
@@ -559,7 +559,7 @@ class ScheduleView(QWidget):
                         )
                         plan_card.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
                         plan_card.customContextMenuRequested.connect(
-                            lambda pos, pi=item: self._plan_menu(pos, pi, plan_card)
+                            lambda pos, pi=item, card=plan_card: self._plan_menu(pos, pi, card)
                         )
                         pcl = QVBoxLayout(plan_card)
                         pcl.setContentsMargins(12, 8, 12, 8)
@@ -584,7 +584,7 @@ class ScheduleView(QWidget):
                         )
                         hab_card.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
                         hab_card.customContextMenuRequested.connect(
-                            lambda pos, hi=item: self._habit_menu(pos, hi, hab_card)
+                            lambda pos, hi=item, card=hab_card: self._habit_menu(pos, hi, card)
                         )
                         hcl = QVBoxLayout(hab_card)
                         hcl.setContentsMargins(12, 8, 12, 8)
@@ -726,9 +726,9 @@ class ScheduleView(QWidget):
         course_name = item["course"].get("name", "")
         item_date = self._target_date.isoformat()
         if self._has_email_reminder("course", course_name, item_date):
-            cancel_rem = menu.addAction("📧 取消邮件提醒")
+            menu.addAction("📧 取消邮件提醒")
         else:
-            add_rem = menu.addAction("📧 添加邮件提醒")
+            menu.addAction("📧 添加邮件提醒")
         chosen = menu.exec(QCursor.pos())
         if chosen is None:
             return
@@ -772,15 +772,15 @@ class ScheduleView(QWidget):
         
         menu = ContextMenu()
         done_action = menu.add_action("✓ 标记完成")
-        modify_action = menu.add_action("修改 DDL")
+        menu.add_action("修改 DDL")
         remove_action = menu.add_action("✕ 移除")
         menu.add_separator()
         plan_name = item.get("title", "")
         plan_date = self._target_date.isoformat()
         if self._has_email_reminder("plan", plan_name, plan_date):
-            cancel_rem_action = menu.add_action("📧 取消邮件提醒")
+            menu.add_action("📧 取消邮件提醒")
         else:
-            add_rem_action = menu.add_action("📧 添加邮件提醒")
+            menu.add_action("📧 添加邮件提醒")
         menu.exec()
         
         action = menu.last_action
@@ -826,9 +826,9 @@ class ScheduleView(QWidget):
         habit_name = item.get("name", "")
         habit_date = self._target_date.isoformat()
         if self._has_email_reminder("habit", habit_name, habit_date):
-            cancel_rem_action = menu.add_action("📧 取消邮件提醒")
+            menu.add_action("📧 取消邮件提醒")
         else:
-            add_rem_action = menu.add_action("📧 添加邮件提醒")
+            menu.add_action("📧 添加邮件提醒")
         menu.exec()
         
         action = menu.last_action

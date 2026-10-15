@@ -583,7 +583,6 @@ class InventoryPanel(QWidget):
     }
 
     def _context_menu(self, item: dict) -> None:
-        c = get_colors()
         cat = item.get("category", "其他")
         labels = self.CATEGORY_LABELS.get(cat, {"需购": "需购", "不足": "不足", "充足": "充足"})
         st = item.get("status", "充足")

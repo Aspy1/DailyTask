@@ -436,7 +436,7 @@ class MainWindow(QMainWindow):
             1 for e in entries if e[1] < now)
         upcoming = None
         if not past_midnight:
-            for start_t, end_t, course in entries:
+            for start_t, _end_t, course in entries:
                 if start_t > now:
                     upcoming = (start_t, course)
                     break
@@ -733,7 +733,6 @@ class WeatherDetailDialog(QDialog):
 
     def _update_content(self):
         """更新内容"""
-        c = get_colors()
 
         # 更新最后更新时间
         now_cache_time = self._ws._now_cache_time

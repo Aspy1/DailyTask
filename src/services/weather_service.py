@@ -338,7 +338,7 @@ class WeatherService(QObject):
         # 未来3天
         forecast = self.get_forecast()
         if forecast:
-            for i, day in enumerate(forecast[:3]):
+            for _i, day in enumerate(forecast[:3]):
                 date = day.get('fxDate', '?')
                 text += f"{date}: {day.get('textDay', '?')} {day.get('tempMin', '?')}-{day.get('tempMax', '?')}°C"
                 precip = day.get('precip', '0')

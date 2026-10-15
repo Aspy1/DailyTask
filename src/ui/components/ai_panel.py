@@ -179,19 +179,16 @@ class AIPanel(QWidget):
             bubble_bg = c["accent"]
             bubble_fg = c["fg_on_fill"]
             align = "right"
-            prefix = ''
             bubble_style = f'background-color:{bubble_bg};color:{bubble_fg};border-radius:12px;padding:8px 14px;'
         elif is_placeholder:
             bubble_bg = "transparent"
             bubble_fg = c["fg_hint"]
             align = "left"
-            prefix = ''
             bubble_style = f'color:{bubble_fg};padding:4px 0;border-left:2px solid {c["accent"]};padding-left:12px;font-style:italic;'
         else:
             bubble_bg = "transparent"
             bubble_fg = c["fg_primary"]
             align = "left"
-            prefix = ''
             bubble_style = f'color:{bubble_fg};padding:4px 0;border-left:2px solid {c["border"]};padding-left:12px;'
             text = _md_to_html(text)
 

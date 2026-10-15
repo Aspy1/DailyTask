@@ -572,7 +572,7 @@ class SettingsPanel(QWidget):
 
     # ── 插件卡片 ────────────────────────────────────────────
     def _build_plugins_card(self) -> QFrame:
-        c = self._c()
+        self._c()
         card = self._card()
         layout = QVBoxLayout(card)
         layout.setContentsMargins(8, 8, 8, 8)
@@ -653,7 +653,6 @@ class SettingsPanel(QWidget):
 
     def refresh_theme(self) -> None:
         # Re-apply dynamic styles for settings panel widgets
-        c = get_colors()
         try:
             # inputs
             for le in self.findChildren(QLineEdit):

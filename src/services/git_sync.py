@@ -20,7 +20,7 @@ class _GitWorker(QThread):
     def run(self) -> None:
         try:
             for cmd in self._commands:
-                result = subprocess.run(
+                result = subprocess.run(  # noqa: S603 — 固定参数列表，无 shell
                     cmd, cwd=str(self._repo),
                     capture_output=True, text=True, timeout=60,
                 )

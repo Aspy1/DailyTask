@@ -216,7 +216,7 @@ class SceneManagerDialog(QDialog):
         try:
             year = int(self._year_input.text())
             semester = self._semester_combo.currentIndex() + 1
-            scene_id = self._archive.quick_create_semester(year, semester)
+            self._archive.quick_create_semester(year, semester)
             self._refresh_scene_list()
             QMessageBox.information(self, "创建成功", "已创建学期场景")
         except ValueError:
@@ -228,7 +228,7 @@ class SceneManagerDialog(QDialog):
         if not location:
             QMessageBox.warning(self, "输入错误", "请输入位置名称")
             return
-        scene_id = self._archive.quick_create_location(location)
+        self._archive.quick_create_location(location)
         self._refresh_scene_list()
         QMessageBox.information(self, "创建成功", f"已创建位置场景：{location}")
 

@@ -162,7 +162,7 @@ class AIWorker(QObject):
             msgs = list(self._messages)
             final_text = ""
             all_instructions = []  # collect across multi-turn agent loop
-            for turn in range(5):  # max 5 turns
+            for _turn in range(5):  # max 5 turns
                 text = self._provider.chat(
                     system_prompt=self._system_prompt,
                     messages=msgs,

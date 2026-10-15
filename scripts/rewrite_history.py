@@ -147,14 +147,15 @@ COMMITS = [
 ]
 
 
-def run(cmd_parts: list[str], cwd: str = None, env: dict = None,
+def run(cmd_parts: list[str], cwd: str | None = None, env: dict | None = None,
         check: bool = True) -> subprocess.CompletedProcess:
     """Run a command as a list (no shell injection)."""
     full_env = os.environ.copy()
     full_env["PYTHONIOENCODING"] = "utf-8"
     if env:
         full_env.update(env)
-    return subprocess.run(cmd_parts, cwd=cwd or PROJECT_ROOT, env=full_env,
+    return subprocess.run(cmd_parts,  # noqa: S603 — 参数为列表，无 shell
+                          cwd=cwd or PROJECT_ROOT, env=full_env,
                           capture_output=True, text=True, encoding="utf-8",
                           errors="replace", check=check)
 
