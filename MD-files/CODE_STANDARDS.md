@@ -17,9 +17,10 @@
 ## A. 结构与分层
 
 **Q-A1 单一职责：函数 ≤ 60 行、类 ≤ 400 行、单文件 ≤ 800 行**
+- 阈值：**采用默认（2026-10-15 定）**。
 - 为什么：超过认知上限后，改动成本与 bug 率非线性上升。
-- 检查：`radon cc -s src`、`vulture`、自定义行数脚本。
-- 现状：`✗` `habit_panel.py` 766、`settings_panel.py` 665、`inventory_panel.py` 565、`schedule_view.py` 758。
+- 检查：行数脚本（`dev-logs/2026-10-15-现状基线.md` §1b）、`radon`、`vulture`。
+- 现状：`✗` 文件超限 2 个（`habit_panel.py` 863、`schedule_view.py` 848）；类超限 5 个（`ScheduleView` 828、`SettingsPanel` 716、`InventoryPanel` 663、`MainWindow` 543、`AIService` 406）。
 
 **Q-A2 依赖单向：UI → Service → Model，禁止反向 import**
 - 为什么：反向依赖使分层失效、难以测试。
@@ -68,6 +69,7 @@
 ## C. 复杂度与资源
 
 **Q-C1 圈复杂度 ≤ 10（B 级）**
+- 阈值：**≤ 10（B 级，采用 radon 默认分档；2026-10-15 定）**。
 - 检查：`radon cc -n C -s src scripts`。
 - 现状：`✗` **34 个函数 ≥ C**（平均仅 A/3.52）。最差：`send_digest.build_digest`(75,F)、`schedule_view._refresh`(60,F)、`_build_snapshot`(37,E)；C(15–17) 11 个。见 `dev-logs/2026-10-15-现状基线.md`。
 
@@ -87,7 +89,7 @@
 **Q-D1 非脚本代码禁用裸 `print()`，统一 `logging`**
 - 为什么：无法分级、无法关闭、污染 stdout（还会与 `redirect_stdout` 互相干扰）。
 - 检查：`ruff` 规则 `T20`，或 `grep -rn "print(" src`。
-- 现状：`✗` 全项目 **53 处** `print()`（`ruff --select T20`）；`models/task.py:85-97` 为生产路径残留。
+- 现状：`✗` `src/` 内 **5 处**，全部在 `models/task.py:85-97`（`TaskModel.complete()` 的调试输出）。`scripts/*` 的 print 属 CLI 契约，已在 ruff 配置中排除。
 
 **Q-D2 日志按级别使用**：`debug` 默认关闭；异常路径 `logger.error(..., exc_info=True)`；不在热点循环里做字符串拼接。
 

@@ -21,7 +21,7 @@
 **P0 度量（用数据说话）**
 - `E` 现状基线 ✅ **已完成**（2026-10-15，报告见 `dev-logs/2026-10-15-现状基线.md`）
 - `D-1` 规范骨架 ✅ 已完成
-- ⚠ 阻塞项：`Q-A1` / `Q-C1` 的阈值需你拍板（函数 ≤60 行 / 类 ≤400 / 文件 ≤800、圈复杂度 ≤10）
+- ✅ 阈值已定：函数 ≤60 行 / 类 ≤400 行 / 文件 ≤800 行、圈复杂度 ≤10（采用默认，2026-10-15）
 
 **P1 规范定稿（纯约定，无代码风险）**
 - `A-1` 文档 Pivot（`.py.md` → `ARCHITECTURE.md`）
@@ -31,7 +31,7 @@
 - `I-1` 命名总约定、`I-11` i18n key 命名空间、`I-13` 插件目录约定、`I-14` 版本号单一来源
 
 **P2 自动检查（把规范变成门禁）**
-- `B-1` 补 `pyproject.toml` 的 `[tool.ruff]` 配置（**基线可复现的前提**）
+- `B-1` ✅ `[tool.ruff]` 已在 `pyproject.toml` 固定（基线可复现）；`mypy` 待接
 - `D-2` 规范检查器（`scripts/check_standards.py` + 审查 skill）
 - `G-2` UI 令牌检查器（`scripts/check_ui_tokens.py`，先只检查、不 `--fix`）
 - `I-8` pre-commit 钩子
@@ -171,13 +171,13 @@
 | 维度 | 结果 |
 |---|---|
 | 圈复杂度 | 686 块，平均 **A(3.52)**；**34 个函数 ≥ C**。最差 `send_digest.build_digest`(75,F)、`schedule_view._refresh`(60,F)、`_build_snapshot`(37,E) |
+| 体量 | 文件超限 **2**（`habit_panel.py` 863、`schedule_view.py` 848）；类超限 **5**（`ScheduleView` 828 / `SettingsPanel` 716 / `InventoryPanel` 663 / `MainWindow` 543 / `AIService` 406） |
 | 死代码 | vulture ≥80% 仅 **3 处**（2 未用导入 + 1 未用变量） |
-| Lint | **244 项**：F401 54 / **BLE001 50** / I001 47 / **S110 24** / F841 17 / UP006 8 / **RUF012 5** / F811 5 / **B023 3** / SIM115 3 … |
-| print 残留 | **53 处**（`--select T20`） |
+| Lint | **315 项**（固定规则集）：F401 54 / **BLE001 50** / I001 47 / E702 39 / **S110 24** / F841 17 / E701 11 / UP006 8 / **RUF012 5** / **T201 5** / **B023 3** / SIM115 3 …；可自动修复 131 |
 | 覆盖率 | **1%**（7442 语句，`src/` 全 0） |
 
-**遗留问题（转入 P2）**：项目**无 ruff 配置**，生效规则集未固定 → 基线暂不可复现，
-需在 `pyproject.toml` 补 `[tool.ruff]`。
+**已解决**：`pyproject.toml` 已固定 `[tool.ruff]`（select + ignore）→ 基线可复现；
+`print` 残留已收敛为 `src/` 内 5 处（`models/task.py:85-97`），`scripts/*` 的 CLI 输出已排除。
 
 ---
 
