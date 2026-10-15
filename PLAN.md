@@ -13,6 +13,46 @@
 
 ---
 
+## 执行顺序（Roadmap）
+
+> 原则：**先用数据定级 → 再定规范 → 再让规范变成门禁 → 最后才动架构与发布。**
+> 每项详细内容见下方同名章节；ID 不变，仅重排先后。
+
+**P0 度量（用数据说话）**
+- `E` 现状基线 ✅ **已完成**（2026-10-15，报告见 `dev-logs/2026-10-15-现状基线.md`）
+- `D-1` 规范骨架 ✅ 已完成
+- ⚠ 阻塞项：`Q-A1` / `Q-C1` 的阈值需你拍板（函数 ≤60 行 / 类 ≤400 / 文件 ≤800、圈复杂度 ≤10）
+
+**P1 规范定稿（纯约定，无代码风险）**
+- `A-1` 文档 Pivot（`.py.md` → `ARCHITECTURE.md`）
+- `A-2` / `A-3` 文档单一真值（合并两份 `ERRORS.md`、`AllTheFiles.md` 补齐）
+- `G-1` 令牌格式与命名定稿（**UI 规范的前置**）
+- `H-1` 项目目录约定
+- `I-1` 命名总约定、`I-11` i18n key 命名空间、`I-13` 插件目录约定、`I-14` 版本号单一来源
+
+**P2 自动检查（把规范变成门禁）**
+- `B-1` 补 `pyproject.toml` 的 `[tool.ruff]` 配置（**基线可复现的前提**）
+- `D-2` 规范检查器（`scripts/check_standards.py` + 审查 skill）
+- `G-2` UI 令牌检查器（`scripts/check_ui_tokens.py`，先只检查、不 `--fix`）
+- `I-8` pre-commit 钩子
+- `B-1` ruff/mypy、`B-6` CI 跑 pytest+lint、`I-16` 依赖审计
+
+**P3 架构与正确性整改（顺序据基线数据重排）**
+- ① `B-5` 线程安全 + `RUF012`（类级可变默认值 ×5）
+- ② `I-2` 异常处理（`BLE001` ×50 盲捕获 / `S110` ×24 静默吞异常）
+- ③ `B-2` 复杂度长尾（先 `_refresh`(60) / `build_digest`(75) / `_build_snapshot`(37)）
+- ④ `Q-B6` 闭包捕获循环变量（`B023` ×3）
+- ⑤ 死代码 / 未用导入清理（`F401` ×54 / `F841` ×17）
+- ⑥ `I-4` 类型注解、`I-3` i18n 落地、`I-10` 数据 schema 与迁移
+- ⑦ `G-1` 落地（替换硬编码）、`H-1` 资源归位
+
+**P4 发布**
+- `C-1` 注释/日志处理、`C-2` 日志写法规范
+- `H-2` 发行版目录与命名
+- `I-15` 性能基线门禁
+
+---
+
 ## A. 文档体系
 
 ### A-1 `[已定]` 废弃逐文件 `.py.md`，改用单一 `ARCHITECTURE.md`
@@ -123,17 +163,21 @@
 
 ---
 
-## E. 现状基线计划（先做，用数据决定重构优先级）
+## E. `[已完成]` 现状基线（2026-10-15）
 
-目的：在动手重构前，先拿到可复现的度量基线，避免凭感觉排优先级。
+**报告**：`dev-logs/2026-10-15-现状基线.md`；已回填 `CODE_STANDARDS.md` 的「现状」列。
+**工具**：ruff 0.17.0 / radon 6.0.1 / vulture 2.16 / pytest-cov 7.1.0。
 
-1. 接入 `ruff + radon + vulture`（此阶段**只报告、不阻断**，数据先于门禁）。
-2. `.venv\Scripts\python.exe -m radon cc -n C -s src scripts` → 圈复杂度超阈值清单。
-3. `.venv\Scripts\python.exe -m vulture src scripts --min-confidence 80` → 死代码清单。
-4. `ruff check`，启用 `T20`（print 残留）、`B`（bugbear）、`S`（bandit 子集）。
-5. `pytest --cov=src` → 覆盖率现状（当前仅 scripts/actions 有测试）。
-6. 结果回填 `MD-files/CODE_STANDARDS.md` 的 `现状` 列，并生成 `dev-logs/` 报告。
-7. 依据结果排序：**线程安全 → 复杂度过高 → 死代码 → 分层违规**。
+| 维度 | 结果 |
+|---|---|
+| 圈复杂度 | 686 块，平均 **A(3.52)**；**34 个函数 ≥ C**。最差 `send_digest.build_digest`(75,F)、`schedule_view._refresh`(60,F)、`_build_snapshot`(37,E) |
+| 死代码 | vulture ≥80% 仅 **3 处**（2 未用导入 + 1 未用变量） |
+| Lint | **244 项**：F401 54 / **BLE001 50** / I001 47 / **S110 24** / F841 17 / UP006 8 / **RUF012 5** / F811 5 / **B023 3** / SIM115 3 … |
+| print 残留 | **53 处**（`--select T20`） |
+| 覆盖率 | **1%**（7442 语句，`src/` 全 0） |
+
+**遗留问题（转入 P2）**：项目**无 ruff 配置**，生效规则集未固定 → 基线暂不可复现，
+需在 `pyproject.toml` 补 `[tool.ruff]`。
 
 ---
 
@@ -203,6 +247,15 @@
 - **I-7 依赖规范**：新增依赖必须同时更新 `requirements.txt` 与 `requirements.lock.txt`。
 - **I-8 提交前钩子**：把 ruff + `check_standards.py` + `check_ui_tokens.py` 挂成 pre-commit。
 - **I-9 脚本契约**：`scripts/*` 的 CLI 参数、退出码、输出格式统一（供 AI/TG/CI 三方共用）。
+- **I-10 数据 schema 与迁移**：`_version` / `migrate()` 必须有测试与兼容策略
+  （跨端：桌面 + TG + GitHub Actions 共写同一份 JSON，schema 变更需护栏）。
+- **I-11 i18n key 命名空间**：分层 key，如 `panel.task.add_title`
+  （现状 `zh-CN.json` 为扁平键，且全项目仅约 47 处 `tr()` 调用）。
+- **I-12 测试命名与结构**：`test_<模块>_<行为>`；数据写入类测试固定用 `sandbox` fixture。
+- **I-13 插件目录约定**：`plugins/<name>/plugin.py` + `IsOpen.able` + `manifest.json`。
+- **I-14 版本号单一来源**：以 `pyproject.toml` 为准，`i18n` / `README` / 发行包名全部由它派生。
+- **I-15 性能基线门禁**：把启动时间、`schedule_view._refresh` 耗时记成基线，超阈值告警。
+- **I-16 依赖审计**：`pip-audit` + 定期升级（锁文件里 `openai 3.x` / `anthropic 1.x` 均未做真实调用验证）。
 
 > 以上 G/H/I 均为 `[待议]`，需你裁决采纳范围与优先级。
 

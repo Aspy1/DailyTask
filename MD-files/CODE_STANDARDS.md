@@ -49,7 +49,7 @@
 **Q-B2 共享可变状态必须加锁或明确单线程归属**
 - 为什么：无锁的 dict 并发读写会产生撕裂读/丢失更新。
 - 检查：人工审查 + 并发压测。
-- 现状：`✗` Model 的 `_data` 被 worker 线程改（`ai_service.py:246-248`），同时主线程 `data_manager.py:66-85` 在读。
+- 现状：`✗` Model 的 `_data` 被 worker 线程改（`ai_service.py:246-248`），同时主线程 `data_manager.py:66-85` 在读；`RUF012`（类级可变默认值）**5 处**，如 `ai_service.py:322/357` 的缓存字典。
 
 **Q-B3 禁止 `QThread.terminate()`**
 - 现状：`✗` `api_service.py:169`。
@@ -60,11 +60,16 @@
 **Q-B5 QObject/QThread 生命周期必须显式回收**（`deleteLater` / 单一归属），禁止反复 `new` 不释放
 - 现状：`✗` `weather_service.py:118`（单一 `_worker` 槽）、`api_service.py:147`。
 
+**Q-B6 禁止闭包捕获循环变量**（`lambda` / 生成器引用外层循环变量）
+- 为什么：所有闭包共享同一变量 → 偶发跳错项，且难复现。
+- 检查：`ruff --select B023`。
+- 现状：`✗` `B023` **3 处**。
+
 ## C. 复杂度与资源
 
 **Q-C1 圈复杂度 ≤ 10（B 级）**
-- 检查：`radon cc -n C -s src`。
-- 现状：`?` 待出基线。
+- 检查：`radon cc -n C -s src scripts`。
+- 现状：`✗` **34 个函数 ≥ C**（平均仅 A/3.52）。最差：`send_digest.build_digest`(75,F)、`schedule_view._refresh`(60,F)、`_build_snapshot`(37,E)；C(15–17) 11 个。见 `dev-logs/2026-10-15-现状基线.md`。
 
 **Q-C2 主线程禁止阻塞**（网络/IO/大循环）
 - 现状：`✗` `ai_service._fetch_deepseek_balance()` / `_fetch_weather_for_prompt()` 在发送路径同步请求。
@@ -74,14 +79,15 @@
 - 现状：`✗` 记账/考试统计每次 O(n)；且 `habit.py:122-129` monthly 分支遍历层级写错（每月习惯永远判"未完成"）。
 
 **Q-C4 文件/线程/连接等资源必须显式释放**
-- 现状：`?`
+- 检查：`ruff --select SIM115` + QThread 人工核查。
+- 现状：`✗` `SIM115`（文件未用上下文管理器）**3 处**；QThread 反复 `new` 不 `deleteLater`（`weather_service.py:118`、`api_service.py:147`）。
 
 ## D. 日志与调试输出
 
 **Q-D1 非脚本代码禁用裸 `print()`，统一 `logging`**
 - 为什么：无法分级、无法关闭、污染 stdout（还会与 `redirect_stdout` 互相干扰）。
 - 检查：`ruff` 规则 `T20`，或 `grep -rn "print(" src`。
-- 现状：`✗` `models/task.py:85-97`（调试 print 残留在生产路径）。
+- 现状：`✗` 全项目 **53 处** `print()`（`ruff --select T20`）；`models/task.py:85-97` 为生产路径残留。
 
 **Q-D2 日志按级别使用**：`debug` 默认关闭；异常路径 `logger.error(..., exc_info=True)`；不在热点循环里做字符串拼接。
 
@@ -105,7 +111,7 @@
 ## F. 测试与可验证性
 
 **Q-F1 新增/修改行为必须有测试**（见 `AGENTS.md` DoD）
-- 现状：`?` 仅 `scripts/actions.py` 有冒烟测试。
+- 现状：`✗` 覆盖率 **1%**（7442 语句 / 7384 未覆盖）；仅 `scripts/actions.py` 有冒烟测试，`src/` 全 0%。
 
 **Q-F2 契约必须可校验**：prompt ↔ `actions.py` ↔ TG skill 的命令集一致
 - 现状：`✔` `tests/test_prompt_consistency.py`（3 处已知缺口以 xfail 固化）。

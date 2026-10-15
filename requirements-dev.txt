@@ -3,3 +3,7 @@
 
 -r requirements.txt
 pytest>=8
+pytest-cov>=5
+ruff>=0.6
+radon>=6
+vulture>=2
