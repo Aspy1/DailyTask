@@ -133,9 +133,10 @@ def _parse_relative_date(s: str, today: date, day_names: dict) -> str | None:
     if m:
         wd = day_names.get(m.group(1))
         if wd is not None:
+            # `7 - weekday + wd` 已经落在「下一个自然周」的同名星期：
+            # wd < 今天 时是本周已过、需跨到下周；wd >= 今天 时天然就是下周。
+            # ⚠ 不可再 `+= 7`（历史缺陷：会让周一到周五普遍晚一周，ERRORS #021）。
             days_ahead = 7 - today.weekday() + wd
-            if days_ahead <= 7:
-                days_ahead += 7
             return (today + timedelta(days=days_ahead)).isoformat()
     # "这周五" / "本周五" / "周五"
     m = re.match(r'(?:这|本)?周(.)', s)
@@ -159,7 +160,7 @@ def _parse_relative_date(s: str, today: date, day_names: dict) -> str | None:
 
 def _parse_month_day(s: str, today: date) -> str:
     """月日形式（6月20日 / 6.20 / 6/20）→ ISO；不匹配则原样返回。"""
-    for pattern in (r'(\d{1,2})月(\d{1,2})[日号]?', r'(\d{1,2})[./](\d{1,2})'):
+    for pattern in (r'(\d{1,2})月(\d{1,2})[日号]?', r'(\d{1,2})[./-](\d{1,2})'):
         m = re.match(pattern, s)
         if m:
             month, day = int(m.group(1)), int(m.group(2))
@@ -197,36 +198,56 @@ def _shift_hour(period: str, hour: int) -> int:
     return hour
 
 
-def _append_default_time(due_str: str) -> str:
-    """无可识别时段时：无时间补 23:00:00；只有到分钟则补 :00。"""
-    if 'T' not in due_str:
-        return due_str + 'T23:00:00'
-    if len(due_str) <= 16:
-        return due_str + ':00'
-    return due_str
+_ISO_TIME_TAIL = re.compile(r'[T ](\d{1,2}):(\d{2})')
+_CN_TIME = re.compile(r'(中午|下午|上午|晚上|早晨|早上)(\d{1,2})点(半|(\d{1,2})分?)?')
 
 
-def normalize_time(due_str: str) -> str:
-    """Ensure date has time. Extracts Chinese time expressions (中午12点, 下午3点)."""
-    if not due_str:
-        return ""
-    # Extract Chinese time: 中午12点, 下午3点半, 上午9点, 晚上8点
-    time_match = re.search(
-        r'(中午|下午|上午|晚上|早晨|早上)(\d{1,2})点(半)?',
-        due_str
-    )
-    if time_match:
-        period, hour_str, half = time_match.group(1), time_match.group(2), time_match.group(3)
-        hour = _shift_hour(period, int(hour_str))
-        minute = '30' if half else '00'
-        # Replace the time part in the string with ISO time
-        due_str = re.sub(r'(中午|下午|上午|晚上|早晨|早上)\d{1,2}点(半)?', '', due_str).strip()
-        if 'T' not in due_str:
-            due_str += f'T{hour:02d}:{minute}:00'
-        else:
-            due_str = due_str[:11] + f'{hour:02d}:{minute}:00'
-        return due_str
-    return _append_default_time(due_str)
+def _cn_minute(tail: str, digits: str | None) -> str:
+    """中文时间的分钟部分：`半` → 30，`N分` → N，未写 → 00。"""
+    if tail == "半":
+        return "30"
+    if digits:
+        minute = int(digits)
+        if 0 <= minute < 60:
+            return f"{minute:02d}"
+    return "00"
+
+
+def _split_date_time_text(raw: str) -> tuple[str, str]:
+    """把 DDL 文本拆成 (日期文本, HH:MM:SS)；未给出时间时第二项为 ""。
+
+    识别 `2026-10-20T14:30` / `2026-10-20 14:30` / `6月20日下午3点` / `明天晚上8点半`。
+    """
+    s = raw.strip()
+    m = _ISO_TIME_TAIL.search(s)
+    if m:
+        hh, mm = int(m.group(1)), int(m.group(2))
+        if 0 <= hh < 24 and 0 <= mm < 60:
+            return (s[:m.start()].strip() or s), f"{hh:02d}:{mm:02d}:00"
+        return parse_date(s), ""
+    m = _CN_TIME.search(s)
+    if m:
+        hour = _shift_hour(m.group(1), int(m.group(2)))
+        minute = _cn_minute(m.group(3) or "", m.group(4))
+        return parse_date(_CN_TIME.sub("", s).strip()), f"{hour:02d}:{minute}:00"
+    return parse_date(s), ""
+
+
+def _normalize_due(raw: str) -> str | None:
+    """DDL 文本 → `YYYY-MM-DDThh:mm:ss`；日期非法返回 None。
+
+    ⚠ 必须**先取时间、后归一化日期**：`parse_date` 只保留年月日，
+    先调它会把 `2026-10-20T14:30` 截成 `2026-10-20`，具体时间被静默丢弃
+    （历史缺陷，见 ERRORS #020）。只给日期时补 23:00:00。
+    """
+    if not raw.strip():
+        return None
+    date_text, time_text = _split_date_time_text(raw)
+    try:
+        date.fromisoformat(date_text)
+    except ValueError:
+        return None
+    return f"{date_text}T{time_text or '23:00:00'}"
 
 
 # ═══════════════════════════════════════════════════════════
@@ -241,8 +262,10 @@ def cmd_add_task(args) -> None:
     if not due_raw.strip():
         print("ERROR add_task requires --due (YYYY-MM-DD)")
         return
-    due = parse_date(due_raw)
-    due = normalize_time(due)
+    due = _normalize_due(due_raw)
+    if due is None:
+        print(f"ERROR add_task 无法识别日期: {due_raw}")
+        return
     priority = args.priority or "medium"
 
     data = load("tasks.json")
