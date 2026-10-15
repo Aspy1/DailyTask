@@ -2,27 +2,27 @@
 
 import logging
 
-from PySide6.QtWidgets import (
-    QStackedWidget, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-)
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QFont
+from PySide6.QtWidgets import (
+    QLabel,
+    QStackedWidget,
+    QVBoxLayout,
+    QWidget,
+)
 
-from src.i18n.loader import tr
-from src.services.settings_manager import SettingsManager
 from src.services.ai_service import AIService
 from src.services.data_manager import DataManager
-from src.ui.panels.settings_panel import SettingsPanel
+from src.services.settings_manager import SettingsManager
 from src.ui.panels.course_panel import CoursePanel
-from src.ui.panels.task_panel import TaskPanel
+from src.ui.panels.exam_panel import ExamPanel
 from src.ui.panels.expense_panel import ExpensePanel
 from src.ui.panels.habit_panel import HabitPanel
-from src.ui.panels.exam_panel import ExamPanel
 from src.ui.panels.inventory_panel import InventoryPanel
-from src.ui.widgets.schedule_view import ScheduleView
-from src.ui.widgets.course_detail_dialog import CourseDetailDialog
+from src.ui.panels.settings_panel import SettingsPanel
+from src.ui.panels.task_panel import TaskPanel
 from src.ui.styles.theme import get_colors
-
+from src.ui.widgets.course_detail_dialog import CourseDetailDialog
+from src.ui.widgets.schedule_view import ScheduleView
 
 logger = logging.getLogger(__name__)
 
@@ -168,7 +168,7 @@ class MainWorkspace(QWidget):
             w = getattr(self, attr, None)
             if w is None:
                 continue
-            if hasattr(w, "refresh_theme") and callable(getattr(w, "refresh_theme")):
+            if hasattr(w, "refresh_theme") and callable(w.refresh_theme):
                 try:
                     w.refresh_theme()
                 except Exception:

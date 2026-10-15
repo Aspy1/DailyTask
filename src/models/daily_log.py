@@ -6,7 +6,6 @@ from pathlib import Path
 from src.models.base import BaseJsonModel
 from src.models.course import schedule_date
 
-
 DEFAULT_DAILY_LOGS = {
     "_version": 4,
     "logs": {},

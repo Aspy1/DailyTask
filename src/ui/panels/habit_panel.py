@@ -2,17 +2,29 @@
 
 import logging
 
-from PySide6.QtCore import Qt, Signal, QRect, QSize
-from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QListWidget, QListWidgetItem, QDialog, QLineEdit, QComboBox, QSpinBox,
-    QFormLayout, QDialogButtonBox, QMessageBox, QCheckBox,
-    QScrollArea, QSizePolicy,
-)
+from PySide6.QtCore import QRect, QSize, Qt, Signal
 from PySide6.QtGui import QFont
+from PySide6.QtWidgets import (
+    QCheckBox,
+    QComboBox,
+    QDialog,
+    QDialogButtonBox,
+    QFormLayout,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QListWidget,
+    QMessageBox,
+    QPushButton,
+    QScrollArea,
+    QSizePolicy,
+    QSpinBox,
+    QVBoxLayout,
+    QWidget,
+)
 
 from src.services.data_manager import DataManager
-from src.ui.styles.theme import get_colors, FONT_CN, SIZE_SUBTITLE, SIZE_BODY
+from src.ui.styles.theme import FONT_CN, SIZE_BODY, SIZE_SUBTITLE, get_colors
 
 CARD_MIN_WIDTH = 210
 CARD_HEIGHT = 135

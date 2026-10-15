@@ -1,12 +1,16 @@
 """Accordion sidebar — instant expand/collapse, no animation."""
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QLabel, QPushButton, QSizePolicy,
-)
 from PySide6.QtGui import QFont
+from PySide6.QtWidgets import (
+    QLabel,
+    QPushButton,
+    QSizePolicy,
+    QVBoxLayout,
+    QWidget,
+)
 
-from src.ui.styles.theme import get_colors, FONT_CN, SIZE_BODY_M
+from src.ui.styles.theme import FONT_CN, SIZE_BODY_M, get_colors
 
 
 class SectionHeader(QPushButton):

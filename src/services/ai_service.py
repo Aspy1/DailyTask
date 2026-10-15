@@ -1,13 +1,11 @@
 """AI service with pluggable backends (Anthropic, DeepSeek)."""
 
-import json
 import logging
 import re
-from datetime import date, datetime, timedelta
-from pathlib import Path
+from datetime import date
 from typing import Any, Protocol
 
-from PySide6.QtCore import QObject, Signal, QThread
+from PySide6.QtCore import QObject, QThread, Signal
 
 logger = logging.getLogger("ai_service")
 
@@ -315,7 +313,9 @@ class AIService(QObject):
 
     def _fetch_deepseek_balance(self) -> str:
         """Fetch DeepSeek API balance. Returns cached value if < 5 min old."""
-        import time, requests
+        import time
+
+        import requests
         now = time.time()
         cached = self._ds_balance_cache
         if cached and (now - cached.get("fetched_at", 0)) < 300:
@@ -366,6 +366,7 @@ class AIService(QObject):
         # 回退到Open-Meteo（保留旧逻辑作为备用）
         try:
             import requests
+
             from src.models.scene_archive import SceneArchive
             archive = SceneArchive(self._dm.data_dir)
             loc = archive.get_location()

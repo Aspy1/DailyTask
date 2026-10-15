@@ -6,13 +6,11 @@ Does NOT modify the current working tree until the final fetch+reset.
 Usage: python scripts/rewrite_history.py
 """
 
-import json
 import os
 import shutil
 import subprocess
 import sys
 import tempfile
-from datetime import datetime
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 

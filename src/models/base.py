@@ -2,7 +2,6 @@ import json
 import os
 import shutil
 import time
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -26,7 +25,7 @@ class BaseJsonModel:
             self.load()
 
     def load(self) -> dict[str, Any]:
-        with open(self.file_path, "r", encoding="utf-8") as f:
+        with open(self.file_path, encoding="utf-8") as f:
             self._data = json.load(f)
         return self._data
 

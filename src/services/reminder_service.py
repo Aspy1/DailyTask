@@ -16,10 +16,11 @@ checks that need sub-day granularity.
 
 import logging
 import smtplib
-from datetime import datetime, timedelta, date
+from datetime import date, datetime, timedelta
 from email.mime.text import MIMEText
 
 from PySide6.QtCore import QObject, QTimer, Signal
+
 from src.models.course import schedule_date
 
 logger = logging.getLogger("reminder")

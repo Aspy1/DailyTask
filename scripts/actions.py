@@ -5,9 +5,11 @@
 设计原则: AI 只管理解+标准化参数，脚本管验证+写文件。
 """
 
+import argparse
+import json
 import logging
-
-import argparse, json, os, re, sys, threading
+import re
+import threading
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
@@ -29,7 +31,7 @@ def load(name):
     p = DATA / name
     if not p.exists():
         return {}
-    with open(p, 'r', encoding='utf-8') as f:
+    with open(p, encoding='utf-8') as f:
         return json.load(f)
 
 def save(name, obj):
@@ -326,7 +328,7 @@ def cmd_replace_plans(args):
     try:
         new_plans = json.loads(args.plans)
     except json.JSONDecodeError:
-        print(f"ERROR invalid plans JSON")
+        print("ERROR invalid plans JSON")
         return
     data = load("daily_logs.json")
     data.setdefault("plans", {})
@@ -496,7 +498,8 @@ def run_in_process(cmd_str: str) -> str:
     and calls the handler directly — no subprocess overhead.
     Thread-safe: each call gets its own stdout buffer.
     """
-    import io, shlex
+    import io
+    import shlex
     from contextlib import redirect_stdout
 
     parts = shlex.split(cmd_str)

@@ -1,11 +1,10 @@
 """外部 API 服务 - 天气预报、DeepSeek 额度查询"""
 
-import json
 from datetime import datetime
 from typing import Any
 
 import requests
-from PySide6.QtCore import QObject, Signal, QThread
+from PySide6.QtCore import QObject, QThread, Signal
 
 
 class _ApiWorker(QThread):

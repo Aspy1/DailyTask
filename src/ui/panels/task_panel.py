@@ -1,20 +1,26 @@
 """Task panel — table with filters, pagination, checkboxes, archive, notes."""
 
 import logging
-
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QBrush, QColor, QFont
 from PySide6.QtWidgets import (
+    QAbstractItemView,
+    QCheckBox,
+    QHBoxLayout,
     QHeaderView,
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
-    QCheckBox, QMessageBox,
+    QLabel,
+    QMessageBox,
+    QPushButton,
+    QTableWidget,
+    QTableWidgetItem,
+    QVBoxLayout,
+    QWidget,
 )
-from PySide6.QtGui import QFont, QColor, QBrush
 
 from src.services.data_manager import DataManager
-from src.ui.styles.theme import get_colors, FONT_CN, SIZE_SUBTITLE
+from src.ui.styles.theme import FONT_CN, SIZE_SUBTITLE, get_colors
 
 PAGE_SIZE = 10
 

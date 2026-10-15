@@ -1,24 +1,26 @@
 """Daily schedule view — courses, plans, habits by time slot with right-click menu."""
 
 import logging
-
+import os as _os
+import shutil
 from datetime import date, datetime, timedelta
-import shutil, os as _os
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import (
-    QFrame,
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QScrollArea, QFrame, QPushButton, QMenu,
-    QMessageBox,
-)
 from PySide6.QtGui import QFont
+from PySide6.QtWidgets import (
+    QHBoxLayout,
+    QLabel,
+    QMessageBox,
+    QPushButton,
+    QScrollArea,
+    QVBoxLayout,
+    QWidget,
+)
 
 from src.models.course import PERIOD_TIMES, schedule_date
 from src.services.data_manager import DataManager
-from src.ui.styles.theme import get_colors, FONT_CN, SIZE_SUBTITLE
 from src.ui.components.click_label import ClickLabel
-
-
+from src.ui.styles.theme import FONT_CN, SIZE_SUBTITLE, get_colors
 
 logger = logging.getLogger(__name__)
 
@@ -452,7 +454,8 @@ class ScheduleView(QWidget):
                     slot = period_count
             ddl_by_slot[slot].append(t)
 
-        import json, hashlib
+        import hashlib
+        import json
 
         for period in range(1, period_count + 1):
             items = slot_data.get(period, [])
@@ -644,9 +647,7 @@ class ScheduleView(QWidget):
 
     def _add_email_reminder_dialog(self, item_type: str, item_name: str, item_date: str) -> None:
         """Show datetime picker and save a custom email reminder."""
-        from PySide6.QtWidgets import (
-    QFrame,QDialog, QVBoxLayout, QDateTimeEdit,
-                                        QPushButton, QLabel, QHBoxLayout)
+        from PySide6.QtWidgets import QDateTimeEdit, QDialog, QHBoxLayout, QLabel, QPushButton, QVBoxLayout
         c = get_colors()
         dlg = QDialog(self)
         dlg.setWindowTitle("添加邮件提醒")
@@ -718,6 +719,7 @@ class ScheduleView(QWidget):
 
     def _course_menu(self, pos, item, widget):
         from PySide6.QtGui import QCursor
+
         from src.ui.widgets.course_table import build_course_context_menu
         menu = build_course_context_menu(item["course"], widget)
         menu.addSeparator()
@@ -741,9 +743,10 @@ class ScheduleView(QWidget):
         action_type, payload = chosen.data()
         course_id = item["course"].get("id", "")
         if action_type == "rename":
-            from src.ui.widgets.course_table import build_course_context_menu
             # Simple rename dialog
             from PySide6.QtWidgets import QInputDialog
+
+            from src.ui.widgets.course_table import build_course_context_menu
             name, ok = QInputDialog.getText(self, "重命名课程", "新名称:")
             if ok and name.strip():
                 self._dm.courses.update_course(course_id, {"name": name.strip()})

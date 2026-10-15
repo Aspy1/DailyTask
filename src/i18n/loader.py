@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 
+
 class I18nLoader:
     _instance: "I18nLoader | None" = None
     _strings: dict          # 实例属性，见 CODE_STANDARDS Q-B2 / RUF012

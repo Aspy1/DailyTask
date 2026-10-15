@@ -1,8 +1,8 @@
 """Toggle switch widget — custom painted, no native shadow."""
 
 from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QColor, QMouseEvent, QPainter
 from PySide6.QtWidgets import QWidget
-from PySide6.QtGui import QPainter, QColor, QMouseEvent
 
 from src.ui.styles.theme import get_colors
 

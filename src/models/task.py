@@ -6,7 +6,6 @@ from typing import ClassVar
 
 from src.models.base import BaseJsonModel
 
-
 DEFAULT_TASKS = {
     "_version": 2,
     "tasks": [],

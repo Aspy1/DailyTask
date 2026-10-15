@@ -1,26 +1,33 @@
 """Settings panel — theme-aware card grouping."""
 
 import logging
+from pathlib import Path
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import (
-    QFrame,
-    QWidget, QVBoxLayout, QHBoxLayout,
-    QLineEdit, QComboBox, QPushButton, QLabel, QCheckBox,
-    QScrollArea, QMessageBox, QFrame,
-)
 from PySide6.QtGui import QFont
+from PySide6.QtWidgets import (
+    QCheckBox,
+    QComboBox,
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QPushButton,
+    QScrollArea,
+    QVBoxLayout,
+    QWidget,
+)
 
 from src.i18n.loader import tr
-from src.services.settings_manager import SettingsManager
+from src.models.scene_archive import SceneArchive
 from src.services.ai_service import AIService
 from src.services.api_service import ApiService
-from pathlib import Path
-from src.ui.styles.theme import get_colors, FONT_CN, SIZE_SUBTITLE, SIZE_TITLE
-from src.ui.widgets.toggle_switch import ToggleSwitch
+from src.services.settings_manager import SettingsManager
+from src.ui.styles.theme import FONT_CN, SIZE_SUBTITLE, get_colors
 from src.ui.widgets.api_test_dialog import ApiTestDialog
-from src.models.scene_archive import SceneArchive
 from src.ui.widgets.scene_manager_dialog import SceneManagerDialog
+from src.ui.widgets.toggle_switch import ToggleSwitch
 
 PROVIDERS = {
     "deepseek": {
@@ -495,8 +502,8 @@ class SettingsPanel(QWidget):
     def _update_weather_stats(self) -> None:
         """更新天气API调用统计显示"""
         import json
-        from pathlib import Path
         from datetime import datetime
+        from pathlib import Path
 
         stats_file = Path(__file__).resolve().parents[3] / "data" / "weather_stats.json"
         if not stats_file.exists():
@@ -549,9 +556,9 @@ class SettingsPanel(QWidget):
 
     def _open_scene_manager(self) -> None:
         """打开场景管理对话框"""
-        from src.models.scene_archive import SceneArchive
-        from src.ui.widgets.scene_manager_dialog import SceneManagerDialog
         from pathlib import Path
+
+        from src.models.scene_archive import SceneArchive
         archive = SceneArchive(Path("data"))
         dialog = SceneManagerDialog(archive, self)
         if dialog.exec():

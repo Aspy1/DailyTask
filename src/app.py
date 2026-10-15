@@ -1,27 +1,26 @@
 """Application singleton with system tray support and single-instance lock."""
 
-import logging
-
 import ctypes
+import logging
 import sys
 import winreg
 from pathlib import Path
 
-from PySide6.QtWidgets import QApplication, QSystemTrayIcon, QMenu
-from PySide6.QtGui import QIcon, QAction, QPixmap, QPainter, QColor, QFont
-from PySide6.QtCore import QTimer, Qt
+from PySide6.QtCore import Qt, QTimer
+from PySide6.QtGui import QAction, QColor, QFont, QIcon, QPainter, QPixmap
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
+from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 
-from src.i18n.loader import t as i18n, tr
-from src.services.settings_manager import SettingsManager
-from src.services.data_manager import DataManager
+from src.i18n.loader import t as i18n
+from src.i18n.loader import tr
 from src.services.ai_service import AIService
-from src.services.reminder_service import ReminderService
+from src.services.data_manager import DataManager
 from src.services.git_sync import GitSync
-from src.ui.styles.theme import init_theme, FONT_CN, SIZE_TITLE
-from src.ui.main_window import MainWindow
 from src.services.plugin_manager import PluginManager
-
+from src.services.reminder_service import ReminderService
+from src.services.settings_manager import SettingsManager
+from src.ui.main_window import MainWindow
+from src.ui.styles.theme import FONT_CN, SIZE_TITLE, init_theme
 
 DATA_DIR = Path(__file__).parent.parent / "data"
 SINGLE_INSTANCE_KEY = "StudentSchedulerSingleInstance"

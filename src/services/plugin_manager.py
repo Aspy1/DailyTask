@@ -17,10 +17,9 @@ and returning a QWidget instance.
 from __future__ import annotations
 
 import importlib.util
-import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Dict, List, Optional
 
 
 @dataclass
@@ -28,7 +27,7 @@ class PluginInfo:
     name: str
     path: Path
     enabled: bool
-    manifest: Dict | None = None
+    manifest: dict | None = None
 
 
 class PluginManager:
@@ -38,12 +37,12 @@ class PluginManager:
         self.data_manager = data_manager
         self.app = app
 
-        self.plugins: Dict[str, PluginInfo] = {}
+        self.plugins: dict[str, PluginInfo] = {}
         # panels cache: plugin_name -> list of (display_name, factory)
         # factories are not loaded until requested (lazy load)
-        self.panels: Dict[str, List] = {}
+        self.panels: dict[str, list] = {}
         # module cache to avoid re-importing repeatedly
-        self._module_cache: Dict[str, object] = {}
+        self._module_cache: dict[str, object] = {}
 
         self.plugins_dir.mkdir(parents=True, exist_ok=True)
 
@@ -70,12 +69,12 @@ class PluginManager:
         self.panels.clear()
         self._module_cache.clear()
 
-    def list_plugins(self) -> List[PluginInfo]:
+    def list_plugins(self) -> list[PluginInfo]:
         if not self.plugins:
             self.scan_plugins()
         return list(self.plugins.values())
 
-    def _load_plugin_definitions(self, plugin_name: str) -> List:
+    def _load_plugin_definitions(self, plugin_name: str) -> list:
         """Import plugin.py and return list of (display_name, factory).
         Caches the module to avoid repeated imports.
         """
@@ -99,7 +98,7 @@ class PluginManager:
                 loader.exec_module(mod)  # type: ignore
                 self._module_cache[plugin_name] = mod
 
-            regs: List = []
+            regs: list = []
 
             class _API:
                 def register_panel(self, display_name: str, factory: Callable):

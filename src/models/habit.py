@@ -1,7 +1,6 @@
 """Habit tracking data model with attached tasks."""
 
 import logging
-
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -133,7 +132,7 @@ class HabitModel(BaseJsonModel):
             ]
             return len(monthly_logs) < schedule.get("value", 4)
         elif st == "interval":
-            if "start_date" in schedule and schedule["start_date"]:
+            if schedule.get("start_date"):
                 try:
                     start = date.fromisoformat(schedule["start_date"])
                     delta = (today - start).days

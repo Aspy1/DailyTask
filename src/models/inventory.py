@@ -1,7 +1,6 @@
 """Inventory model — personal item library."""
 
 import logging
-
 from datetime import datetime
 from pathlib import Path
 

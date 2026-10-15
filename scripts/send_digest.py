@@ -6,9 +6,8 @@ Config via environment variables / GitHub Secrets:
   DATA_DIR — path to data/ directory (default: ./data)
 """
 
-import logging
-
 import json
+import logging
 import os
 import smtplib
 from datetime import date, datetime, timedelta, timezone
@@ -31,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 
 def load_json(path: Path) -> dict:
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         return json.load(f)
 
 
@@ -101,7 +100,7 @@ def is_habit_active_today(habit: dict, today: date) -> bool:
     if schedule.get("type") == "weekly":
         return today.isoweekday() in schedule.get("days", [])
     else:
-        if "start_date" in schedule and schedule["start_date"]:
+        if schedule.get("start_date"):
             try:
                 start = date.fromisoformat(schedule["start_date"])
                 delta = (today - start).days

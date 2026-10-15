@@ -53,7 +53,7 @@ class SceneArchive(BaseJsonModel):
     def _load(self) -> dict:
         """加载元数据"""
         if self._meta_file.exists():
-            with open(self._meta_file, "r", encoding="utf-8") as f:
+            with open(self._meta_file, encoding="utf-8") as f:
                 return json.load(f)
         return {"current_scene": "default", "scenes": {}}
 

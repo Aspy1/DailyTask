@@ -1,9 +1,8 @@
 """Exam model — stores exam dates and related info."""
 
 import logging
-
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
 
 from src.models.base import BaseJsonModel
 

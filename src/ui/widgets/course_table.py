@@ -1,18 +1,20 @@
 """Course schedule grid widget — time labels, context menu, signals."""
 
-from datetime import date, timedelta
 import re
+from datetime import date, timedelta
 
 from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QBrush, QColor, QFont
 from PySide6.QtWidgets import (
-    QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
+    QAbstractItemView,
+    QHeaderView,
+    QTableWidget,
+    QTableWidgetItem,
 )
-from PySide6.QtGui import QFont, QColor, QBrush
 
 from src.models.course import PERIOD_TIMES
-from src.ui.styles.theme import get_colors, FONT_CN, SIZE_TINY
+from src.ui.styles.theme import FONT_CN, SIZE_TINY, get_colors
 from src.ui.widgets.context_menu import ContextMenu
-
 
 DAY_LABELS = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
 
@@ -33,7 +35,7 @@ COURSE_ACTIONS = [
 
 def build_course_context_menu(course: dict, parent=None) -> object:
     """Create a standalone course context menu — usable from schedule view too."""
-    from src.ui.widgets.context_menu import ContextMenu, MenuAction
+    from src.ui.widgets.context_menu import ContextMenu
     
     menu = ContextMenu(parent)
     course_id = course.get("id", "")

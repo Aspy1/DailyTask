@@ -6,7 +6,6 @@ from pathlib import Path
 from src.models.base import BaseJsonModel
 from src.models.course import schedule_date
 
-
 DEFAULT_EXPENSES = {
     "_version": 1,
     "categories": [

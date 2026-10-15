@@ -1,9 +1,10 @@
 """和风天气服务"""
 import json
-import requests
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
-from PySide6.QtCore import QObject, Signal, QTimer, QThread
+
+import requests
+from PySide6.QtCore import QObject, QThread, QTimer, Signal
 
 from src.models.scene_archive import SceneArchive
 

@@ -2,15 +2,21 @@
 
 import re
 
-from PySide6.QtCore import Signal, Qt
-from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QTextEdit, QPushButton,
-    QLabel, QSizePolicy, QScrollArea,
-)
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFont, QKeyEvent
+from PySide6.QtWidgets import (
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QScrollArea,
+    QSizePolicy,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
+)
 
 from src.i18n.loader import tr
-from src.ui.styles.theme import get_colors, FONT_CN, SIZE_CAPTION, SIZE_BODY_S
+from src.ui.styles.theme import FONT_CN, SIZE_BODY_S, SIZE_CAPTION, get_colors
 
 
 def _md_to_html(text: str) -> str:

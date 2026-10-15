@@ -9,7 +9,7 @@ from pathlib import Path
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont, QFontDatabase
-from PySide6.QtWidgets import QApplication, QMenu
+from PySide6.QtWidgets import QApplication
 
 # ── Tokens：从单一真值 tokens.json 加载（CODE_STANDARDS Q-H8）──
 _TOKENS_DATA = json.loads((Path(__file__).parent / "tokens.json").read_text(encoding="utf-8"))

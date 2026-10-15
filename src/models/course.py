@@ -1,9 +1,10 @@
 """Course and semester data model."""
 
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 from src.models.base import BaseJsonModel
+
 
 def schedule_date() -> date:
     """Effective date: 0:00–1:00 AM still counts as the previous day."""

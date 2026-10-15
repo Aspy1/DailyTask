@@ -3,16 +3,24 @@
 from typing import ClassVar
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QLineEdit, QListWidget,
-    QDialog, QDialogButtonBox,
-    QMessageBox, QMenu, QScrollArea, QSizePolicy,
-)
 from PySide6.QtGui import QFont
+from PySide6.QtWidgets import (
+    QDialog,
+    QDialogButtonBox,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QListWidget,
+    QMessageBox,
+    QPushButton,
+    QScrollArea,
+    QSizePolicy,
+    QVBoxLayout,
+    QWidget,
+)
 
 from src.services.data_manager import DataManager
-from src.ui.styles.theme import get_colors, FONT_CN, SIZE_SUBTITLE
+from src.ui.styles.theme import FONT_CN, SIZE_SUBTITLE, get_colors
 
 PAGE_SIZE = 8
 
@@ -575,7 +583,6 @@ class InventoryPanel(QWidget):
     }
 
     def _context_menu(self, item: dict) -> None:
-        from PySide6.QtGui import QCursor
         c = get_colors()
         cat = item.get("category", "其他")
         labels = self.CATEGORY_LABELS.get(cat, {"需购": "需购", "不足": "不足", "充足": "充足"})
@@ -665,8 +672,10 @@ class InventoryPanel(QWidget):
             self._dm.inventory.save(); self._dm.data_changed.emit("inventory"); self._refresh()
 
     def _email_reminder(self, item) -> None:
-        from PySide6.QtWidgets import QDateTimeEdit; from PySide6.QtCore import QLocale
         from datetime import datetime, timedelta
+
+        from PySide6.QtCore import QLocale
+        from PySide6.QtWidgets import QDateTimeEdit
         c = get_colors()
         dlg = QDialog(self); dlg.setWindowTitle(f"邮件提醒 - {item.get('name','')}"); dlg.setMinimumWidth(320)
         dlg.setStyleSheet(f"QDialog {{ background-color: {c['card_bg']}; }} QLabel {{ color: {c['fg_primary']}; font-size: 13px; }}")

@@ -1,19 +1,24 @@
 """Popup showing schedules + tasks for a specific course."""
 
 import logging
-
 from datetime import date
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QListWidget, QListWidgetItem,
-    QPushButton, QTabWidget, QWidget,
-)
 from PySide6.QtGui import QFont
+from PySide6.QtWidgets import (
+    QDialog,
+    QHBoxLayout,
+    QLabel,
+    QListWidget,
+    QListWidgetItem,
+    QPushButton,
+    QTabWidget,
+    QVBoxLayout,
+    QWidget,
+)
 
 from src.services.data_manager import DataManager
-from src.ui.styles.theme import get_colors, FONT_CN, SIZE_TITLE
-
+from src.ui.styles.theme import FONT_CN, SIZE_TITLE, get_colors
 
 logger = logging.getLogger(__name__)
 

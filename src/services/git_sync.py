@@ -4,7 +4,7 @@ import logging
 import subprocess
 from pathlib import Path
 
-from PySide6.QtCore import QObject, QTimer, QThread, Signal
+from PySide6.QtCore import QObject, QThread, QTimer, Signal
 
 logger = logging.getLogger("gitsync")
 

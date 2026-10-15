@@ -1,29 +1,35 @@
 """Main window — sidebar + content area layout (warm-paper design)."""
 
 import logging
-
 from datetime import date, datetime, time
 
-from PySide6.QtCore import Qt, QTimer, Signal
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
-    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QSplitter,
-    QStatusBar, QLabel, QPushButton, QMessageBox, QMenu, QApplication,
-    QDialog, QFrame,
+    QApplication,
+    QDialog,
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QMainWindow,
+    QMenu,
+    QPushButton,
+    QSplitter,
+    QStatusBar,
+    QVBoxLayout,
+    QWidget,
 )
-from PySide6.QtGui import QAction, QFont, QPalette
 
 from src.i18n.loader import tr
 from src.models.course import PERIOD_TIMES, schedule_date
-from src.ui.styles.theme import get_colors
-from src.services.settings_manager import SettingsManager
 from src.services.ai_service import AIService
 from src.services.data_manager import DataManager
+from src.services.settings_manager import SettingsManager
 from src.services.weather_service import WeatherService
-from src.ui.components.main_workspace import MainWorkspace
-from src.ui.components.click_label import ClickLabel
-from src.ui.components.sidebar import Sidebar
 from src.ui.components.ai_panel import AIPanel
-
+from src.ui.components.click_label import ClickLabel
+from src.ui.components.main_workspace import MainWorkspace
+from src.ui.components.sidebar import Sidebar
+from src.ui.styles.theme import get_colors
 
 logger = logging.getLogger(__name__)
 
@@ -174,7 +180,7 @@ class MainWindow(QMainWindow):
             logger.debug("MainWindow._switch_theme 中忽略异常", exc_info=True)
 
     def _show_about(self) -> None:
-        from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout
+        from PySide6.QtWidgets import QDialog, QVBoxLayout
         c = get_colors()
         dlg = QDialog(self)
         dlg.setWindowTitle("关于")
@@ -446,7 +452,9 @@ class MainWindow(QMainWindow):
 
     def _update_tomorrow_preview(self) -> None:
         c = get_colors()
-        from datetime import timedelta, datetime as dt, time as dt_time
+        from datetime import datetime as dt
+        from datetime import time as dt_time
+        from datetime import timedelta
 
         tomorrow = schedule_date() + timedelta(days=1)
         courses = self._data_manager.courses.get_courses_for_date(tomorrow)

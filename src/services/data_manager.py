@@ -1,19 +1,17 @@
 """Central data orchestration with signal-based change notification."""
 
 import logging
-
 from pathlib import Path
 
 from PySide6.QtCore import QObject, Signal
 
 from src.models.course import CourseModel
-from src.models.task import TaskModel
-from src.models.habit import HabitModel
-from src.models.expense import ExpenseModel
 from src.models.daily_log import DailyLogModel
 from src.models.exam import ExamModel
+from src.models.expense import ExpenseModel
+from src.models.habit import HabitModel
 from src.models.inventory import InventoryModel
-
+from src.models.task import TaskModel
 
 logger = logging.getLogger(__name__)
 

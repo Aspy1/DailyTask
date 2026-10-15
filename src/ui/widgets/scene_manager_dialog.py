@@ -1,16 +1,24 @@
 """场景管理对话框 - 场景切换、存档管理"""
 
 from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QBrush, QColor, QFont
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QListWidget, QListWidgetItem, QDialog, QLineEdit,
-    QDialogButtonBox, QMessageBox, QComboBox, QGroupBox,
-    QFormLayout,
+    QComboBox,
+    QDialog,
+    QDialogButtonBox,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QListWidget,
+    QListWidgetItem,
+    QMessageBox,
+    QPushButton,
+    QVBoxLayout,
 )
-from PySide6.QtGui import QFont, QColor, QBrush
 
 from src.models.scene_archive import SceneArchive
-from src.ui.styles.theme import get_colors, FONT_CN, SIZE_BODY_S, SIZE_BODY, SIZE_SUBTITLE
+from src.ui.styles.theme import FONT_CN, SIZE_SUBTITLE, get_colors
 
 
 class SceneManagerDialog(QDialog):
@@ -85,7 +93,7 @@ class SceneManagerDialog(QDialog):
         # 当前场景
         current = self._archive.get_current_scene()
         current_label = QLabel(f"当前场景：{current.get('name', '未知')}")
-        current_label.setStyleSheet(f"font-size: 14px; font-weight: 500;")
+        current_label.setStyleSheet("font-size: 14px; font-weight: 500;")
         layout.addWidget(current_label)
 
         # 场景列表
@@ -210,7 +218,7 @@ class SceneManagerDialog(QDialog):
             semester = self._semester_combo.currentIndex() + 1
             scene_id = self._archive.quick_create_semester(year, semester)
             self._refresh_scene_list()
-            QMessageBox.information(self, "创建成功", f"已创建学期场景")
+            QMessageBox.information(self, "创建成功", "已创建学期场景")
         except ValueError:
             QMessageBox.warning(self, "输入错误", "请输入有效的年份")
 

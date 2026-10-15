@@ -4,13 +4,20 @@ Lists discovered plugins, allows enable/disable and opening plugin panels.
 """
 
 import logging
-from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QCheckBox, QScrollArea
-)
-from PySide6.QtCore import Qt
-from src.ui.styles.theme import get_colors
-from PySide6.QtWidgets import QMessageBox
 
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import (
+    QCheckBox,
+    QHBoxLayout,
+    QLabel,
+    QMessageBox,
+    QPushButton,
+    QScrollArea,
+    QVBoxLayout,
+    QWidget,
+)
+
+from src.ui.styles.theme import get_colors
 
 logger = logging.getLogger(__name__)
 

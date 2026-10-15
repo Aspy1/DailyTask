@@ -1,20 +1,27 @@
 """Expense tracking panel — add, filter, summarize."""
 
 import logging
-
-from datetime import date, datetime
+from datetime import date
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
-    QLineEdit, QComboBox, QMessageBox,
-)
 from PySide6.QtGui import QFont
+from PySide6.QtWidgets import (
+    QAbstractItemView,
+    QComboBox,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QPushButton,
+    QTableWidget,
+    QTableWidgetItem,
+    QVBoxLayout,
+    QWidget,
+)
 
 from src.services.data_manager import DataManager
-from src.ui.styles.theme import get_colors, FONT_CN, SIZE_SUBTITLE
-
+from src.ui.styles.theme import FONT_CN, SIZE_SUBTITLE, get_colors
 
 logger = logging.getLogger(__name__)
 

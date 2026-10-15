@@ -2,8 +2,8 @@
 
 提供一个面板：显示倒计时、开始/暂停/重置按钮，单次工作时长 25 分钟，短休息 5 分钟。
 """
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QPushButton, QHBoxLayout
 from PySide6.QtCore import QTimer
+from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
 
 
 def register(api):

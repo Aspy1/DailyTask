@@ -1,10 +1,10 @@
 """Custom context menu widget - avoids Windows native shadow."""
 
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QLabel, QFrame
-from PySide6.QtGui import QFont, QCursor, QMouseEvent
-from PySide6.QtCore import Qt, Signal, QObject
+from PySide6.QtCore import QObject, Qt, Signal
+from PySide6.QtGui import QCursor, QMouseEvent
+from PySide6.QtWidgets import QFrame, QPushButton, QVBoxLayout, QWidget
 
-from src.ui.styles.theme import get_colors, SIZE_BODY_S, FONT_CN
+from src.ui.styles.theme import SIZE_BODY_S, get_colors
 
 
 class MenuAction(QObject):

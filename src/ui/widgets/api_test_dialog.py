@@ -1,15 +1,20 @@
 """API 测试窗口 - 用于验证外部 API 调用"""
 
-from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QLineEdit, QTextEdit, QGroupBox, QFormLayout, QSpinBox,
-    QDialogButtonBox, QDialog,
-)
 from PySide6.QtGui import QFont
+from PySide6.QtWidgets import (
+    QDialog,
+    QDialogButtonBox,
+    QFormLayout,
+    QGroupBox,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QTextEdit,
+    QVBoxLayout,
+)
 
 from src.services.api_service import ApiService
-from src.ui.styles.theme import get_colors, FONT_CN, SIZE_BODY_S, SIZE_BODY, SIZE_SUBTITLE
+from src.ui.styles.theme import FONT_CN, SIZE_BODY, SIZE_SUBTITLE, get_colors
 
 
 class ApiTestDialog(QDialog):
@@ -149,7 +154,6 @@ class ApiTestDialog(QDialog):
         self._api.fetch_deepseek_balance(api_key)
 
     def _on_weather_result(self, result: dict) -> None:
-        from datetime import datetime
         if "error" in result:
             self._result_text.append(f"[天气 API 错误] {result['error']}")
         else:
@@ -163,7 +167,6 @@ class ApiTestDialog(QDialog):
             )
 
     def _on_balance_result(self, result: dict) -> None:
-        from datetime import datetime
         if "error" in result:
             self._result_text.append(f"[余额 API 错误] {result['error']}")
         else:
