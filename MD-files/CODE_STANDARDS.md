@@ -28,7 +28,7 @@
 **Q-A2 依赖单向：UI → Service → Model，禁止反向 import**
 - 为什么：反向依赖使分层失效、难以测试。
 - 检查：`import-linter`（contract: layers）。
-- 现状：`✗` `src/services/api_service.py:10` import `src.ui.styles.theme`。
+- 现状：`✔` 2026-10-16：该 import 实为**未使用的死导入**，已删除 —— 服务层不再反向依赖 UI 层。
 
 **Q-A3 同一外部能力只保留一套适配**
 - 为什么：多套实现必然漂移，改一处漏一处。
@@ -53,16 +53,20 @@
 **Q-B2 共享可变状态必须加锁或明确单线程归属**
 - 为什么：无锁的 dict 并发读写会产生撕裂读/丢失更新。
 - 检查：人工审查 + 并发压测。
-- 现状：`✗` Model 的 `_data` 被 worker 线程改（`ai_service.py:246-248`），同时主线程 `data_manager.py:66-85` 在读；`RUF012`（类级可变默认值）**5 处**，如 `ai_service.py:322/357` 的缓存字典。
+- 现状：`✔` 2026-10-16：AI worker 线程**不再触碰 Model**（`InstructionParser.execute` 只负责跑命令；
+  `dm.reload_all()` + `emit("ai_action")` 已移到主线程的 `_on_response_with_instructions`）；
+  类级缓存改为实例属性；`ruff --select RUF012` 已清零。
 
 **Q-B3 禁止 `QThread.terminate()`**
-- 现状：`✗` `api_service.py:169`。
+- 现状：`✔` 2026-10-16：已移除，改为按 `sender()` 丢弃过期请求的结果。
 
 **Q-B4 禁止在 worker 中改动进程级全局状态**（`sys.stdout`、`os.environ`、模块级缓存）
-- 现状：`✗` `actions.py:557-563` 用 `contextlib.redirect_stdout`；`ai_service.py:322,357` 类属性缓存。
+- 现状：`🔄` 2026-10-16：类属性缓存已改实例属性；`redirect_stdout` 仍用于捕获 CLI 输出，
+  已加模块级锁串行化。**彻底消除**需把 handler 从 `print` 改为返回字符串（列入待办）。
 
 **Q-B5 QObject/QThread 生命周期必须显式回收**（`deleteLater` / 单一归属），禁止反复 `new` 不释放
-- 现状：`✗` `weather_service.py:118`（单一 `_worker` 槽）、`api_service.py:147`。
+- 现状：`✔` 2026-10-16：`weather_service` 改为**按接口类型**管理 worker（顺带修掉"7 天预报永不刷新"的 bug）；
+  `api_service` / `git_sync` 均 `deleteLater` 回收。
 
 **Q-B6 禁止闭包捕获循环变量**（`lambda` / 生成器引用外层循环变量）
 - 为什么：所有闭包共享同一变量 → 偶发跳错项，且难复现。

@@ -78,6 +78,7 @@ class GitSync(QObject):
             ]
         self._worker = _GitWorker(self._repo, cmds, self)
         self._worker.finished.connect(self._on_done)
+        self._worker.finished.connect(self._worker.deleteLater)  # 生命周期回收（Q-B5）
         self._worker.start()
 
     def _on_done(self, ok: bool, error: str) -> None:

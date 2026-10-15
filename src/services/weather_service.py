@@ -7,6 +7,11 @@ from PySide6.QtCore import QObject, Signal, QTimer, QThread
 
 from src.models.scene_archive import SceneArchive
 
+# 绝对路径：应用可能被自启（CWD 非项目根），禁止用相对 "data/..."（见 CODE_STANDARDS Q-E2）
+_DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data"
+_STATS_FILE = _DATA_DIR / "weather_stats.json"
+_CACHE_FILE = _DATA_DIR / "weather_cache.json"
+
 
 class WeatherWorker(QThread):
     """天气API请求工作线程"""
@@ -46,7 +51,7 @@ class WeatherWorker(QThread):
 
     def _record_request(self):
         """记录API调用次数"""
-        stats_file = Path("data/weather_stats.json")
+        stats_file = _STATS_FILE
         stats = {}
         if stats_file.exists():
             stats = json.loads(stats_file.read_text())
@@ -114,8 +119,8 @@ class WeatherService(QObject):
         self._timer_7d = QTimer()
         self._timer_7d.timeout.connect(self._check_and_fetch_7d)
 
-        # 当前工作线程
-        self._worker: WeatherWorker = None
+        # 当前工作线程（按接口类型分开，避免 now/7d 互相覆盖）
+        self._workers: dict[str, WeatherWorker] = {}
 
     def set_credentials(self, host: str, key: str):
         """设置API凭证"""
@@ -172,7 +177,7 @@ class WeatherService(QObject):
 
     def check_quota(self) -> tuple[bool, str]:
         """检查调用配额"""
-        stats_file = Path("data/weather_stats.json")
+        stats_file = _STATS_FILE
         if not stats_file.exists():
             return True, "OK"
 
@@ -198,7 +203,7 @@ class WeatherService(QObject):
 
     def get_stats(self) -> dict:
         """获取调用统计"""
-        stats_file = Path("data/weather_stats.json")
+        stats_file = _STATS_FILE
         if not stats_file.exists():
             return {"daily": 0, "monthly": 0}
 
@@ -212,6 +217,26 @@ class WeatherService(QObject):
             "daily_by_type": stats.get("daily", {}).get(today, {}),
             "monthly_by_type": stats.get("monthly", {}).get(month, {})
         }
+
+    def _start_worker(self, api_type: str, on_ok) -> None:
+        """按接口类型管理 worker：同类型不并发，结束即回收。
+
+        原实现共用一个 `self._worker` 槽，导致 `start_auto_update()` 里
+        `_fetch_now()` 后紧跟的 `_fetch_7d()` 被 `isRunning()` 挡掉（**预报永不刷新**），
+        且反复 new 不 `deleteLater`（CODE_STANDARDS Q-B5）。
+        """
+        running = self._workers.get(api_type)
+        if running is not None and running.isRunning():
+            return
+        worker = WeatherWorker(self._host, self._key, self.get_location(), api_type)
+        self._workers[api_type] = worker
+        worker.finished.connect(on_ok)
+        worker.error.connect(self._on_error)
+        worker.finished.connect(worker.deleteLater)
+        worker.error.connect(worker.deleteLater)
+        worker.finished.connect(lambda *_, t=api_type: self._workers.pop(t, None))
+        worker.error.connect(lambda *_, t=api_type: self._workers.pop(t, None))
+        worker.start()
 
     def _fetch_now(self, force: bool = False):
         """获取实时天气"""
@@ -231,13 +256,7 @@ class WeatherService(QObject):
             return
 
         # 发起请求
-        if self._worker and self._worker.isRunning():
-            return
-
-        self._worker = WeatherWorker(self._host, self._key, self.get_location(), "now")
-        self._worker.finished.connect(self._on_now_finished)
-        self._worker.error.connect(self._on_error)
-        self._worker.start()
+        self._start_worker("now", self._on_now_finished)
 
     def _fetch_7d(self, force: bool = False):
         """获取7天预报"""
@@ -256,13 +275,7 @@ class WeatherService(QObject):
             self.error_occurred.emit(msg)
             return
 
-        if self._worker and self._worker.isRunning():
-            return
-
-        self._worker = WeatherWorker(self._host, self._key, self.get_location(), "7d")
-        self._worker.finished.connect(self._on_7d_finished)
-        self._worker.error.connect(self._on_error)
-        self._worker.start()
+        self._start_worker("7d", self._on_7d_finished)
 
     def _on_now_finished(self, data: dict, api_type: str):
         """实时天气请求完成"""
@@ -283,7 +296,7 @@ class WeatherService(QObject):
     def _write_cache_to_file(self):
         """将天气缓存写入文件，供scripts/actions.py读取"""
         import json
-        cache_file = Path("data/weather_cache.json")
+        cache_file = _CACHE_FILE
         cache_data = {
             "now": self._now_cache or {},
             "now_time": self._now_cache_time.isoformat() if self._now_cache_time else "",

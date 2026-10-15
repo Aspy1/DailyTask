@@ -110,12 +110,13 @@ ui ──→ services ──→ models ──→ base(BaseJsonModel)
 **主线程定时器**：`DataManager._auto_reload`（3s，比对 7 个文件 mtime）、`ReminderService._check`（60s）、
 `MainWindow._status_timer`（30s）、`WeatherService` 自动更新（10min / 1min 轮询）。
 
-**已知线程安全问题**（见 `CODE_STANDARDS §B`）：
-- `AIWorker` 在工作线程里调 `dm.reload_all()` 直接改 Model 内存态，主线程同时在读 → 竞态（`Q-B2`）
-- `ai_service` 的余额/天气缓存是**类属性**（跨实例共享可变状态，`Q-B2`）
-- `actions.run_in_process` 用 `contextlib.redirect_stdout`（进程级全局，`Q-B4`）
-- `api_service` 用 `QThread.terminate()`（`Q-B3`）
-- `QThread` 反复 `new` 不 `deleteLater`（`Q-B5`）
+**已知线程安全问题**（见 `CODE_STANDARDS §B`；2026-10-16 整改后状态）：
+- ✅ AI worker 不再触碰 Model：`InstructionParser.execute` 只跑命令，重载/通知由主线程 `_on_response_with_instructions` 负责
+- ✅ 余额/天气缓存由类属性改为实例属性；`RUF012` 清零
+- ✅ `QThread.terminate()` 已移除（改按 `sender()` 丢弃过期结果）
+- ✅ `weather_service` 按接口类型管理 worker；`git_sync`/`api_service` 均 `deleteLater`
+- 🔄 `actions.run_in_process` 仍用 `contextlib.redirect_stdout`（已加锁串行化；彻底修复需 handler 返回字符串）
+- ✗ **未修**：`ai_service._fetch_deepseek_balance()` / `_fetch_weather_for_prompt()` 仍在**主线程**同步请求（`Q-C2`）
 
 ## 7. 关键不变量
 

@@ -183,7 +183,7 @@ class AIWorker(QObject):
                     return
                 all_instructions.extend(instructions)
                 # Execute tools silently
-                results = InstructionParser.execute(instructions, self._dm, self._settings)
+                results = InstructionParser.execute(instructions)
                 # Feed results back for next turn
                 msgs.append({"role": "assistant", "content": text})
                 results_text = "\n".join(results)
@@ -218,34 +218,23 @@ class InstructionParser:
         return commands
 
     @staticmethod
-    def execute(commands: list[str], dm=None, settings=None) -> list[str]:
-        """Execute commands in-process via actions.run_in_process (no subprocess)."""
-        results = []
+    def execute(commands: list[str]) -> list[str]:
+        """在**内存中**执行 actions.py 命令，返回每条命令的输出。
+
+        ⚠ 本方法运行在 AI worker 线程：**不得触碰 Model、不得 emit 信号**。
+        数据重载与通知由主线程的 `AIService._on_response_with_instructions` 负责
+        （CODE_STANDARDS Q-B2 / Q-B4）。
+        """
         try:
             from scripts.actions import run_in_process
-        except ImportError:
-            # Fallback: subprocess for standalone/legacy setups
-            import subprocess
-            for cmd in commands:
-                try:
-                    r = subprocess.run(
-                        cmd, shell=True,
-                        cwd=str(Path(__file__).parent.parent.parent),
-                        capture_output=True, text=True, timeout=30
-                    )
-                    results.append(r.stdout.strip() or r.stderr.strip())
-                except Exception as e:
-                    results.append(f"ERROR {e}")
-        else:
-            for cmd in commands:
-                try:
-                    output = run_in_process(cmd)
-                    results.append(output)
-                except Exception as e:
-                    results.append(f"ERROR {e}")
-        if dm:
-            dm.reload_all()
-            dm.data_changed.emit("ai_action")
+        except ImportError as e:  # 仅项目结构异常时可能发生
+            return [f"ERROR 无法加载 scripts/actions.py: {e}"] * len(commands)
+        results = []
+        for cmd in commands:
+            try:
+                results.append(run_in_process(cmd))
+            except Exception as e:
+                results.append(f"ERROR {e}")
         return results
 
 
@@ -262,6 +251,9 @@ class AIService(QObject):
         self._history: list[dict] = []
         self._thread: QThread | None = None
         self._worker: AIWorker | None = None
+        # 实例级缓存（原为类属性 → 跨实例共享可变状态，见 CODE_STANDARDS Q-B2 / RUF012）
+        self._ds_balance_cache: dict[str, Any] = {}
+        self._weather_cache: dict[str, Any] = {}
 
     def set_weather_service(self, weather_service) -> None:
         """设置天气服务"""
@@ -318,9 +310,6 @@ class AIService(QObject):
         self._thread.finished.connect(self._thread.deleteLater)
         self._thread.start()
 
-    # DeepSeek balance cache
-    _ds_balance_cache: dict[str, Any] = {}
-
     def _fetch_deepseek_balance(self) -> str:
         """Fetch DeepSeek API balance. Returns cached value if < 5 min old."""
         import time, requests
@@ -352,9 +341,6 @@ class AIService(QObject):
             val = ""
         self._ds_balance_cache = {"value": val, "fetched_at": now}
         return val
-
-    # Weather cache
-    _weather_cache: dict[str, Any] = {}
 
     def _fetch_weather_for_prompt(self) -> str:
         """获取天气信息用于系统提示词。优先使用WeatherService，否则回退到Open-Meteo。"""
@@ -627,6 +613,11 @@ class AIService(QObject):
         self._history.append({"role": "assistant", "content": text})
         n = len(instructions) if instructions else 0
         logger.info("AI completed with %d instructions executed by worker", n)
+
+        # 数据重载与变更通知放在**主线程**（worker 线程不再触碰 Model，见 Q-B2）
+        if instructions:
+            self._dm.reload_all()
+            self._dm.data_changed.emit("ai_action")
 
         # Strip code blocks from display text — keep only natural language
         display_text = re.sub(r'```(?:sh|json)\s*.*?```', '', text, flags=re.DOTALL).strip()

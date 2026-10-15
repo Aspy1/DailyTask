@@ -5,11 +5,15 @@
 设计原则: AI 只管理解+标准化参数，脚本管验证+写文件。
 """
 
-import argparse, json, os, re, sys
+import argparse, json, os, re, sys, threading
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
 DATA = Path(__file__).parent.parent / "data"
+
+# run_in_process 用 redirect_stdout 捕获输出，而 sys.stdout 是进程级全局；
+# 加锁串行化，避免多个线程同时执行时互相污染（见 CODE_STANDARDS Q-B4）。
+_STDOUT_LOCK = threading.Lock()
 
 
 # ═══════════════════════════════════════════════════════════
@@ -555,7 +559,7 @@ def run_in_process(cmd_str: str) -> str:
         return f"ERROR unknown action: {action}"
 
     buf = io.StringIO()
-    with redirect_stdout(buf):
+    with _STDOUT_LOCK, redirect_stdout(buf):
         try:
             handlers[action](ns)
         except Exception as e:

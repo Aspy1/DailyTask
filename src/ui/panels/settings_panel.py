@@ -493,7 +493,7 @@ class SettingsPanel(QWidget):
         from pathlib import Path
         from datetime import datetime
 
-        stats_file = Path("data/weather_stats.json")
+        stats_file = Path(__file__).resolve().parents[3] / "data" / "weather_stats.json"
         if not stats_file.exists():
             return
 

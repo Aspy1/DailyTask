@@ -2,6 +2,7 @@
 
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import ClassVar
 
 from src.models.base import BaseJsonModel
 
@@ -14,7 +15,7 @@ DEFAULT_TASKS = {
 
 
 class TaskModel(BaseJsonModel):
-    GENERIC_TAGS = {"作业", "考试", "pre", "ppt", "报告", "复习", "项目", "论文", "实验", "小组作业"}
+    GENERIC_TAGS: ClassVar[set[str]] = {"作业", "考试", "pre", "ppt", "报告", "复习", "项目", "论文", "实验", "小组作业"}
 
     def __init__(self, file_path: Path):
         super().__init__(file_path, DEFAULT_TASKS)

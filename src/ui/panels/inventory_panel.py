@@ -1,5 +1,7 @@
 """Inventory panel — 14 cards/page, pagination, working QSS."""
 
+from typing import ClassVar
+
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
@@ -564,8 +566,8 @@ class InventoryPanel(QWidget):
             self._expanded_items.add(iid)
         self._refresh()
 
-    # Per-category status labels
-    CATEGORY_LABELS = {
+    # Per-category status labels（常量：ClassVar 明确非实例状态，见 Q-B2/RUF012）
+    CATEGORY_LABELS: ClassVar[dict[str, dict[str, str]]] = {
         "衣物":       {"需购": "要买了", "不足": "要洗了", "充足": "可穿"},
         "虚拟品类":   {"需购": "要续费", "不足": "要到期了", "充足": "有效"},
         "数码电子":   {"需购": "需维修", "不足": "待更换", "充足": "正常"},

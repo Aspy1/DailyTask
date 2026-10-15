@@ -7,8 +7,6 @@ from typing import Any
 import requests
 from PySide6.QtCore import QObject, Signal, QThread
 
-from src.ui.styles.theme import get_colors
-
 
 class _ApiWorker(QThread):
     """异步 API 请求 Worker"""
@@ -163,19 +161,23 @@ class ApiService(QObject):
         self._run_worker("deepseek_balance", api_key=api_key)
 
     def _run_worker(self, api_type: str, **kwargs) -> None:
-        """运行 Worker"""
-        # 取消之前的请求
-        if self._current_worker and self._current_worker.isRunning():
-            self._current_worker.terminate()
-            self._current_worker.wait()
+        """启动后台请求。
 
-        self._current_worker = _ApiWorker(api_type, **kwargs)
-        self._current_worker.finished.connect(self._on_worker_finished)
-        self._current_worker.error.connect(self._on_worker_error)
-        self._current_worker.start()
+        不再使用 `QThread.terminate()`（强制终止线程不安全，见 CODE_STANDARDS Q-B3）。
+        改为：旧请求自然跑完，其结果在回调中按 `sender()` 丢弃。
+        """
+        worker = _ApiWorker(api_type, **kwargs)
+        self._current_worker = worker
+        worker.finished.connect(self._on_worker_finished)
+        worker.error.connect(self._on_worker_error)
+        worker.finished.connect(worker.deleteLater)
+        worker.error.connect(worker.deleteLater)
+        worker.start()
 
     def _on_worker_finished(self, result: dict) -> None:
         """Worker 完成回调"""
+        if self.sender() is not self._current_worker:
+            return  # 旧请求的结果，丢弃
         if "temperature" in result:  # 天气数据
             self._weather_cache = result
             self._weather_cache_time = datetime.now()

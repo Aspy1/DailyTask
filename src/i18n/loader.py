@@ -2,13 +2,15 @@ import json
 from pathlib import Path
 
 class I18nLoader:
-    _instance = None
-    _strings: dict = {}
+    _instance: "I18nLoader | None" = None
+    _strings: dict          # 实例属性，见 CODE_STANDARDS Q-B2 / RUF012
     _loaded: bool = False
 
     def __new__(cls):
         if cls._instance is None:
-            cls._instance = super().__new__(cls)
+            inst = super().__new__(cls)
+            inst._strings = {}
+            cls._instance = inst
         return cls._instance
 
     def load(self, locale: str = "zh-CN") -> None:
