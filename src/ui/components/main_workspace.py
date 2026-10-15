@@ -146,6 +146,9 @@ class MainWorkspace(QWidget):
 
     def _on_data_changed(self, action: str) -> None:
         is_ai = "ai_action" in action
+        # 外部写入（TG bot）与内部批量改动**不知道改的是哪个域**，一律全刷；
+        # 其余按域名字符串匹配，只刷受影响的面板（ERRORS #025）。
+        refresh_all = is_ai or action in ("external", "internal")
         self._course_panel._refresh()
         self._schedule_view._refresh()
         for panel, key in (
@@ -155,7 +158,7 @@ class MainWorkspace(QWidget):
             (self._exam_panel, "exam"),
             (self._inventory_panel, "inventory"),
         ):
-            if key in action or is_ai:
+            if refresh_all or key in action:
                 panel._refresh()
 
     def refresh_theme(self) -> None:

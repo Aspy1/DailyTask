@@ -88,11 +88,14 @@ class DataManager(QObject):
             self.data_changed.emit("external")
 
     def save_all(self) -> None:
+        """落盘全部 7 个模型（退出 / 重启前调用，勿漏 exams/inventory —— ERRORS #026）。"""
         self.courses.save()
         self.tasks.save()
         self.habits.save()
         self.expenses.save()
         self.daily_logs.save()
+        self.exams.save()
+        self.inventory.save()
 
     def get_today_summary(self) -> dict:
         return {

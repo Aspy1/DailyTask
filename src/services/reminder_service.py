@@ -327,8 +327,11 @@ class ReminderService(QObject):
         self.ddl_alert.emit(urgent_count)
 
     def _on_data_changed(self, action: str) -> None:
-        """Refresh DDL count when tasks change."""
-        if "task" in action:
+        """Refresh DDL count when tasks change.
+
+        外部写入（TG）给的是 `external`，看不出改了哪个域 → 一并重算。
+        """
+        if "task" in action or action in ("external", "internal"):
             self._check_ddl()
 
     # ── Balance ───────────────────────────────────────────
