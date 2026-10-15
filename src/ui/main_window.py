@@ -218,7 +218,7 @@ class MainWindow(QMainWindow):
 
         link = QLabel(
             '<a href="https://github.com/Aspy1/DailyTask" '
-            f'style="color:{c["accent"]};text-decoration:none;">'
+            f'style="color: {c['accent_text']};text-decoration:none;">'
             'GitHub 仓库</a>')
         link.setOpenExternalLinks(True)
         link.setStyleSheet("font-size: 12px;")
@@ -710,7 +710,7 @@ class WeatherDetailDialog(QDialog):
             row_layout.addWidget(text_lbl)
 
             rain_lbl = QLabel()
-            rain_lbl.setStyleSheet(f"font-size: 12px; color: {c['accent']};")
+            rain_lbl.setStyleSheet(f"font-size: 12px; color: {c['accent_text']};")
             row_layout.addWidget(rain_lbl)
 
             temp_lbl = QLabel()

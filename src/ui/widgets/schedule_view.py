@@ -505,7 +505,7 @@ class ScheduleView(QWidget):
         hdr.setSpacing(6)
         if is_current:
             arrow = QLabel("▶")
-            arrow.setStyleSheet(f"color: {c['accent']}; font-size: 16px; font-weight: bold; border: none;")
+            arrow.setStyleSheet(f"color: {c['accent_text']}; font-size: 16px; font-weight: bold; border: none;")
             hdr.addWidget(arrow)
         time_label = QLabel(time_str)
         time_label.setStyleSheet(
@@ -561,7 +561,7 @@ class ScheduleView(QWidget):
         for plan in plans:
             if plan.get("course_name") == item["name"] and plan.get("type") == "course_note":
                 note_lbl = QLabel(f"📌 {plan.get('title', '')}")
-                note_lbl.setStyleSheet(f"color: {c['accent']}; font-size: 16px; font-weight: 600;")
+                note_lbl.setStyleSheet(f"color: {c['accent_text']}; font-size: 16px; font-weight: 600;")
                 note_lbl.setWordWrap(True)
                 ccl.addWidget(note_lbl)
         return course_card

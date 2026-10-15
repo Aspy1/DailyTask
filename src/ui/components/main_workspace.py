@@ -108,7 +108,7 @@ class MainWorkspace(QWidget):
         hint = QLabel("即将上线")
         hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
         hint.setStyleSheet(
-            f"color: {c['accent']}; font-size: 12px; margin-top: 8px;"
+            f"color: {c['accent_text']}; font-size: 12px; margin-top: 8px;"
             f"padding: 4px 16px; background: {c['accent_bg']}; border-radius: 12px;")
         layout.addWidget(title_lbl)
         layout.addWidget(desc_lbl)

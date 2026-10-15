@@ -21,7 +21,7 @@ from PySide6.QtWidgets import (
 )
 
 from src.services.data_manager import DataManager
-from src.ui.styles.theme import FONT_CN, SIZE_SUBTITLE, get_colors
+from src.ui.styles.theme import FONT_CN, RADIUS, SIZE_SUBTITLE, get_colors
 
 logger = logging.getLogger(__name__)
 
@@ -97,13 +97,13 @@ class _ExamCard(QWidget):
             badge.setStyleSheet(f"color: {c['fg_disabled']}; font-size: 11px; font-weight: 600; background: {c['bg_input']}; border-radius: 26px;")
         elif days_left == 0:
             badge.setText("今天")
-            badge.setStyleSheet(f"color: {c['fg_on_fill']}; font-size: 13px; font-weight: 700; background: {c['red']}; border-radius: 26px;")
+            badge.setStyleSheet(f"color: {c['fg_on_fill']}; font-size: 13px; font-weight: 700; background: {c['red_fill']}; border-radius: {RADIUS['radius_pill']}px;")
         elif days_left <= 7:
             badge.setText(f"{days_left}天")
-            badge.setStyleSheet(f"color: {c['fg_on_fill']}; font-size: 13px; font-weight: 700; background: {c['red']}; border-radius: 26px;")
+            badge.setStyleSheet(f"color: {c['fg_on_fill']}; font-size: 13px; font-weight: 700; background: {c['red_fill']}; border-radius: {RADIUS['radius_pill']}px;")
         elif days_left <= 15:
             badge.setText(f"{days_left}天")
-            badge.setStyleSheet(f"color: {c['fg_on_fill']}; font-size: 13px; font-weight: 700; background: {c['orange']}; border-radius: 26px;")
+            badge.setStyleSheet(f"color: {c['fg_on_fill']}; font-size: 13px; font-weight: 700; background: {c['orange_fill']}; border-radius: {RADIUS['radius_pill']}px;")
         else:
             badge.setText(f"{days_left}天")
             badge.setStyleSheet(f"color: {c['fg_secondary']}; font-size: 13px; font-weight: 600; background: {c['bg_input']}; border-radius: 26px;")

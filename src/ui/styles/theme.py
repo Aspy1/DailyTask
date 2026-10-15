@@ -30,6 +30,9 @@ SIZE_TITLE = _TOKENS_DATA["sizes"]["SIZE_TITLE"]
 SIZE_HEADING = _TOKENS_DATA["sizes"]["SIZE_HEADING"]
 SIZE_FAB = _TOKENS_DATA["sizes"]["SIZE_FAB"]
 
+# ── 圆角刻度（radius_sm/md/lg/pill）──────────────
+RADIUS: dict = _TOKENS_DATA["radius"]
+
 # ── Design tokens（colors：light / dark）───────────────
 TOKENS: dict = _TOKENS_DATA["colors"]
 
@@ -64,6 +67,9 @@ def switch_theme(mode: str) -> str:
     global _current_mode, _color_cache
     _current_mode = mode
     _color_cache = None
+    app = QApplication.instance()
+    if app is not None:
+        apply_palette(app, mode)
     return build_theme(mode)
 
 
@@ -73,6 +79,39 @@ def _resolve_font() -> str:
         if name in families:
             return name
     return "Microsoft YaHei"
+
+
+def apply_palette(app: QApplication, mode: str) -> None:
+    """把主题色写进 QPalette。
+
+    ⚠ 只设 QSS 是不够的：**没有显式样式表的控件**（QScrollArea 的 viewport、
+    QTableWidget 的交替行 AlternateBase、原生弹出菜单、工具提示等）会继续用
+    平台默认调色板 —— 暗色模式下就是一块块浅灰（2026-10-16 视觉审查的
+    主要问题）。QSS 负责"长相"，QPalette 负责"底座"。
+    """
+    from PySide6.QtGui import QColor, QPalette
+    t = TOKENS.get(mode, TOKENS["light"])
+    pal = QPalette()
+    role = QPalette.ColorRole
+    group = QPalette.ColorGroup
+
+    pal.setColor(role.Window, QColor(t["bg_root"]))
+    pal.setColor(role.WindowText, QColor(t["fg_primary"]))
+    pal.setColor(role.Base, QColor(t["bg_card"]))
+    pal.setColor(role.AlternateBase, QColor(t["table_alt"]))
+    pal.setColor(role.Text, QColor(t["fg_primary"]))
+    pal.setColor(role.PlaceholderText, QColor(t["fg_hint"]))
+    pal.setColor(role.Button, QColor(t["bg_surface"]))
+    pal.setColor(role.ButtonText, QColor(t["fg_primary"]))
+    pal.setColor(role.BrightText, QColor(t["fg_on_fill"]))
+    pal.setColor(role.Highlight, QColor(t["accent"]))
+    pal.setColor(role.HighlightedText, QColor(t["fg_on_fill"]))
+    pal.setColor(role.ToolTipBase, QColor(t["bg_elevated"]))
+    pal.setColor(role.ToolTipText, QColor(t["fg_primary"]))
+    pal.setColor(role.Link, QColor(t["accent_text"]))
+    for r in (role.WindowText, role.Text, role.ButtonText):
+        pal.setColor(group.Disabled, r, QColor(t["fg_disabled"]))
+    app.setPalette(pal)
 
 
 def init_theme(app: QApplication, mode: str = "light") -> str:
@@ -92,6 +131,7 @@ def init_theme(app: QApplication, mode: str = "light") -> str:
                 return
             super().drawPrimitive(element, option, painter, widget)
     app.setStyle(_NoFocusStyle(app.style()))
+    apply_palette(app, mode)
 
     return build_theme(mode)
 
@@ -131,7 +171,7 @@ QMenu::item:selected {{ background-color: {t["accent_bg"]}; color: {t["fg_primar
 QMenu::separator {{ height: 1px; background-color: {t["divider"]}; margin: 4px 8px; }}
 
 /* ── Buttons ─────────────────────────────── */
-QPushButton {{ background-color: transparent; border: none; color: {t["fg_primary"]}; padding: 8px 16px; border-radius: 8px; font-size: {SIZE_BODY}px; }}
+QPushButton {{ background-color: transparent; border: none; color: {t["fg_primary"]}; padding: 8px 16px; border-radius: {RADIUS["radius_md"]}px; font-size: {SIZE_BODY}px; }}
 QPushButton:hover {{ background-color: {t["bg_hover"]}; }}
 
 /* ── Labels ──────────────────────────────── */
@@ -181,10 +221,13 @@ QComboBox::drop-down {{ border: none; width: 24px; }}
 QComboBox QAbstractItemView {{ background-color: {t["bg_elevated"]}; color: {t["fg_primary"]}; border: 1px solid {t["border_strong"]}; selection-background-color: {t["accent_bg"]}; outline: none; }}
 
 /* ── Scroll area ─────────────────────────── */
+/* viewport 与其内容控件默认会用调色板 Base 上色 → 暗色下变亮灰块，必须显式透明 */
 QScrollArea {{ border: none; background: transparent; }}
+QScrollArea > QWidget > QWidget {{ background: transparent; }}
+QAbstractScrollArea::corner {{ background: transparent; }}
 
 /* ── Table ───────────────────────────────── */
-QTableWidget {{ background-color: {t["bg_root"]}; color: {t["fg_primary"]}; gridline-color: {t["divider"]}; border: none; font-size: {SIZE_BODY_S}px; }}
+QTableWidget {{ background-color: {t["bg_root"]}; alternate-background-color: {t["table_alt"]}; color: {t["fg_primary"]}; gridline-color: {t["divider"]}; border: none; font-size: {SIZE_BODY_S}px; }}
 QHeaderView::section {{ background-color: {t["bg_surface"]}; color: {t["fg_secondary"]}; border: none; border-bottom: 1px solid {t["border"]}; padding: 8px 12px; font-weight: 600; font-size: {SIZE_BODY_S}px; }}
 QToolTip {{ background-color: {t["bg_elevated"]}; color: {t["fg_primary"]}; border: 1px solid {t["border_strong"]}; border-radius: 8px; padding: 6px 10px; font-size: {SIZE_CAPTION}px; }}
 
@@ -195,7 +238,7 @@ QToolTip {{ background-color: {t["bg_elevated"]}; color: {t["fg_primary"]}; bord
 #aiChat {{ background-color: {t["chat_bg"]}; border: none; }}
 #aiHeader {{ background-color: {t["sidebar_bg"]}; border-bottom: 1px solid {t["border"]}; }}
 #aiInputContainer {{ background-color: {t["sidebar_bg"]}; border-top: 1px solid {t["border"]}; }}
-#courseCount, #taskCount {{ color: {t["fg_hint"]}; font-size: 10px; border: none; }}
+#courseCount, #taskCount {{ color: {t["fg_hint"]}; font-size: {SIZE_TINY}px; border: none; }}
 #taskTable {{ background-color: {t["bg_root"]}; color: {t["fg_primary"]}; border: none; font-size: 12px; }}
 #taskTable::item {{ padding: 8px 12px; min-height: 32px; border-bottom: 1px solid {t["divider"]}; }}
 #taskTable::item:alternate {{ background-color: {t["table_alt"]}; }}
@@ -238,7 +281,7 @@ def btn_ghost_qss() -> str:
     c = get_colors()
     return f"""
         QPushButton {{
-            background: transparent; color: {c['accent']}; border: none;
+            background: transparent; color: {c['accent_text']}; border: none;
             border-radius: 8px; padding: 8px 12px; font-size: {SIZE_BODY_S}px;
         }}
         QPushButton:hover {{ color: {c['accent_hover']}; }}
@@ -343,7 +386,7 @@ def fab_qss() -> str:
     return f"""
         QPushButton {{
             background-color: {c['accent']}; color: {c['fg_on_fill']}; border: none;
-            border-radius: 24px; font-size: 24px; font-weight: 600;
+            border-radius: {RADIUS['radius_pill']}px; font-size: {SIZE_FAB}px; font-weight: 600;
         }}
         QPushButton:hover {{ background-color: {c['accent_hover']}; }}
         QPushButton:pressed {{ background-color: {c['accent_dim']}; }}

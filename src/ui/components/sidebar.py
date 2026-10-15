@@ -57,7 +57,7 @@ class NavItem(QPushButton):
             }}
             QPushButton:checked {{
                 background-color: {c['accent_bg']};
-                color: {c['accent']};
+                color: {c['accent_text']};
                 font-weight: 600;
             }}
         """)
@@ -205,7 +205,7 @@ class Sidebar(QWidget):
                 color: {c['fg_hint']}; font-size: 12px;
                 text-align: left; padding: 8px 16px;
             }}
-            QPushButton:hover {{ color: {c['accent']}; }}
+            QPushButton:hover {{ color: {c['accent_text']}; }}
         """)
         self._ai_btn.clicked.connect(self._toggle_ai)
         layout.addWidget(self._ai_btn)
@@ -237,7 +237,7 @@ class Sidebar(QWidget):
             self._ai_btn.setStyleSheet(f"""
                 QPushButton {{
                     background: transparent; border: none;
-                    color: {c['accent']}; font-size: 12px; font-weight: 600;
+                    color: {c['accent_text']}; font-size: 12px; font-weight: 600;
                     text-align: left; padding: 8px 16px;
                 }}
             """)

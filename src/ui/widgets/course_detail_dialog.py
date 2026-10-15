@@ -54,7 +54,7 @@ class CourseDetailDialog(QDialog):
         tabs.setStyleSheet(f"""
             QTabWidget::pane {{ border: none; background: transparent; }}
             QTabBar::tab {{ padding: 6px 16px; font-size: 13px; color: {c['fg_secondary']}; border: none; }}
-            QTabBar::tab:selected {{ color: {c['accent']}; font-weight: 600; border-bottom: 2px solid {c['accent']}; }}
+            QTabBar::tab:selected {{ color: {c['accent_text']}; font-weight: 600; border-bottom: 2px solid {c['accent']}; }}
         """)
 
         # 日程 tab

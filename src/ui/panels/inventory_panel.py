@@ -48,7 +48,7 @@ class InventoryPanel(QWidget):
         bc_layout.setSpacing(4)
 
         self._back_btn = QPushButton("←")
-        self._back_btn.setStyleSheet(f"QPushButton {{ background: transparent; color: {c['accent']}; border: none; padding: 2px 6px; font-size: 13px; font-weight: 600; }} QPushButton:hover {{ color: {c['fg_primary']}; }}")
+        self._back_btn.setStyleSheet(f"QPushButton {{ background: transparent; color: {c['accent_text']}; border: none; padding: 2px 6px; font-size: 13px; font-weight: 600; }} QPushButton:hover {{ color: {c['fg_primary']}; }}")
         self._back_btn.clicked.connect(self._go_back)
         bc_layout.addWidget(self._back_btn)
 
@@ -451,7 +451,7 @@ class InventoryPanel(QWidget):
             tr.setSpacing(4)
             for tag in tags:
                 t = QLabel(tag)
-                t.setStyleSheet(f"color: {c['accent']}; font-size: 10px; font-weight: 500; background: {c['accent']}18; border-radius: 8px; padding: 1px 8px; border: none;")
+                t.setStyleSheet(f"color: {c['accent_text']}; font-size: 10px; font-weight: 500; background: {c['accent']}18; border-radius: 8px; padding: 1px 8px; border: none;")
                 tr.addWidget(t)
             tr.addStretch()
             cl.addLayout(tr)
@@ -494,7 +494,7 @@ class InventoryPanel(QWidget):
 
         arrow_icon = "▼" if expanded else "▶"
         arrow = QLabel(arrow_icon)
-        arrow.setStyleSheet(f"color: {c['accent']}; font-size: 12px; font-weight: bold; border: none; background: transparent;")
+        arrow.setStyleSheet(f"color: {c['accent_text']}; font-size: 12px; font-weight: bold; border: none; background: transparent;")
         cl.addWidget(arrow)
 
         name = QLabel(it.get("name", ""))
@@ -539,7 +539,7 @@ class InventoryPanel(QWidget):
         if tags:
             for tag in tags:
                 t = QLabel(tag)
-                t.setStyleSheet(f"color: {c['accent']}; font-size: 10px; font-weight: 500; background: {c['accent']}18; border-radius: 8px; padding: 1px 8px; border: none;")
+                t.setStyleSheet(f"color: {c['accent_text']}; font-size: 10px; font-weight: 500; background: {c['accent']}18; border-radius: 8px; padding: 1px 8px; border: none;")
                 cl.addWidget(t)
 
         # Status badge

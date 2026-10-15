@@ -151,7 +151,7 @@ class _HabitCard(QWidget):
         done_btn = QPushButton("完成打卡")
         done_btn.setStyleSheet(f"""
                 QPushButton {{
-                    background-color: {c['accent']}; color: {c['fg_primary']}; border: none;
+                    background-color: {c['accent']}; color: {c['fg_on_fill']}; border: none;
                     border-radius: 8px; padding: 8px 12px; font-size: 13px; font-weight: 600;
                 }}
                 QPushButton:hover {{ background-color: {c['accent_hover']}; }}
@@ -851,7 +851,7 @@ class _AttachedTaskDialog(QDialog):
 
         save_tpl = QPushButton("同时保存为模板（方便下次引用）")
         save_tpl.setStyleSheet(f"""
-            QPushButton {{ background-color: transparent; color: {c['accent']}; border: none; font-size: 13px; text-align: left; }}
+            QPushButton {{ background-color: transparent; color: {c['accent_text']}; border: none; font-size: 13px; text-align: left; }}
         """)
         self._save_template = False
         save_tpl.clicked.connect(lambda: setattr(self, '_save_template', True))
