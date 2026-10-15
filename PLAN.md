@@ -37,8 +37,9 @@
 - `B-1` ✅ `[tool.ruff]` 已在 `pyproject.toml` 固定（基线可复现）；`mypy` 待接
 - `D-2` 规范检查器（`scripts/check_standards.py` + 审查 skill）
 - `G-2` UI 令牌检查器（`scripts/check_ui_tokens.py`，先只检查、不 `--fix`）
-- `I-8` pre-commit 钩子
-- `B-1` ruff/mypy、`B-6` CI 跑 pytest+lint、`I-16` 依赖审计
+- ✅ `B-6` CI 跑 pytest + lint（`.github/workflows/ci.yml`：ruff → 令牌检查器 → 令牌文档同步 → pytest）
+- `[待议]` `I-8` pre-commit 钩子（本地钩子；CI 已覆盖同一组检查）
+- `[待议]` `I-16` 依赖审计（`pip-audit`）
 
 **P3 架构与正确性整改（顺序据基线数据重排）**
 - ✅ ① `B-5` 线程安全 + `RUF012`（2026-10-16 完成）→ 详见 `dev-logs/2026-10-16-线程安全整改.md`

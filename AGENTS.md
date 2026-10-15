@@ -82,7 +82,8 @@
 3. **描述**：写清 bug 成因/功能执行流程（逐环节，不概括多个 bug）
 4. **列 todo**
 5. **改代码 + 写日志**：改完后在 `dev-logs/YYYY-MM-DD-主题.md` 记录变更清单
-6. **验证**：语法检查（`compileall`）→ 跑 `pytest` → 改后模拟（见 §4）
+6. **验证**：`compileall` → `ruff check src scripts plugins tests` → `pytest` → `scripts/check_ui_tokens.py` → 改后模拟（见 §4）
+   - 这组命令与 CI（`.github/workflows/ci.yml`）一致，提交前必须全绿
 7. **补文档**：更新 `ARCHITECTURE.md` / `CODE_STANDARDS.md` / `ERRORS.md`（如有新坑）
 8. **总结**：提炼犯错原因、决策原因
 
