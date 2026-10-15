@@ -93,38 +93,8 @@ class _HabitCard(QWidget):
         row1.addStretch()
 
         # Tag logic
-        if done:
-            tag_text = "已完成"
-            tag_bg = c["green"] + "20"
-            tag_fg = c["green"]
-        elif not active:
-            if is_weekly:
-                days = sched.get("days", [])
-                dn = ["一", "二", "三", "四", "五", "六", "日"]
-                tag_text = "每周" + "".join(dn[d - 1] for d in sorted(days))
-            else:
-                tag_text = _describe_schedule(sched)
-            tag_bg = "transparent"
-            tag_fg = c["fg_hint"]
-        elif is_daily:
-            streak = habit.get("streak", 0)
-            tag_text = f"连续{streak}天" if streak > 0 else "今日未打卡"
-            if streak > 0:
-                tag_bg = c["green"] + "20"
-                tag_fg = c["green"]
-            else:
-                tag_bg = c["red"] + "18"
-                tag_fg = c["red"]
-        elif is_weekly:
-            days = sched.get("days", [])
-            dn = ["一", "二", "三", "四", "五", "六", "日"]
-            tag_text = "每周" + "".join(dn[d - 1] for d in sorted(days))
-            tag_bg = c["accent_bg"]
-            tag_fg = c["accent"]
-        else:
-            tag_text = _describe_schedule(sched)
-            tag_bg = c["accent_bg"]
-            tag_fg = c["accent"]
+        tag_text, tag_bg, tag_fg = self._build_tag_style(
+            habit, sched, done, active, is_daily, is_weekly, c)
 
         tag = QLabel(tag_text)
         tag.setStyleSheet(f"""
@@ -146,11 +116,40 @@ class _HabitCard(QWidget):
 
         # Row 3: buttons — only when active and not done
         if active and not done:
-            btn_row = QHBoxLayout()
-            btn_row.setSpacing(8)
+            layout.addLayout(self._build_action_row(c))
 
-            done_btn = QPushButton("完成打卡")
-            done_btn.setStyleSheet(f"""
+    def _build_tag_style(self, habit: dict, sched: dict, done: bool, active: bool,
+                         is_daily: bool, is_weekly: bool,
+                         c: dict) -> tuple[str, str, str]:
+        """返回标签 (文本, 背景色, 前景色)。"""
+        if done:
+            return "已完成", c["green"] + "20", c["green"]
+        if not active:
+            text = self._weekly_tag_text(sched) if is_weekly else _describe_schedule(sched)
+            return text, "transparent", c["fg_hint"]
+        if is_daily:
+            streak = habit.get("streak", 0)
+            if streak > 0:
+                return f"连续{streak}天", c["green"] + "20", c["green"]
+            return "今日未打卡", c["red"] + "18", c["red"]
+        if is_weekly:
+            return self._weekly_tag_text(sched), c["accent_bg"], c["accent"]
+        return _describe_schedule(sched), c["accent_bg"], c["accent"]
+
+    @staticmethod
+    def _weekly_tag_text(sched: dict) -> str:
+        """「每周一二三」形式的标签文本。"""
+        days = sched.get("days", [])
+        dn = ["一", "二", "三", "四", "五", "六", "日"]
+        return "每周" + "".join(dn[d - 1] for d in sorted(days))
+
+    def _build_action_row(self, c: dict) -> QHBoxLayout:
+        """活跃且未完成时的「完成打卡 / 推迟 / 跳过」按钮行。"""
+        btn_row = QHBoxLayout()
+        btn_row.setSpacing(8)
+
+        done_btn = QPushButton("完成打卡")
+        done_btn.setStyleSheet(f"""
                 QPushButton {{
                     background-color: {c['accent']}; color: {c['fg_primary']}; border: none;
                     border-radius: 8px; padding: 8px 12px; font-size: 13px; font-weight: 600;
@@ -158,11 +157,11 @@ class _HabitCard(QWidget):
                 QPushButton:hover {{ background-color: {c['accent_hover']}; }}
                 QPushButton:pressed {{ background-color: {c['accent_dim']}; }}
             """)
-            done_btn.clicked.connect(lambda: self.toggled.emit(self._hid))
-            btn_row.addWidget(done_btn)
+        done_btn.clicked.connect(lambda: self.toggled.emit(self._hid))
+        btn_row.addWidget(done_btn)
 
-            postpone_btn = QPushButton("推迟")
-            postpone_btn.setStyleSheet(f"""
+        postpone_btn = QPushButton("推迟")
+        postpone_btn.setStyleSheet(f"""
                 QPushButton {{
                     background: transparent; color: {c['fg_secondary']};
                     border: 1px solid {c['border_strong']};
@@ -171,12 +170,12 @@ class _HabitCard(QWidget):
                 QPushButton:hover {{ background: {c['bg_input']}; }}
                 QPushButton:pressed {{ background: {c['accent_bg']}; }}
             """)
-            postpone_btn.clicked.connect(
-                lambda: self.postpone_clicked.emit(self._hid))
-            btn_row.addWidget(postpone_btn)
+        postpone_btn.clicked.connect(
+            lambda: self.postpone_clicked.emit(self._hid))
+        btn_row.addWidget(postpone_btn)
 
-            skip_btn = QPushButton("跳过")
-            skip_btn.setStyleSheet(f"""
+        skip_btn = QPushButton("跳过")
+        skip_btn.setStyleSheet(f"""
                 QPushButton {{
                     background: transparent; color: {c['fg_hint']}; border: none;
                     border-radius: 8px; padding: 8px 12px; font-size: 13px;
@@ -184,11 +183,11 @@ class _HabitCard(QWidget):
                 QPushButton:hover {{ color: {c['fg_secondary']}; }}
                 QPushButton:pressed {{ color: {c['fg_primary']}; }}
             """)
-            skip_btn.clicked.connect(
-                lambda: self.skip_clicked.emit(self._hid))
-            btn_row.addWidget(skip_btn)
-            btn_row.addStretch()
-            layout.addLayout(btn_row)
+        skip_btn.clicked.connect(
+            lambda: self.skip_clicked.emit(self._hid))
+        btn_row.addWidget(skip_btn)
+        btn_row.addStretch()
+        return btn_row
 
     def mouseDoubleClickEvent(self, ev):
         if self._active and not self._done:
@@ -489,52 +488,13 @@ class HabitDialog(QDialog):
         self._sched_type_combo.currentIndexChanged.connect(self._on_sched_type_changed)
 
         # Daily: times per day
-        self._daily_widget = QWidget()
-        dl = QHBoxLayout(self._daily_widget)
-        dl.setContentsMargins(0, 0, 0, 0)
-        dl.setSpacing(4)
-        dl.addWidget(QLabel("每天"))
-        self._times_per_day = QComboBox()
-        self._times_per_day.setEditable(True)
-        self._times_per_day.setFixedWidth(60)
-        self._times_per_day.addItems(["1", "2", "3"])
-        if sched_type in ("daily", "interval"):
-            val = sched.get("times_per_day") or sched.get("value", 1)
-            self._times_per_day.setCurrentText(str(val))
-        dl.addWidget(self._times_per_day)
-        dl.addWidget(QLabel("次"))
-        dl.addStretch()
+        self._daily_widget = self._build_daily_widget(sched, sched_type)
 
         # Weekly: day checkboxes
-        self._weekly_widget = QWidget()
-        wl = QHBoxLayout(self._weekly_widget)
-        wl.setContentsMargins(0, 0, 0, 0)
-        wl.setSpacing(2)
-        self._day_checks: list[QCheckBox] = []
-        day_names = ["一", "二", "三", "四", "五", "六", "日"]
-        weekly_days = sched.get("days", []) if sched_type == "weekly" else []
-        for i, dn in enumerate(day_names):
-            cb = QCheckBox(dn)
-            cb.setChecked((i + 1) in weekly_days)
-            wl.addWidget(cb)
-            self._day_checks.append(cb)
-        wl.addStretch()
+        self._weekly_widget = self._build_weekly_widget(sched, sched_type)
 
         # Monthly: N times
-        self._monthly_widget = QWidget()
-        ml = QHBoxLayout(self._monthly_widget)
-        ml.setContentsMargins(0, 0, 0, 0)
-        ml.setSpacing(4)
-        ml.addWidget(QLabel("每月完成"))
-        self._monthly_times = QComboBox()
-        self._monthly_times.setEditable(True)
-        self._monthly_times.setFixedWidth(60)
-        self._monthly_times.addItems(["1", "2", "3", "4", "5", "8", "10", "15", "20", "30"])
-        if sched_type == "monthly":
-            self._monthly_times.setCurrentText(str(sched.get("value", 4)))
-        ml.addWidget(self._monthly_times)
-        ml.addWidget(QLabel("次"))
-        ml.addStretch()
+        self._monthly_widget = self._build_monthly_widget(sched, sched_type)
 
         sched_row = QHBoxLayout()
         sched_row.addWidget(self._sched_type_combo)
@@ -615,6 +575,60 @@ class HabitDialog(QDialog):
         buttons.accepted.connect(self._validate_and_accept)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
+
+    def _build_daily_widget(self, sched: dict, sched_type: str) -> QWidget:
+        """「每日/间隔」：每天次数控件。"""
+        w = QWidget()
+        dl = QHBoxLayout(w)
+        dl.setContentsMargins(0, 0, 0, 0)
+        dl.setSpacing(4)
+        dl.addWidget(QLabel("每天"))
+        self._times_per_day = QComboBox()
+        self._times_per_day.setEditable(True)
+        self._times_per_day.setFixedWidth(60)
+        self._times_per_day.addItems(["1", "2", "3"])
+        if sched_type in ("daily", "interval"):
+            val = sched.get("times_per_day") or sched.get("value", 1)
+            self._times_per_day.setCurrentText(str(val))
+        dl.addWidget(self._times_per_day)
+        dl.addWidget(QLabel("次"))
+        dl.addStretch()
+        return w
+
+    def _build_weekly_widget(self, sched: dict, sched_type: str) -> QWidget:
+        """「每周几」：星期复选框控件。"""
+        w = QWidget()
+        wl = QHBoxLayout(w)
+        wl.setContentsMargins(0, 0, 0, 0)
+        wl.setSpacing(2)
+        self._day_checks: list[QCheckBox] = []
+        day_names = ["一", "二", "三", "四", "五", "六", "日"]
+        weekly_days = sched.get("days", []) if sched_type == "weekly" else []
+        for i, dn in enumerate(day_names):
+            cb = QCheckBox(dn)
+            cb.setChecked((i + 1) in weekly_days)
+            wl.addWidget(cb)
+            self._day_checks.append(cb)
+        wl.addStretch()
+        return w
+
+    def _build_monthly_widget(self, sched: dict, sched_type: str) -> QWidget:
+        """「每月N次」：每月次数控件。"""
+        w = QWidget()
+        ml = QHBoxLayout(w)
+        ml.setContentsMargins(0, 0, 0, 0)
+        ml.setSpacing(4)
+        ml.addWidget(QLabel("每月完成"))
+        self._monthly_times = QComboBox()
+        self._monthly_times.setEditable(True)
+        self._monthly_times.setFixedWidth(60)
+        self._monthly_times.addItems(["1", "2", "3", "4", "5", "8", "10", "15", "20", "30"])
+        if sched_type == "monthly":
+            self._monthly_times.setCurrentText(str(sched.get("value", 4)))
+        ml.addWidget(self._monthly_times)
+        ml.addWidget(QLabel("次"))
+        ml.addStretch()
+        return w
 
     def _on_sched_type_changed(self) -> None:
         idx = self._sched_type_combo.currentIndex()

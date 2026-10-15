@@ -54,6 +54,57 @@ def gen_id(items, prefix):
 def now_iso():
     return datetime.now().isoformat()
 
+def _match_exact_course(courses: list, name_lower: str) -> str | None:
+    """课程名精确匹配（大小写不敏感）；未命中返回 None。"""
+    for c in courses:
+        if c.get("name", "").lower() == name_lower:
+            return c["name"]
+    return None
+
+
+def _find_contains_matches(courses: list, name_lower: str) -> list[str]:
+    """双向包含匹配（输入包含课程名 / 课程名包含输入）。"""
+    matches = []
+    for c in courses:
+        cn = c.get("name", "").lower()
+        if name_lower in cn or cn in name_lower:
+            matches.append(c["name"])
+    return matches
+
+
+def _find_abbr_matches(courses: list, name_lower: str) -> list[str]:
+    """缩写匹配: "算法课" matches "算法设计与分析" (remove 课/程)。"""
+    abbr = name_lower.replace("课", "").replace("程", "")
+    if abbr == name_lower:
+        return []
+    matches = []
+    for c in courses:
+        cn = c.get("name", "").lower()
+        if abbr in cn:
+            matches.append(c["name"])
+    return matches
+
+
+def _find_word_matches(courses: list, name_lower: str) -> list[str]:
+    """分词匹配：任一长度 ≥2 的词出现在课程名中即算命中。"""
+    words = set(name_lower.replace("课", "").split())
+    matches = []
+    for c in courses:
+        cn = c.get("name", "").lower()
+        if any(w in cn for w in words if len(w) >= 2):
+            matches.append(c["name"])
+    return matches
+
+
+def _find_course_matches(courses: list, name_lower: str) -> list[str]:
+    """依次尝试「包含 → 缩写 → 分词」，返回首个非空的候选列表。"""
+    for finder in (_find_contains_matches, _find_abbr_matches, _find_word_matches):
+        matches = finder(courses, name_lower)
+        if matches:
+            return matches
+    return []
+
+
 def match_course(name: str) -> str | None:
     """Fuzzy match course name. Handles abbreviations like 算法课→算法设计与分析."""
     if not name:
@@ -61,35 +112,12 @@ def match_course(name: str) -> str | None:
     data = load("courses.json")
     courses = data.get("courses", [])
     name_lower = name.strip().lower()
-    # Exact match
-    for c in courses:
-        if c.get("name", "").lower() == name_lower:
-            return c["name"]
-    # Contains match (bidirectional)
-    matches = []
-    for c in courses:
-        cn = c.get("name", "").lower()
-        if name_lower in cn or cn in name_lower:
-            matches.append(c["name"])
-    if len(matches) == 1:
-        return matches[0]
-    # Abbreviation: "算法课" matches "算法设计与分析" (remove 课/课)
-    if not matches:
-        abbr = name_lower.replace("课", "").replace("程", "")
-        if abbr != name_lower:
-            for c in courses:
-                cn = c.get("name", "").lower()
-                if abbr in cn:
-                    matches.append(c["name"])
-    if len(matches) == 1:
-        return matches[0]
-    # Partial word match
-    if not matches:
-        words = set(name_lower.replace("课","").split())
-        for c in courses:
-            cn = c.get("name", "").lower()
-            if any(w in cn for w in words if len(w) >= 2):
-                matches.append(c["name"])
+
+    exact = _match_exact_course(courses, name_lower)
+    if exact:
+        return exact
+
+    matches = _find_course_matches(courses, name_lower)
     if len(matches) == 1:
         return matches[0]
     # Return original if no match
@@ -98,15 +126,8 @@ def match_course(name: str) -> str | None:
     # Multiple matches — try exact word match first
     return matches[0]
 
-def parse_date(s: str) -> str:
-    """Parse date string to YYYY-MM-DD. Supports Chinese relative dates."""
-    s = s.strip()
-    # Already ISO format
-    if re.match(r'^\d{4}-\d{2}-\d{2}', s):
-        return s[:10]
-    today = date.today()
-    # Chinese relative
-    day_names = {"一": 0, "二": 1, "三": 2, "四": 3, "五": 4, "六": 5, "日": 6}
+def _parse_relative_date(s: str, today: date, day_names: dict) -> str | None:
+    """中文相对日期（下周X / 本周X / 明天 / N天后）→ ISO；不匹配返回 None。"""
     # "下周日"
     m = re.match(r'下周(.)', s)
     if m:
@@ -126,33 +147,64 @@ def parse_date(s: str) -> str:
                 days_ahead += 7
             return (today + timedelta(days=days_ahead)).isoformat()
     # "明天" / "后天" / "今天"
-    if s == "明天":
-        return (today + timedelta(days=1)).isoformat()
-    if s == "后天":
-        return (today + timedelta(days=2)).isoformat()
-    if s == "今天":
-        return today.isoformat()
+    offsets = {"明天": 1, "后天": 2, "今天": 0}
+    if s in offsets:
+        return (today + timedelta(days=offsets[s])).isoformat()
     # "N天后"
     m = re.match(r'(\d+)天后', s)
     if m:
         return (today + timedelta(days=int(m.group(1)))).isoformat()
-    # "6月20日" / "6月20号"
-    m = re.match(r'(\d{1,2})月(\d{1,2})[日号]?', s)
-    if m:
-        month, day = int(m.group(1)), int(m.group(2))
-        year = today.year
-        if month < today.month:
-            year += 1
-        return f"{year}-{month:02d}-{day:02d}"
-    # "6.20" / "6/20"
-    m = re.match(r'(\d{1,2})[./](\d{1,2})', s)
-    if m:
-        month, day = int(m.group(1)), int(m.group(2))
-        year = today.year
-        if month < today.month:
-            year += 1
-        return f"{year}-{month:02d}-{day:02d}"
+    return None
+
+
+def _parse_month_day(s: str, today: date) -> str:
+    """月日形式（6月20日 / 6.20 / 6/20）→ ISO；不匹配则原样返回。"""
+    for pattern in (r'(\d{1,2})月(\d{1,2})[日号]?', r'(\d{1,2})[./](\d{1,2})'):
+        m = re.match(pattern, s)
+        if m:
+            month, day = int(m.group(1)), int(m.group(2))
+            year = today.year
+            if month < today.month:
+                year += 1
+            return f"{year}-{month:02d}-{day:02d}"
     return s
+
+
+def parse_date(s: str) -> str:
+    """Parse date string to YYYY-MM-DD. Supports Chinese relative dates."""
+    s = s.strip()
+    # Already ISO format
+    if re.match(r'^\d{4}-\d{2}-\d{2}', s):
+        return s[:10]
+    today = date.today()
+    # Chinese relative
+    day_names = {"一": 0, "二": 1, "三": 2, "四": 3, "五": 4, "六": 5, "日": 6}
+    relative = _parse_relative_date(s, today, day_names)
+    if relative is not None:
+        return relative
+    return _parse_month_day(s, today)
+
+def _shift_hour(period: str, hour: int) -> int:
+    """中文时段 + 12 小时制小时 → 24 小时制。"""
+    if period in ('下午', '晚上'):
+        if hour != 12:
+            hour += 12
+    elif period in ('中午',) and hour < 12:  # 中午1点→13点
+        hour += 12
+    # 上午/早晨: keep as is (but 12→0 for midnight)
+    if period == '上午' and hour == 12:
+        hour = 0
+    return hour
+
+
+def _append_default_time(due_str: str) -> str:
+    """无可识别时段时：无时间补 23:00:00；只有到分钟则补 :00。"""
+    if 'T' not in due_str:
+        return due_str + 'T23:00:00'
+    if len(due_str) <= 16:
+        return due_str + ':00'
+    return due_str
+
 
 def normalize_time(due_str: str) -> str:
     """Ensure date has time. Extracts Chinese time expressions (中午12点, 下午3点)."""
@@ -165,15 +217,7 @@ def normalize_time(due_str: str) -> str:
     )
     if time_match:
         period, hour_str, half = time_match.group(1), time_match.group(2), time_match.group(3)
-        hour = int(hour_str)
-        if period in ('下午', '晚上'):
-            if hour != 12:
-                hour += 12
-        elif period in ('中午',) and hour < 12:  # 中午1点→13点
-            hour += 12
-        # 上午/早晨: keep as is (but 12→0 for midnight)
-        if period == '上午' and hour == 12:
-            hour = 0
+        hour = _shift_hour(period, int(hour_str))
         minute = '30' if half else '00'
         # Replace the time part in the string with ISO time
         due_str = re.sub(r'(中午|下午|上午|晚上|早晨|早上)\d{1,2}点(半)?', '', due_str).strip()
@@ -182,11 +226,7 @@ def normalize_time(due_str: str) -> str:
         else:
             due_str = due_str[:11] + f'{hour:02d}:{minute}:00'
         return due_str
-    if 'T' not in due_str:
-        due_str += 'T23:00:00'
-    elif len(due_str) <= 16:
-        due_str += ':00'
-    return due_str
+    return _append_default_time(due_str)
 
 
 # ═══════════════════════════════════════════════════════════
@@ -416,32 +456,48 @@ def cmd_add_item(args):
     save("inventory.json", data)
     print(f"OK add_item {iid} | {args.name}")
 
+def _apply_item_quantity_fields(item: dict, args) -> None:
+    """数量/单位/状态/下限：仅当显式传值才覆盖。"""
+    if args.quantity is not None:
+        item["quantity"] = args.quantity
+    if args.unit:
+        item["unit"] = args.unit
+    if args.status:
+        item["status"] = args.status
+    if args.min_qty is not None:
+        item["min_quantity"] = args.min_qty
+
+
+def _split_tag_list(tags: str) -> list[str]:
+    """逗号分隔标签 → 去空白后的非空列表。"""
+    return [t.strip() for t in tags.split(",") if t.strip()]
+
+
+def _apply_item_updates(item: dict, args) -> None:
+    """把命令行传入的非空字段写回物品条目（保持原有字段写入顺序）。"""
+    if args.name:
+        item["name"] = args.name
+    if args.group is not None and args.group != "":
+        item["group"] = args.group
+    if args.category:
+        item["category"] = args.category
+    _apply_item_quantity_fields(item, args)
+    if args.location:
+        item["location"] = args.location
+    if args.tags:
+        item["tags"] = _split_tag_list(args.tags)
+
+
 def cmd_update_item(args):
     data = load("inventory.json")
     for it in data.get("items", []):
-        if it["id"] == args.id:
-            if args.name:
-                it["name"] = args.name
-            if args.group is not None and args.group != "":
-                it["group"] = args.group
-            if args.category:
-                it["category"] = args.category
-            if args.quantity is not None:
-                it["quantity"] = args.quantity
-            if args.unit:
-                it["unit"] = args.unit
-            if args.status:
-                it["status"] = args.status
-            if args.min_qty is not None:
-                it["min_quantity"] = args.min_qty
-            if args.location:
-                it["location"] = args.location
-            if args.tags:
-                it["tags"] = [t.strip() for t in args.tags.split(",") if t.strip()]
-            it["updated_at"] = now_iso()
-            save("inventory.json", data)
-            print(f"OK update_item {args.id}")
-            return
+        if it["id"] != args.id:
+            continue
+        _apply_item_updates(it, args)
+        it["updated_at"] = now_iso()
+        save("inventory.json", data)
+        print(f"OK update_item {args.id}")
+        return
     print(f"ERROR item not found: {args.id}")
 
 def cmd_delete_item(args):
@@ -498,16 +554,9 @@ def cmd_status(args):
 # In-process executor (avoids subprocess overhead for AI calls)
 # ═══════════════════════════════════════════════════════════
 
-def run_in_process(cmd_str: str) -> str:
-    """Execute an actions.py command string in-process.
-    
-    Parses the shell command string, builds an argparse Namespace,
-    and calls the handler directly — no subprocess overhead.
-    Thread-safe: each call gets its own stdout buffer.
-    """
-    import io
+def _split_command_parts(cmd_str: str) -> list[str]:
+    """按 shell 规则切分命令，去掉 python/py 前缀与 actions.py 脚本路径。"""
     import shlex
-    from contextlib import redirect_stdout
 
     parts = shlex.split(cmd_str)
     # Strip 'python' / 'python3' / 'py' prefix
@@ -516,45 +565,38 @@ def run_in_process(cmd_str: str) -> str:
     # Strip script path if present
     if parts and ('actions.py' in parts[0]):
         parts.pop(0)
+    return parts
 
-    if not parts:
-        return "ERROR: empty command"
 
-    action = parts[0]
-    # Build argparse-like Namespace from --key value pairs
+def _to_int_or_str(val: str):
+    """整数字符串转 int，否则原样返回。"""
+    try:
+        return int(val)
+    except ValueError:
+        logger.debug("run_in_process 中忽略异常", exc_info=True)
+        return val
+
+
+def _consume_option(ns: argparse.Namespace, parts: list[str], i: int) -> int:
+    """解析 parts[i] 处的 --key [value] 写入 ns，返回下一个下标。"""
+    token = parts[i]
+    if not token.startswith('--'):
+        return i + 1
+    key = token[2:].replace('-', '_')
+    if i + 1 < len(parts) and not parts[i + 1].startswith('--'):
+        setattr(ns, key, _to_int_or_str(parts[i + 1]))
+        return i + 2
+    setattr(ns, key, True)
+    return i + 1
+
+
+def _build_action_namespace(parts: list[str]) -> argparse.Namespace:
+    """把 --key value 参数解析为 Namespace，并补齐 argparse 默认值。"""
     ns = argparse.Namespace()
-    ns.action = action
+    ns.action = parts[0]
     i = 1
     while i < len(parts):
-        if parts[i].startswith('--'):
-            key = parts[i][2:].replace('-', '_')
-            if i + 1 < len(parts) and not parts[i + 1].startswith('--'):
-                val = parts[i + 1]
-                # Try int conversion
-                try:
-                    val = int(val)
-                except ValueError:
-                    logger.debug("run_in_process 中忽略异常", exc_info=True)
-                setattr(ns, key, val)
-                i += 2
-            else:
-                setattr(ns, key, True)
-                i += 1
-        else:
-            i += 1
-
-    handlers = {
-        "add_task": cmd_add_task, "complete_task": cmd_complete_task,
-        "add_exam": cmd_add_exam, "add_habit": cmd_add_habit,
-        "log_habit": cmd_log_habit, "add_plan": cmd_add_plan,
-        "replace_plans": cmd_replace_plans, "delete_plan": cmd_delete_plan,
-        "add_course": cmd_add_course, "delete_course": cmd_delete_course,
-        "add_item": cmd_add_item, "update_item": cmd_update_item,
-        "delete_item": cmd_delete_item,
-        "need_restock": cmd_need_restock,
-        "lookup_item": cmd_lookup_item,
-        "status": cmd_status,
-    }
+        i = _consume_option(ns, parts, i)
 
     # Apply argparse defaults for all optional args (not in CLI string)
     _defaults = {
@@ -569,6 +611,38 @@ def run_in_process(cmd_str: str) -> str:
     for k, v in _defaults.items():
         if not hasattr(ns, k):
             setattr(ns, k, v)
+    return ns
+
+
+def run_in_process(cmd_str: str) -> str:
+    """Execute an actions.py command string in-process.
+    
+    Parses the shell command string, builds an argparse Namespace,
+    and calls the handler directly — no subprocess overhead.
+    Thread-safe: each call gets its own stdout buffer.
+    """
+    import io
+    from contextlib import redirect_stdout
+
+    parts = _split_command_parts(cmd_str)
+    if not parts:
+        return "ERROR: empty command"
+
+    action = parts[0]
+    ns = _build_action_namespace(parts)
+
+    handlers = {
+        "add_task": cmd_add_task, "complete_task": cmd_complete_task,
+        "add_exam": cmd_add_exam, "add_habit": cmd_add_habit,
+        "log_habit": cmd_log_habit, "add_plan": cmd_add_plan,
+        "replace_plans": cmd_replace_plans, "delete_plan": cmd_delete_plan,
+        "add_course": cmd_add_course, "delete_course": cmd_delete_course,
+        "add_item": cmd_add_item, "update_item": cmd_update_item,
+        "delete_item": cmd_delete_item,
+        "need_restock": cmd_need_restock,
+        "lookup_item": cmd_lookup_item,
+        "status": cmd_status,
+    }
 
     if action not in handlers:
         return f"ERROR unknown action: {action}"

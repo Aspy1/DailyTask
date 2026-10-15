@@ -101,29 +101,42 @@ class HabitModel(BaseJsonModel):
         today = date.today()
         today_str = today.isoformat()
 
-        # Postponed → active on the postponed date
-        pu = habit.get("postpone_until")
-        if pu:
-            pu_date = pu[:10]
-            if pu_date == today_str:
-                return True
-            # If postponed to a future date, not active today
-            if pu_date > today_str:
-                return False
-            # If postponed date has passed, fall through to normal check
-            # Clear stale postponement
-            habit["postpone_until"] = None
+        postponed = self._check_postponed(habit, today_str)
+        if postponed is not None:
+            return postponed
 
         # Canceled today
         if today_str in habit.get("canceled_on", []):
             return False
 
         schedule = habit.get("schedule", {"type": "daily", "times_per_day": 1})
+        return self._is_active_by_schedule(habit_id, schedule, today)
+
+    @staticmethod
+    def _check_postponed(habit: dict, today_str: str) -> bool | None:
+        """推迟判定：推迟到今天→True，推到未来→False，已过期→清除推迟并返回 None。"""
+        pu = habit.get("postpone_until")
+        if not pu:
+            return None
+        pu_date = pu[:10]
+        # Postponed → active on the postponed date
+        if pu_date == today_str:
+            return True
+        # If postponed to a future date, not active today
+        if pu_date > today_str:
+            return False
+        # If postponed date has passed, fall through to normal check
+        # Clear stale postponement
+        habit["postpone_until"] = None
+        return None
+
+    def _is_active_by_schedule(self, habit_id: str, schedule: dict, today: date) -> bool:
+        """按 schedule.type（weekly/monthly/interval/daily）判定今天是否激活。"""
         st = schedule.get("type", "daily")
         if st == "weekly":
             days = schedule.get("days", [])
             return today.isoweekday() in days
-        elif st == "monthly":
+        if st == "monthly":
             # Active if monthly completions not yet met
             this_month = today.strftime("%Y-%m")
             monthly_logs = [
@@ -131,20 +144,24 @@ class HabitModel(BaseJsonModel):
                 if hid == habit_id and ts[:7] == this_month
             ]
             return len(monthly_logs) < schedule.get("value", 4)
-        elif st == "interval":
-            if schedule.get("start_date"):
-                try:
-                    start = date.fromisoformat(schedule["start_date"])
-                    delta = (today - start).days
-                    if delta < 0:
-                        return False
-                    return delta % schedule.get("value", 1) == 0
-                except (ValueError, TypeError):
-                    logger.debug("HabitModel.is_active_today 中忽略异常", exc_info=True)
-            return True
-        else:
-            # daily — always active
-            return True
+        if st == "interval":
+            return self._is_active_by_interval(schedule, today)
+        # daily — always active
+        return True
+
+    @staticmethod
+    def _is_active_by_interval(schedule: dict, today: date) -> bool:
+        """interval 类型：按 start_date + value 取模判定；无 start_date 视为每天。"""
+        if schedule.get("start_date"):
+            try:
+                start = date.fromisoformat(schedule["start_date"])
+                delta = (today - start).days
+                if delta < 0:
+                    return False
+                return delta % schedule.get("value", 1) == 0
+            except (ValueError, TypeError):
+                logger.debug("HabitModel.is_active_today 中忽略异常", exc_info=True)
+        return True
 
     def get_pending_today(self) -> list[dict]:
         return [h for h in self.habits

@@ -97,31 +97,54 @@ def load_tokens() -> tuple[set[str], dict[str, str]]:
     return names, value_to_name
 
 
-def check_line(line: str, names: set[str], value_to_name: dict[str, str], check_px: bool):
-    """返回 [(kind, 片段, 建议), ...]"""
+def _color_finding(lit: str, value_to_name: dict[str, str]):
+    """颜色字面量 → (kind, 片段, 建议)。"""
+    tok = value_to_name.get(lit.lower())
+    hint = f"→ 用 token `{tok}`" if tok else "→ 无对应 token，需在 tokens.json 新增"
+    return ("COLOR", lit, hint)
+
+
+def _find_color_findings(line: str, value_to_name: dict[str, str]) -> list:
+    """字面量颜色（#hex / rgb() / rgba()）。"""
     findings = []
-    stripped = line.strip()
+    for regex in (RE_HEX, RE_RGB):
+        for m in regex.finditer(line):
+            findings.append(_color_finding(m.group(0), value_to_name))
+    return findings
 
-    if IGNORE_MARK in line:          # 行级豁免
-        return findings
 
-    for m in RE_HEX.finditer(line):
-        lit = m.group(0)
-        tok = value_to_name.get(lit.lower())
-        hint = f"→ 用 token `{tok}`" if tok else "→ 无对应 token，需在 tokens.json 新增"
-        findings.append(("COLOR", lit, hint))
-
-    for m in RE_RGB.finditer(line):
-        lit = m.group(0)
-        tok = value_to_name.get(lit.lower())
-        hint = f"→ 用 token `{tok}`" if tok else "→ 无对应 token，需在 tokens.json 新增"
-        findings.append(("COLOR", lit, hint))
-
+def _find_qss_class_findings(line: str) -> list:
+    """自定义类名 QSS 选择器（Qt 内置 Q* 类合法）。"""
+    findings = []
     for m in RE_QSS_CLASS.finditer(line):
         cls = m.group(1)
         if cls.startswith("Q"):        # Qt 内置类（QWidget/QPushButton…）合法
             continue
         findings.append(("QSS-CLASS", cls, "→ 自定义类选择器在 Windows PySide6 不生效，改用 #objectName"))
+    return findings
+
+
+def _find_token_name_findings(line: str, names: set[str]) -> list:
+    """疑似令牌名拼写错误（不在 tokens.json 中，且带合法令牌前缀）。"""
+    if line.strip().startswith("#") or "tokens.json" in line:
+        return []
+    findings = []
+    for m in RE_SUBSCRIPT.finditer(line):
+        name = m.group(1)
+        if name in names:
+            continue
+        if name.startswith(TOKEN_PREFIXES) or name in {"fff", "fff0"}:
+            findings.append(("TOKEN-NAME", name, "→ 不在 tokens.json，疑似拼写错误"))
+    return findings
+
+
+def check_line(line: str, names: set[str], value_to_name: dict[str, str], check_px: bool):
+    """返回 [(kind, 片段, 建议), ...]"""
+    if IGNORE_MARK in line:          # 行级豁免
+        return []
+
+    findings = _find_color_findings(line, value_to_name)
+    findings += _find_qss_class_findings(line)
 
     for size in find_qfont_sizes(line):
         findings.append(("QFONT", f"pointSize={size}", "→ 用 SIZE_* 常量"))
@@ -130,34 +153,33 @@ def check_line(line: str, names: set[str], value_to_name: dict[str, str], check_
         for m in RE_PX.finditer(line):
             findings.append(("PX", m.group(0), "→ 用 SIZE_* 常量"))
 
-    if not stripped.startswith("#") and "tokens.json" not in line:
-        for m in RE_SUBSCRIPT.finditer(line):
-            name = m.group(1)
-            if name in names:
-                continue
-            if name.startswith(TOKEN_PREFIXES) or name in {"fff", "fff0"}:
-                findings.append(("TOKEN-NAME", name, "→ 不在 tokens.json，疑似拼写错误"))
-
+    findings += _find_token_name_findings(line, names)
     return findings
 
 
-def main() -> None:
+def _parse_args():
     ap = argparse.ArgumentParser(description="UI 设计令牌约束检查")
     ap.add_argument("paths", nargs="*", default=["src"], help="要检查的路径（默认 src）")
     ap.add_argument("--strict", action="store_true", help="有违规时返回退出码 1")
     ap.add_argument("--check-px", action="store_true", help="同时检查 font-size 的 Npx")
-    args = ap.parse_args()
+    return ap.parse_args()
 
-    names, value_to_name = load_tokens()
 
+def _collect_files(paths: list[str]) -> list[Path]:
+    """展开待检查文件列表（目录递归 *.py，跳过 SKIP_DIRS）。"""
     files: list[Path] = []
-    for p in args.paths:
+    for p in paths:
         path = (ROOT / p) if not Path(p).is_absolute() else Path(p)
         if path.is_dir():
             files.extend(f for f in sorted(path.rglob("*.py")) if not any(s in f.parts for s in SKIP_DIRS))
         elif path.exists():
             files.append(path)
+    return files
 
+
+def _scan_files(files: list[Path], names: set[str], value_to_name: dict[str, str],
+                check_px: bool) -> tuple[int, dict[str, int], dict[str, int]]:
+    """逐文件逐行检查并打印违规明细，返回 (总数, 按类型, 按文件)。"""
     total = 0
     by_kind: dict[str, int] = {}
     per_file: dict[str, int] = {}
@@ -166,21 +188,37 @@ def main() -> None:
         if f.name in SKIP_FILES:
             continue
         for lineno, line in enumerate(f.read_text(encoding="utf-8").splitlines(), 1):
-            for kind, frag, hint in check_line(line, names, value_to_name, args.check_px):
+            for kind, frag, hint in check_line(line, names, value_to_name, check_px):
                 total += 1
                 by_kind[kind] = by_kind.get(kind, 0) + 1
                 rel = f.relative_to(ROOT)
                 per_file[str(rel)] = per_file.get(str(rel), 0) + 1
                 print(f"{rel}:{lineno}: [{kind}] {frag} {hint}")
+    return total, by_kind, per_file
 
+
+def _print_summary(file_count: int, total: int, by_kind: dict[str, int],
+                   per_file: dict[str, int]) -> None:
+    """打印汇总区。"""
     print("\n—— 汇总 ——")
-    print("检查文件:", len(files), "| 违规:", total)
+    print("检查文件:", file_count, "| 违规:", total)
     for kind, n in sorted(by_kind.items(), key=lambda kv: -kv[1]):
         print(f"  {kind:<11} {n}")
     if per_file:
         print("  Top 文件:")
         for name, n in sorted(per_file.items(), key=lambda kv: -kv[1])[:8]:
             print(f"    {n:>3}  {name}")
+
+
+def main() -> None:
+    args = _parse_args()
+
+    names, value_to_name = load_tokens()
+
+    files = _collect_files(args.paths)
+
+    total, by_kind, per_file = _scan_files(files, names, value_to_name, args.check_px)
+    _print_summary(len(files), total, by_kind, per_file)
 
     if args.strict and total:
         raise SystemExit(1)

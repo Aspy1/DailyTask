@@ -87,35 +87,43 @@ class PluginManager:
         if not mod_path.exists():
             return []
         try:
-            # import module under a stable name per plugin
-            if plugin_name in self._module_cache:
-                mod = self._module_cache[plugin_name]
-            else:
-                spec = importlib.util.spec_from_file_location(f"plugins.{plugin_name}.plugin", str(mod_path))
-                mod = importlib.util.module_from_spec(spec)
-                loader = spec.loader
-                assert loader is not None
-                loader.exec_module(mod)  # type: ignore
-                self._module_cache[plugin_name] = mod
-
-            regs: list = []
-
-            class _API:
-                def register_panel(self, display_name: str, factory: Callable):
-                    regs.append((display_name, factory))
-
-            if hasattr(mod, "register") and callable(mod.register):
-                try:
-                    mod.register(_API())
-                # 边界捕获：本层已处理/记录，不允许异常向上逃逸（CODE_STANDARDS Q-I1）
-                except Exception:  # noqa: BLE001
-                    regs.append(("<load error>", lambda *a, **k: None))
+            mod = self._import_plugin_module(plugin_name, mod_path)
+            regs = self._collect_panel_registrations(mod)
             if regs:
                 self.panels[plugin_name] = regs
             return regs
         # 边界捕获：本层已处理/记录，不允许异常向上逃逸（CODE_STANDARDS Q-I1）
         except Exception:  # noqa: BLE001
             return []
+
+    def _import_plugin_module(self, plugin_name: str, mod_path: Path):
+        """按插件名缓存地导入 plugin.py 模块（import module under a stable name per plugin）。"""
+        if plugin_name in self._module_cache:
+            return self._module_cache[plugin_name]
+        spec = importlib.util.spec_from_file_location(f"plugins.{plugin_name}.plugin", str(mod_path))
+        mod = importlib.util.module_from_spec(spec)
+        loader = spec.loader
+        assert loader is not None
+        loader.exec_module(mod)  # type: ignore
+        self._module_cache[plugin_name] = mod
+        return mod
+
+    @staticmethod
+    def _collect_panel_registrations(mod) -> list:
+        """调用插件的 register(api)，收集 (display_name, factory) 列表。"""
+        regs: list = []
+
+        class _API:
+            def register_panel(self, display_name: str, factory: Callable):
+                regs.append((display_name, factory))
+
+        if hasattr(mod, "register") and callable(mod.register):
+            try:
+                mod.register(_API())
+            # 边界捕获：本层已处理/记录，不允许异常向上逃逸（CODE_STANDARDS Q-I1）
+            except Exception:  # noqa: BLE001
+                regs.append(("<load error>", lambda *a, **k: None))
+        return regs
 
     def is_enabled(self, plugin_name: str) -> bool:
         p = self.plugins.get(plugin_name)

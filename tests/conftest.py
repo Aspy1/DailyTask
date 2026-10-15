@@ -25,3 +25,13 @@ def sandbox(tmp_path, monkeypatch):
     """actions.py 的 DATA 指向 tmp_path，读写都发生在临时目录。"""
     monkeypatch.setattr(actions, "DATA", tmp_path)
     return tmp_path
+
+
+@pytest.fixture(scope="session")
+def qapp():
+    """离屏 QApplication（Qt 控件测试用，避免依赖 pytest-qt）。"""
+    import os
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    from PySide6.QtWidgets import QApplication
+    app = QApplication.instance() or QApplication([])
+    yield app

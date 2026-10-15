@@ -90,9 +90,12 @@ class CourseDetailDialog(QDialog):
         self._refresh()
 
     def _refresh(self) -> None:
-        cn = self._course_name
+        self._fill_plans()
+        self._fill_tasks()
 
-        # ── Plans ──────────────────────────────────────────
+    def _fill_plans(self) -> None:
+        """填充「日程」标签页。"""
+        cn = self._course_name
         self._sched_list.clear()
         all_plans = []
         for day, plans in self._dm.daily_logs._data.get("plans", {}).items():
@@ -100,40 +103,47 @@ class CourseDetailDialog(QDialog):
                 if p.get("course_name") == cn:
                     all_plans.append((day, p))
         all_plans.sort(key=lambda x: x[0])
-        if all_plans:
-            for day, p in all_plans:
-                ts = p.get("time_slot", "?")
-                title = p.get("title", "")
-                is_past = day < self._today
-                item = QListWidgetItem(f"📅 {day} 时段{ts} — {title}")
-                if is_past:
-                    item.setForeground(Qt.GlobalColor.gray)
-                self._sched_list.addItem(item)
-        else:
+        if not all_plans:
             item = QListWidgetItem("暂无日程计划")
             item.setForeground(Qt.GlobalColor.gray)
             self._sched_list.addItem(item)
+            return
+        for day, p in all_plans:
+            ts = p.get("time_slot", "?")
+            title = p.get("title", "")
+            item = QListWidgetItem(f"📅 {day} 时段{ts} — {title}")
+            if day < self._today:
+                item.setForeground(Qt.GlobalColor.gray)
+            self._sched_list.addItem(item)
 
-        # ── Tasks ───────────────────────────────────────────
+    def _fill_tasks(self) -> None:
+        """填充「作业」标签页。"""
+        cn = self._course_name
         self._task_list.clear()
-        tasks = [t for t in self._dm.tasks.active if (t.get("course_name", "") or "") == cn]
-        if tasks:
-            for t in tasks:
-                title = t.get("title", "")
-                status = t.get("status", "pending")
-                due = (t.get("due_date", "") or "")[:16].replace("T", " ")
-                prefix = "✓" if status == "completed" else "○"
-                label = f"{prefix} {title}"
-                if due and due != "None":
-                    label += f"\n  截止: {due}"
-                item = QListWidgetItem(label)
-                if status == "completed":
-                    item.setForeground(Qt.GlobalColor.gray)
-                self._task_list.addItem(item)
-        else:
+        tasks = [t for t in self._dm.tasks.active
+                 if (t.get("course_name", "") or "") == cn]
+        if not tasks:
             item = QListWidgetItem("暂无作业")
             item.setForeground(Qt.GlobalColor.gray)
             self._task_list.addItem(item)
+            return
+        for t in tasks:
+            self._task_list.addItem(self._make_task_item(t))
+
+    @staticmethod
+    def _make_task_item(t: dict) -> QListWidgetItem:
+        """把单条任务转成列表项（已完成置灰）。"""
+        title = t.get("title", "")
+        status = t.get("status", "pending")
+        due = (t.get("due_date", "") or "")[:16].replace("T", " ")
+        prefix = "✓" if status == "completed" else "○"
+        label = f"{prefix} {title}"
+        if due and due != "None":
+            label += f"\n  截止: {due}"
+        item = QListWidgetItem(label)
+        if status == "completed":
+            item.setForeground(Qt.GlobalColor.gray)
+        return item
 
     def refresh_theme(self) -> None:
         c = get_colors()

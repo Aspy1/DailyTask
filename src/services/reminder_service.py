@@ -76,20 +76,7 @@ class ReminderService(QObject):
 
         self._reset_notified_if_new_day(now)
 
-        matched: list[dict] = []
-        seen: set[str] = set()
-        cursor = self._last_check.replace(second=0, microsecond=0)
-        while cursor <= now:
-            cursor_str = cursor.strftime("%H:%M")
-            for h in self._dm.habits.habits:
-                rt = h.get("reminder_time", "").strip()
-                if not self._dm.habits.is_active_today(h["id"]):
-                    continue
-                if rt and rt == cursor_str and h["id"] not in seen and h["id"] not in self._notified_today:
-                    seen.add(h["id"])
-                    matched.append(h)
-            cursor += timedelta(minutes=1)
-
+        matched = self._collect_catchup_habits(now)
         if matched:
             for h in matched:
                 self._notified_today.add(h["id"])
@@ -98,6 +85,28 @@ class ReminderService(QObject):
         self._last_check = now
         self._settings.set("Email", "last_reminder_check", now.isoformat())
         self._settings.save()
+
+    def _collect_catchup_habits(self, now: datetime) -> list[dict]:
+        """逐分钟扫描 last_check→now，收集提醒时间命中且未通知的习惯。"""
+        matched: list[dict] = []
+        seen: set[str] = set()
+        cursor = self._last_check.replace(second=0, microsecond=0)
+        while cursor <= now:
+            cursor_str = cursor.strftime("%H:%M")
+            for h in self._dm.habits.habits:
+                if self._is_catchup_hit(h, cursor_str, seen):
+                    seen.add(h["id"])
+                    matched.append(h)
+            cursor += timedelta(minutes=1)
+        return matched
+
+    def _is_catchup_hit(self, habit: dict, cursor_str: str, seen: set[str]) -> bool:
+        """该习惯是否在 cursor_str 这一分钟命中补发提醒。"""
+        hid = habit["id"]
+        rt = habit.get("reminder_time", "").strip()
+        if not self._dm.habits.is_active_today(hid):
+            return False
+        return bool(rt and rt == cursor_str and hid not in seen and hid not in self._notified_today)
 
     # ── Regular check ─────────────────────────────────────
 
@@ -110,38 +119,7 @@ class ReminderService(QObject):
         now_minutes = now.hour * 60 + now.minute
 
         # ── Habits: tray notification only ────────────────
-        for h in self._dm.habits.habits:
-            rt = h.get("reminder_time", "").strip()
-            if not rt or not self._dm.habits.is_active_today(h["id"]):
-                continue
-
-            if rt == early_str:
-                self.reminder_notify.emit(
-                    "即将开始",
-                    f"「{h['name']}」将在 {EARLY_NOTIFY_MINUTES} 分钟后开始",
-                )
-
-            if rt == now_str and h["id"] not in self._notified_today:
-                batch = [h]
-                for h2 in self._dm.habits.habits:
-                    if h2["id"] == h["id"]:
-                        continue
-                    rt2 = h2.get("reminder_time", "").strip()
-                    if not rt2 or h2["id"] in self._notified_today:
-                        continue
-                    if not self._dm.habits.is_active_today(h2["id"]):
-                        continue
-                    try:
-                        hh, mm = rt2.split(":")
-                        rt2_minutes = int(hh) * 60 + int(mm)
-                    except ValueError:
-                        continue
-                    if 0 <= rt2_minutes - now_minutes <= LOOKAHEAD_MINUTES:
-                        batch.append(h2)
-
-                for bh in batch:
-                    self._notified_today.add(bh["id"])
-                self._send_habit_tray_batch(batch)
+        self._check_habits(now_str, early_str, now_minutes)
 
         # ── DDL email: within 6 hours ─────────────────────
         self._check_ddl_email(now)
@@ -165,6 +143,52 @@ class ReminderService(QObject):
         self._settings.set("Email", "last_reminder_check", now.isoformat())
         self._settings.save()
 
+    def _check_habits(self, now_str: str, early_str: str, now_minutes: int) -> None:
+        """习惯托盘提醒：提前 5 分钟预告 + 到点合并批次通知。"""
+        for h in self._dm.habits.habits:
+            rt = h.get("reminder_time", "").strip()
+            if not rt or not self._dm.habits.is_active_today(h["id"]):
+                continue
+
+            if rt == early_str:
+                self.reminder_notify.emit(
+                    "即将开始",
+                    f"「{h['name']}」将在 {EARLY_NOTIFY_MINUTES} 分钟后开始",
+                )
+
+            if rt == now_str and h["id"] not in self._notified_today:
+                batch = self._collect_habit_batch(h, now_minutes)
+                for bh in batch:
+                    self._notified_today.add(bh["id"])
+                self._send_habit_tray_batch(batch)
+
+    def _collect_habit_batch(self, first: dict, now_minutes: int) -> list[dict]:
+        """收集 now 之后 LOOKAHEAD_MINUTES 内待提醒的习惯（含 first）。"""
+        batch = [first]
+        for h2 in self._dm.habits.habits:
+            if h2["id"] == first["id"]:
+                continue
+            rt2 = h2.get("reminder_time", "").strip()
+            if not rt2 or h2["id"] in self._notified_today:
+                continue
+            if not self._dm.habits.is_active_today(h2["id"]):
+                continue
+            rt2_minutes = self._parse_hhmm(rt2)
+            if rt2_minutes is None:
+                continue
+            if 0 <= rt2_minutes - now_minutes <= LOOKAHEAD_MINUTES:
+                batch.append(h2)
+        return batch
+
+    @staticmethod
+    def _parse_hhmm(value: str) -> int | None:
+        """把 "HH:MM" 解析为当天分钟数；格式非法返回 None。"""
+        try:
+            hh, mm = value.split(":")
+            return int(hh) * 60 + int(mm)
+        except ValueError:
+            return None
+
     def _reset_notified_if_new_day(self, now: datetime) -> None:
         today_str = now.strftime("%Y-%m-%d")
         if today_str != self._notified_date:
@@ -184,10 +208,15 @@ class ReminderService(QObject):
 
     def _check_ddl_email(self, now: datetime) -> None:
         """Send email for DDLs due within the next 6 hours."""
+        matched = self._collect_ddl_email_batch(now)
+        if matched:
+            self._send_email("DDL 紧急提醒", self._build_ddl_email_body(matched))
+
+    def _collect_ddl_email_batch(self, now: datetime) -> list[dict]:
+        """收集 6 小时内截止且未发过邮件的任务，并登记为已发送。"""
         threshold = (now + timedelta(hours=DDL_EMAIL_HOURS))
-        pending = self._dm.tasks.pending
         matched = []
-        for t in pending:
+        for t in self._dm.tasks.pending:
             tid = t.get("id", "")
             due_str = t.get("due_date", "")
             if not due_str:
@@ -199,47 +228,56 @@ class ReminderService(QObject):
             if now <= due_dt <= threshold and tid not in self._ddl_emailed:
                 matched.append(t)
                 self._ddl_emailed.add(tid)
+        return matched
 
-        if matched:
-            lines = ["以下任务将在 6 小时内截止：", ""]
-            for t in matched:
-                due = (t.get("due_date", "") or "")[:16]
-                course = t.get("course_name", "") or ""
-                c_str = f" [{course}]" if course else ""
-                lines.append(f"  • {t.get('title', '')}{c_str}  截止: {due}")
-            body = "\n".join(lines)
-            self._send_email("DDL 紧急提醒", body)
+    @staticmethod
+    def _build_ddl_email_body(matched: list[dict]) -> str:
+        """组装 DDL 紧急提醒邮件正文。"""
+        lines = ["以下任务将在 6 小时内截止：", ""]
+        for t in matched:
+            due = (t.get("due_date", "") or "")[:16]
+            course = t.get("course_name", "") or ""
+            c_str = f" [{course}]" if course else ""
+            lines.append(f"  • {t.get('title', '')}{c_str}  截止: {due}")
+        return "\n".join(lines)
 
     # ── Exam email ────────────────────────────────────────
 
     def _check_exam_email(self) -> None:
         """Send email for exams at 14/7/3 day thresholds."""
         today = schedule_date()
-        pending = self._dm.tasks.pending
-        for t in pending:
-            tid = t.get("id", "")
-            title = t.get("title", "") + " " + " ".join(t.get("tags", []))
-            if "考试" not in title and "exam" not in title.lower():
-                continue
-            due_str = (t.get("due_date", "") or "")[:10]
-            if not due_str:
-                continue
-            try:
-                due_dt = date.fromisoformat(due_str)
-            except ValueError:
-                continue
-            days_left = (due_dt - today).days
-            if days_left < 0:
-                continue
+        for t in self._dm.tasks.pending:
+            self._check_exam_task(t, today)
 
-            emailed = self._exam_emailed.setdefault(tid, set())
-            for d in EXAM_DAYS:
-                if days_left <= d and d not in emailed:
-                    self._send_email(
-                        f"考试提醒 - {t.get('title', '')}",
-                        f"「{t.get('title', '')}」还有 {days_left} 天考试\n日期: {due_str}"
-                    )
-                    emailed.add(d)
+    def _check_exam_task(self, t: dict, today: date) -> None:
+        """单个任务的考试阈值检查，按 14/7/3 天发送邮件。"""
+        days_left = self._exam_days_left(t, today)
+        if days_left is None or days_left < 0:
+            return
+        due_str = (t.get("due_date", "") or "")[:10]
+        emailed = self._exam_emailed.setdefault(t.get("id", ""), set())
+        for d in EXAM_DAYS:
+            if days_left <= d and d not in emailed:
+                self._send_email(
+                    f"考试提醒 - {t.get('title', '')}",
+                    f"「{t.get('title', '')}」还有 {days_left} 天考试\n日期: {due_str}"
+                )
+                emailed.add(d)
+
+    @staticmethod
+    def _exam_days_left(t: dict, today: date) -> int | None:
+        """考试任务距今天数；非考试任务或日期非法返回 None。"""
+        title = t.get("title", "") + " " + " ".join(t.get("tags", []))
+        if "考试" not in title and "exam" not in title.lower():
+            return None
+        due_str = (t.get("due_date", "") or "")[:10]
+        if not due_str:
+            return None
+        try:
+            due_dt = date.fromisoformat(due_str)
+        except ValueError:
+            return None
+        return (due_dt - today).days
 
     # ── DDL red dot ───────────────────────────────────────
 
@@ -301,53 +339,74 @@ class ReminderService(QObject):
         if not reminders:
             return
 
-        to_delete: list[str] = []
         stale_cutoff = now - timedelta(minutes=5)
-        for r in reminders:
-            rid = r.get("id", "")
-            nt = r.get("notify_time", "")
-            if not nt:
-                to_delete.append(rid)
-                continue
-            try:
-                notify_dt = datetime.fromisoformat(nt)
-            except ValueError:
-                to_delete.append(rid)
-                continue
-
-            # Stale reminder: notify_time is more than 5 min in the past → delete without sending
-            if notify_dt < stale_cutoff:
-                logger.info("Deleting stale reminder %s (notify=%s, now=%s)", rid, nt, now.isoformat())
-                to_delete.append(rid)
-                continue
-
-            if now >= notify_dt and rid not in self._custom_reminded:
-                logger.info("Firing custom reminder %s: %s at %s", rid, r.get("item_name", ""), nt)
-                item_name = r.get("item_name", "")
-                item_date = r.get("item_date", "")
-                item_type = r.get("item_type", "")
-                type_names = {"course": "课程", "plan": "计划", "habit": "习惯"}
-                type_name = type_names.get(item_type, item_type)
-                body = f"「{item_name}」\n日期: {item_date}\n类型: {type_name}"
-                self._send_email(f"日程提醒 - {item_name}", body)
-                self.reminder_notify.emit("日程提醒", f"「{item_name}」")
-                self._custom_reminded.add(rid)
-                to_delete.append(rid)
-
-        # Cleanup: delete reminders older than 1 day
-        cutoff = (now - timedelta(days=1)).isoformat()
-        for r in reminders:
-            rid = r.get("id", "")
-            if rid in to_delete:
-                continue
-            nt = r.get("notify_time", "")
-            if nt and nt < cutoff:
-                to_delete.append(rid)
+        to_delete = self._process_custom_reminders(reminders, now, stale_cutoff)
+        self._collect_expired_reminders(reminders, now, to_delete)
 
         if to_delete:
             for rid in to_delete:
                 self._dm.daily_logs.delete_reminder(rid)
             self._dm.daily_logs.save()
+
+    def _process_custom_reminders(self, reminders: list[dict], now: datetime,
+                                  stale_cutoff: datetime) -> list[str]:
+        """逐条判定：失效/已触发 → 记入待删除；到点 → 发送提醒。"""
+        to_delete: list[str] = []
+        for r in reminders:
+            rid = r.get("id", "")
+            notify_dt = self._parse_notify_time(r.get("notify_time", ""))
+            if notify_dt is None:
+                to_delete.append(rid)
+                continue
+
+            # Stale reminder: notify_time is more than 5 min in the past → delete without sending
+            if notify_dt < stale_cutoff:
+                logger.info("Deleting stale reminder %s (notify=%s, now=%s)",
+                            rid, r.get("notify_time", ""), now.isoformat())
+                to_delete.append(rid)
+                continue
+
+            if now >= notify_dt and rid not in self._custom_reminded:
+                self._fire_custom_reminder(r, rid)
+                to_delete.append(rid)
+        return to_delete
+
+    @staticmethod
+    def _parse_notify_time(notify_time: str) -> datetime | None:
+        """解析提醒时间；缺失或非法返回 None。"""
+        if not notify_time:
+            return None
+        try:
+            return datetime.fromisoformat(notify_time)
+        except ValueError:
+            return None
+
+    def _fire_custom_reminder(self, reminder: dict, rid: str) -> None:
+        """发送一条自定义提醒（邮件 + 托盘）并登记为已提醒。"""
+        logger.info("Firing custom reminder %s: %s at %s",
+                    rid, reminder.get("item_name", ""), reminder.get("notify_time", ""))
+        item_name = reminder.get("item_name", "")
+        item_date = reminder.get("item_date", "")
+        item_type = reminder.get("item_type", "")
+        type_names = {"course": "课程", "plan": "计划", "habit": "习惯"}
+        type_name = type_names.get(item_type, item_type)
+        body = f"「{item_name}」\n日期: {item_date}\n类型: {type_name}"
+        self._send_email(f"日程提醒 - {item_name}", body)
+        self.reminder_notify.emit("日程提醒", f"「{item_name}」")
+        self._custom_reminded.add(rid)
+
+    @staticmethod
+    def _collect_expired_reminders(reminders: list[dict], now: datetime,
+                                   to_delete: list[str]) -> None:
+        """清理：把超过 1 天的提醒 id 追加进待删除列表。"""
+        cutoff = (now - timedelta(days=1)).isoformat()
+        for r in reminders:
+            rid = r.get("id", "")
+            if rid in to_delete:
+                continue
+            notify_time = r.get("notify_time", "")
+            if notify_time and notify_time < cutoff:
+                to_delete.append(rid)
 
     # ── Email sender ──────────────────────────────────────
 

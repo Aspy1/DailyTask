@@ -39,21 +39,7 @@ class _ExamCard(QWidget):
         self.setCursor(Qt.CursorShape.PointingHandCursor)
 
         # Card styling based on urgency
-        if days_left < 0:
-            bg = c["bg_surface"]
-            accent_color = c["fg_disabled"]
-        elif days_left == 0:
-            bg = c["red"] + "12"
-            accent_color = c["red"]
-        elif days_left <= 7:
-            bg = c["red"] + "08"
-            accent_color = c["red"]
-        elif days_left <= 15:
-            bg = c["orange"] + "08"
-            accent_color = c["orange"]
-        else:
-            bg = c["card_bg"]
-            accent_color = c["accent"]
+        bg, accent_color = self._make_urgency_colors(days_left, c)
 
         self.setObjectName("examCard")
         self.setStyleSheet(f"""
@@ -66,6 +52,43 @@ class _ExamCard(QWidget):
         layout.setSpacing(12)
 
         # Left: countdown badge
+        layout.addWidget(self._make_badge(days_left, c))
+
+        # Center: info
+        info = QVBoxLayout()
+        info.setSpacing(4)
+
+        name_lbl = QLabel(exam.get("course_name", ""))
+        name_lbl.setStyleSheet(f"color: {c['fg_primary'] if days_left >= 0 else c['fg_disabled']}; font-size: 15px; font-weight: 600; border: none; background: transparent;")
+        info.addWidget(name_lbl)
+
+        date_lbl = QLabel(f"📅 {exam.get('exam_date', '')}")
+        date_lbl.setStyleSheet(f"color: {accent_color}; font-size: 13px; border: none; background: transparent;")
+        info.addWidget(date_lbl)
+
+        detail = self._make_detail_label(exam, c)
+        if detail is not None:
+            info.addWidget(detail)
+
+        layout.addLayout(info, stretch=1)
+        layout.addStretch()
+
+    @staticmethod
+    def _make_urgency_colors(days_left: int, c: dict) -> tuple[str, str]:
+        """按紧迫度返回卡片 (背景色, 强调色)。"""
+        if days_left < 0:
+            return c["bg_surface"], c["fg_disabled"]
+        if days_left == 0:
+            return c["red"] + "12", c["red"]
+        if days_left <= 7:
+            return c["red"] + "08", c["red"]
+        if days_left <= 15:
+            return c["orange"] + "08", c["orange"]
+        return c["card_bg"], c["accent"]
+
+    @staticmethod
+    def _make_badge(days_left: int, c: dict) -> QLabel:
+        """左侧倒计时徽章。"""
         badge = QLabel()
         badge.setFixedSize(52, 52)
         badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -84,20 +107,11 @@ class _ExamCard(QWidget):
         else:
             badge.setText(f"{days_left}天")
             badge.setStyleSheet(f"color: {c['fg_secondary']}; font-size: 13px; font-weight: 600; background: {c['bg_input']}; border-radius: 26px;")
-        layout.addWidget(badge)
+        return badge
 
-        # Center: info
-        info = QVBoxLayout()
-        info.setSpacing(4)
-
-        name_lbl = QLabel(exam.get("course_name", ""))
-        name_lbl.setStyleSheet(f"color: {c['fg_primary'] if days_left >= 0 else c['fg_disabled']}; font-size: 15px; font-weight: 600; border: none; background: transparent;")
-        info.addWidget(name_lbl)
-
-        date_lbl = QLabel(f"📅 {exam.get('exam_date', '')}")
-        date_lbl.setStyleSheet(f"color: {accent_color}; font-size: 13px; border: none; background: transparent;")
-        info.addWidget(date_lbl)
-
+    @staticmethod
+    def _make_detail_label(exam: dict, c: dict) -> QLabel | None:
+        """范围 / 地点 / 备注 合并行（均无时返回 None）。"""
         extras = []
         if exam.get("scope"):
             extras.append(f"范围: {exam['scope']}")
@@ -105,14 +119,12 @@ class _ExamCard(QWidget):
             extras.append(exam["location"])
         if exam.get("notes"):
             extras.append(exam["notes"])
-        if extras:
-            detail = QLabel(" · ".join(extras))
-            detail.setWordWrap(True)
-            detail.setStyleSheet(f"color: {c['fg_hint']}; font-size: 12px; border: none; background: transparent;")
-            info.addWidget(detail)
-
-        layout.addLayout(info, stretch=1)
-        layout.addStretch()
+        if not extras:
+            return None
+        detail = QLabel(" · ".join(extras))
+        detail.setWordWrap(True)
+        detail.setStyleSheet(f"color: {c['fg_hint']}; font-size: 12px; border: none; background: transparent;")
+        return detail
 
     def contextMenuEvent(self, ev):
         # Handled by parent panel

@@ -408,13 +408,23 @@ class MainWindow(QMainWindow):
             self._update_tomorrow_preview()
             return
         today_courses = self._data_manager.courses.get_today_courses()
-        now = datetime.now().time()
-        past_midnight = schedule_date() != date.today()
         if not today_courses:
             self._course_info_label.setText(tr("status.no_course"))
             return
+        entries = self._build_course_entries(today_courses)
+        if not entries:
+            self._course_info_label.setText(tr("status.no_course"))
+            return
+        now = datetime.now().time()
+        past_midnight = schedule_date() != date.today()
+        self._course_info_label.setText(
+            self._make_next_course_text(entries, now, past_midnight))
+
+    @staticmethod
+    def _build_course_entries(courses: list) -> list[tuple]:
+        """把课程列表解析为 (开始时间, 结束时间, 课程) 并按开始时间排序。"""
         entries = []
-        for c in today_courses:
+        for c in courses:
             slots = c.get("time_slots", [])
             if not slots:
                 continue
@@ -426,10 +436,13 @@ class MainWindow(QMainWindow):
             _, end_str = PERIOD_TIMES[min(last, len(PERIOD_TIMES) - 1)]
             entries.append(
                 (time.fromisoformat(start_str), time.fromisoformat(end_str), c))
-        if not entries:
-            self._course_info_label.setText(tr("status.no_course"))
-            return
         entries.sort(key=lambda e: e[0])
+        return entries
+
+    @staticmethod
+    def _make_next_course_text(entries: list[tuple], now: time,
+                               past_midnight: bool) -> str:
+        """生成状态栏「今日课程/下一节课」文案。"""
         total = len(entries)
         finished = total if past_midnight else sum(
             1 for e in entries if e[1] < now)
@@ -440,14 +453,11 @@ class MainWindow(QMainWindow):
                     upcoming = (start_t, course)
                     break
         if upcoming is None:
-            self._course_info_label.setText(
-                f"共{total}节课，已上{finished}节，今日课已上完  ▸")
-            return
+            return f"共{total}节课，已上{finished}节，今日课已上完  ▸"
         start_t, course = upcoming
         name = course.get("name", "")
-        self._course_info_label.setText(
-            f"共{total}节课，已上{finished}节，下一节: {name} "
-            f"{start_t.strftime('%H:%M')}  ▸")
+        return (f"共{total}节课，已上{finished}节，下一节: {name} "
+                f"{start_t.strftime('%H:%M')}  ▸")
 
     def _update_tomorrow_preview(self) -> None:
         c = get_colors()
@@ -732,44 +742,61 @@ class WeatherDetailDialog(QDialog):
         self._refresh_btn.setText("刷新")
 
         # 更新实时天气
-        now = self._ws.get_now()
-        if now:
-            if self._now_card:
-                self._now_card.show()
-            if self._temp_label:
-                self._temp_label.setText(f"{now.get('temp', '?')}°C")
-            if self._info_label:
-                self._info_label.setText(
-                    f"{now.get('text', '?')}  ·  体感 {now.get('feelsLike', '?')}°C")
-            if self._hum_label:
-                self._hum_label.setText(f"湿度 {now.get('humidity', '?')}%")
-            if self._wind_label:
-                self._wind_label.setText(
-                    f"{now.get('windDir', '?')} {now.get('windScale', '?')}级")
-        else:
-            if self._now_card:
-                self._now_card.hide()
+        self._update_now_section()
 
         # 更新预报
+        self._update_forecast_section()
+
+    def _update_now_section(self):
+        """更新实时天气卡片（无数据时隐藏卡片）。"""
+        now = self._ws.get_now()
+        if not now:
+            if self._now_card:
+                self._now_card.hide()
+            return
+        if self._now_card:
+            self._now_card.show()
+        if self._temp_label:
+            self._temp_label.setText(f"{now.get('temp', '?')}°C")
+        if self._info_label:
+            self._info_label.setText(
+                f"{now.get('text', '?')}  ·  体感 {now.get('feelsLike', '?')}°C")
+        if self._hum_label:
+            self._hum_label.setText(f"湿度 {now.get('humidity', '?')}%")
+        if self._wind_label:
+            self._wind_label.setText(
+                f"{now.get('windDir', '?')} {now.get('windScale', '?')}级")
+
+    def _update_forecast_section(self):
+        """更新未来三天预报行。"""
         forecast = self._ws.get_forecast()
         for i, row in enumerate(self._forecast_rows):
             if i < len(forecast):
-                day = forecast[i]
-                row["date"].setText(day.get('fxDate', '?'))
-                row["text"].setText(day.get('textDay', '?'))
-                precip = day.get('precip', '0')
-                if precip and float(precip) > 0:
-                    row["rain"].setText(f"雨量{precip}mm")
-                    row["rain"].show()
-                else:
-                    row["rain"].hide()
-                row["temp"].setText(
-                    f"{day.get('tempMin', '?')}°C ~ {day.get('tempMax', '?')}°C")
+                self._fill_forecast_row(row, forecast[i])
             else:
-                row["date"].setText("")
-                row["text"].setText("")
-                row["rain"].hide()
-                row["temp"].setText("")
+                self._clear_forecast_row(row)
+
+    @staticmethod
+    def _fill_forecast_row(row: dict, day: dict) -> None:
+        """填充单行预报。"""
+        row["date"].setText(day.get('fxDate', '?'))
+        row["text"].setText(day.get('textDay', '?'))
+        precip = day.get('precip', '0')
+        if precip and float(precip) > 0:
+            row["rain"].setText(f"雨量{precip}mm")
+            row["rain"].show()
+        else:
+            row["rain"].hide()
+        row["temp"].setText(
+            f"{day.get('tempMin', '?')}°C ~ {day.get('tempMax', '?')}°C")
+
+    @staticmethod
+    def _clear_forecast_row(row: dict) -> None:
+        """清空无数据时的预报行。"""
+        row["date"].setText("")
+        row["text"].setText("")
+        row["rain"].hide()
+        row["temp"].setText("")
 
     def _on_refresh(self):
         """刷新按钮点击"""

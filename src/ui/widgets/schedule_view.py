@@ -213,32 +213,48 @@ class ScheduleView(QWidget):
         lines = [f"========== {day_str} {day_name}{marker} =========="]
 
         courses = self._dm.courses.get_courses_for_date(day)
-        lines.append(f"  课程({len(courses)}门):")
+        lines += self._snapshot_course_lines(courses)
+
+        active = [h for h in self._dm.habits.habits if self._habit_active_on(h, day)]
+        lines += self._snapshot_habit_lines(active)
+        lines += self._snapshot_plan_lines(self._dm.daily_logs.get_plans(day_str))
+
+        lines.append(f"  空闲: {self._free_slots_text(courses, period_count)}")
+        lines.append("")
+        return lines
+
+    @staticmethod
+    def _snapshot_course_lines(courses: list[dict]) -> list[str]:
+        """单天课程块。"""
+        lines = [f"  课程({len(courses)}门):"]
         for c in courses:
             slot_strs = [f"第{s.get('start', '?')}-{s.get('end', '?')}节"
                          for s in c.get("time_slots", [])]
             loc = c.get("location", "") or ""
             loc_str = f" @{loc}" if loc else ""
             lines.append(f"    [{','.join(slot_strs)}] {c.get('name', '')}{loc_str}")
+        return lines
 
-        active = [h for h in self._dm.habits.habits if self._habit_active_on(h, day)]
-        if active:
-            lines.append(f"  习惯({len(active)}项):")
-            for h in active:
-                rt = h.get("reminder_time", "") or ""
-                rt_str = f" @{rt}" if rt else ""
-                lines.append(f"    {h.get('name', '')}{rt_str} ({h.get('duration_minutes', 30)}分钟)")
+    @staticmethod
+    def _snapshot_habit_lines(active: list[dict]) -> list[str]:
+        """单天习惯块（无则空）。"""
+        if not active:
+            return []
+        lines = [f"  习惯({len(active)}项):"]
+        for h in active:
+            rt = h.get("reminder_time", "") or ""
+            rt_str = f" @{rt}" if rt else ""
+            lines.append(f"    {h.get('name', '')}{rt_str} ({h.get('duration_minutes', 30)}分钟)")
+        return lines
 
-        plans = self._dm.daily_logs.get_plans(day_str)
-        if plans:
-            lines.append(f"  已有安排({len(plans)}项):")
-            for p in plans:
-                lines.append(f"    第{p.get('time_slot', '?')}节: {p.get('title', '')}")
-        else:
-            lines.append("  已有安排: (无)")
-
-        lines.append(f"  空闲: {self._free_slots_text(courses, period_count)}")
-        lines.append("")
+    @staticmethod
+    def _snapshot_plan_lines(plans: list[dict]) -> list[str]:
+        """单天已有安排块（无则提示(无)）。"""
+        if not plans:
+            return ["  已有安排: (无)"]
+        lines = [f"  已有安排({len(plans)}项):"]
+        for p in plans:
+            lines.append(f"    第{p.get('time_slot', '?')}节: {p.get('title', '')}")
         return lines
 
     @staticmethod
@@ -373,49 +389,63 @@ class ScheduleView(QWidget):
         slot_data: dict[int, list[dict]] = {i: [] for i in range(1, 7)}
 
         for course in courses:
-            for slot in course.get("time_slots", []):
-                for s in range(slot["start"], slot["end"] + 1):
-                    if 1 <= s <= 6:
-                        slot_data[s].append({
-                            "type": "course",
-                            "course": course,
-                            "name": course.get("name", ""),
-                            "location": course.get("location", ""),
-                        })
+            self._add_course_to_slots(slot_data, course)
 
         for plan in plans:
-            ts = plan.get("time_slot", 0)
-            if 1 <= ts <= 6:
-                slot_data[ts].append({
-                    "type": "plan",
-                    "plan": plan,
-                    "plan_type": plan.get("type", "custom"),
-                    "title": plan.get("title", ""),
-                    "course_name": plan.get("course_name", ""),
-                    "note": plan.get("note", ""),
-                })
+            self._add_plan_to_slots(slot_data, plan)
 
         for h in habits:
-            if not self._dm.habits.is_active_today(h["id"]):
-                continue
-            rt = h.get("reminder_time", "").strip()
-            h_min = 0
-            if rt:
-                try:
-                    hh, mm = rt.split(":")
-                    h_min = int(hh) * 60 + int(mm)
-                except ValueError:
-                    h_min = 0
-            slot = self._slot_for_minutes(h_min) or 1
-            if 1 <= slot <= 6:
-                slot_data[slot].append({
-                    "type": "habit",
-                    "habit": h,
-                    "name": h.get("name", ""),
-                    "duration": h.get("duration_minutes", 30),
-                    "reminder_time": rt,
-                })
+            self._add_habit_to_slots(slot_data, h)
         return slot_data
+
+    @staticmethod
+    def _add_course_to_slots(slot_data: dict[int, list[dict]], course: dict) -> None:
+        """把单门课程写入其占用的每个时段。"""
+        for slot in course.get("time_slots", []):
+            for s in range(slot["start"], slot["end"] + 1):
+                if 1 <= s <= 6:
+                    slot_data[s].append({
+                        "type": "course",
+                        "course": course,
+                        "name": course.get("name", ""),
+                        "location": course.get("location", ""),
+                    })
+
+    @staticmethod
+    def _add_plan_to_slots(slot_data: dict[int, list[dict]], plan: dict) -> None:
+        """把单条计划写入其时段。"""
+        ts = plan.get("time_slot", 0)
+        if 1 <= ts <= 6:
+            slot_data[ts].append({
+                "type": "plan",
+                "plan": plan,
+                "plan_type": plan.get("type", "custom"),
+                "title": plan.get("title", ""),
+                "course_name": plan.get("course_name", ""),
+                "note": plan.get("note", ""),
+            })
+
+    def _add_habit_to_slots(self, slot_data: dict[int, list[dict]], h: dict) -> None:
+        """把单个当日活跃习惯按提醒时间归入时段。"""
+        if not self._dm.habits.is_active_today(h["id"]):
+            return
+        rt = h.get("reminder_time", "").strip()
+        h_min = 0
+        if rt:
+            try:
+                hh, mm = rt.split(":")
+                h_min = int(hh) * 60 + int(mm)
+            except ValueError:
+                h_min = 0
+        slot = self._slot_for_minutes(h_min) or 1
+        if 1 <= slot <= 6:
+            slot_data[slot].append({
+                "type": "habit",
+                "habit": h,
+                "name": h.get("name", ""),
+                "duration": h.get("duration_minutes", 30),
+                "reminder_time": rt,
+            })
 
     def _build_ddl_by_slot(self, target, period_count: int) -> dict[int, list[dict]]:
         """收集「今日截止」的任务，并按截止时刻归入节次。"""
@@ -749,12 +779,15 @@ class ScheduleView(QWidget):
         if chosen.data() is None:
             return
         action_type, payload = chosen.data()
+        self._handle_course_action(action_type, payload, item)
+
+    def _handle_course_action(self, action_type: str, payload, item) -> None:
+        """执行课程右键菜单的编辑类操作。"""
         course_id = item["course"].get("id", "")
         if action_type == "rename":
             # Simple rename dialog
             from PySide6.QtWidgets import QInputDialog
 
-            from src.ui.widgets.course_table import build_course_context_menu
             name, ok = QInputDialog.getText(self, "重命名课程", "新名称:")
             if ok and name.strip():
                 self._dm.courses.update_course(course_id, {"name": name.strip()})
@@ -777,7 +810,7 @@ class ScheduleView(QWidget):
 
     def _plan_menu(self, pos, item, widget):
         from src.ui.widgets.context_menu import ContextMenu
-        
+
         menu = ContextMenu()
         done_action = menu.add_action("✓ 标记完成")
         menu.add_action("修改 DDL")
@@ -790,7 +823,7 @@ class ScheduleView(QWidget):
         else:
             menu.add_action("📧 添加邮件提醒")
         menu.exec()
-        
+
         action = menu.last_action
         if action and action.text == "📧 添加邮件提醒":
             self._add_email_reminder_dialog("plan", plan_name, plan_date)
@@ -798,25 +831,21 @@ class ScheduleView(QWidget):
         if action and action.text == "📧 取消邮件提醒":
             self._remove_email_reminder("plan", plan_name, plan_date)
             return
-        if action == remove_action:
-            plans = self._dm.daily_logs.get_plans(self._target_date.isoformat())
-            for i, p in enumerate(plans):
-                if p == item["plan"]:
-                    self._dm.daily_logs.delete_plan(self._target_date.isoformat(), i)
-                    self._dm.daily_logs.save()
-                    self._dm.data_changed.emit("plan")
-                    self._refresh()
-                    return
-        elif action == done_action:
-            # Treat plan as completed — remove it
-            plans = self._dm.daily_logs.get_plans(self._target_date.isoformat())
-            for i, p in enumerate(plans):
-                if p == item["plan"]:
-                    self._dm.daily_logs.delete_plan(self._target_date.isoformat(), i)
-                    self._dm.daily_logs.save()
-                    self._dm.data_changed.emit("plan")
-                    self._refresh()
-                    return
+        if action in (remove_action, done_action):
+            # 「移除」与「标记完成」都按内容匹配删除该计划
+            self._delete_plan_at(item)
+
+    def _delete_plan_at(self, item) -> None:
+        """按内容匹配删除当天该计划并刷新。"""
+        date_str = self._target_date.isoformat()
+        plans = self._dm.daily_logs.get_plans(date_str)
+        for i, p in enumerate(plans):
+            if p == item["plan"]:
+                self._dm.daily_logs.delete_plan(date_str, i)
+                self._dm.daily_logs.save()
+                self._dm.data_changed.emit("plan")
+                self._refresh()
+                return
 
     def _habit_menu(self, pos, item, widget):
         from src.ui.widgets.context_menu import ContextMenu

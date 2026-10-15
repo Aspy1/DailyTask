@@ -190,15 +190,20 @@ class TaskPanel(QWidget):
     # ── Data ──────────────────────────────────────────────────
 
     def _get_filtered(self) -> list[dict]:
-        tasks = self._dm.tasks.active
-        if self._status_filter == "completed":
-            tasks = [t for t in tasks if t.get("status") == "completed"]
-        elif self._status_filter == "pending":
-            tasks = [t for t in tasks if t.get("status") != "completed"]
+        tasks = self._status_filtered()
         if self._selected_courses:
             tasks = [t for t in tasks if (t.get("course_name", "") or "—") in self._selected_courses]
         if self._time_bucket is not None:
             tasks = [t for t in tasks if _match_time_bucket(t.get("due_date", ""), self._time_bucket)]
+        return tasks
+
+    def _status_filtered(self) -> list[dict]:
+        """按完成状态筛选（全部 / 未完成 / 已完成）。"""
+        tasks = self._dm.tasks.active
+        if self._status_filter == "completed":
+            return [t for t in tasks if t.get("status") == "completed"]
+        if self._status_filter == "pending":
+            return [t for t in tasks if t.get("status") != "completed"]
         return tasks
 
     def _course_set(self) -> list[str]:
@@ -298,49 +303,22 @@ class TaskPanel(QWidget):
             start = self._page * PAGE_SIZE
             page_tasks = tasks[start:start + PAGE_SIZE]
 
+        c = get_colors()
         for i, t in enumerate(page_tasks):
             self._table.insertRow(i)
 
-            course_name = t.get("course_name", "") or "—"
-            course_item = QTableWidgetItem(course_name)
-            course_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            self._table.setItem(i, 0, course_item)
+            self._set_course_item(i, t)
 
             due = t.get("due_date", "")
             due_display = due[:16].replace("T", " ") if due and due != "None" else "—"
             # Highlight DDL within 3 days — use QLabel for mixed-color text
-            if self._highlight_ddl and due and due != "None":
+            if self._is_near_ddl(due):
                 due_date = _parse_due(due)
-                if due_date and due_date <= date.today() + timedelta(days=3):
-                    days_left = (due_date - date.today()).days
-                    c = get_colors()
-                    lbl = QLabel()
-                    lbl.setFont(self._table.font())
-                    lbl.setTextFormat(Qt.TextFormat.RichText)
-                    lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-                    lbl.setMinimumWidth(self._table.columnWidth(1) - 10)
-                    lbl.setWordWrap(False)
-                    lbl.setText(
-                        f'<span style="color:{c["red"]};font-size: 13px;">{due_display}</span>'
-                        f' <span style="color:{c["fg_secondary"]};font-size: 13px;">({days_left}天后)</span>'
-                    )
-                    self._table.setCellWidget(i, 1, lbl)
-                    # skip setItem below
-                    title_item = QTableWidgetItem(t.get("title", ""))
-                    title_item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
-                    if t.get("status") == "completed":
-                        title_item.setForeground(QBrush(QColor(c['fg_hint'])))
-                    self._table.setItem(i, 2, title_item)
-                    # Checkbox
-                    cb = QCheckBox()
-                    cb.setChecked(t.get("status") == "completed")
-                    tid = t["id"]
-                    cb.clicked.connect(lambda checked, tid=tid: self._on_check(tid, checked))
-                    self._table.setCellWidget(i, 3, cb)
-                    continue
-            due_item = QTableWidgetItem(due_display)
-            due_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            self._table.setItem(i, 1, due_item)
+                self._table.setCellWidget(
+                    i, 1, self._make_ddl_cell(
+                        due_display, (due_date - date.today()).days, c))
+            else:
+                self._set_due_item(i, due_display)
 
             title_item = QTableWidgetItem(t.get("title", ""))
             title_item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
@@ -348,16 +326,52 @@ class TaskPanel(QWidget):
                 title_item.setForeground(QBrush(QColor(c['fg_hint'])))
             self._table.setItem(i, 2, title_item)
 
-            # Checkbox
-            cb = QCheckBox()
-            cb.setChecked(t.get("status") == "completed")
-            tid = t["id"]
-            cb.clicked.connect(lambda checked, tid=tid: self._on_check(tid, checked))
-            self._table.setCellWidget(i, 3, cb)
+            self._set_check_cell(i, t)
 
         self._table.setSortingEnabled(True)
         page_str = f"第{self._page + 1}/{max_page + 1}页" if total > PAGE_SIZE else ""
         self._count_label.setText(f"{total} 个任务  {page_str}")
+
+    def _set_course_item(self, row: int, t: dict) -> None:
+        """第 0 列：课程名。"""
+        course_item = QTableWidgetItem(t.get("course_name", "") or "—")
+        course_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._table.setItem(row, 0, course_item)
+
+    def _is_near_ddl(self, due: str) -> bool:
+        """是否需要按 DDL 临期（3 天内）高亮截止列。"""
+        if not (self._highlight_ddl and due and due != "None"):
+            return False
+        due_date = _parse_due(due)
+        return bool(due_date and due_date <= date.today() + timedelta(days=3))
+
+    def _set_check_cell(self, row: int, t: dict) -> None:
+        """第 3 列：完成复选框。"""
+        cb = QCheckBox()
+        cb.setChecked(t.get("status") == "completed")
+        tid = t["id"]
+        cb.clicked.connect(lambda checked, tid=tid: self._on_check(tid, checked))
+        self._table.setCellWidget(row, 3, cb)
+
+    def _make_ddl_cell(self, due_display: str, days_left: int, c: dict) -> QLabel:
+        """DDL 临期（3 天内）的富文本单元格。"""
+        lbl = QLabel()
+        lbl.setFont(self._table.font())
+        lbl.setTextFormat(Qt.TextFormat.RichText)
+        lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        lbl.setMinimumWidth(self._table.columnWidth(1) - 10)
+        lbl.setWordWrap(False)
+        lbl.setText(
+            f'<span style="color:{c["red"]};font-size: 13px;">{due_display}</span>'
+            f' <span style="color:{c["fg_secondary"]};font-size: 13px;">({days_left}天后)</span>'
+        )
+        return lbl
+
+    def _set_due_item(self, row: int, due_display: str) -> None:
+        """普通截止日期单元格。"""
+        due_item = QTableWidgetItem(due_display)
+        due_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._table.setItem(row, 1, due_item)
 
     def _on_check(self, task_id: str, checked: bool) -> None:
         if checked:

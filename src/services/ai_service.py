@@ -354,16 +354,26 @@ class AIService(QObject):
             return cached.get("value", "  天气信息暂不可用")
 
         # 优先使用WeatherService
-        if self._weather_service:
-            try:
-                val = self._weather_service.get_weather_text_for_ai()
-                self._weather_cache = {"value": val, "fetched_at": now}
-                return val
-            # 边界捕获：本层已处理/记录，不允许异常向上逃逸（CODE_STANDARDS Q-I1）
-            except Exception as e:  # noqa: BLE001
-                logger.warning(f"WeatherService获取天气失败: {e}")
+        val = self._weather_from_service()
+        if val is None:
+            # 回退到Open-Meteo（保留旧逻辑作为备用）
+            val = self._weather_from_open_meteo()
+        self._weather_cache = {"value": val, "fetched_at": now}
+        return val
 
-        # 回退到Open-Meteo（保留旧逻辑作为备用）
+    def _weather_from_service(self) -> str | None:
+        """经 WeatherService 获取天气文本；未配置或失败返回 None。"""
+        if not self._weather_service:
+            return None
+        try:
+            return self._weather_service.get_weather_text_for_ai()
+        # 边界捕获：本层已处理/记录，不允许异常向上逃逸（CODE_STANDARDS Q-I1）
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"WeatherService获取天气失败: {e}")
+            return None
+
+    def _weather_from_open_meteo(self) -> str:
+        """回退方案：直接请求 Open-Meteo 并整理成天气文本。"""
         try:
             import requests
 
@@ -385,47 +395,46 @@ class AIService(QObject):
                 timeout=5,
             )
             if resp.status_code == 200:
-                data = resp.json()
-                current = data.get("current_weather", {})
-                hourly = data.get("hourly", {})
-
-                temp = current.get("temperature", "?")
-                wcode = current.get("weathercode", 0)
-                wtext = _weather_code_to_text(wcode)
-                wind = current.get("windspeed", "?")
-
-                lines = [f"  当前: {wtext}, {temp}°C, 风速{wind}km/h"]
-
-                # 未来3天预报
-                temps = hourly.get("temperature_2m", [])
-                codes = hourly.get("weathercode", [])
-                times = hourly.get("time", [])
-                if temps and codes and times:
-                    from datetime import datetime as _dt
-                    seen_days = set()
-                    for i, t in enumerate(times):
-                        if i >= len(temps) or i >= len(codes):
-                            break
-                        dt = _dt.fromisoformat(t.replace("Z", "+00:00"))
-                        day_key = dt.strftime("%m-%d")
-                        if day_key not in seen_days and len(seen_days) < 3:
-                            seen_days.add(day_key)
-                            lines.append(f"  {dt.strftime('%m-%d')}: {_weather_code_to_text(codes[i])}, {temps[i]}°C")
-
-                val = "\n".join(lines)
-            else:
-                val = "  天气查询失败"
+                return self._format_open_meteo(resp.json())
+            return "  天气查询失败"
         except (OSError, ValueError, KeyError, TypeError) as e:
-            val = f"  天气信息暂不可用 ({e})"
-        self._weather_cache = {"value": val, "fetched_at": now}
-        return val
+            return f"  天气信息暂不可用 ({e})"
 
-    def _build_system_prompt(self) -> str:
-        today = date.today()
-        # Weather cache timestamp to include in prompt cache
+    @staticmethod
+    def _format_open_meteo(data: dict) -> str:
+        """把 Open-Meteo 响应整理为「当前 + 未来3天」天气文本。"""
+        current = data.get("current_weather", {})
+        hourly = data.get("hourly", {})
+
+        temp = current.get("temperature", "?")
+        wcode = current.get("weathercode", 0)
+        wtext = _weather_code_to_text(wcode)
+        wind = current.get("windspeed", "?")
+
+        lines = [f"  当前: {wtext}, {temp}°C, 风速{wind}km/h"]
+
+        # 未来3天预报
+        temps = hourly.get("temperature_2m", [])
+        codes = hourly.get("weathercode", [])
+        times = hourly.get("time", [])
+        if temps and codes and times:
+            from datetime import datetime as _dt
+            seen_days = set()
+            for i, t in enumerate(times):
+                if i >= len(temps) or i >= len(codes):
+                    break
+                dt = _dt.fromisoformat(t.replace("Z", "+00:00"))
+                day_key = dt.strftime("%m-%d")
+                if day_key not in seen_days and len(seen_days) < 3:
+                    seen_days.add(day_key)
+                    lines.append(f"  {dt.strftime('%m-%d')}: {_weather_code_to_text(codes[i])}, {temps[i]}°C")
+
+        return "\n".join(lines)
+
+    def _compute_prompt_cache_key(self, today: date) -> tuple:
+        """提示词轻量缓存键：数据形状 + 天气缓存时间戳。"""
         weather_ts = self._weather_cache.get("fetched_at", 0) if hasattr(self, '_weather_cache') else 0
-        # Lightweight cache: skip rebuild if data shape hasn't changed today
-        cache_key = (
+        return (
             today.isoformat(),
             len(self._dm.courses.courses),
             len(self._dm.daily_logs._data.get("plans", {})),
@@ -436,13 +445,9 @@ class AIService(QObject):
             self._dm.expenses.budget.get("monthly", 0),
             int(weather_ts),  # 包含天气缓存时间戳
         )
-        if getattr(self, '_prompt_cache_key', None) == cache_key:
-            return self._prompt_cache_value
 
-        summary = self._dm.get_today_summary()
-        weekday_names = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
-        weekday = weekday_names[today.weekday()]
-
+    def _build_course_list(self, weekday_names: list[str]) -> str:
+        """课程清单（用于系统提示词）。"""
         course_lines = []
         for c in self._dm.courses.courses:
             day = c.get("day_of_week", 0)
@@ -450,16 +455,20 @@ class AIService(QObject):
             weeks = c.get("weeks", {})
             w_str = f"第{weeks.get('start','?')}-{weeks.get('end','?')}周" if weeks else ""
             course_lines.append(f"  - {c.get('name','')} ({day_str} {w_str})")
-        course_list = "\n".join(course_lines) if course_lines else "  （无课程）"
+        return "\n".join(course_lines) if course_lines else "  （无课程）"
 
+    def _build_plan_list(self) -> str:
+        """日程计划清单（最近10天，方括号内为 delete_plan 的 index）。"""
         plan_lines = []
         all_plans = self._dm.daily_logs._data.get("plans", {})
         for day_str in sorted(all_plans.keys())[:10]:
             plans = all_plans[day_str]
             for i, p in enumerate(plans):
                 plan_lines.append(f"  [{i}] {day_str} 时段{p.get('time_slot','?')} — {p.get('title','')} ({p.get('course_name','')})")
-        plan_list = "\n".join(plan_lines) if plan_lines else "  （无日程计划）"
+        return "\n".join(plan_lines) if plan_lines else "  （无日程计划）"
 
+    def _build_balance_info(self) -> str:
+        """余额清单：校园卡/水卡/电费 + DeepSeek API。"""
         balance_lines = []
         for key, label in [("campus_card", "校园卡"), ("water_card", "水卡"), ("electricity", "电费")]:
             bal = self._settings.get("Balance", f"{key}_balance")
@@ -470,11 +479,26 @@ class AIService(QObject):
             else:
                 b = "未设置"
             balance_lines.append(f"  {label}: {b}")
-                # DeepSeek API balance
+        # DeepSeek API balance
         ds_balance = self._fetch_deepseek_balance()
         if ds_balance:
             balance_lines.append(f"  DeepSeek API: {ds_balance}")
-        balance_info = "\n".join(balance_lines)
+        return "\n".join(balance_lines)
+
+    def _build_system_prompt(self) -> str:
+        today = date.today()
+        # Lightweight cache: skip rebuild if data shape hasn't changed today
+        cache_key = self._compute_prompt_cache_key(today)
+        if getattr(self, '_prompt_cache_key', None) == cache_key:
+            return self._prompt_cache_value
+
+        summary = self._dm.get_today_summary()
+        weekday_names = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
+        weekday = weekday_names[today.weekday()]
+
+        course_list = self._build_course_list(weekday_names)
+        plan_list = self._build_plan_list()
+        balance_info = self._build_balance_info()
 
         # 获取天气信息
         weather_info = self._fetch_weather_for_prompt()

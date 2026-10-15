@@ -34,49 +34,72 @@ def load_json(path: Path) -> dict:
         return json.load(f)
 
 
-def get_courses_for_date(courses_data: dict, target: date) -> list[dict]:
-    semesters = courses_data.get("semesters", [])
+def _find_current_semester(courses_data: dict):
+    """按 current_semester id 查找学期记录；未找到返回 None。"""
     current_id = courses_data.get("current_semester", "")
-    semester = None
-    for s in semesters:
+    for s in courses_data.get("semesters", []):
         if s.get("id") == current_id:
-            semester = s
-            break
+            return s
+    return None
+
+
+def _week_number_for(courses_data: dict, target: date) -> int | None:
+    """目标日期属当前学期第几周；学期缺失/尚未开学/超出总周数返回 None。"""
+    semester = _find_current_semester(courses_data)
     if not semester or "start_date" not in semester:
-        return []
+        return None
 
     start = date.fromisoformat(semester["start_date"])
     delta = (target - start).days
     if delta < 0:
-        return []
+        return None
     week_number = delta // 7 + 1
-    total = semester.get("total_weeks", 20)
-    if week_number > total:
-        return []
+    if week_number > semester.get("total_weeks", 20):
+        return None
+    return week_number
 
-    # Holiday check
+
+def _is_off_day(courses_data: dict, target: date) -> bool:
+    """目标日期是否落在假期（holidays.excluded）。"""
     holidays = courses_data.get("holidays", {})
-    target_str = target.isoformat()
-    if target_str in holidays.get("excluded", []):
-        return []
-    makeup = holidays.get("makeup", {})
-    day_of_week = makeup.get(target_str, target.isoweekday())
+    return target.isoformat() in holidays.get("excluded", [])
 
-    result = []
-    for c in courses_data.get("courses", []):
-        if c.get("day_of_week") != day_of_week:
-            continue
-        weeks = c.get("weeks", {})
-        if weeks and (week_number < weeks.get("start", 1) or week_number > weeks.get("end", 20)):
-            continue
-        if week_number in c.get("excluded_weeks", []):
-            continue
-        parity = c.get("week_parity", "all")
-        if parity == "odd" and week_number % 2 == 0:
-            continue
-        if parity == "even" and week_number % 2 == 1:
-            continue
-        result.append(c)
+
+def _effective_day_of_week(courses_data: dict, target: date) -> int:
+    """调休覆盖后的星期几（1=周一 … 7=周日）。"""
+    makeup = courses_data.get("holidays", {}).get("makeup", {})
+    return makeup.get(target.isoformat(), target.isoweekday())
+
+
+def _parity_matches(parity: str, week_number: int) -> bool:
+    """单双周过滤：odd 只上奇数周，even 只上偶数周，其余不限。"""
+    if parity == "odd":
+        return week_number % 2 == 1
+    if parity == "even":
+        return week_number % 2 == 0
+    return True
+
+
+def _course_matches_week(course: dict, week_number: int) -> bool:
+    """课程在指定周是否上课（周次区间 / 排除周 / 单双周）。"""
+    weeks = course.get("weeks", {})
+    if weeks and (week_number < weeks.get("start", 1) or week_number > weeks.get("end", 20)):
+        return False
+    if week_number in course.get("excluded_weeks", []):
+        return False
+    return _parity_matches(course.get("week_parity", "all"), week_number)
+
+
+def get_courses_for_date(courses_data: dict, target: date) -> list[dict]:
+    week_number = _week_number_for(courses_data, target)
+    if week_number is None or _is_off_day(courses_data, target):
+        return []
+
+    day_of_week = _effective_day_of_week(courses_data, target)
+    result = [
+        c for c in courses_data.get("courses", [])
+        if c.get("day_of_week") == day_of_week and _course_matches_week(c, week_number)
+    ]
 
     result.sort(key=lambda c: c.get("time_slots", [{"start": 0}])[0]["start"])
     return result
@@ -215,32 +238,44 @@ def _digest_urgent(pending: list, today) -> list[str]:
         lines.append("  （无即将截止的任务）")
         return lines
     for t in sorted(urgent, key=lambda t: t.get("due_date", "")):
-        due = (t.get("due_date", "") or "")[:10]
-        try:
-            due_dt = date.fromisoformat(due) if due else None
-        except ValueError:
-            due_dt = None
-        days_left = f"（{(due_dt - today).days}天后）" if due_dt and due_dt >= today else "（已过期）"
-        course = t.get("course_name", "") or ""
-        c_str = f" [{course}]" if course else ""
-        lines.append(f"  • {due}: {t.get('title', '')}{c_str} {days_left}")
+        lines.append(_urgent_line(t, today))
     return lines
+
+
+def _urgent_line(t: dict, today) -> str:
+    due = (t.get("due_date", "") or "")[:10]
+    try:
+        due_dt = date.fromisoformat(due) if due else None
+    except ValueError:
+        due_dt = None
+    days_left = f"（{(due_dt - today).days}天后）" if due_dt and due_dt >= today else "（已过期）"
+    course = t.get("course_name", "") or ""
+    c_str = f" [{course}]" if course else ""
+    return f"  • {due}: {t.get('title', '')}{c_str} {days_left}"
+
+
+def _exam_alert_days(t: dict, today) -> int | None:
+    """任务若为考试且临近（14/7/3 天或 ≤3 天），返回剩余天数，否则 None。"""
+    if "考试" not in (t.get("title", "") + " ".join(t.get("tags", []))):
+        return None
+    due_str = (t.get("due_date", "") or "")[:10]
+    if not due_str:
+        return None
+    try:
+        days_left = (date.fromisoformat(due_str) - today).days
+    except ValueError:
+        return None
+    if days_left >= 0 and (days_left in (14, 7, 3) or days_left <= 3):
+        return days_left
+    return None
 
 
 def _digest_exams(pending: list, today) -> list[str]:
     lines = ["", "── 考试提醒 ──"]
     alerts = []
     for t in pending:
-        if "考试" not in (t.get("title", "") + " ".join(t.get("tags", []))):
-            continue
-        due_str = (t.get("due_date", "") or "")[:10]
-        if not due_str:
-            continue
-        try:
-            days_left = (date.fromisoformat(due_str) - today).days
-        except ValueError:
-            continue
-        if days_left >= 0 and (days_left in (14, 7, 3) or days_left <= 3):
+        days_left = _exam_alert_days(t, today)
+        if days_left is not None:
             alerts.append((days_left, t))
     if not alerts:
         lines.append("  （近期无考试）")
@@ -279,21 +314,29 @@ def _digest_balance(data_dir: Path) -> list[str]:
         return []
 
 
+def _records_on(expenses: dict, day: str, prefix_len: int) -> list[dict]:
+    """取 records 中 date 前缀匹配的条目（prefix_len=10 按天，=7 按月）。"""
+    return [r for r in expenses.get("records", [])
+            if (r.get("date", "") or "")[:prefix_len] == day[:prefix_len]]
+
+
+def _expense_lines(today_records: list, month_records: list, expenses: dict) -> list[str]:
+    budget = expenses.get("budget", {}).get("monthly", 0)
+    budget_str = f" / 预算 ¥{budget:.0f}" if budget else ""
+    return [
+        "", "── 支出 ──",
+        f"  今日: ¥{sum(r.get('amount', 0) for r in today_records):.1f}（{len(today_records)}笔）",
+        f"  本月: ¥{sum(r.get('amount', 0) for r in month_records):.1f}{budget_str}",
+    ]
+
+
 def _digest_expenses(data_dir: Path, today_str: str) -> list[str]:
     try:
         expenses = load_json(data_dir / "expenses.json")
-        records = expenses.get("records", [])
-        today_records = [r for r in records if (r.get("date", "") or "")[:10] == today_str]
+        today_records = _records_on(expenses, today_str, 10)
         if not today_records:
             return []
-        month_records = [r for r in records if (r.get("date", "") or "")[:7] == today_str[:7]]
-        budget = expenses.get("budget", {}).get("monthly", 0)
-        budget_str = f" / 预算 ¥{budget:.0f}" if budget else ""
-        return [
-            "", "── 支出 ──",
-            f"  今日: ¥{sum(r.get('amount', 0) for r in today_records):.1f}（{len(today_records)}笔）",
-            f"  本月: ¥{sum(r.get('amount', 0) for r in month_records):.1f}{budget_str}",
-        ]
+        return _expense_lines(today_records, _records_on(expenses, today_str, 7), expenses)
     except Exception:
         logger.debug("_digest_expenses 中忽略异常", exc_info=True)
         return []

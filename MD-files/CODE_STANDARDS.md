@@ -79,7 +79,8 @@
 **Q-C1 圈复杂度 ≤ 10（B 级）**
 - 阈值：**≤ 10（B 级，采用 radon 默认分档；2026-10-15 定）**。
 - 检查：`radon cc -n C -s src scripts`。
-- 现状：`✗` **34 个函数 ≥ C**（平均仅 A/3.52）。最差：`send_digest.build_digest`(75,F)、`schedule_view._refresh`(60,F)、`_build_snapshot`(37,E)；C(15–17) 11 个。见 `dev-logs/2026-10-15-现状基线.md`。
+- 现状：`✔` 2026-10-16：**`radon cc -n C` 为空**（所有函数 ≤ B 级）；全局平均复杂度 A。
+  拆分中抽出约 40 个语义化辅助函数；期间发现并修复 1 个真实崩溃（见 dev-log）。
 
 **Q-C2 主线程禁止阻塞**（网络/IO/大循环）
 - 现状：`✗` `ai_service._fetch_deepseek_balance()` / `_fetch_weather_for_prompt()` 在发送路径同步请求。
