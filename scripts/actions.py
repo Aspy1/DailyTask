@@ -467,7 +467,7 @@ def cmd_add_item(args) -> None:
     data = load("inventory.json")
     data.setdefault("items", [])
     iid = gen_id(data["items"], "i")
-    qty = args.quantity or 1
+    qty = 1 if args.quantity is None else args.quantity
     item = {"id": iid, "name": args.name, "category": args.category or "其他",
             "group": args.group or "",
             "quantity": qty, "unit": "件",
@@ -758,7 +758,9 @@ def main() -> None:
     p = sub.add_parser("add_item", help="添加物品")
     p.add_argument("--name", required=True)
     p.add_argument("--category", default="其他")
-    p.add_argument("--quantity", type=int, default=1)
+    # default=None：必须能区分「没传」与「--quantity 0（已用完）」，
+    # 否则 `or 1` 会把 0 当成缺省值记为 1 件（ERRORS #027）
+    p.add_argument("--quantity", type=int, default=None)
     p.add_argument("--min_qty", type=int, default=1)
     p.add_argument("--location")
     p.add_argument("--notes")
@@ -777,6 +779,10 @@ def main() -> None:
     p.add_argument("--min_qty", type=int)
     p.add_argument("--location")
     p.add_argument("--tags")
+
+    # delete_item
+    p = sub.add_parser("delete_item", help="删除物品")
+    p.add_argument("--id", required=True)
 
     # need_restock
     sub.add_parser("need_restock", help="查看需购物品")

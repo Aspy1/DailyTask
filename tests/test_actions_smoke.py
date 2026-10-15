@@ -9,7 +9,6 @@
 
 from datetime import date
 
-import pytest
 from helpers import read_json, run
 
 # ── 作业 ────────────────────────────────────────────────────
@@ -148,12 +147,18 @@ def test_add_update_delete_item(sandbox) -> None:
 def test_add_item_quantity_zero_marks_restock(sandbox) -> None:
     """--quantity 0（已用完）应记为需购。
 
-    已知缺陷：cmd_add_item 用 `args.quantity or 1`，把 0 当缺省值 → 记为 1 件充足。
+    回归：cmd_add_item 原用 `args.quantity or 1`，把 0 当缺省值 → 记为 1 件充足。
     """
-    pytest.xfail("cmd_add_item 的 `args.quantity or 1` 把 --quantity 0 当成缺省值 1（待修）")
     run('python scripts/actions.py add_item --name "洗衣液" --quantity 0')
     it = read_json(sandbox, "inventory.json")["items"][0]
     assert it["quantity"] == 0 and it["status"] == "需购"
+
+
+def test_add_item_without_quantity_defaults_to_one(sandbox) -> None:
+    """不传 --quantity 时仍默认 1 件（不能因为区分 0 而变成 0 或缺值）。"""
+    run('python scripts/actions.py add_item --name "洗发水"')
+    it = read_json(sandbox, "inventory.json")["items"][0]
+    assert it["quantity"] == 1 and it["status"] == "充足"
 
 
 def test_need_restock_and_lookup(sandbox) -> None:

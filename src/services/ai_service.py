@@ -52,10 +52,10 @@ python scripts/actions.py add_habit --name "习惯" --schedule "daily/1" [--dura
 python scripts/actions.py log_habit --id "h_001"
 python scripts/actions.py add_plan --date "YYYY-MM-DD" --title "标题" --slot 3
 python scripts/actions.py replace_plans --date "YYYY-MM-DD" --plans '[{"title":"标题","time_slot":3}]'
+python scripts/actions.py delete_plan --date "YYYY-MM-DD" --index 0
 python scripts/actions.py add_course --name "课程" --day 1 --weeks "1-16" --slots "3-4"
-python scripts/actions.py query_weather  # 查询天气（返回JSON）
-python scripts/actions.py query_balance  # 查询DeepSeek余额（返回JSON）
-python scripts/actions.py weather_stats  # 天气API调用统计（返回JSON）
+python scripts/actions.py delete_course --id "c_001"
+python scripts/actions.py status  # 今日概览（课/任务/习惯/支出）
 ```
 
 schedule格式: daily/N, weekly/1,3,5, monthly/N。day: 1=周一...7=周日。
@@ -86,9 +86,9 @@ python scripts/actions.py need_restock
 6. 提醒类 → add_plan
 7. 移动/拿到/放到/挪到 → update_item --location
 8. 删除/丢掉/扔掉/不要了 → delete_item
-9. 天气/气温/多少度/下雨/晴天 → query_weather
-10. 余额/剩余/还剩/额度/多少钱 → query_balance
-11. 调用次数/统计/用了多少次 → weather_stats
+9. 天气/气温/多少度/下雨/晴天 → 直接用下文「天气」段回答，**不要调用脚本**
+10. 余额/剩余/还剩/额度/多少钱 → 直接用下文「余额」段回答，**不要调用脚本**
+11. 概览/统计/今天有什么/还有多少 → status
 
 ## 天气与日程规划
 - 规划日程时参考天气预报。若当天有雨（weathercode 51-67, 80-82, 95-99），在相关日程备注中提醒"记得带伞"

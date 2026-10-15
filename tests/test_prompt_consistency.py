@@ -1,10 +1,16 @@
 """一致性测试：SYSTEM_PROMPT_BASE 宣传的命令必须真的可执行。
 
-防止 "prompt ↔ actions.py 漂移"：prompt 里让 AI 调用的每条命令，
-都必须在 actions.py 有对应的内存执行 handler；有 handler 的命令
-也必须在 CLI（main 的 subparser）里能调用。
+防止 "prompt ↔ actions.py 漂移"，**双向**把关：
 
-已知缺口用 xfail 标注（非 strict），修复后会自动变为 XPASS。
+1. prompt 里让 AI 调用的每条命令，都必须在 actions.py 有内存执行 handler，
+   且 CLI（main 的 subparser）里也能调用；
+2. 反过来，每个已实现的 handler 也必须出现在 prompt 里 —— 否则 AI 永远
+   不会用这条命令（有实现等于没实现）。
+
+历史缺口（现已修复，见 dev-logs/2026-10-16-功能可用性排查.md）：
+prompt 曾宣传不存在的 query_weather / query_balance / weather_stats；
+delete_item 有 handler 却漏注册 subparser；delete_course / delete_plan / status
+有实现但没写进 prompt。
 """
 
 import re
@@ -25,12 +31,6 @@ IMPLEMENTED = [
     "status",
 ]
 
-# 缺口 1：prompt 宣传，但 run_in_process 无 handler（AI 调用会静默返回 ERROR）。
-KNOWN_MISSING_HANDLERS = {"query_weather", "query_balance", "weather_stats"}
-
-# 缺口 2：有 handler，但 main() 未注册 subparser（`python scripts/actions.py delete_item` 会 argparse 报错）。
-KNOWN_MISSING_SUBPARSER = {"delete_item"}
-
 
 def test_prompt_still_advertises_core_commands() -> None:
     assert {"add_task", "add_item", "lookup_item"} <= set(ADVERTISED)
@@ -38,16 +38,12 @@ def test_prompt_still_advertises_core_commands() -> None:
 
 @pytest.mark.parametrize("cmd", ADVERTISED)
 def test_advertised_command_is_executable(sandbox, cmd) -> None:
-    if cmd in KNOWN_MISSING_HANDLERS:
-        pytest.xfail(f"'{cmd}' 在 SYSTEM_PROMPT_BASE 中宣传，但 actions.run_in_process 无 handler")
     out = actions.run_in_process(f"python scripts/actions.py {cmd}")
     assert "unknown action" not in out.lower(), out
 
 
 @pytest.mark.parametrize("cmd", IMPLEMENTED)
 def test_cli_subparser_exists(capsys, monkeypatch, sandbox, cmd) -> None:
-    if cmd in KNOWN_MISSING_SUBPARSER:
-        pytest.xfail(f"'{cmd}' 有 handler 但 main() 未注册 subparser")
     monkeypatch.setattr(sys, "argv", ["actions.py", cmd])
     try:
         actions.main()
@@ -56,3 +52,19 @@ def test_cli_subparser_exists(capsys, monkeypatch, sandbox, cmd) -> None:
         # 只有 "invalid choice" 才说明 subparser 缺失。
         err = capsys.readouterr().err
         assert "invalid choice" not in err, err
+
+
+@pytest.mark.parametrize("cmd", IMPLEMENTED)
+def test_every_implemented_command_is_advertised(cmd) -> None:
+    """有 handler 就必须写进 prompt，否则 AI 无从得知这条命令存在。"""
+    assert cmd in ADVERTISED, f"{cmd} 已实现但 AI 提示词未宣传"
+
+
+def test_implemented_list_matches_handlers() -> None:
+    """IMPLEMENTED 常量自身不得漂移（rc：handlers 字典的键）。"""
+    from pathlib import Path
+
+    source = Path(actions.__file__).read_text(encoding="utf-8")
+    handlers = set(re.findall(r'"([a-z_]+)": cmd_', source))
+    assert handlers == set(IMPLEMENTED), handlers ^ set(IMPLEMENTED)
+
