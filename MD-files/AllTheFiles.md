@@ -50,6 +50,18 @@
 
 > 图例：✓ = 已写文档  |  【已审】 = 用户审核通过  |  无标记 = 骨架待补
 
+> 【2026-10-15 新增】依赖声明与测试基础设施（venv / requirements / pytest）
+├── pyproject.toml                  # requires-python + pytest 配置
+├── requirements.txt                # 运行时依赖（区间）
+├── requirements-dev.txt            # 开发/测试依赖
+├── requirements.lock.txt           # 精确锁定版本
+├── tests/
+│   ├── conftest.py                 # sys.path + sandbox fixture
+│   ├── helpers.py                  # run / read_json
+│   ├── test_actions_smoke.py       # actions.py 命令冒烟
+│   └── test_prompt_consistency.py  # prompt↔actions 一致性
+> 【以下为原有内容】
+
 ├── src/
 │   ├── [app.py](#apppy)            # ✓ 【已审】 应用入口 · 托盘 · 单实例
 │   ├── models/

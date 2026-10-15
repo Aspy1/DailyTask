@@ -14,6 +14,23 @@ AI 驱动的 PySide6 桌面日程管理应用。自然语言交互管理课程�
 | 插件 | 延迟加载，面板注册 API |
 | 移动端 | TG bot 通过 Hermes Gateway 直连 data/ 目录，零同步 |
 
+## 开发环境
+
+```powershell
+# 1. 创建虚拟环境（需 Python >= 3.12，见 pyproject.toml）
+python -m venv .venv
+
+# 2. 安装依赖
+.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+
+# 3. 运行测试
+.venv\Scripts\python.exe -m pytest
+```
+
+- 依赖声明：`requirements.txt`（直接依赖，兼容区间）→ `requirements.lock.txt`（精确锁定，用于复现）
+- 复现环境：`.venv\Scripts\python.exe -m pip install -r requirements.lock.txt`
+- 启动：`.venv\Scripts\python.exe main.py`
+
 ## 项目结构
 
 ```
@@ -21,6 +38,10 @@ AI 驱动的 PySide6 桌面日程管理应用。自然语言交互管理课程�
 ├── AGENTS.md                       # AI Agent 开发约束
 ├── ERRORS.md                       # 已踩坑索引
 ├── README.md
+├── pyproject.toml                  # requires-python + pytest 配置
+├── requirements.txt                # 运行时依赖（区间）
+├── requirements-dev.txt            # 开发/测试依赖
+├── requirements.lock.txt           # 精确锁定版本
 ├── src/
 │   ├── app.py                      # 应用入口 · 托盘 · 单实例
 │   ├── models/                     # 数据模型 (7 models)
@@ -65,6 +86,9 @@ AI 驱动的 PySide6 桌面日程管理应用。自然语言交互管理课程�
 │   ├── actions.py                  # 统一数据操作 (15 命令 + 内存调用)
 │   ├── build_index.py              # 模糊搜索索引
 │   └── send_digest.py              # GitHub Actions 邮件摘要
+├── tests/                          # pytest 测试
+│   ├── test_actions_smoke.py       #   actions.py 命令冒烟
+│   └── test_prompt_consistency.py  #   prompt↔actions 一致性
 ├── MD-files/                       # ATF 文档体系
 │   ├── AllTheFiles.md              #   全局索引
 │   ├── FORMAT_SPEC.md              #   格式规范

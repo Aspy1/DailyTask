@@ -1,0 +1,13 @@
+# 工具配置。
+# 运行时依赖的唯一来源是 requirements.txt（此处不重复声明，避免双份真值）。
+# 完整可复现版本见 requirements.lock.txt。
+
+[project]
+name = "life-assistant"
+version = "0.9.0"
+description = "AI 驱动的 PySide6 桌面日程管理应用"
+requires-python = ">=3.12"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
