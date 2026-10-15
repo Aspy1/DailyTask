@@ -1,16 +1,19 @@
-# CODE_STANDARDS.md — 代码质量规范（可检查）
+# CODE_STANDARDS.md — 代码与工程规范（定稿 v1.0）
 
-> **定位**：本项目"优雅 / 行之有效 / 安全"的**规范性语句**集合，供**回头检查**与将来的自动检查器使用。
-> 与其它文档的分工：
+> **定位**：本项目"优雅 / 行之有效 / 安全"的**规范性语句**集合，是**回头检查**与自动检查器的依据。
+> 2026-10-15 定稿。后续只在有充分理由时增量修订，修订需在 `PLAN.md` 登记。
+>
+> 文档分工：
 > - `AGENTS.md` —— 流程、工作区、环境、DoD（每次操作都读）
-> - **本文件** —— 代码本身应满足的规范（写代码/审查/重构时读）
+> - **本文件** —— 代码与工程规范（写代码 / 审查 / 重构时读）
 > - `MD-files/ARCHITECTURE.md`（待建）—— 项目如何运作
 > - `ERRORS.md` —— 已踩的具体坑
-> - `PLAN.md` —— 待做的整改项
+> - `PLAN.md` —— 待做的整改项与体检结果
 >
-> **本文件会逐步补充**（开源社区对"如何写好软件"的共识很多，此处只是第一批）。
 > 每条格式：**规则 → 为什么 → 如何检查 → 现状**。
-> `现状` 标注：`✔ 达标` / `✗ 违规（见 PLAN）` / `? 未核查`
+> `现状`：`✔ 达标` / `✗ 违规（见 PLAN）` / `? 未核查`。
+> 章节：**A** 结构分层 · **B** 线程并发 · **C** 复杂度资源 · **D** 日志调试 · **E** 安全数据 ·
+> **F** 测试 · **G** 文档 · **H** UI 与令牌 · **I** 异常处理 · **N** 命名约定 · **P** 目录结构。
 
 ---
 
@@ -110,6 +113,13 @@
 
 **Q-E3 外部输入必须校验**（AI 生成命令、JSON 导入、插件）
 
+**Q-E4 数据 schema 与迁移**：每个 `data/*.json` 的 `_version` 与 `migrate()` 必须有测试；
+字段变更必须提供向后兼容或迁移路径（跨端共写：桌面 + TG + GitHub Actions）
+- 现状：`?` `models/base.py` 有迁移框架骨架，但无迁移测试。
+
+**Q-E5 版本号单一来源**：以 `pyproject.toml` 的 `version` 为准，`i18n` / `README` / 发行包名由其派生
+- 现状：`✗` 曾出现 `app.version` 0.3.0 与 README v0.9.0 不一致（已临时对齐，尚未做到派生）。
+
 ## F. 测试与可验证性
 
 **Q-F1 新增/修改行为必须有测试**（见 `AGENTS.md` DoD）
@@ -128,6 +138,14 @@
 **Q-G2 文档必须可校验，或明确标注 `*（待补）*`**；禁止"参见源码"式占位
 - 现状：`✗` `task.py.md` 等为批量骨架。
 
+**Q-G3 文档体系固定为**：`AGENTS.md`（流程/环境）· `PLAN.md`（计划与体检）· `CODE_STANDARDS.md`（规范）·
+`ARCHITECTURE.md`（运作原理）· `ERRORS.md`（坑）· `dev-logs/`（变更史）· `README.md`（概览）。
+**不再维护逐文件 `.py.md`**
+- 现状：`✗` 34 份 `.py.md` 待 `git rm`（见 PLAN A-1）。
+
+**Q-G4 单一真值**：同一事实只允许一处权威来源；文档与代码冲突时以**代码**为准并立即修文档
+- 现状：`✗` `DESIGN_TOKENS.md`(规格) 与 `theme.py`(实现) 漂移；根 `ERRORS.md` 与 `MD-files/ERRORS.md` 重复。
+
 ## H. UI 与设计令牌
 
 **Q-H1 颜色 / 字号 / 间距 / 圆角一律走 token，禁止字面量**（`#hex`、`rgb()/rgba()`、`Npx`、`QFont(..., int)`）
@@ -137,8 +155,18 @@
 **Q-H2 令牌单一真值**：规格文档由令牌文件**生成**，禁止规格与实现两份手写
 - 现状：`✗` `DESIGN_TOKENS.md` 与 `theme.py:TOKENS` 已漂移。
 
-**Q-H3 令牌命名统一前缀/后缀**：`<domain>_<property>[_<state>]`，同用途必须同前缀（色 `bg_/fg_/border_/accent_/state_/btn_/badge_/nav_/card_/input_`；尺寸 `space_/radius_/size_/icon_/dur_`）
-- 现状：`✗` 混入 `red/green/yellow/orange` 等原始色名、`badge_radius` 混进颜色字典。
+**Q-H3 令牌命名：`<domain>_<variant>_<property>_<state>`，各槽取受控词表**
+
+| 槽 | 取值（受控） |
+|---|---|
+| `domain` | `bg` `fg` `border` `divider` `accent` `state` `btn` `badge` `nav` `card` `input` `chip` `icon` `space` `radius` `size` `dur` `ease` `shadow` |
+| `variant` | 组件变体：`primary` `secondary` `ghost` `danger` `success` `warning` `info` `subtle` |
+| `property` | `bg` `fg` `border` `fill` `radius` `size` `duration` … |
+| `state` | `hover` `active` `pressed` `disabled` `selected` `on`（如 `fg_on_accent`） |
+
+- 示例：`bg_card`、`fg_primary`、`state_danger_subtle`、`btn_primary_bg_hover`、`nav_selected_fg`、`fg_on_accent`
+- 禁止用原始色名当令牌名（`red`/`green`/`yellow`）；禁止把尺寸混进颜色集（如 `badge_radius`）
+- 现状：`✗` 现存 `red/green/yellow/orange`、`badge_radius` 等违反。
 
 **Q-H4 QSS 选择器仅 `#objectName`，禁止类名选择器**（= R-008）
 - 现状：`✗` `habit_panel.py:54/58` 的 `_HabitCard { … }`。
@@ -146,6 +174,25 @@
 **Q-H5 颜色必须属于主题 token 集合**（禁止 `settings_panel.py:296/299` 那种非主题色）
 
 **Q-H6 视觉克制**：accent 像素面积 < 5%；禁止第四种色相、纯黑/纯白（人工核对）
+
+**Q-H7 令牌分三层**：`palette`（原始色板）→ `semantic`（角色：bg/fg/border/state）→ `component`（btn/badge/nav/card/input）
+- 组件层只允许引用 `semantic` / `component`，**禁止直接引用 `palette`**
+
+**Q-H8 令牌文件与生成链**：`src/ui/styles/tokens.json`（唯一真值）→ `theme.py` 加载并生成 QSS →
+`MD-files/DESIGN_TOKENS.md` 由脚本生成；组件经 `get_colors()` 取 `semantic` / `component` 名
+- 现状：`✗` 真值目前是 `theme.py` 里的 Python 字面量，且规格文档手写。
+
+## I. 异常与错误处理
+
+**Q-I1 禁止盲捕获**：`except Exception` / 裸 `except:` 必须收窄到具体异常，或在捕获后重新抛出/记录
+- 为什么：盲捕获把 `AttributeError`、`KeyError` 这类真 bug 伪装成正常流程。
+- 检查：`ruff --select BLE001`。
+- 现状：`✗` `BLE001` **50 处**。
+
+**Q-I2 禁止静默吞异常**：`except ...: pass` 必须改为 `logger.debug/warning(..., exc_info=True)`，或注释说明为何可忽略
+- 为什么：静默吞异常是"AI 说做了、实际没做"这类故障的温床。
+- 检查：`ruff --select S110`。
+- 现状：`✗` `S110` **24 处**。
 
 ## N. 命名约定
 
@@ -156,3 +203,28 @@
 **Q-N3 槽命名** `_on_<信号源>_<事件>`
 
 **Q-N4 文件与主类同名**（如 `habit_panel.py` ↔ `HabitPanel`）
+
+**Q-N5 i18n key 命名空间**：`<area>.<subarea>.<name>`（如 `panel.task.title`、`dialog.course.edit`、`tray.exit`）；
+UI 显示文本必须经 `tr()` 取得，禁止硬编码中文
+- 现状：`✗` `zh-CN.json` 为扁平键；全项目仅约 47 处 `tr()` 调用。
+
+**Q-N6 资源与图形命名**：图标 `ic_<name>_<size>`（如 `ic_add_16`）；图片 `img_<name>`；统一放 `resources/`
+- 现状：`✗` 根目录 `image.png` 未归位。
+
+**Q-N7 信号事件后缀受控**：`_changed`（数据变更）· `_requested`（用户意图）· `_ready`（异步就绪）·
+`_failed`（失败）· `_finished`（结束）
+- 现状：`?` 现有 `ddl_alert`（名词）、`reminder_notify`（动词）等不符约定；**新信号按本约定命名**，旧的逐步迁移。
+
+## P. 目录与文件结构
+
+**Q-P1 顶层目录白名单**：`src/ scripts/ tests/ plugins/ data/ resources/ MD-files/ dev-logs/ .github/`
++ 约定根文件（`main.py` `AGENTS.md` `README.md` `PLAN.md` `ERRORS.md` `pyproject.toml` `requirements*.txt` `.gitignore`）；
+新增顶层目录必须同步 `AllTheFiles.md` / `README.md` / 本文件
+- 现状：`✗` `resources/` 尚不存在，`image.png` 落在根目录。
+
+**Q-P2 `data/` 是用户数据（含密钥），永不进发行版；`resources/` 是运行时资源**
+
+**Q-P3 `src/` 分层目录固定**：`models/` `services/` `ui/{components,panels,widgets,styles}/` `i18n/`
+
+**Q-P4 发行版目录**：`dist/LifeAssistant-<version>-win64/`；包含 入口/打包产物/`resources/`/`plugins/`/README；
+排除 `data/` `.venv/` `.git/` `MD-files/` `dev-logs/` `tests/` `PLAN.md` `AGENTS.md`
