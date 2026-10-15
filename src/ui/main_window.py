@@ -1,5 +1,7 @@
 """Main window — sidebar + content area layout (warm-paper design)."""
 
+import logging
+
 from datetime import date, datetime, time
 
 from PySide6.QtCore import Qt, QTimer, Signal
@@ -21,6 +23,9 @@ from src.ui.components.main_workspace import MainWorkspace
 from src.ui.components.click_label import ClickLabel
 from src.ui.components.sidebar import Sidebar
 from src.ui.components.ai_panel import AIPanel
+
+
+logger = logging.getLogger(__name__)
 
 
 class MainWindow(QMainWindow):
@@ -161,12 +166,12 @@ class MainWindow(QMainWindow):
         try:
             self._ai_panel.refresh_theme()
         except Exception:
-            pass
+            logger.debug("MainWindow._switch_theme 中忽略异常", exc_info=True)
         try:
             if hasattr(self, "_workspace") and hasattr(self._workspace, "refresh_theme"):
                 self._workspace.refresh_theme()
         except Exception:
-            pass
+            logger.debug("MainWindow._switch_theme 中忽略异常", exc_info=True)
 
     def _show_about(self) -> None:
         from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout
@@ -388,7 +393,7 @@ class MainWindow(QMainWindow):
                 total = semester.get("total_weeks", "?")
                 week_str = f"第{week}/{total}周 "
             except (KeyError, ValueError):
-                pass
+                logger.debug("MainWindow._update_date 中忽略异常", exc_info=True)
         day_names = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
         self._date_label.setText(
             f"{week_str}{day_names[now.weekday()]} {now.strftime('%H:%M')}  |  {date.today().isoformat()}")
@@ -787,5 +792,5 @@ class WeatherDetailDialog(QDialog):
             self._ws.weather_updated.disconnect(self._update_content)
             self._ws.forecast_updated.disconnect(self._update_content)
         except RuntimeError:
-            pass
+            logger.debug("WeatherDetailDialog.closeEvent 中忽略异常", exc_info=True)
         super().closeEvent(event)

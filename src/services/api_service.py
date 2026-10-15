@@ -27,7 +27,8 @@ class _ApiWorker(QThread):
             else:
                 result = {"error": f"Unknown API type: {self._api_type}"}
             self.finished.emit(result)
-        except Exception as e:
+        # 边界捕获：本层已处理/记录，不允许异常向上逃逸（CODE_STANDARDS Q-I1）
+        except Exception as e:  # noqa: BLE001
             self.error.emit(str(e))
 
 
@@ -195,12 +196,12 @@ class ApiService(QObject):
         """同步获取天气（用于测试）"""
         try:
             return _fetch_weather_sync(lat, lon)
-        except Exception as e:
+        except (OSError, ValueError, KeyError, TypeError) as e:
             return {"error": str(e)}
 
     def get_balance_sync(self, api_key: str) -> dict[str, Any]:
         """同步获取余额（用于测试）"""
         try:
             return _fetch_deepseek_balance_sync(api_key)
-        except Exception as e:
+        except (OSError, ValueError, KeyError, TypeError) as e:
             return {"error": str(e)}

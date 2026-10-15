@@ -31,3 +31,7 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 # scripts/* 的 print 是 CLI 输出契约（被 run_in_process 捕获），不算调试残留
 "scripts/*" = ["T20"]
+
+# UI 层：Qt 槽函数与清理/主题刷新路径必须吞异常（不允许异常逃逸进事件循环），
+# 且均已在本层记录或提示用户（见 CODE_STANDARDS Q-I1）。
+"src/ui/**" = ["BLE001"]

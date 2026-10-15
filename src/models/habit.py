@@ -1,5 +1,7 @@
 """Habit tracking data model with attached tasks."""
 
+import logging
+
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -16,6 +18,9 @@ DEFAULT_HABITS = {
     "attached_task_templates": [],
     "logs": {},
 }
+
+
+logger = logging.getLogger(__name__)
 
 
 class HabitModel(BaseJsonModel):
@@ -136,7 +141,7 @@ class HabitModel(BaseJsonModel):
                         return False
                     return delta % schedule.get("value", 1) == 0
                 except (ValueError, TypeError):
-                    pass
+                    logger.debug("HabitModel.is_active_today 中忽略异常", exc_info=True)
             return True
         else:
             # daily — always active

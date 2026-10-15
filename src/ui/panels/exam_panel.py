@@ -1,5 +1,7 @@
 """Exam panel — card-style list with countdown highlights."""
 
+import logging
+
 from datetime import date, datetime, timedelta
 
 from PySide6.QtCore import Qt
@@ -12,6 +14,9 @@ from PySide6.QtGui import QFont
 
 from src.services.data_manager import DataManager
 from src.ui.styles.theme import get_colors, FONT_CN, SIZE_SUBTITLE
+
+
+logger = logging.getLogger(__name__)
 
 
 class _ExamCard(QWidget):
@@ -180,7 +185,7 @@ class ExamPanel(QWidget):
             try:
                 days_left = (date.fromisoformat(exam_date) - today).days
             except (ValueError, TypeError):
-                pass
+                logger.debug("ExamPanel._refresh 中忽略异常", exc_info=True)
 
             card = _ExamCard(e, days_left)
             card.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)

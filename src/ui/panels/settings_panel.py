@@ -1,5 +1,7 @@
 """Settings panel — theme-aware card grouping."""
 
+import logging
+
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QFrame,
@@ -32,6 +34,9 @@ PROVIDERS = {
         "key_url": "https://console.anthropic.com",
     },
 }
+
+
+logger = logging.getLogger(__name__)
 
 
 class SettingsPanel(QWidget):
@@ -628,7 +633,7 @@ class SettingsPanel(QWidget):
             self._open_plugin_windows.append(widget)
             widget.destroyed.connect(lambda _, w=widget: self._open_plugin_windows.remove(w) if w in self._open_plugin_windows else None)
         except Exception:
-            pass
+            logger.debug("SettingsPanel._open_plugin 中忽略异常", exc_info=True)
         widget.show()
 
     def _toggle_plugin(self, plugin_name: str, enable: bool) -> None:
@@ -647,18 +652,18 @@ class SettingsPanel(QWidget):
             for le in self.findChildren(QLineEdit):
                 le.setStyleSheet(self._input_qss())
         except Exception:
-            pass
+            logger.debug("SettingsPanel.refresh_theme 中忽略异常", exc_info=True)
         try:
             for cb in self.findChildren(QComboBox):
                 cb.setStyleSheet(self._combo_qss())
         except Exception:
-            pass
+            logger.debug("SettingsPanel.refresh_theme 中忽略异常", exc_info=True)
         try:
             # refresh plugin list styling
             if self._plugin_manager is not None:
                 self._refresh_plugins()
         except Exception:
-            pass
+            logger.debug("SettingsPanel.refresh_theme 中忽略异常", exc_info=True)
 
     # ── Balance card ───────────────────────────────────────
 

@@ -1,5 +1,7 @@
 """Daily schedule view — courses, plans, habits by time slot with right-click menu."""
 
+import logging
+
 from datetime import date, datetime, timedelta
 import shutil, os as _os
 
@@ -16,6 +18,9 @@ from src.services.data_manager import DataManager
 from src.ui.styles.theme import get_colors, FONT_CN, SIZE_SUBTITLE
 from src.ui.components.click_label import ClickLabel
 
+
+
+logger = logging.getLogger(__name__)
 
 
 class ScheduleView(QWidget):
@@ -633,7 +638,7 @@ class ScheduleView(QWidget):
         try:
             self._refresh()
         except Exception:
-            pass
+            logger.debug("ScheduleView.refresh_theme 中忽略异常", exc_info=True)
 
     # ── Right-click menus ──────────────────────────────────
 
@@ -673,7 +678,7 @@ class ScheduleView(QWidget):
             if target.date() > datetime.now().date():
                 default = target
         except ValueError:
-            pass
+            logger.debug("ScheduleView._add_email_reminder_dialog 中忽略异常", exc_info=True)
         dt.setDateTime(default)
         dt.setDisplayFormat("yyyy-MM-dd HH:mm")
         layout.addWidget(dt)

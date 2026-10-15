@@ -108,12 +108,14 @@ class PluginManager:
             if hasattr(mod, "register") and callable(mod.register):
                 try:
                     mod.register(_API())
-                except Exception:
+                # 边界捕获：本层已处理/记录，不允许异常向上逃逸（CODE_STANDARDS Q-I1）
+                except Exception:  # noqa: BLE001
                     regs.append(("<load error>", lambda *a, **k: None))
             if regs:
                 self.panels[plugin_name] = regs
             return regs
-        except Exception:
+        # 边界捕获：本层已处理/记录，不允许异常向上逃逸（CODE_STANDARDS Q-I1）
+        except Exception:  # noqa: BLE001
             return []
 
     def is_enabled(self, plugin_name: str) -> bool:
@@ -135,7 +137,8 @@ class PluginManager:
             p.enabled = True
             self.load_plugins()
             return True
-        except Exception:
+        # 边界捕获：本层已处理/记录，不允许异常向上逃逸（CODE_STANDARDS Q-I1）
+        except Exception:  # noqa: BLE001
             return False
 
     def disable(self, plugin_name: str) -> bool:
@@ -152,7 +155,8 @@ class PluginManager:
             p.enabled = False
             self.load_plugins()
             return True
-        except Exception:
+        # 边界捕获：第三方/外部（插件代码、SMTP）异常不外逃（CODE_STANDARDS Q-I1）
+        except Exception:  # noqa: BLE001
             return False
 
     def get_panels(self, plugin_name: str):
@@ -167,6 +171,7 @@ class PluginManager:
             if disp == display_name:
                 try:
                     return factory(settings, ai_service, data_manager, parent)
-                except Exception:
+                # 边界捕获：第三方/外部（插件代码、SMTP）异常不外逃（CODE_STANDARDS Q-I1）
+                except Exception:  # noqa: BLE001
                     return None
         return None

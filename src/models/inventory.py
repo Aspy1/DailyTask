@@ -1,5 +1,7 @@
 """Inventory model — personal item library."""
 
+import logging
+
 from datetime import datetime
 from pathlib import Path
 
@@ -10,6 +12,9 @@ DEFAULT_INVENTORY = {
     "items": [],
     "categories": ["日常消耗品", "数码电子", "衣物", "虚拟品类", "其他"],
 }
+
+
+logger = logging.getLogger(__name__)
 
 
 class InventoryModel(BaseJsonModel):
@@ -37,7 +42,7 @@ class InventoryModel(BaseJsonModel):
                 num = int(it["id"].split("_")[1])
                 existing.add(num)
             except (KeyError, ValueError):
-                pass
+                logger.debug("InventoryModel.add_item 中忽略异常", exc_info=True)
         n = 1
         while n in existing:
             n += 1

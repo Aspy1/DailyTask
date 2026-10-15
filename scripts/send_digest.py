@@ -6,6 +6,8 @@ Config via environment variables / GitHub Secrets:
   DATA_DIR — path to data/ directory (default: ./data)
 """
 
+import logging
+
 import json
 import os
 import smtplib
@@ -23,6 +25,9 @@ PERIOD_TIMES = [
 ]
 
 WEEKDAY_NAMES = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
+
+
+logger = logging.getLogger(__name__)
 
 
 def load_json(path: Path) -> dict:
@@ -104,7 +109,7 @@ def is_habit_active_today(habit: dict, today: date) -> bool:
                     return False
                 return delta % schedule.get("value", 1) == 0
             except (ValueError, TypeError):
-                pass
+                logger.debug("is_habit_active_today 中忽略异常", exc_info=True)
         return True
 
 
@@ -250,13 +255,13 @@ def build_digest(data_dir: Path) -> str:
                         s += f" ⚠ 低于阈值 {t:.0f} 元"
                     bal_lines.append(s)
                 except ValueError:
-                    pass
+                    logger.debug("build_digest 中忽略异常", exc_info=True)
         if bal_lines:
             lines.append("")
             lines.append("── 余额 ──")
             lines.extend(bal_lines)
     except Exception:
-        pass
+        logger.debug("build_digest 中忽略异常", exc_info=True)
 
     # ── Today's spending ───────────────────────────────────
     try:
@@ -275,7 +280,7 @@ def build_digest(data_dir: Path) -> str:
             budget_str = f" / 预算 ¥{budget:.0f}" if budget else ""
             lines.append(f"  本月: ¥{month_total:.1f}{budget_str}")
     except Exception:
-        pass
+        logger.debug("build_digest 中忽略异常", exc_info=True)
 
     # ── Shopping needs ─────────────────────────────────────
     try:
@@ -290,7 +295,7 @@ def build_digest(data_dir: Path) -> str:
                 cat_str = f" [{cat}]" if cat else ""
                 lines.append(f"  • {i.get('name', '')}{cat_str}")
     except Exception:
-        pass
+        logger.debug("build_digest 中忽略异常", exc_info=True)
 
     return "\n".join(lines)
 
@@ -316,7 +321,8 @@ def send_email(subject: str, body: str) -> None:
             s.login(user, pwd)
             s.send_message(msg)
         print(f"Email sent: {subject}")
-    except Exception as e:
+    # 边界捕获：本层已处理/记录，不允许异常向上逃逸（CODE_STANDARDS Q-I1）
+    except Exception as e:  # noqa: BLE001
         print(f"ERROR sending email: {e}")
 
 

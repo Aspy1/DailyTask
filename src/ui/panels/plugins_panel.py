@@ -2,12 +2,17 @@
 
 Lists discovered plugins, allows enable/disable and opening plugin panels.
 """
+
+import logging
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QCheckBox, QScrollArea
 )
 from PySide6.QtCore import Qt
 from src.ui.styles.theme import get_colors
 from PySide6.QtWidgets import QMessageBox
+
+
+logger = logging.getLogger(__name__)
 
 
 class PluginsPanel(QWidget):
@@ -111,5 +116,5 @@ class PluginsPanel(QWidget):
             self._open_plugin_windows.append(widget)
             widget.destroyed.connect(lambda _, w=widget: self._open_plugin_windows.remove(w) if w in self._open_plugin_windows else None)
         except Exception:
-            pass
+            logger.debug("PluginsPanel._open 中忽略异常", exc_info=True)
         widget.show()

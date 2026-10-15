@@ -1,5 +1,7 @@
 """Expense tracking panel — add, filter, summarize."""
 
+import logging
+
 from datetime import date, datetime
 
 from PySide6.QtCore import Qt
@@ -12,6 +14,9 @@ from PySide6.QtGui import QFont
 
 from src.services.data_manager import DataManager
 from src.ui.styles.theme import get_colors, FONT_CN, SIZE_SUBTITLE
+
+
+logger = logging.getLogger(__name__)
 
 
 class ExpensePanel(QWidget):
@@ -382,7 +387,7 @@ class ExpensePanel(QWidget):
                 else:
                     btn.setStyleSheet(btn_qss)
             except Exception:
-                pass
+                logger.debug("ExpensePanel.refresh_theme 中忽略异常", exc_info=True)
 
         # Update inputs
         try:
@@ -391,10 +396,10 @@ class ExpensePanel(QWidget):
             for cb in self.findChildren(QComboBox):
                 cb.setStyleSheet(self._combo_qss())
         except Exception:
-            pass
+            logger.debug("ExpensePanel.refresh_theme 中忽略异常", exc_info=True)
 
         # Refresh content to pick up any color changes
         try:
             self._refresh()
         except Exception:
-            pass
+            logger.debug("ExpensePanel.refresh_theme 中忽略异常", exc_info=True)

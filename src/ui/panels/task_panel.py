@@ -1,5 +1,7 @@
 """Task panel — table with filters, pagination, checkboxes, archive, notes."""
 
+import logging
+
 from datetime import date, datetime, timedelta
 
 from PySide6.QtCore import Qt
@@ -26,6 +28,9 @@ TIME_BUCKETS = [
     ("已过期", "overdue"),
     ("无截止日期", "no_date"),
 ]
+
+
+logger = logging.getLogger(__name__)
 
 
 def _parse_due(due_str) -> date | None:
@@ -387,7 +392,7 @@ class TaskPanel(QWidget):
                 else:
                     btn.setStyleSheet(btn_qss)
             except Exception:
-                pass
+                logger.debug("TaskPanel.refresh_theme 中忽略异常", exc_info=True)
 
         # table styling - let QSS do heavy lifting; ensure header/footer labels use fg_primary
         try:
@@ -395,7 +400,7 @@ class TaskPanel(QWidget):
                 if lbl.objectName() in ("taskCount",):
                     lbl.setStyleSheet(f"color: {c['fg_hint']}; font-size: 13px;")
         except Exception:
-            pass
+            logger.debug("TaskPanel.refresh_theme 中忽略异常", exc_info=True)
 
     def _toggle_status_filter(self) -> None:
         cycle = {"pending": "completed", "completed": "all", "all": "pending"}

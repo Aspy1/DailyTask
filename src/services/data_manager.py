@@ -1,5 +1,7 @@
 """Central data orchestration with signal-based change notification."""
 
+import logging
+
 from pathlib import Path
 
 from PySide6.QtCore import QObject, Signal
@@ -11,6 +13,9 @@ from src.models.expense import ExpenseModel
 from src.models.daily_log import DailyLogModel
 from src.models.exam import ExamModel
 from src.models.inventory import InventoryModel
+
+
+logger = logging.getLogger(__name__)
 
 
 class DataManager(QObject):
@@ -61,7 +66,7 @@ class DataManager(QObject):
             try:
                 self._file_mtimes[name] = model.file_path.stat().st_mtime
             except OSError:
-                pass
+                logger.debug("DataManager._capture_mtimes 中忽略异常", exc_info=True)
 
     def _auto_reload(self) -> None:
         """Check if any data file was modified externally and reload."""
@@ -80,7 +85,7 @@ class DataManager(QObject):
                     self._file_mtimes[name] = mtime
                     changed = True
             except OSError:
-                pass
+                logger.debug("DataManager._auto_reload 中忽略异常", exc_info=True)
         if changed:
             self.data_changed.emit("external")
 

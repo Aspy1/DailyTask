@@ -28,7 +28,8 @@ class _GitWorker(QThread):
                     self.finished.emit(False, f"{' '.join(cmd)}: {result.stderr.strip()}")
                     return
             self.finished.emit(True, "")
-        except Exception as e:
+        # 边界捕获：本层已处理/记录，不允许异常向上逃逸（CODE_STANDARDS Q-I1）
+        except Exception as e:  # noqa: BLE001
             self.finished.emit(False, str(e))
 
 

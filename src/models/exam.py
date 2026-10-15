@@ -1,5 +1,7 @@
 """Exam model — stores exam dates and related info."""
 
+import logging
+
 from pathlib import Path
 from datetime import datetime
 
@@ -9,6 +11,9 @@ DEFAULT_EXAMS = {
     "_version": 1,
     "exams": [],
 }
+
+
+logger = logging.getLogger(__name__)
 
 
 class ExamModel(BaseJsonModel):
@@ -28,7 +33,7 @@ class ExamModel(BaseJsonModel):
                 num = int(e["id"].split("_")[1])
                 existing.add(num)
             except (KeyError, ValueError):
-                pass
+                logger.debug("ExamModel.add_exam 中忽略异常", exc_info=True)
         n = 1
         while n in existing:
             n += 1

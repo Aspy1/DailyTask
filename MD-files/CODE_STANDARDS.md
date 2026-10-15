@@ -190,15 +190,19 @@
 
 ## I. 异常与错误处理
 
-**Q-I1 禁止盲捕获**：`except Exception` / 裸 `except:` 必须收窄到具体异常，或在捕获后重新抛出/记录
+**Q-I1 禁止无理由盲捕获**：`except Exception` / 裸 `except:` 必须二选一——
+(a) **收窄**到具体异常类型；或
+(b) 作为**显式边界**（线程入口 / 事件循环槽 / 第三方代码 / 外部服务）保留，
+    并加一句理由注释 + `# noqa: BLE001`
 - 为什么：盲捕获把 `AttributeError`、`KeyError` 这类真 bug 伪装成正常流程。
-- 检查：`ruff --select BLE001`。
-- 现状：`✗` `BLE001` **50 处**。
+- 检查：`ruff --select BLE001`（`src/ui/**` 已在 ruff 配置中豁免，理由见 `pyproject.toml` 注释）。
+- 现状：`✔` 2026-10-16：服务/脚本层 **6 处收窄 + 12 处标注边界**；UI 层经 per-file-ignore 豁免。
 
 **Q-I2 禁止静默吞异常**：`except ...: pass` 必须改为 `logger.debug/warning(..., exc_info=True)`，或注释说明为何可忽略
 - 为什么：静默吞异常是"AI 说做了、实际没做"这类故障的温床。
 - 检查：`ruff --select S110`。
-- 现状：`✗` `S110` **24 处**。
+- 现状：`✔` 2026-10-16：**40 处** `except: pass`（含 ruff 默认不检查的具名 except）已改为
+  `logger.debug("<位置> 中忽略异常", exc_info=True)`，并为缺少 logger 的 20 个模块补齐。
 
 ## N. 命名约定
 

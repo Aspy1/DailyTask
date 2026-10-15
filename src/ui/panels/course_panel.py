@@ -1,5 +1,7 @@
 """Course schedule panel — refined toolbar and table."""
 
+import logging
+
 from datetime import date
 
 from PySide6.QtWidgets import (
@@ -12,6 +14,9 @@ from PySide6.QtGui import QFont
 from src.services.data_manager import DataManager
 from src.ui.styles.theme import get_colors, FONT_CN, SIZE_BODY_S
 from src.ui.widgets.course_table import CourseTable
+
+
+logger = logging.getLogger(__name__)
 
 
 class CoursePanel(QWidget):
@@ -180,17 +185,17 @@ class CoursePanel(QWidget):
             try:
                 btn.setStyleSheet(btn_qss)
             except Exception:
-                pass
+                logger.debug("CoursePanel.refresh_theme 中忽略异常", exc_info=True)
 
         # labels
         try:
             self._week_label.setStyleSheet("font-weight: 600; border: none; color: %s;" % c['fg_primary'])
         except Exception:
-            pass
+            logger.debug("CoursePanel.refresh_theme 中忽略异常", exc_info=True)
 
         # propagate to course table if it supports refresh
         if hasattr(self._table, 'refresh_theme') and callable(getattr(self._table, 'refresh_theme')):
             try:
                 self._table.refresh_theme()
             except Exception:
-                pass
+                logger.debug("CoursePanel.refresh_theme 中忽略异常", exc_info=True)

@@ -1,5 +1,7 @@
 """Popup showing schedules + tasks for a specific course."""
 
+import logging
+
 from datetime import date
 
 from PySide6.QtCore import Qt
@@ -11,6 +13,9 @@ from PySide6.QtGui import QFont
 
 from src.services.data_manager import DataManager
 from src.ui.styles.theme import get_colors, FONT_CN, SIZE_TITLE
+
+
+logger = logging.getLogger(__name__)
 
 
 class CourseDetailDialog(QDialog):
@@ -134,4 +139,4 @@ class CourseDetailDialog(QDialog):
                 QListWidget::item:hover {{ background-color: {c['bg_elevated']}; }}
             """)
         except Exception:
-            pass
+            logger.debug("CourseDetailDialog.refresh_theme 中忽略异常", exc_info=True)

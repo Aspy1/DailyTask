@@ -1,5 +1,7 @@
 """Application singleton with system tray support and single-instance lock."""
 
+import logging
+
 import ctypes
 import sys
 import winreg
@@ -25,6 +27,9 @@ DATA_DIR = Path(__file__).parent.parent / "data"
 SINGLE_INSTANCE_KEY = "StudentSchedulerSingleInstance"
 REGISTRY_RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
 APP_REGISTRY_NAME = "StudentScheduler"
+
+
+logger = logging.getLogger(__name__)
 
 
 def _get_startup_command() -> str:
@@ -53,7 +58,7 @@ def set_autostart(enabled: bool) -> None:
             try:
                 winreg.DeleteValue(key, APP_REGISTRY_NAME)
             except OSError:
-                pass
+                logger.debug("set_autostart 中忽略异常", exc_info=True)
     finally:
         key.Close()
 
@@ -108,7 +113,7 @@ class App(QApplication):
         try:
             ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("LifeAssistant.StudentScheduler")
         except Exception:
-            pass
+            logger.debug("App.__init__ 中忽略异常", exc_info=True)
 
         app_icon = _make_icon()
         self._icon_normal = app_icon

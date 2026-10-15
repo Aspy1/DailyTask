@@ -230,7 +230,7 @@ class SceneArchive(BaseJsonModel):
                 for json_file in scene_dir.glob("*.json"):
                     zf.write(json_file, json_file.name)
             return True
-        except Exception:
+        except (OSError, ValueError, TypeError, KeyError, zipfile.BadZipFile):
             return False
 
     def import_scene_archive(self, archive_path: Path, new_name: str) -> str | None:
@@ -263,7 +263,7 @@ class SceneArchive(BaseJsonModel):
             shutil.rmtree(temp_dir)
 
             return scene_id
-        except Exception:
+        except (OSError, ValueError, TypeError, KeyError, zipfile.BadZipFile):
             return None
 
     # ── 学期管理辅助 ──────────────────────────────────────

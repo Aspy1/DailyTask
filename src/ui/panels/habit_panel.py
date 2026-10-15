@@ -1,5 +1,7 @@
 """Habit tracking panel — card grid layout with attached tasks."""
 
+import logging
+
 from PySide6.QtCore import Qt, Signal, QRect, QSize
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
@@ -14,6 +16,9 @@ from src.ui.styles.theme import get_colors, FONT_CN, SIZE_SUBTITLE, SIZE_BODY
 
 CARD_MIN_WIDTH = 210
 CARD_HEIGHT = 135
+
+
+logger = logging.getLogger(__name__)
 
 
 class _HabitCard(QWidget):
@@ -360,12 +365,12 @@ class HabitPanel(QWidget):
                 QPushButton:hover {{ background-color: {c['accent_hover']}; }}
             """)
         except Exception:
-            pass
+            logger.debug("HabitPanel.refresh_theme 中忽略异常", exc_info=True)
         # Rebuild cards to pick up colors
         try:
             self._refresh()
         except Exception:
-            pass
+            logger.debug("HabitPanel.refresh_theme 中忽略异常", exc_info=True)
 
     
 

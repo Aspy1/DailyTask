@@ -195,7 +195,8 @@ class AIWorker(QObject):
                 self.finished_with_instructions.emit(display or "已完成", all_instructions)
             else:
                 self.finished.emit(display or "已完成")
-        except Exception as e:
+        # 边界捕获：本层已处理/记录，不允许异常向上逃逸（CODE_STANDARDS Q-I1）
+        except Exception as e:  # noqa: BLE001
             self.error.emit(str(e))
 
 
@@ -233,7 +234,8 @@ class InstructionParser:
         for cmd in commands:
             try:
                 results.append(run_in_process(cmd))
-            except Exception as e:
+            # 边界捕获：本层已处理/记录，不允许异常向上逃逸（CODE_STANDARDS Q-I1）
+            except Exception as e:  # noqa: BLE001
                 results.append(f"ERROR {e}")
         return results
 
@@ -285,7 +287,8 @@ class AIService(QObject):
         system_prompt = self._build_system_prompt()
         try:
             provider = self._make_provider()
-        except Exception as e:
+        # 边界捕获：本层已处理/记录，不允许异常向上逃逸（CODE_STANDARDS Q-I1）
+        except Exception as e:  # noqa: BLE001
             self.error_occurred.emit(f"创建 AI 连接失败: {e}")
             return
         model = self._settings.get("AI", "model", "deepseek-chat")
@@ -337,7 +340,7 @@ class AIService(QObject):
                     val = "未知"
             else:
                 val = "查询失败"
-        except Exception:
+        except (OSError, ValueError, KeyError, TypeError):
             val = ""
         self._ds_balance_cache = {"value": val, "fetched_at": now}
         return val
@@ -356,7 +359,8 @@ class AIService(QObject):
                 val = self._weather_service.get_weather_text_for_ai()
                 self._weather_cache = {"value": val, "fetched_at": now}
                 return val
-            except Exception as e:
+            # 边界捕获：本层已处理/记录，不允许异常向上逃逸（CODE_STANDARDS Q-I1）
+            except Exception as e:  # noqa: BLE001
                 logger.warning(f"WeatherService获取天气失败: {e}")
 
         # 回退到Open-Meteo（保留旧逻辑作为备用）
@@ -410,7 +414,7 @@ class AIService(QObject):
                 val = "\n".join(lines)
             else:
                 val = "  天气查询失败"
-        except Exception as e:
+        except (OSError, ValueError, KeyError, TypeError) as e:
             val = f"  天气信息暂不可用 ({e})"
         self._weather_cache = {"value": val, "fetched_at": now}
         return val
@@ -557,7 +561,7 @@ class AIService(QObject):
                 delta = (date.today() - start).days
                 return max(1, delta // 7 + 1)
             except (KeyError, ValueError):
-                pass
+                logger.debug("AIService._get_current_week 中忽略异常", exc_info=True)
         return 1
 
     def _get_week_parity(self) -> str:

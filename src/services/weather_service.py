@@ -46,7 +46,8 @@ class WeatherWorker(QThread):
                     self.error.emit(f"API返回错误: {data.get('code')}", self._api_type)
             else:
                 self.error.emit(f"HTTP错误: {resp.status_code}", self._api_type)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
+            # 边界捕获：Worker 线程入口，异常经信号回传，不允许逃逸（Q-I1）
             self.error.emit(str(e), self._api_type)
 
     def _record_request(self):

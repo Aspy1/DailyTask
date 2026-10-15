@@ -5,6 +5,8 @@
 设计原则: AI 只管理解+标准化参数，脚本管验证+写文件。
 """
 
+import logging
+
 import argparse, json, os, re, sys, threading
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -19,6 +21,9 @@ _STDOUT_LOCK = threading.Lock()
 # ═══════════════════════════════════════════════════════════
 # Helpers
 # ═══════════════════════════════════════════════════════════
+
+logger = logging.getLogger(__name__)
+
 
 def load(name):
     p = DATA / name
@@ -38,7 +43,7 @@ def gen_id(items, prefix):
             num = int(it["id"].split("_")[1])
             existing.add(num)
         except (KeyError, ValueError):
-            pass
+            logger.debug("gen_id 中忽略异常", exc_info=True)
     n = 1
     while n in existing:
         n += 1
@@ -519,7 +524,7 @@ def run_in_process(cmd_str: str) -> str:
                 try:
                     val = int(val)
                 except ValueError:
-                    pass
+                    logger.debug("run_in_process 中忽略异常", exc_info=True)
                 setattr(ns, key, val)
                 i += 2
             else:
@@ -562,7 +567,8 @@ def run_in_process(cmd_str: str) -> str:
     with _STDOUT_LOCK, redirect_stdout(buf):
         try:
             handlers[action](ns)
-        except Exception as e:
+        # 边界捕获：本层已处理/记录，不允许异常向上逃逸（CODE_STANDARDS Q-I1）
+        except Exception as e:  # noqa: BLE001
             print(f"ERROR {e}")
     return buf.getvalue().strip()
 
@@ -695,7 +701,8 @@ def main():
 
     try:
         handlers[args.action](args)
-    except Exception as e:
+    # 边界捕获：本层已处理/记录，不允许异常向上逃逸（CODE_STANDARDS Q-I1）
+    except Exception as e:  # noqa: BLE001
         print(f"ERROR {e}")
         import traceback
         traceback.print_exc()

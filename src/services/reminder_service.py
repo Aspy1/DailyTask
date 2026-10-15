@@ -255,7 +255,7 @@ class ReminderService(QObject):
                 if due_date <= threshold_date:
                     urgent_count += 1
             except (ValueError, TypeError):
-                pass
+                logger.debug("ReminderService._check_ddl 中忽略异常", exc_info=True)
         self.ddl_alert.emit(urgent_count)
 
     def _on_data_changed(self, action: str) -> None:
@@ -371,5 +371,6 @@ class ReminderService(QObject):
                 s.login(smtp_user, smtp_pass)
                 s.send_message(msg)
             logger.info("Email sent: %s", subject)
-        except Exception as e:
+        # 边界捕获：第三方/外部（插件代码、SMTP）异常不外逃（CODE_STANDARDS Q-I1）
+        except Exception as e:  # noqa: BLE001
             logger.error("Failed to send email '%s': %s", subject, e)

@@ -1,5 +1,7 @@
 """Main content area — flat panel switching via sidebar navigation."""
 
+import logging
+
 from PySide6.QtWidgets import (
     QStackedWidget, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
 )
@@ -20,6 +22,9 @@ from src.ui.panels.inventory_panel import InventoryPanel
 from src.ui.widgets.schedule_view import ScheduleView
 from src.ui.widgets.course_detail_dialog import CourseDetailDialog
 from src.ui.styles.theme import get_colors
+
+
+logger = logging.getLogger(__name__)
 
 
 class MainWorkspace(QWidget):
@@ -167,7 +172,7 @@ class MainWorkspace(QWidget):
                 try:
                     w.refresh_theme()
                 except Exception:
-                    pass
+                    logger.debug("MainWorkspace.refresh_theme 中忽略异常", exc_info=True)
 
     @property
     def course_panel(self):
