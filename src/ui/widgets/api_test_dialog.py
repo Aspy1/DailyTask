@@ -50,7 +50,7 @@ class ApiTestDialog(QDialog):
             }}
             QPushButton {{
                 background-color: {c['accent']};
-                color: #fff;
+                color: {c['fg_on_fill']};
                 border: none;
                 border-radius: 8px;
                 padding: 8px 16px;

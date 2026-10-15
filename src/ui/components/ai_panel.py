@@ -10,14 +10,15 @@ from PySide6.QtWidgets import (
 from PySide6.QtGui import QFont, QKeyEvent
 
 from src.i18n.loader import tr
-from src.ui.styles.theme import get_colors
+from src.ui.styles.theme import get_colors, FONT_CN, SIZE_CAPTION, SIZE_BODY_S
 
 
 def _md_to_html(text: str) -> str:
     """Basic markdown to HTML: **bold**, *italic*, `code`, bullet lists."""
+    code_bg = get_colors()["code_bg"]
     text = re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', text)
     text = re.sub(r'(?<!\*)\*([^*\n]+?)\*(?!\*)', r'<i>\1</i>', text)
-    text = re.sub(r'`([^`\n]+?)`', r'<code style="background:#3a3a40;padding:1px 4px;border-radius: 4px;">\1</code>', text)
+    text = re.sub(r'`([^`\n]+?)`', fr'<code style="background:{code_bg};padding:1px 4px;border-radius: 4px;">\1</code>', text)
     # Bullet points: lines starting with - or • become <li>
     lines = text.split('\n')
     in_list = False
@@ -46,7 +47,7 @@ class _ChatInput(QTextEdit):
         super().__init__(parent)
         self.setMaximumHeight(72)
         self.setMinimumHeight(36)
-        self.setFont(QFont("Microsoft YaHei UI", 11))
+        self.setFont(QFont(FONT_CN, SIZE_CAPTION))
         self.setTabChangesFocus(True)
         c = get_colors()
         self.setStyleSheet(f"""
@@ -92,7 +93,7 @@ class AIPanel(QWidget):
         header_layout = QHBoxLayout(header)
         header_layout.setContentsMargins(12, 12, 12, 8)
         title = QLabel(tr("ai.title"))
-        title.setFont(QFont(self.font().family(), 13))
+        title.setFont(QFont(FONT_CN, SIZE_BODY_S))
         title.setStyleSheet(f"font-weight: 600; color: {c['fg_primary']}; border: none;")
         header_layout.addWidget(title)
         header_layout.addStretch()
@@ -140,12 +141,12 @@ class AIPanel(QWidget):
         self._send_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._send_btn.setStyleSheet(f"""
             QPushButton {{
-                background-color: {c['accent']}; color: #fff; border: none;
+                background-color: {c['accent']}; color: {c['fg_on_fill']}; border: none;
                 border-radius: 8px; font-weight: 600; font-size: 14px;
             }}
             QPushButton:hover {{ background-color: {c['accent_hover']}; }}
             QPushButton:pressed {{ background-color: {c['accent_dim']}; }}
-            QPushButton:disabled {{ background-color: {c['fg_disabled']}; color: #fff; }}
+            QPushButton:disabled {{ background-color: {c['fg_disabled']}; color: {c['fg_on_fill']}; }}
         """)
         self._send_btn.clicked.connect(self._on_send)
         input_layout.addWidget(self._send_btn)
@@ -170,7 +171,7 @@ class AIPanel(QWidget):
         c = get_colors()
         if role == "user":
             bubble_bg = c["accent"]
-            bubble_fg = "#fff"
+            bubble_fg = c["fg_on_fill"]
             align = "right"
             prefix = ''
             bubble_style = f'background-color:{bubble_bg};color:{bubble_fg};border-radius:12px;padding:8px 14px;'

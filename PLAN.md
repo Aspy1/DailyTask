@@ -219,16 +219,22 @@
 - 命名约定：受控词表见 `CODE_STANDARDS Q-H3`；尺寸域 `space_/radius_/size_/icon_/dur_` 尚未落地
 - 类型标签 ⏳；图形资源命名 `ic_<name>_<size>` 见 `Q-N6`
 
-### G-2 `[进行中]` 令牌检查器
+### G-2 `[已完成]` 令牌检查器 + 违规清理
 
-- ✅ **G-2a（2026-10-16）**：`scripts/check_ui_tokens.py` 完成，检查四类问题：
-  `COLOR`（字面 `#hex`/`rgb()`/`rgba()`，并据 `tokens.json` 给出建议 token）、
-  `QSS-CLASS`（非 Qt 的自定义类选择器）、`QFONT`（硬编码字号）、`TOKEN-NAME`（疑似拼写错误）；
-  `--check-px` 可选；默认**只报告**，`--strict` 返回 1 供 CI。
-  **首轮基线：50 处**（COLOR 43 / QFONT 5 / QSS-CLASS 2）。
-- ⏳ **G-2b**：`--fix`（libcst codemod 替换为 token 引用）；清理后再接 `I-8` pre-commit / `B-6` CI。
-- 已知局限：值→名映射是**提示**而非语义等价
-  （如 `rgba(0,0,0,0.08)` 会提示 `border`，但语义上可能是 `btn_pressed_bg`）；`TOKEN-NAME` 目前靠前缀启发式。
+- ✅ **G-2a（2026-10-16）**：`scripts/check_ui_tokens.py` —— 四类检查
+  （`COLOR` / `QSS-CLASS` / `QFONT` / `TOKEN-NAME`），支持行级豁免 `# token-check: ignore`；
+  默认只报告，`--strict` 供 CI。修掉了把 `tokens.json` 真值当违规、以及把 `QFont` 第 3 参（字重）误判为字号的 bug。
+- ✅ **清理（2026-10-16）**：首轮 **50 处 → 0 处**。新增令牌 `fg_on_fill` / `code_bg` / `bg_hover`；
+  `course_table` 8 个 `rgba` 改走 `course_color_*`；`_HabitCard`/`_ExamCard` 改 `#objectName`；
+  硬编码字号改 `SIZE_*`。由 `tests/test_ui_tokens_clean.py` 守卫。
+- ⏳ **G-2b**：`--fix`（libcst codemod）；接 `I-8` pre-commit / `B-6` CI。
+
+**⚠ 本次的可见视觉变化（有意为之）**：
+1. `_HabitCard`/`_ExamCard` 的卡片背景/圆角/悬停**现在才真正生效**（此前类名选择器无效）。
+2. `settings_panel` 状态色 `#4ec9b0`/`#f48771`（VS Code 风）→ 主题 `green`/`red`。
+3. `ai_panel` 输入框字号 11 → `SIZE_CAPTION`(12)。
+4. 暗色模式下 `bg_hover` 由黑色 overlay 改为亮 overlay（原先几乎不可见）。
+5. `app.py` 图标字母字体 `SimHei` → `FONT_CN`。
 
 ---
 

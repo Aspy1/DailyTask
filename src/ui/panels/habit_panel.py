@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtGui import QFont
 
 from src.services.data_manager import DataManager
-from src.ui.styles.theme import get_colors, FONT_CN, SIZE_SUBTITLE
+from src.ui.styles.theme import get_colors, FONT_CN, SIZE_SUBTITLE, SIZE_BODY
 
 CARD_MIN_WIDTH = 210
 CARD_HEIGHT = 135
@@ -50,12 +50,13 @@ class _HabitCard(QWidget):
             name_fg = c["fg_primary"]
             desc_fg = c["fg_secondary"]
 
+        self.setObjectName("habitCard")
         self.setStyleSheet(f"""
-            _HabitCard {{
+            #habitCard {{
                 background-color: {bg};
                 border-radius: 8px;
             }}
-            _HabitCard:hover {{
+            #habitCard:hover {{
                 background-color: {c['accent_bg']};
             }}
         """)
@@ -68,7 +69,7 @@ class _HabitCard(QWidget):
         row1 = QHBoxLayout()
         row1.setSpacing(8)
         name_lbl = QLabel(habit.get("name", ""))
-        name_lbl.setFont(QFont(self.font().family(), 14))
+        name_lbl.setFont(QFont(FONT_CN, SIZE_BODY))
         name_lbl.setStyleSheet(
             f"font-weight: 600; color: {name_fg}; border: none; background: transparent;")
         row1.addWidget(name_lbl)
@@ -295,7 +296,7 @@ class HabitPanel(QWidget):
         self._fab = QPushButton("+", self)
         self._fab.setFixedSize(48, 48)
         self._fab.setStyleSheet(f"""
-            QPushButton {{ background-color: {c['accent']}; color: #fff; border: none;
+            QPushButton {{ background-color: {c['accent']}; color: {c['fg_on_fill']}; border: none;
                 border-radius: 24px; font-size: 24px; font-weight: 600; }}
             QPushButton:hover {{ background-color: {c['accent_hover']}; }}
             QPushButton:pressed {{ background-color: {c['accent_dim']}; }}
@@ -354,7 +355,7 @@ class HabitPanel(QWidget):
         c = get_colors()
         try:
             self._fab.setStyleSheet(f"""
-                QPushButton {{ background-color: {c['accent']}; color: #fff; border: none;
+                QPushButton {{ background-color: {c['accent']}; color: {c['fg_on_fill']}; border: none;
                     border-radius: 12px; font-size: 24px; font-weight: 600; }}
                 QPushButton:hover {{ background-color: {c['accent_hover']}; }}
             """)

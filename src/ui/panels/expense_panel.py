@@ -103,7 +103,7 @@ class ExpensePanel(QWidget):
         add_btn.setFixedWidth(56)
         c = get_colors()
         add_btn.setStyleSheet(f"""
-            QPushButton {{ background-color: {c['accent']}; color: #fff; border: none;
+            QPushButton {{ background-color: {c['accent']}; color: {c['fg_on_fill']}; border: none;
                 border-radius: 8px; padding: 5px 12px; font-weight: 600; font-size: 13px; }}
             QPushButton:hover {{ background-color: {c['accent_hover']}; }}
         """)
@@ -130,7 +130,7 @@ class ExpensePanel(QWidget):
         sav_btn = QPushButton("记一笔")
         sav_btn.setFixedWidth(70)
         sav_btn.setStyleSheet(f"""
-            QPushButton {{ background-color: {c['accent']}; color: #fff; border: none;
+            QPushButton {{ background-color: {c['accent']}; color: {c['fg_on_fill']}; border: none;
                 border-radius: 8px; padding: 5px 12px; font-weight: 600; font-size: 13px; }}
             QPushButton:hover {{ background-color: {c['accent_hover']}; }}
         """)
@@ -378,7 +378,7 @@ class ExpensePanel(QWidget):
             try:
                 txt = (btn.text() or "").strip()
                 if txt in ("添加", "记一笔", "保存") or txt == "+":
-                    btn.setStyleSheet(f"QPushButton {{ background-color: {c['accent']}; color: #fff; border: none; border-radius: 8px; padding:5px 12px; font-weight:600; }}")
+                    btn.setStyleSheet(f"QPushButton {{ background-color: {c['accent']}; color: {c['fg_on_fill']}; border: none; border-radius: 8px; padding:5px 12px; font-weight:600; }}")
                 else:
                     btn.setStyleSheet(btn_qss)
             except Exception:

@@ -10,23 +10,14 @@ from PySide6.QtWidgets import (
 from PySide6.QtGui import QFont, QColor, QBrush
 
 from src.models.course import PERIOD_TIMES
-from src.ui.styles.theme import get_colors
+from src.ui.styles.theme import get_colors, FONT_CN, SIZE_TINY
 from src.ui.widgets.context_menu import ContextMenu
 
 
 DAY_LABELS = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
 
-# Warm-paper course tints — subtle, readable with dark text
-COURSE_BG_TINTS = [
-    "rgba(176,130,58,0.12)",   # amber
-    "rgba(90,140,110,0.10)",   # sage
-    "rgba(160,110,80,0.10)",   # terracotta
-    "rgba(100,130,170,0.10)",  # slate blue
-    "rgba(140,120,90,0.10)",   # warm taupe
-    "rgba(80,150,130,0.10)",   # teal
-    "rgba(170,100,120,0.10)",  # rose
-    "rgba(110,140,100,0.10)",  # olive
-]
+# 课程色令牌名（值见 src/ui/styles/tokens.json 的 course_color_1..8）
+COURSE_COLOR_TOKENS = [f"course_color_{i}" for i in range(1, 9)]
 
 CELL_TEXT = None
 
@@ -207,12 +198,12 @@ class CourseTable(QTableWidget):
 
     def _set_cell(self, row: int, col: int, course: dict, location: str, week: int | None = None) -> None:
         cid = course.get("id", course.get("name", ""))
-        color_idx = hash(cid) % len(COURSE_BG_TINTS)
-        tint = COURSE_BG_TINTS[color_idx]
         c = get_colors()
+        color_idx = hash(cid) % len(COURSE_COLOR_TOKENS)
+        tint = c[COURSE_COLOR_TOKENS[color_idx]]
         item = QTableWidgetItem(self._format_cell(course, location, week))
         item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-        item.setFont(QFont("Microsoft YaHei", 10, QFont.Weight.Medium))
+        item.setFont(QFont(FONT_CN, SIZE_TINY, QFont.Weight.Medium))
         # Parse rgba for QColor
         m = re.match(r'rgba\((\d+),(\d+),(\d+),([\d.]+)\)', tint)
         if m:

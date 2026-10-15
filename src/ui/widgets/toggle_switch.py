@@ -43,7 +43,7 @@ class ToggleSwitch(QWidget):
         painter.drawRoundedRect(0, 0, 44, 24, 12, 12)
         
         # Thumb (circle)
-        thumb_color = QColor("#FFFFFF")
+        thumb_color = QColor(c['fg_on_fill'])
         painter.setBrush(thumb_color)
         thumb_x = 22 if self._checked else 2
         painter.drawEllipse(thumb_x, 2, 20, 20)

@@ -43,9 +43,10 @@ class _ExamCard(QWidget):
             bg = c["card_bg"]
             accent_color = c["accent"]
 
+        self.setObjectName("examCard")
         self.setStyleSheet(f"""
-            _ExamCard {{ background-color: {bg}; border-radius: 8px; }}
-            _ExamCard:hover {{ background-color: {c['accent_bg']}; }}
+            #examCard {{ background-color: {bg}; border-radius: 8px; }}
+            #examCard:hover {{ background-color: {c['accent_bg']}; }}
         """)
 
         layout = QHBoxLayout(self)
@@ -61,13 +62,13 @@ class _ExamCard(QWidget):
             badge.setStyleSheet(f"color: {c['fg_disabled']}; font-size: 11px; font-weight: 600; background: {c['bg_input']}; border-radius: 26px;")
         elif days_left == 0:
             badge.setText("今天")
-            badge.setStyleSheet(f"color: #fff; font-size: 13px; font-weight: 700; background: {c['red']}; border-radius: 26px;")
+            badge.setStyleSheet(f"color: {c['fg_on_fill']}; font-size: 13px; font-weight: 700; background: {c['red']}; border-radius: 26px;")
         elif days_left <= 7:
             badge.setText(f"{days_left}天")
-            badge.setStyleSheet(f"color: #fff; font-size: 13px; font-weight: 700; background: {c['red']}; border-radius: 26px;")
+            badge.setStyleSheet(f"color: {c['fg_on_fill']}; font-size: 13px; font-weight: 700; background: {c['red']}; border-radius: 26px;")
         elif days_left <= 15:
             badge.setText(f"{days_left}天")
-            badge.setStyleSheet(f"color: #fff; font-size: 13px; font-weight: 700; background: {c['orange']}; border-radius: 26px;")
+            badge.setStyleSheet(f"color: {c['fg_on_fill']}; font-size: 13px; font-weight: 700; background: {c['orange']}; border-radius: 26px;")
         else:
             badge.setText(f"{days_left}天")
             badge.setStyleSheet(f"color: {c['fg_secondary']}; font-size: 13px; font-weight: 600; background: {c['bg_input']}; border-radius: 26px;")
@@ -131,7 +132,7 @@ class ExamPanel(QWidget):
 
         add_btn = QPushButton("添加")
         add_btn.setStyleSheet(f"""
-            QPushButton {{ background-color: {c['accent']}; color: #fff; border: none;
+            QPushButton {{ background-color: {c['accent']}; color: {c['fg_on_fill']}; border: none;
                 border-radius: 8px; padding: 4px 14px; font-size: 13px; font-weight: 600; }}
             QPushButton:hover {{ background-color: {c['accent_hover']}; }}
         """)

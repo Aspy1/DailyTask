@@ -26,11 +26,13 @@
 |---|---|---|---|
 | `bg_card` | `#FDFCFA` | `#2C2B27` | 卡片 |
 | `bg_elevated` | `#FDFCFA` | `#33322E` | 浮层、弹窗、下拉菜单 |
+| `bg_hover` | `rgba(0,0,0,0.04)` | `rgba(255,255,255,0.06)` | 通用悬停底色（按钮/列表项） |
 | `bg_input` | `#F2EFE9` | `#252421` | 输入框背景 |
 | `bg_root` | `#F2EFE9` | `#1E1D1A` | 窗口根背景（暖纸白，非纯白 #FFF） |
 | `bg_surface` | `#E0DDD6` | `#252421` | 面板 / 侧边栏 |
 | `fg_disabled` | `#C6C4BF` | `#504D48` | 完全禁用文字 |
 | `fg_hint` | `#9E9B96` | `#706D68` | 提示文字、占位符 |
+| `fg_on_fill` | `#fff` | `#fff` | 饱和填充（accent/red/orange 按钮与徽章）之上的文字色 |
 | `fg_primary` | `#2D2A26` | `#E8E5DF` | 主文字（暖炭，非纯黑 #000） |
 | `fg_secondary` | `#6E6B66` | `#A8A59F` | 次要文字、说明 |
 | `border` | `rgba(0,0,0,0.08)` | `rgba(255,255,255,0.05)` | 常规分割线 |
@@ -72,6 +74,7 @@
 | `green` | `#4A8B5F` | `#5FA87A` | 成功 / 完成 |
 | `yellow` | `#B0823A` | `#D4A853` | 注意 / 即将到期（同 accent） |
 | `orange` | `#C5702A` | `#D48A40` | 中等警告 |
+| `code_bg` | `#3a3a40` | `#3a3a40` | 行内代码块背景（AI 回复/API 测试） |
 <!-- TOKENS:colors:END -->
 
 > 「用途」列来自 `tokens.json` 的 `color_notes`。

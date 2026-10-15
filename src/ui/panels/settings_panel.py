@@ -204,7 +204,7 @@ class SettingsPanel(QWidget):
         save_btn.setFixedSize(72, 30)
         save_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         save_btn.setStyleSheet(f"""
-            QPushButton {{ background-color: {c['accent']}; color: #fff; border: none;
+            QPushButton {{ background-color: {c['accent']}; color: {c['fg_on_fill']}; border: none;
                 border-radius: 8px; font-weight: 600; font-size: 13px; }}
             QPushButton:hover {{ background-color: {c['accent_hover']}; }}
             QPushButton:pressed {{ background-color: {c['accent_dim']}; }}
@@ -291,12 +291,13 @@ class SettingsPanel(QWidget):
             self._model_combo.setCurrentIndex(i)
 
     def _update_status(self) -> None:
+        c = get_colors()
         if self._ai_service.is_configured:
             self._status_label.setText("● " + tr("settings.status.configured"))
-            self._status_label.setStyleSheet("color: #4ec9b0; font-size: 13px; background: transparent;")
+            self._status_label.setStyleSheet(f"color: {c['green']}; font-size: 13px; background: transparent;")
         else:
             self._status_label.setText("● " + tr("settings.status.not_configured"))
-            self._status_label.setStyleSheet("color: #f48771; font-size: 13px; background: transparent;")
+            self._status_label.setStyleSheet(f"color: {c['red']}; font-size: 13px; background: transparent;")
 
     def _open_api_test(self) -> None:
         """打开 API 测试窗口"""
@@ -355,7 +356,7 @@ class SettingsPanel(QWidget):
         test_btn.setFixedWidth(120)
         test_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         test_btn.setStyleSheet(f"""
-            QPushButton {{ background-color: {c['accent']}; color: #fff; border: none;
+            QPushButton {{ background-color: {c['accent']}; color: {c['fg_on_fill']}; border: none;
                 border-radius: 8px; padding: 6px 12px; font-weight: 600; font-size: 13px; }}
             QPushButton:hover {{ background-color: {c['accent_hover']}; }}
         """)
@@ -602,7 +603,7 @@ class SettingsPanel(QWidget):
             open_btn = QPushButton("打开面板")
             open_btn.setEnabled(bool(panels) and pinfo.enabled)
             open_btn.clicked.connect(lambda _=None, n=pinfo.name: self._open_plugin(n))
-            open_btn.setStyleSheet(f"background-color: {self._c()['accent']}; color: #fff; border-radius: 8px; padding:6px 10px; font-weight:600;")
+            open_btn.setStyleSheet(f"background-color: {self._c()['accent']}; color: {self._c()['fg_on_fill']}; border-radius: 8px; padding:6px 10px; font-weight:600;")
             rl.addWidget(open_btn)
             rl.addStretch()
             self._plugins_container.layout().addWidget(row)

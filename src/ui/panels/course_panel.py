@@ -10,7 +10,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
 
 from src.services.data_manager import DataManager
-from src.ui.styles.theme import get_colors
+from src.ui.styles.theme import get_colors, FONT_CN, SIZE_BODY_S
 from src.ui.widgets.course_table import CourseTable
 
 
@@ -32,7 +32,7 @@ class CoursePanel(QWidget):
         bar_layout.setContentsMargins(16, 8, 16, 8)
 
         self._week_label = QLabel()
-        self._week_label.setFont(QFont(self.font().family(), 13))
+        self._week_label.setFont(QFont(FONT_CN, SIZE_BODY_S))
         self._week_label.setStyleSheet("font-weight: 600; border: none;")
         bar_layout.addWidget(self._week_label)
 

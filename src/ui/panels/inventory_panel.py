@@ -611,7 +611,7 @@ class InventoryPanel(QWidget):
         dlg = QDialog(self)
         dlg.setWindowTitle(f"修改标签 - {item.get('name', '')}")
         dlg.setMinimumWidth(360)
-        dlg.setStyleSheet(f"QDialog {{ background-color: {c['card_bg']}; }} QLabel {{ color: {c['fg_primary']}; font-size: 13px; background: transparent; border: none; }} QLineEdit {{ background-color: {c['bg_input']}; color: {c['fg_primary']}; border: 1px solid {c['border']}; padding: 6px 10px; font-size: 13px; }} QPushButton {{ background-color: {c['accent_bg']}; color: {c['fg_primary']}; border: none; border-radius: 4px; padding: 4px 12px; font-size: 12px; }} QPushButton:hover {{ background-color: {c['accent']}; color: #fff; }}")
+        dlg.setStyleSheet(f"QDialog {{ background-color: {c['card_bg']}; }} QLabel {{ color: {c['fg_primary']}; font-size: 13px; background: transparent; border: none; }} QLineEdit {{ background-color: {c['bg_input']}; color: {c['fg_primary']}; border: 1px solid {c['border']}; padding: 6px 10px; font-size: 13px; }} QPushButton {{ background-color: {c['accent_bg']}; color: {c['fg_primary']}; border: none; border-radius: 4px; padding: 4px 12px; font-size: 12px; }} QPushButton:hover {{ background-color: {c['accent']}; color: {c['fg_on_fill']}; }}")
         layout = QVBoxLayout(dlg); layout.setSpacing(10); layout.setContentsMargins(20, 16, 20, 16)
 
         tag_list = QListWidget()

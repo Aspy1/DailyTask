@@ -95,7 +95,7 @@ class ScheduleView(QWidget):
         # Quick arrange button
         self._arrange_btn = QPushButton("调整")
         self._arrange_btn.setStyleSheet(f"""
-            QPushButton {{ background-color: {c['accent']}; color: #fff;
+            QPushButton {{ background-color: {c['accent']}; color: {c['fg_on_fill']};
                 border-radius: 8px; padding: 3px 14px; font-size: 13px; font-weight: 600; }}
             QPushButton:hover {{ background-color: {c['accent_hover']}; }}
         """)

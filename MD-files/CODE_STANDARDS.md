@@ -150,8 +150,8 @@
 
 **Q-H1 颜色 / 字号 / 间距 / 圆角一律走 token，禁止字面量**（`#hex`、`rgb()/rgba()`、`Npx`、`QFont(..., int)`）
 - 检查：`scripts/check_ui_tokens.py`（见 PLAN G-2）；或先 `grep -rn "#[0-9a-fA-F]\{3,8\}" src/ui`。
-- 现状：`✗` 检查器 `scripts/check_ui_tokens.py` 首轮检出 **50 处**：COLOR 43 / QFONT 5 / QSS-CLASS 2。
-  Top 文件：`course_table.py`(8)、`theme.py`(7)、`ai_panel.py` / `exam_panel.py` / `settings_panel.py`(各 5)。详见 PLAN G-2。
+- 现状：`✔` 2026-10-16：`scripts/check_ui_tokens.py` 巡检 **0 违规**（由 `tests/test_ui_tokens_clean.py` 守卫）；
+  清理过程中新增了令牌 `fg_on_fill` / `code_bg` / `bg_hover`（违规暴露出的缺失语义）。
 
 **Q-H2 令牌单一真值**：规格文档由令牌文件**生成**，禁止规格与实现两份手写
 - 现状：`✔` 2026-10-16：`tokens.json` 为唯一真值，`DESIGN_TOKENS.md` 的令牌表由 `scripts/gen_design_tokens.py` 生成，并由 `tests/test_design_tokens_sync.py` 守卫漂移。
@@ -170,7 +170,8 @@
 - 现状：`✗` 现存 `red/green/yellow/orange`、`badge_radius` 等违反。
 
 **Q-H4 QSS 选择器仅 `#objectName`，禁止类名选择器**（= R-008）
-- 现状：`✗` `habit_panel.py:54/58` 的 `_HabitCard { … }`。
+- 现状：`✔` 2026-10-16：`_HabitCard` / `_ExamCard` 已改为 `#objectName` 选择器（并补 `setObjectName`）——
+  此前类名选择器在 Windows PySide6 **不生效**，卡片的背景/圆角/悬停实际从未应用，现按设计生效。
 
 **Q-H5 颜色必须属于主题 token 集合**（禁止 `settings_panel.py:296/299` 那种非主题色）
 

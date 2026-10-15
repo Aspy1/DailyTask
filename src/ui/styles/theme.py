@@ -133,7 +133,7 @@ QMenu::separator {{ height: 1px; background-color: {t["divider"]}; margin: 4px 8
 
 /* ── Buttons ─────────────────────────────── */
 QPushButton {{ background-color: transparent; border: none; color: {t["fg_primary"]}; padding: 8px 16px; border-radius: 8px; font-size: {SIZE_BODY}px; }}
-QPushButton:hover {{ background-color: rgba(0,0,0,0.04); }}
+QPushButton:hover {{ background-color: {t["bg_hover"]}; }}
 
 /* ── Labels ──────────────────────────────── */
 QLabel {{ color: {t["fg_primary"]}; background: transparent; }}
@@ -142,7 +142,7 @@ QLabel {{ color: {t["fg_primary"]}; background: transparent; }}
 QListWidget {{ background-color: transparent; color: {t["fg_primary"]}; border: none; outline: none; font-size: {SIZE_BODY_S}px; }}
 QListWidget::item {{ padding: 8px 12px; border-radius: 4px; }}
 QListWidget::item:selected {{ background-color: {t["accent_bg"]}; }}
-QListWidget::item:hover {{ background-color: rgba(0,0,0,0.04); }}
+QListWidget::item:hover {{ background-color: {t["bg_hover"]}; }}
 
 /* ── Inputs ──────────────────────────────── */
 QTextEdit, QPlainTextEdit {{ background-color: {t["input_bg"]}; color: {t["fg_primary"]}; border: 1px solid {t["border"]}; border-radius: 4px; padding: 8px 12px; font-size: {SIZE_BODY}px; selection-background-color: {t["accent_bg"]}; }}
@@ -210,12 +210,12 @@ def btn_primary_qss() -> str:
     c = get_colors()
     return f"""
         QPushButton {{
-            background-color: {c['accent']}; color: #fff; border: none;
+            background-color: {c['accent']}; color: {c['fg_on_fill']}; border: none;
             border-radius: 8px; padding: 8px 12px; font-size: {SIZE_BODY_S}px; font-weight: 500;
         }}
         QPushButton:hover {{ background-color: {c['accent_hover']}; }}
         QPushButton:pressed {{ background-color: {c['accent_dim']}; }}
-        QPushButton:disabled {{ background-color: {c['fg_disabled']}; color: #fff; }}
+        QPushButton:disabled {{ background-color: {c['fg_disabled']}; color: {c['fg_on_fill']}; }}
     """
 
 
@@ -229,7 +229,7 @@ def btn_secondary_qss() -> str:
             padding: 8px 12px; font-size: {SIZE_BODY_S}px;
         }}
         QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; color: {c['btn_secondary_hover_fg']}; }}
-        QPushButton:pressed {{ background-color: rgba(0,0,0,0.08); }}
+        QPushButton:pressed {{ background-color: {c['btn_pressed_bg']}; }}
         QPushButton:disabled {{ color: {c['fg_disabled']}; border-color: {c['divider']}; }}
     """
 
@@ -343,7 +343,7 @@ def fab_qss() -> str:
     c = get_colors()
     return f"""
         QPushButton {{
-            background-color: {c['accent']}; color: #fff; border: none;
+            background-color: {c['accent']}; color: {c['fg_on_fill']}; border: none;
             border-radius: 24px; font-size: 24px; font-weight: 600;
         }}
         QPushButton:hover {{ background-color: {c['accent_hover']}; }}
@@ -368,7 +368,7 @@ def toggle_switch_qss() -> str:
         QCheckBox::indicator::handle {{
             width: 18px; height: 18px;
             border-radius: 9px;
-            background-color: #fff;
+            background-color: {c['fg_on_fill']};
             margin: 2px;
         }}
         QCheckBox::indicator:checked::handle {{

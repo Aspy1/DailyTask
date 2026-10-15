@@ -6,7 +6,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtGui import QFont
 
-from src.ui.styles.theme import get_colors, FONT_CN
+from src.ui.styles.theme import get_colors, FONT_CN, SIZE_BODY_M
 
 
 class SectionHeader(QPushButton):
@@ -143,7 +143,7 @@ class Sidebar(QWidget):
         layout.setSpacing(0)
 
         title = QLabel("生活助手")
-        title.setFont(QFont(FONT_CN, 15, QFont.Weight.Bold))
+        title.setFont(QFont(FONT_CN, SIZE_BODY_M, QFont.Weight.Bold))
         title.setStyleSheet(f"""
             color: {c['fg_primary']}; background: transparent;
             padding: 0 16px 16px 16px;

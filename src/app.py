@@ -16,7 +16,7 @@ from src.services.data_manager import DataManager
 from src.services.ai_service import AIService
 from src.services.reminder_service import ReminderService
 from src.services.git_sync import GitSync
-from src.ui.styles.theme import init_theme
+from src.ui.styles.theme import init_theme, FONT_CN, SIZE_TITLE
 from src.ui.main_window import MainWindow
 from src.services.plugin_manager import PluginManager
 
@@ -62,7 +62,7 @@ _RESOURCES_DIR = Path(__file__).parent.parent / "resources"
 _ICON_PATH = _RESOURCES_DIR / "image.png"
 
 
-def _make_icon(color: str = "#007acc") -> QIcon:
+def _make_icon(color: str = "#007acc") -> QIcon:  # token-check: ignore（图标底色，非 QSS）
     if _ICON_PATH.exists():
         pm = QPixmap(str(_ICON_PATH))
         if not pm.isNull():
@@ -76,10 +76,10 @@ def _make_icon(color: str = "#007acc") -> QIcon:
     painter.setBrush(QColor(color))
     painter.setPen(Qt.PenStyle.NoPen)
     painter.drawRoundedRect(4, 4, 56, 56, 12, 12)
-    font = QFont("SimHei", 28)
+    font = QFont(FONT_CN, SIZE_TITLE)
     font.setBold(True)
     painter.setFont(font)
-    painter.setPen(QColor("#ffffff"))
+    painter.setPen(QColor("#ffffff"))  # token-check: ignore（图标绘制，非 QSS）
     painter.drawText(pixmap.rect(), Qt.AlignmentFlag.AlignCenter, "S")
     painter.end()
     return QIcon(pixmap)
@@ -112,7 +112,7 @@ class App(QApplication):
 
         app_icon = _make_icon()
         self._icon_normal = app_icon
-        self._icon_alert = _make_icon("#e74856")
+        self._icon_alert = _make_icon("#e74856")  # token-check: ignore（告警图标，非 QSS）
         self.setWindowIcon(app_icon)
 
         self._settings = SettingsManager(DATA_DIR / "settings.ini")

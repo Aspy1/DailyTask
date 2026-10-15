@@ -28,9 +28,51 @@ TOKENS_FILE = ROOT / "src/ui/styles/tokens.json"
 RE_HEX = re.compile(r"#[0-9a-fA-F]{3,8}\b")
 RE_RGB = re.compile(r"\brgba?\([^)]*\)")
 RE_QSS_CLASS = re.compile(r"(?<![\w.])(_?[A-Z][A-Za-z0-9_]*)\s*\{\{")
-RE_QFONT_INT = re.compile(r"QFont\([^)]*,\s*(\d+)\s*\)")
 RE_PX = re.compile(r"font-size:\s*(\d+)px")
 RE_SUBSCRIPT = re.compile(r"\[['\"]([a-z][a-z0-9_]{2,})['\"]\]")
+RE_QFONT = re.compile(r"QFont\(")
+
+# 行级豁免：行内出现该标记则跳过（用于图标绘制等非 QSS 场景）
+IGNORE_MARK = "token-check: ignore"
+
+
+def _split_args(s: str) -> list[str]:
+    """按顶层逗号切分函数实参（忽略嵌套括号）。"""
+    args, depth, cur = [], 0, ""
+    for ch in s:
+        if ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth -= 1
+        if ch == "," and depth == 0:
+            args.append(cur)
+            cur = ""
+        else:
+            cur += ch
+    if cur.strip():
+        args.append(cur)
+    return args
+
+
+def find_qfont_sizes(line: str) -> list[str]:
+    """返回 QFont(...) 中第 2 个位置参数为整数字面量的实参（= 硬编码 pointSize）。
+
+    QFont 位置参数顺序为 (family, pointSize, weight, ...)，故只查第 2 个，
+    避免把第 3 个参数（字重 600）误判为字号。
+    """
+    out = []
+    for m in RE_QFONT.finditer(line):
+        i, depth, j = m.end(), 1, m.end()
+        while j < len(line) and depth:
+            if line[j] == "(":
+                depth += 1
+            elif line[j] == ")":
+                depth -= 1
+            j += 1
+        args = _split_args(line[i:j - 1])
+        if len(args) >= 2 and re.fullmatch(r"\d+", args[1].strip()):
+            out.append(args[1].strip())
+    return out
 
 # 令牌名合法前缀（用于识别"疑似拼错的令牌名"）
 TOKEN_PREFIXES = (
@@ -60,6 +102,9 @@ def check_line(line: str, names: set[str], value_to_name: dict[str, str], check_
     findings = []
     stripped = line.strip()
 
+    if IGNORE_MARK in line:          # 行级豁免
+        return findings
+
     for m in RE_HEX.finditer(line):
         lit = m.group(0)
         tok = value_to_name.get(lit.lower())
@@ -78,8 +123,8 @@ def check_line(line: str, names: set[str], value_to_name: dict[str, str], check_
             continue
         findings.append(("QSS-CLASS", cls, "→ 自定义类选择器在 Windows PySide6 不生效，改用 #objectName"))
 
-    for m in RE_QFONT_INT.finditer(line):
-        findings.append(("QFONT", m.group(0), "→ 用 SIZE_* 常量"))
+    for size in find_qfont_sizes(line):
+        findings.append(("QFONT", f"pointSize={size}", "→ 用 SIZE_* 常量"))
 
     if check_px:
         for m in RE_PX.finditer(line):
