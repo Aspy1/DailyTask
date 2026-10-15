@@ -95,6 +95,7 @@ python -m venv .venv
 ├── MD-files/                       # 文档体系
 │   ├── ARCHITECTURE.md             #   项目运作原理（分层/数据流/信号/不变量/schema）
 │   ├── CODE_STANDARDS.md           #   代码与工程规范（Q-xxx，可检查）
+│   ├── DEV_PRINCIPLES.md           #   可迁移的通用开发准则
 │   ├── AllTheFiles.md              #   索引 · 术语映射 · 决策记录
 │   └── DESIGN_TOKENS.md            #   设计令牌
 ├── dev-logs/                       # 开发日志

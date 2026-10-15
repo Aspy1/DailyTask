@@ -58,6 +58,7 @@
 > 【2026-10-15 新增】依赖声明与测试基础设施（venv / requirements / pytest）
 ├── PLAN.md                         # 大框架整改计划（待做 / 在做 / 已定方向）
 ├── MD-files/CODE_STANDARDS.md      # 代码质量规范（Q-xxx，可检查，逐步补充）
+├── MD-files/DEV_PRINCIPLES.md      # 可迁移的通用开发准则（不依赖本项目）
 ├── pyproject.toml                  # requires-python + pytest 配置
 ├── requirements.txt                # 运行时依赖（区间）
 ├── requirements-dev.txt            # 开发/测试依赖

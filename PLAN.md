@@ -289,3 +289,4 @@
 - `[已完成]` venv + 依赖锁定 + pytest 冒烟测试（commit `5788d61`）
 - `[已完成]` `AGENTS.md` 重写（commit `b45a41c`）
 - `[已完成]` 规范文档骨架 `MD-files/CODE_STANDARDS.md`
+- `[已完成]` **可迁移准则** `MD-files/DEV_PRINCIPLES.md`（本轮整改的通用化提炼）
