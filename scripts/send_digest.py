@@ -34,7 +34,7 @@ def load_json(path: Path) -> dict:
         return json.load(f)
 
 
-def _find_current_semester(courses_data: dict):
+def _find_current_semester(courses_data: dict) -> dict | None:
     """按 current_semester id 查找学期记录；未找到返回 None。"""
     current_id = courses_data.get("current_semester", "")
     for s in courses_data.get("semesters", []):

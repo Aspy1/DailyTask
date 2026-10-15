@@ -7,7 +7,7 @@ class I18nLoader:
     _strings: dict          # 实例属性，见 CODE_STANDARDS Q-B2 / RUF012
     _loaded: bool = False
 
-    def __new__(cls):
+    def __new__(cls) -> "I18nLoader":
         if cls._instance is None:
             inst = super().__new__(cls)
             inst._strings = {}

@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
 
 class MainWindow(QMainWindow):
     def __init__(self, settings: SettingsManager, ai_service: AIService,
-                 data_manager: DataManager, plugin_manager=None):
+                 data_manager: DataManager, plugin_manager=None) -> None:
         super().__init__()
         self.setWindowTitle(tr("app.name"))
         self.setMinimumSize(990, 638)
@@ -580,7 +580,7 @@ class MainWindow(QMainWindow):
 class WeatherDetailDialog(QDialog):
     """天气详情对话框（支持刷新后自动更新）"""
 
-    def __init__(self, weather_service, parent=None):
+    def __init__(self, weather_service, parent=None) -> None:
         super().__init__(parent)
         self._ws = weather_service
         c = get_colors()
@@ -650,7 +650,7 @@ class WeatherDetailDialog(QDialog):
         self._ws.weather_updated.connect(self._update_content)
         self._ws.forecast_updated.connect(self._update_content)
 
-    def _build_ui(self):
+    def _build_ui(self) -> None:
         """构建UI结构"""
         c = get_colors()
         self._layout.removeWidget(self._no_data_label) if self._no_data_label else None
@@ -727,7 +727,7 @@ class WeatherDetailDialog(QDialog):
                 "temp": temp_lbl
             })
 
-    def _update_content(self):
+    def _update_content(self) -> None:
         """更新内容"""
 
         # 更新最后更新时间
@@ -747,7 +747,7 @@ class WeatherDetailDialog(QDialog):
         # 更新预报
         self._update_forecast_section()
 
-    def _update_now_section(self):
+    def _update_now_section(self) -> None:
         """更新实时天气卡片（无数据时隐藏卡片）。"""
         now = self._ws.get_now()
         if not now:
@@ -767,7 +767,7 @@ class WeatherDetailDialog(QDialog):
             self._wind_label.setText(
                 f"{now.get('windDir', '?')} {now.get('windScale', '?')}级")
 
-    def _update_forecast_section(self):
+    def _update_forecast_section(self) -> None:
         """更新未来三天预报行。"""
         forecast = self._ws.get_forecast()
         for i, row in enumerate(self._forecast_rows):
@@ -798,7 +798,7 @@ class WeatherDetailDialog(QDialog):
         row["rain"].hide()
         row["temp"].setText("")
 
-    def _on_refresh(self):
+    def _on_refresh(self) -> None:
         """刷新按钮点击"""
         # 禁用按钮并显示加载状态
         self._refresh_btn.setEnabled(False)
@@ -806,7 +806,7 @@ class WeatherDetailDialog(QDialog):
         # 触发刷新
         self._ws.refresh()
 
-    def closeEvent(self, event):
+    def closeEvent(self, event) -> None:
         """关闭时断开信号连接"""
         try:
             self._ws.weather_updated.disconnect(self._update_content)

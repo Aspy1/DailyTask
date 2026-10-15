@@ -12,7 +12,7 @@ logger = logging.getLogger("gitsync")
 class _GitWorker(QThread):
     finished = Signal(bool, str)
 
-    def __init__(self, repo_path: Path, commands: list[list[str]], parent=None):
+    def __init__(self, repo_path: Path, commands: list[list[str]], parent=None) -> None:
         super().__init__(parent)
         self._repo = repo_path
         self._commands = commands
@@ -36,7 +36,7 @@ class _GitWorker(QThread):
 class GitSync(QObject):
     sync_status = Signal(str)  # "idle" | "syncing" | "done" | "error: ..."
 
-    def __init__(self, repo_path: Path, data_dir: Path, parent=None):
+    def __init__(self, repo_path: Path, data_dir: Path, parent=None) -> None:
         super().__init__(parent)
         self._repo = repo_path
         self._data_dir = data_dir

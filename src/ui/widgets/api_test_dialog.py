@@ -22,7 +22,7 @@ from src.ui.styles.theme import FONT_CN, SIZE_BODY, SIZE_SUBTITLE, get_colors
 class ApiTestDialog(QDialog):
     """API 测试对话框"""
 
-    def __init__(self, api_service: ApiService, parent=None):
+    def __init__(self, api_service: ApiService, parent=None) -> None:
         super().__init__(parent)
         self._api = api_service
         c = get_colors()

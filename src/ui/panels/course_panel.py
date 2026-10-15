@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 
 class CoursePanel(QWidget):
-    def __init__(self, dm: DataManager, parent=None):
+    def __init__(self, dm: DataManager, parent=None) -> None:
         super().__init__(parent)
         self._dm = dm
 

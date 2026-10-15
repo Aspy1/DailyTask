@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 
 class PluginsPanel(QWidget):
-    def __init__(self, plugin_manager, settings, ai_service, data_manager, parent=None):
+    def __init__(self, plugin_manager, settings, ai_service, data_manager, parent=None) -> None:
         super().__init__(parent)
         self._pm = plugin_manager
         self._settings = settings
@@ -47,10 +47,10 @@ class PluginsPanel(QWidget):
 
         self.refresh()
 
-    def _c(self):
+    def _c(self) -> dict:
         return get_colors()
 
-    def refresh(self):
+    def refresh(self) -> None:
         c = get_colors()
         # clear
         while self._list_layout.count():
@@ -96,7 +96,7 @@ class PluginsPanel(QWidget):
 
         self._list_layout.addStretch()
 
-    def _toggle(self, name: str, enable: bool):
+    def _toggle(self, name: str, enable: bool) -> None:
         if not self._pm:
             return
         ok = self._pm.enable(name) if enable else self._pm.disable(name)
@@ -104,7 +104,7 @@ class PluginsPanel(QWidget):
             QMessageBox.warning(self, "插件", "设置失败，检查文件权限。")
         self.refresh()
 
-    def _open(self, name: str):
+    def _open(self, name: str) -> None:
         if not self._pm:
             return
         panels = self._pm.get_panels(name)

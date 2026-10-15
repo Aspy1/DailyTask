@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 
 class ExpensePanel(QWidget):
-    def __init__(self, dm: DataManager, parent=None):
+    def __init__(self, dm: DataManager, parent=None) -> None:
         super().__init__(parent)
         c = get_colors()
         self._dm = dm

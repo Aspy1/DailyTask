@@ -77,7 +77,7 @@ def _match_time_bucket(due_str: str, bucket: str | None) -> bool:
 
 
 class TaskPanel(QWidget):
-    def __init__(self, dm: DataManager, parent=None):
+    def __init__(self, dm: DataManager, parent=None) -> None:
         c = get_colors()
         super().__init__(parent)
         self._dm = dm

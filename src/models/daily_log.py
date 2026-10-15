@@ -16,7 +16,7 @@ DEFAULT_DAILY_LOGS = {
 
 
 class DailyLogModel(BaseJsonModel):
-    def __init__(self, file_path: Path):
+    def __init__(self, file_path: Path) -> None:
         super().__init__(file_path, DEFAULT_DAILY_LOGS)
 
     def get_log(self, day: str | None = None) -> dict:

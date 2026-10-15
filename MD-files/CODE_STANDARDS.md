@@ -45,6 +45,11 @@
 - 为什么：继承是 is-a，不是"借用几个方法"。
 - 现状：`✗` `models/scene_archive.py` 继承 `BaseJsonModel` 又整套重写 `load/save`。
 
+**Q-A6 类型注解**：新增/修改的函数必须有**返回类型**注解；非 UI 层的公开函数应补参数注解
+- 检查：`ruff --select ANN201,ANN202,ANN204,ANN002,ANN003`（已并入规则集）；`ANN001`（参数注解）**暂不强制**
+- 现状：`✔` 2026-10-16：返回类型已全量补齐（自动 126 处 + 手工 24 处）；
+  存量参数注解约 229 处按"改到即补"处理
+
 ## B. 线程与并发
 
 **Q-B1 Qt 对象只在创建它的线程访问；跨线程只经 signal/slot（队列连接）**
@@ -121,7 +126,10 @@
 
 **Q-E4 数据 schema 与迁移**：每个 `data/*.json` 的 `_version` 与 `migrate()` 必须有测试；
 字段变更必须提供向后兼容或迁移路径（跨端共写：桌面 + TG + GitHub Actions）
-- 现状：`?` `models/base.py` 有迁移框架骨架，但无迁移测试。
+- 现状：`🔄` 2026-10-16：`BaseJsonModel.load()` 对缺失 `_version` **自愈为 v1**；
+  新增 `tests/test_data_schema.py`（7 个模型建文件 / 迁移 no-op / 仓库数据文件版本守卫），
+  并据此补齐了 `data/inventory.json` 缺失的 `_version`。
+  真正的 `_migrate_vN_to_vM` 仍是骨架（尚无历史版本迁移需求）。
 
 **Q-E5 版本号单一来源**：以 `pyproject.toml` 的 `version` 为准，`i18n` / `README` / 发行包名由其派生
 - 现状：`✗` 曾出现 `app.version` 0.3.0 与 README v0.9.0 不一致（已临时对齐，尚未做到派生）。
@@ -129,7 +137,8 @@
 ## F. 测试与可验证性
 
 **Q-F1 新增/修改行为必须有测试**（见 `AGENTS.md` DoD）
-- 现状：`✗` 覆盖率 **1%**（7442 语句 / 7384 未覆盖）；仅 `scripts/actions.py` 有冒烟测试，`src/` 全 0%。
+- 现状：`🔄` 2026-10-16：覆盖率 **8%**（7612 语句）。已有：actions 命令冒烟、提示词↔实现一致性、
+  令牌同步/合规、`send_digest`、`TaskPanel` 回归、数据 schema 守卫。UI 与大部分服务层仍无覆盖。
 
 **Q-F2 契约必须可校验**：prompt ↔ `actions.py` ↔ TG skill 的命令集一致
 - 现状：`✔` `tests/test_prompt_consistency.py`（3 处已知缺口以 xfail 固化）。

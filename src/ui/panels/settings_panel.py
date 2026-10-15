@@ -47,7 +47,7 @@ logger = logging.getLogger(__name__)
 
 
 class SettingsPanel(QWidget):
-    def __init__(self, settings: SettingsManager, ai_service: AIService, plugin_manager=None, data_manager=None, parent=None):
+    def __init__(self, settings: SettingsManager, ai_service: AIService, plugin_manager=None, data_manager=None, parent=None) -> None:
         super().__init__(parent)
         self._settings = settings
         self._ai_service = ai_service

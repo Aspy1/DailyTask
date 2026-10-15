@@ -6,11 +6,11 @@ from datetime import date, timedelta
 from scripts.send_digest import build_digest
 
 
-def _write(data_dir, name, obj):
+def _write(data_dir, name, obj) -> None:
     (data_dir / name).write_text(json.dumps(obj, ensure_ascii=False), encoding="utf-8")
 
 
-def test_build_digest_sections(tmp_path):
+def test_build_digest_sections(tmp_path) -> None:
     today = date.today()
     _write(tmp_path, "courses.json", {"courses": [
         {"name": "算法", "day_of_week": today.isoweekday(),
@@ -46,7 +46,7 @@ def test_build_digest_sections(tmp_path):
     assert "── 购物需求 ──" in text and "洗衣液" in text
 
 
-def test_build_digest_empty_data(tmp_path):
+def test_build_digest_empty_data(tmp_path) -> None:
     for name in ("courses.json", "tasks.json", "habits.json",
                  "daily_logs.json", "expenses.json", "inventory.json"):
         _write(tmp_path, name, {})

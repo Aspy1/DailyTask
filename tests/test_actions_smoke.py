@@ -14,7 +14,7 @@ from helpers import read_json, run
 
 # ── 作业 ────────────────────────────────────────────────────
 
-def test_add_task_writes_task(sandbox):
+def test_add_task_writes_task(sandbox) -> None:
     out = run('python scripts/actions.py add_task --course "算法" '
               '--title "背包问题" --due 2026-06-20')
     assert out.startswith("OK add_task"), out
@@ -27,14 +27,14 @@ def test_add_task_writes_task(sandbox):
     assert task["due_date"].startswith("2026-06-20")
 
 
-def test_add_task_without_due_is_rejected(sandbox):
+def test_add_task_without_due_is_rejected(sandbox) -> None:
     """回归：ERRORS #005 —— 缺可选参数不应崩溃，缺必填 due 应报 ERROR。"""
     out = run('python scripts/actions.py add_task --title "无截止"')
     assert out.startswith("ERROR"), out
     assert read_json(sandbox, "tasks.json") == {}
 
 
-def test_complete_task_archives(sandbox):
+def test_complete_task_archives(sandbox) -> None:
     run('python scripts/actions.py add_task --title "A" --due 2026-06-20')
     out = run("python scripts/actions.py complete_task --id t_001")
     assert out.startswith("OK complete_task"), out
@@ -45,7 +45,7 @@ def test_complete_task_archives(sandbox):
 
 # ── 考试 ────────────────────────────────────────────────────
 
-def test_add_exam(sandbox):
+def test_add_exam(sandbox) -> None:
     out = run('python scripts/actions.py add_exam --course "高等数学" '
               '--date 2026-06-20 --scope "第1-8章"')
     assert out.startswith("OK add_exam"), out
@@ -57,7 +57,7 @@ def test_add_exam(sandbox):
 
 # ── 习惯 ────────────────────────────────────────────────────
 
-def test_add_habit_weekly(sandbox):
+def test_add_habit_weekly(sandbox) -> None:
     out = run('python scripts/actions.py add_habit --name "跑步" '
               '--schedule "weekly/1,3,5" --duration 45')
     assert out.startswith("OK add_habit"), out
@@ -67,7 +67,7 @@ def test_add_habit_weekly(sandbox):
     assert h["duration_minutes"] == 45
 
 
-def test_log_habit(sandbox):
+def test_log_habit(sandbox) -> None:
     run('python scripts/actions.py add_habit --name "跑步" --schedule "daily/1"')
     out = run("python scripts/actions.py log_habit --id h_001")
     assert out.startswith("OK log_habit"), out
@@ -82,7 +82,7 @@ _TWO_PLANS = ("python scripts/actions.py replace_plans --date 2026-06-08 "
               '--plans \'[{"title":"A","time_slot":1},{"title":"B","time_slot":2}]\'')
 
 
-def test_add_plan(sandbox):
+def test_add_plan(sandbox) -> None:
     out = run('python scripts/actions.py add_plan --date 2026-06-08 '
               '--title "复习" --slot 3')
     assert out.startswith("OK add_plan"), out
@@ -91,14 +91,14 @@ def test_add_plan(sandbox):
     assert plan["title"] == "复习"
 
 
-def test_replace_plans(sandbox):
+def test_replace_plans(sandbox) -> None:
     out = run(_TWO_PLANS)
     assert out.startswith("OK replace_plans"), out
     plans = read_json(sandbox, "daily_logs.json")["plans"]["2026-06-08"]
     assert [p["title"] for p in plans] == ["A", "B"]
 
 
-def test_delete_plan(sandbox):
+def test_delete_plan(sandbox) -> None:
     run(_TWO_PLANS)
     out = run("python scripts/actions.py delete_plan --date 2026-06-08 --index 0")
     assert out.startswith("OK delete_plan"), out
@@ -108,7 +108,7 @@ def test_delete_plan(sandbox):
 
 # ── 课程 ────────────────────────────────────────────────────
 
-def test_add_then_delete_course(sandbox):
+def test_add_then_delete_course(sandbox) -> None:
     out = run('python scripts/actions.py add_course --name "高等数学" --day 1 '
               '--weeks 1-16 --slots 1-2 --location A201')
     assert out.startswith("OK add_course"), out
@@ -124,7 +124,7 @@ def test_add_then_delete_course(sandbox):
 
 # ── 物品 ────────────────────────────────────────────────────
 
-def test_add_update_delete_item(sandbox):
+def test_add_update_delete_item(sandbox) -> None:
     out = run('python scripts/actions.py add_item --name "洗发水" '
               '--category 日常消耗品 --quantity 2 --location 浴室')
     assert out.startswith("OK add_item"), out
@@ -145,7 +145,7 @@ def test_add_update_delete_item(sandbox):
     assert read_json(sandbox, "inventory.json")["items"] == []
 
 
-def test_add_item_quantity_zero_marks_restock(sandbox):
+def test_add_item_quantity_zero_marks_restock(sandbox) -> None:
     """--quantity 0（已用完）应记为需购。
 
     已知缺陷：cmd_add_item 用 `args.quantity or 1`，把 0 当缺省值 → 记为 1 件充足。
@@ -156,7 +156,7 @@ def test_add_item_quantity_zero_marks_restock(sandbox):
     assert it["quantity"] == 0 and it["status"] == "需购"
 
 
-def test_need_restock_and_lookup(sandbox):
+def test_need_restock_and_lookup(sandbox) -> None:
     run('python scripts/actions.py add_item --name "洗衣液" --quantity 2')
     run("python scripts/actions.py update_item --id i_001 --status 需购")
     out = run("python scripts/actions.py need_restock")
@@ -167,12 +167,12 @@ def test_need_restock_and_lookup(sandbox):
 
 # ── 概览 / 未知命令 ─────────────────────────────────────────
 
-def test_status(sandbox):
+def test_status(sandbox) -> None:
     run('python scripts/actions.py add_task --title "A" --due 2026-06-20')
     out = run("python scripts/actions.py status")
     assert "tasks=1" in out
 
 
-def test_unknown_action_reports_error(sandbox):
+def test_unknown_action_reports_error(sandbox) -> None:
     out = run("python scripts/actions.py definitely_not_a_command")
     assert out.startswith("ERROR") and "unknown action" in out.lower(), out

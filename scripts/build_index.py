@@ -4,7 +4,7 @@ from pathlib import Path
 
 DATA = Path(__file__).parent.parent / "data"
 
-def build_index():
+def build_index() -> None:
     index = {"courses": {}, "habits": {}, "items": {}}
 
     # Courses

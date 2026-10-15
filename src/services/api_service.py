@@ -12,12 +12,12 @@ class _ApiWorker(QThread):
     finished = Signal(dict)
     error = Signal(str)
 
-    def __init__(self, api_type: str, **kwargs):
+    def __init__(self, api_type: str, **kwargs: Any) -> None:
         super().__init__()
         self._api_type = api_type
         self._kwargs = kwargs
 
-    def run(self):
+    def run(self) -> None:
         try:
             if self._api_type == "weather":
                 result = _fetch_weather_sync(**self._kwargs)
@@ -136,7 +136,7 @@ class ApiService(QObject):
     balance_ready = Signal(dict)
     error_occurred = Signal(str)
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self._weather_cache: dict | None = None
         self._weather_cache_time: datetime | None = None
@@ -160,7 +160,7 @@ class ApiService(QObject):
         """异步获取 DeepSeek 余额（每次强制刷新）"""
         self._run_worker("deepseek_balance", api_key=api_key)
 
-    def _run_worker(self, api_type: str, **kwargs) -> None:
+    def _run_worker(self, api_type: str, **kwargs: Any) -> None:
         """启动后台请求。
 
         不再使用 `QThread.terminate()`（强制终止线程不安全，见 CODE_STANDARDS Q-B3）。

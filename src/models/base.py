@@ -10,7 +10,7 @@ class BaseJsonModel:
     file_path: Path
     _data: dict[str, Any]
 
-    def __init__(self, file_path: Path, default_data: dict[str, Any] | None = None):
+    def __init__(self, file_path: Path, default_data: dict[str, Any] | None = None) -> None:
         self.file_path = file_path
         self._default_data = default_data or {"_version": 1}
         self._data = {}
@@ -27,6 +27,8 @@ class BaseJsonModel:
     def load(self) -> dict[str, Any]:
         with open(self.file_path, encoding="utf-8") as f:
             self._data = json.load(f)
+        # 自愈：旧文件可能早于版本键存在（Q-E4）；缺失即按 v1 处理
+        self._data.setdefault("_version", 1)
         return self._data
 
     def reload(self) -> None:

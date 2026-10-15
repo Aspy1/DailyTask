@@ -26,7 +26,7 @@ class SceneManagerDialog(QDialog):
 
     scene_switched = Signal(str)  # 切换场景时发出
 
-    def __init__(self, scene_archive: SceneArchive, parent=None):
+    def __init__(self, scene_archive: SceneArchive, parent=None) -> None:
         super().__init__(parent)
         self._archive = scene_archive
         c = get_colors()

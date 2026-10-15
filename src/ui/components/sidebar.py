@@ -16,7 +16,7 @@ from src.ui.styles.theme import FONT_CN, SIZE_BODY_M, get_colors
 class SectionHeader(QPushButton):
     """Clickable group header. No arrow — just bold text."""
 
-    def __init__(self, text: str, parent=None):
+    def __init__(self, text: str, parent=None) -> None:
         c = get_colors()
         super().__init__(text, parent)
         self.setFlat(True)
@@ -36,7 +36,7 @@ class SectionHeader(QPushButton):
 class NavItem(QPushButton):
     clicked_with_key = Signal(str)
 
-    def __init__(self, key: str, text: str, indent: bool = True, parent=None):
+    def __init__(self, key: str, text: str, indent: bool = True, parent=None) -> None:
         c = get_colors()
         super().__init__(text, parent)
         self._key = key
@@ -72,7 +72,7 @@ class SidebarSection(QWidget):
     """Group: header + collapsible item list. No animation."""
 
     def __init__(self, section_id: str, header_text: str,
-                 items: list[tuple[str, str]], parent=None):
+                 items: list[tuple[str, str]], parent=None) -> None:
         super().__init__(parent)
         self._section_id = section_id
         self._expanded = False
@@ -100,7 +100,7 @@ class SidebarSection(QWidget):
         layout.addWidget(self._items_container)
         self._items_container.hide()
 
-    def _toggle(self):
+    def _toggle(self) -> None:
         self._expanded = not self._expanded
         if self._expanded:
             self._items_container.show()
@@ -129,7 +129,7 @@ class Sidebar(QWidget):
     nav_changed = Signal(str)
     ai_toggled = Signal(bool)
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None) -> None:
         c = get_colors()
         super().__init__(parent)
         self.setObjectName("sidebar")
@@ -210,11 +210,11 @@ class Sidebar(QWidget):
         self._ai_btn.clicked.connect(self._toggle_ai)
         layout.addWidget(self._ai_btn)
 
-    def _on_nav_clicked(self, key: str):
+    def _on_nav_clicked(self, key: str) -> None:
         self.set_active(key)
         self.nav_changed.emit(key)
 
-    def set_active(self, key: str):
+    def set_active(self, key: str) -> None:
         if self._current_nav == key:
             return
         self._current_nav = key
@@ -224,13 +224,13 @@ class Sidebar(QWidget):
             if key in sec.nav_items() and not sec.expanded:
                 self._expand_section_accordion(sec_id)
 
-    def _expand_section_accordion(self, target_id: str):
+    def _expand_section_accordion(self, target_id: str) -> None:
         for sec_id, sec in self._sections.items():
             if sec_id != target_id and sec.expanded:
                 sec.set_expanded(False)
         self._sections[target_id].set_expanded(True)
 
-    def _toggle_ai(self):
+    def _toggle_ai(self) -> None:
         c = get_colors()
         self._ai_on = not self._ai_on
         if self._ai_on:

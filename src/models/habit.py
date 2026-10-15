@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 class HabitModel(BaseJsonModel):
     _inventory: "InventoryModel"
 
-    def __init__(self, file_path: Path):
+    def __init__(self, file_path: Path) -> None:
         super().__init__(file_path, DEFAULT_HABITS)
         self._rebuild_index()
 

@@ -35,7 +35,7 @@ DEFAULT_COURSES = {
 
 
 class CourseModel(BaseJsonModel):
-    def __init__(self, file_path: Path):
+    def __init__(self, file_path: Path) -> None:
         super().__init__(file_path, DEFAULT_COURSES)
         self._repair_semesters()
 

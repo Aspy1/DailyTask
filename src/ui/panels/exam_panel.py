@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 class _ExamCard(QWidget):
     """Card widget for one exam."""
 
-    def __init__(self, exam: dict, days_left: int, parent=None):
+    def __init__(self, exam: dict, days_left: int, parent=None) -> None:
         super().__init__(parent)
         self._exam = exam
         c = get_colors()
@@ -126,13 +126,13 @@ class _ExamCard(QWidget):
         detail.setStyleSheet(f"color: {c['fg_hint']}; font-size: 12px; border: none; background: transparent;")
         return detail
 
-    def contextMenuEvent(self, ev):
+    def contextMenuEvent(self, ev) -> None:
         # Handled by parent panel
         pass
 
 
 class ExamPanel(QWidget):
-    def __init__(self, dm: DataManager, parent=None):
+    def __init__(self, dm: DataManager, parent=None) -> None:
         super().__init__(parent)
         self._dm = dm
         c = get_colors()
@@ -249,7 +249,7 @@ class ExamPanel(QWidget):
 
 
 class ExamDialog(QDialog):
-    def __init__(self, exam: dict | None = None, parent=None):
+    def __init__(self, exam: dict | None = None, parent=None) -> None:
         super().__init__(parent)
         c = get_colors()
         editing = exam is not None

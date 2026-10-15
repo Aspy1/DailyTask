@@ -7,13 +7,13 @@
 from src.services.ai_service import InstructionParser
 
 
-def test_execute_runs_in_process(sandbox):
+def test_execute_runs_in_process(sandbox) -> None:
     out = InstructionParser.execute(["python scripts/actions.py status"])
     assert len(out) == 1
     assert "tasks=" in out[0]
 
 
-def test_execute_isolates_errors_per_command(sandbox):
+def test_execute_isolates_errors_per_command(sandbox) -> None:
     out = InstructionParser.execute([
         "python scripts/actions.py definitely_not_a_command",
         "python scripts/actions.py status",

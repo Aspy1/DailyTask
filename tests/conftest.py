@@ -7,6 +7,7 @@
 """
 
 import sys
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -21,14 +22,14 @@ import scripts.actions as actions  # noqa: E402
 
 
 @pytest.fixture
-def sandbox(tmp_path, monkeypatch):
+def sandbox(tmp_path, monkeypatch) -> Path:
     """actions.py 的 DATA 指向 tmp_path，读写都发生在临时目录。"""
     monkeypatch.setattr(actions, "DATA", tmp_path)
     return tmp_path
 
 
 @pytest.fixture(scope="session")
-def qapp():
+def qapp() -> Iterator:
     """离屏 QApplication（Qt 控件测试用，避免依赖 pytest-qt）。"""
     import os
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")

@@ -90,7 +90,7 @@ def _make_icon(color: str = "#007acc") -> QIcon:  # token-check: ignore（图标
 
 
 class App(QApplication):
-    def __init__(self, args: list[str]):
+    def __init__(self, args: list[str]) -> None:
         super().__init__(args)
 
         # Single-instance: try to contact existing instance

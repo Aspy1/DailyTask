@@ -49,7 +49,7 @@ def _md_to_html(text: str) -> str:
 class _ChatInput(QTextEdit):
     send_requested = Signal()
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self.setMaximumHeight(72)
         self.setMinimumHeight(36)
@@ -82,7 +82,7 @@ class _ChatInput(QTextEdit):
 class AIPanel(QWidget):
     message_sent = Signal(str)
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None) -> None:
         super().__init__(parent)
         c = get_colors()
         self.setObjectName("aiPanel")

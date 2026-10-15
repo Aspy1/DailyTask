@@ -31,7 +31,7 @@ class ScheduleView(QWidget):
     quick_adjust_requested = Signal(str)  # AI prompt for schedule optimization
     arrange_requested = Signal(str)       # Quick-arrange: snapshot prompt → AI service
 
-    def __init__(self, dm: DataManager, parent=None):
+    def __init__(self, dm: DataManager, parent=None) -> None:
         super().__init__(parent)
         self._dm = dm
         self._day_offset = 0
@@ -755,7 +755,7 @@ class ScheduleView(QWidget):
     def _has_email_reminder(self, item_type: str, item_name: str, item_date: str) -> bool:
         return self._dm.daily_logs.find_reminder(item_type, item_name, item_date) is not None
 
-    def _course_menu(self, pos, item, widget):
+    def _course_menu(self, pos, item, widget) -> None:
         from PySide6.QtGui import QCursor
 
         from src.ui.widgets.course_table import build_course_context_menu
@@ -808,7 +808,7 @@ class ScheduleView(QWidget):
             # Emit via a signal we need to add
             self._dm.data_changed.emit("fill_prompt:" + prompt)
 
-    def _plan_menu(self, pos, item, widget):
+    def _plan_menu(self, pos, item, widget) -> None:
         from src.ui.widgets.context_menu import ContextMenu
 
         menu = ContextMenu()
@@ -847,7 +847,7 @@ class ScheduleView(QWidget):
                 self._refresh()
                 return
 
-    def _habit_menu(self, pos, item, widget):
+    def _habit_menu(self, pos, item, widget) -> None:
         from src.ui.widgets.context_menu import ContextMenu
         
         menu = ContextMenu()

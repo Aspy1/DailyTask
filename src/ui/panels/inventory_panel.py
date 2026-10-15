@@ -26,7 +26,7 @@ PAGE_SIZE = 8
 
 
 class InventoryPanel(QWidget):
-    def __init__(self, dm: DataManager, parent=None):
+    def __init__(self, dm: DataManager, parent=None) -> None:
         super().__init__(parent)
         self._dm = dm
         self._current_category = None  # None=categories, str=items in category
@@ -289,7 +289,7 @@ class InventoryPanel(QWidget):
             card.setCursor(Qt.CursorShape.PointingHandCursor)
             card.setStyleSheet(f"background-color: {c['bg_elevated']}; border-radius: 8px;")
             # Only left-click enters category; right-click is blocked
-            def _on_click(e, cn=cat_name):
+            def _on_click(e, cn=cat_name) -> None:
                 if e.button() == Qt.MouseButton.LeftButton:
                     self._enter_category(cn)
             card.mousePressEvent = _on_click
@@ -364,7 +364,7 @@ class InventoryPanel(QWidget):
         card.setCursor(Qt.CursorShape.PointingHandCursor)
         card.setStyleSheet(f"background-color: {c['accent_bg']}; border-radius: 8px;")
         # Only left-click enters group; right-click is blocked
-        def _on_click(e, gn=d["name"]):
+        def _on_click(e, gn=d["name"]) -> None:
             if e.button() == Qt.MouseButton.LeftButton:
                 self._enter_group(gn)
         card.mousePressEvent = _on_click
@@ -645,7 +645,7 @@ class InventoryPanel(QWidget):
         layout.addWidget(tag_list)
 
         # Double-click to edit
-        def edit_tag():
+        def edit_tag() -> None:
             row = tag_list.currentRow()
             if row >= 0:
                 old = tag_list.item(row).text()
@@ -664,7 +664,7 @@ class InventoryPanel(QWidget):
         add_row.addWidget(add_btn)
         layout.addLayout(add_row)
 
-        def add_tag():
+        def add_tag() -> None:
             t = self._tag_input.text().strip()
             if t and not any(tag_list.item(i).text() == t for i in range(tag_list.count())):
                 tag_list.addItem(t)

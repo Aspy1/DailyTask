@@ -160,7 +160,7 @@ def run(cmd_parts: list[str], cwd: str | None = None, env: dict | None = None,
                           errors="replace", check=check)
 
 
-def main():
+def main() -> None:
     os.chdir(PROJECT_ROOT)
 
     # Check that remote exists

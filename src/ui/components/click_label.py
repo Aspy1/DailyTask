@@ -1,5 +1,7 @@
 """Shared clickable label — left-click only, hand cursor."""
 
+from typing import Any
+
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QLabel
 
@@ -7,11 +9,11 @@ from PySide6.QtWidgets import QLabel
 class ClickLabel(QLabel):
     clicked = Signal()
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
 
-    def mousePressEvent(self, ev):
+    def mousePressEvent(self, ev) -> None:
         if ev.button() == Qt.MouseButton.LeftButton:
             self.clicked.emit()
         super().mousePressEvent(ev)

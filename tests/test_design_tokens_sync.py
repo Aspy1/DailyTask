@@ -12,7 +12,7 @@ from scripts.gen_design_tokens import _color_table, _size_table
 ROOT = Path(__file__).resolve().parent.parent
 
 
-def test_design_tokens_doc_in_sync():
+def test_design_tokens_doc_in_sync() -> None:
     data = json.loads((ROOT / "src/ui/styles/tokens.json").read_text(encoding="utf-8"))
     doc = (ROOT / "MD-files/DESIGN_TOKENS.md").read_text(encoding="utf-8")
 

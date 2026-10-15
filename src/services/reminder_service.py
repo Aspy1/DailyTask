@@ -36,7 +36,7 @@ class ReminderService(QObject):
     reminder_notify = Signal(str, str)   # tray notification
     ddl_alert = Signal(int)             # urgent DDL count for red dot + flash
 
-    def __init__(self, settings, data_manager, parent=None):
+    def __init__(self, settings, data_manager, parent=None) -> None:
         super().__init__(parent)
         self._settings = settings
         self._dm = data_manager

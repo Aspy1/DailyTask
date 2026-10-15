@@ -31,7 +31,7 @@ class MainWorkspace(QWidget):
     """Content area that switches between panels based on sidebar selection."""
 
     def __init__(self, settings: SettingsManager, ai_service: AIService,
-                 dm: DataManager, plugin_manager=None, parent=None):
+                 dm: DataManager, plugin_manager=None, parent=None) -> None:
         super().__init__(parent)
         self._dm = dm
         self._settings = settings
@@ -174,5 +174,5 @@ class MainWorkspace(QWidget):
                     logger.debug("MainWorkspace.refresh_theme 中忽略异常", exc_info=True)
 
     @property
-    def course_panel(self):
+    def course_panel(self) -> CoursePanel:
         return self._course_panel

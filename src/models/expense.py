@@ -22,7 +22,7 @@ DEFAULT_EXPENSES = {
 
 
 class ExpenseModel(BaseJsonModel):
-    def __init__(self, file_path: Path):
+    def __init__(self, file_path: Path) -> None:
         super().__init__(file_path, DEFAULT_EXPENSES)
 
     @property

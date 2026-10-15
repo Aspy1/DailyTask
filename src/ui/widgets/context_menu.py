@@ -12,7 +12,7 @@ class MenuAction(QObject):
     
     triggered = Signal(bool)
     
-    def __init__(self, text: str, parent=None):
+    def __init__(self, text: str, parent=None) -> None:
         super().__init__(parent)
         self._text = text
         self._clicked = False
@@ -20,7 +20,7 @@ class MenuAction(QObject):
         self._checkable = False
         self._checked = False
     
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         if isinstance(other, MenuAction):
             return self is other
         return False
@@ -49,7 +49,7 @@ class MenuAction(QObject):
         """Set checked state."""
         self._checked = checked
     
-    def trigger(self):
+    def trigger(self) -> None:
         self._clicked = True
         self.triggered.emit(self._checked)
 
@@ -58,7 +58,7 @@ class ContextMenuItem(QPushButton):
     clicked = Signal(str)
     triggered = Signal()
 
-    def __init__(self, text: str, action: MenuAction = None, parent=None):
+    def __init__(self, text: str, action: MenuAction = None, parent=None) -> None:
         super().__init__(text, parent)
         self._action = action
         c = get_colors()
@@ -85,7 +85,7 @@ class ContextMenuItem(QPushButton):
         """)
         self.clicked.connect(self._on_clicked)
 
-    def _on_clicked(self):
+    def _on_clicked(self) -> None:
         if self._action:
             # Toggle checked state if checkable BEFORE triggering
             if self._action._checkable:
@@ -101,7 +101,7 @@ class ContextMenuItem(QPushButton):
 
 
 class ContextMenuSeparator(QFrame):
-    def __init__(self, parent=None):
+    def __init__(self, parent=None) -> None:
         super().__init__(parent)
         c = get_colors()
         self.setFrameShape(QFrame.Shape.HLine)
@@ -136,7 +136,7 @@ class ContextMenu(QWidget):
             self._delete()
     """
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None) -> None:
         super().__init__(parent)
         c = get_colors()
         

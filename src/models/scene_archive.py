@@ -19,7 +19,7 @@ class SceneArchive(BaseJsonModel):
     - 场景切换（切换当前活跃场景）
     """
 
-    def __init__(self, data_dir: Path, archive_dir: Path | None = None):
+    def __init__(self, data_dir: Path, archive_dir: Path | None = None) -> None:
         self._data_dir = Path(data_dir)
         self._archive_dir = archive_dir or self._data_dir / "archives"
         self._archive_dir.mkdir(parents=True, exist_ok=True)

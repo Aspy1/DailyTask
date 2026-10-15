@@ -11,7 +11,7 @@ from scripts.check_ui_tokens import SKIP_DIRS, SKIP_FILES, check_line, load_toke
 ROOT = Path(__file__).resolve().parent.parent
 
 
-def test_no_ui_token_violations():
+def test_no_ui_token_violations() -> None:
     names, value_to_name = load_tokens()
     problems: list[str] = []
     for f in (ROOT / "src").rglob("*.py"):

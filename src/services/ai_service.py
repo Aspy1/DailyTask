@@ -107,7 +107,7 @@ class AIProvider(Protocol):
 
 
 class AnthropicProvider:
-    def __init__(self, api_key: str):
+    def __init__(self, api_key: str) -> None:
         from anthropic import Anthropic
         self._client = Anthropic(api_key=api_key)
 
@@ -124,7 +124,7 @@ class AnthropicProvider:
 
 
 class DeepSeekProvider:
-    def __init__(self, api_key: str, base_url: str = "https://api.deepseek.com"):
+    def __init__(self, api_key: str, base_url: str = "https://api.deepseek.com") -> None:
         from openai import OpenAI
         self._client = OpenAI(api_key=api_key, base_url=base_url)
 
@@ -148,7 +148,7 @@ class AIWorker(QObject):
     finished_with_instructions = Signal(str, list)
 
     def __init__(self, provider: AIProvider, model: str, system_prompt: str,
-                 messages: list, dm=None, settings=None, parent=None):
+                 messages: list, dm=None, settings=None, parent=None) -> None:
         super().__init__(parent)
         self._provider = provider
         self._model = model
@@ -243,7 +243,7 @@ class AIService(QObject):
     error_occurred = Signal(str)
     instructions_executed = Signal(str, list)
 
-    def __init__(self, settings, data_manager, weather_service=None, parent=None):
+    def __init__(self, settings, data_manager, weather_service=None, parent=None) -> None:
         super().__init__(parent)
         self._settings = settings
         self._dm = data_manager

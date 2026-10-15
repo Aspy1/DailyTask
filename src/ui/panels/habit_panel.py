@@ -40,7 +40,7 @@ class _HabitCard(QWidget):
     postpone_clicked = Signal(str)
     skip_clicked = Signal(str)
 
-    def __init__(self, habit: dict, active: bool, done: bool, parent=None):
+    def __init__(self, habit: dict, active: bool, done: bool, parent=None) -> None:
         super().__init__(parent)
         self._hid = habit["id"]
         self._active = active
@@ -189,11 +189,11 @@ class _HabitCard(QWidget):
         btn_row.addStretch()
         return btn_row
 
-    def mouseDoubleClickEvent(self, ev):
+    def mouseDoubleClickEvent(self, ev) -> None:
         if self._active and not self._done:
             self.toggled.emit(self._hid)
 
-    def contextMenuEvent(self, ev):
+    def contextMenuEvent(self, ev) -> None:
         from src.ui.widgets.context_menu import ContextMenu
         
         menu = ContextMenu(self)
@@ -231,7 +231,7 @@ def _build_description(habit: dict, is_daily: bool, is_weekly: bool) -> str:
 class _FlowGrid(QWidget):
     """Simple flow layout — arranges children in rows, re-wrapping on resize."""
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self._spacing = 12
 
@@ -244,11 +244,11 @@ class _FlowGrid(QWidget):
     def minimumSizeHint(self) -> QSize:
         return QSize(200, 200)
 
-    def resizeEvent(self, ev):
+    def resizeEvent(self, ev) -> None:
         super().resizeEvent(ev)
         self._layout_children()
 
-    def _layout_children(self):
+    def _layout_children(self) -> None:
         w = self.width()
         x = 0
         y = 0
@@ -273,7 +273,7 @@ class _FlowGrid(QWidget):
 class HabitPanel(QWidget):
     habit_logged = Signal(str, bool)
 
-    def __init__(self, dm: DataManager, parent=None):
+    def __init__(self, dm: DataManager, parent=None) -> None:
         super().__init__(parent)
         self._dm = dm
 
@@ -323,11 +323,11 @@ class HabitPanel(QWidget):
 
         self._refresh()
 
-    def resizeEvent(self, event):
+    def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
         self._fab.move(self.width() - 64, self.height() - 64)
 
-    def showEvent(self, ev):
+    def showEvent(self, ev) -> None:
         super().showEvent(ev)
         self._fab.raise_()
 
@@ -445,7 +445,7 @@ class HabitPanel(QWidget):
 # ── HabitDialog (unchanged, kept below) ────────────────────────
 
 class HabitDialog(QDialog):
-    def __init__(self, dm: DataManager, habit: dict | None = None, parent=None):
+    def __init__(self, dm: DataManager, habit: dict | None = None, parent=None) -> None:
         super().__init__(parent)
         self._dm = dm
         self._habit = habit
@@ -800,7 +800,7 @@ class HabitDialog(QDialog):
 
 
 class _AttachedTaskDialog(QDialog):
-    def __init__(self, parent=None):
+    def __init__(self, parent=None) -> None:
         super().__init__(parent)
         c = get_colors()
         num_qss = f"""

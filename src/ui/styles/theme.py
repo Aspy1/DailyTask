@@ -87,7 +87,7 @@ def init_theme(app: QApplication, mode: str = "light") -> str:
     # Suppress focus rect dotted border on buttons
     from PySide6.QtWidgets import QProxyStyle, QStyle
     class _NoFocusStyle(QProxyStyle):
-        def drawPrimitive(self, element, option, painter, widget):
+        def drawPrimitive(self, element, option, painter, widget) -> None:
             if element == QStyle.PrimitiveElement.PE_FrameFocusRect:
                 return
             super().drawPrimitive(element, option, painter, widget)

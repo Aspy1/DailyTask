@@ -19,14 +19,14 @@ class WeatherWorker(QThread):
     finished = Signal(dict, str)  # (data, api_type)
     error = Signal(str, str)  # (error_msg, api_type)
 
-    def __init__(self, host: str, key: str, location: str, api_type: str):
+    def __init__(self, host: str, key: str, location: str, api_type: str) -> None:
         super().__init__()
         self._host = host
         self._key = key
         self._location = location
         self._api_type = api_type
 
-    def run(self):
+    def run(self) -> None:
         try:
             if self._api_type == "now":
                 url = f"https://{self._host}/v7/weather/now?location={self._location}&key={self._key}"
@@ -51,7 +51,7 @@ class WeatherWorker(QThread):
             # 边界捕获：Worker 线程入口，异常经信号回传，不允许逃逸（Q-I1）
             self.error.emit(str(e), self._api_type)
 
-    def _record_request(self):
+    def _record_request(self) -> None:
         """记录API调用次数"""
         stats_file = _STATS_FILE
         stats = {}
@@ -103,7 +103,7 @@ class WeatherService(QObject):
     MONTHLY_WARN = 45000
     MONTHLY_LIMIT = 49900
 
-    def __init__(self, scene_archive: SceneArchive = None):
+    def __init__(self, scene_archive: SceneArchive = None) -> None:
         super().__init__()
         self._scene = scene_archive
         self._host = ""
@@ -124,12 +124,12 @@ class WeatherService(QObject):
         # 当前工作线程（按接口类型分开，避免 now/7d 互相覆盖）
         self._workers: dict[str, WeatherWorker] = {}
 
-    def set_credentials(self, host: str, key: str):
+    def set_credentials(self, host: str, key: str) -> None:
         """设置API凭证"""
         self._host = host
         self._key = key
 
-    def set_scene_archive(self, scene: SceneArchive):
+    def set_scene_archive(self, scene: SceneArchive) -> None:
         """设置场景存档"""
         self._scene = scene
 
@@ -140,7 +140,7 @@ class WeatherService(QObject):
             return f"{loc['lon']},{loc['lat']}"
         return "121.47,31.23"  # 默认上海
 
-    def start_auto_update(self):
+    def start_auto_update(self) -> None:
         """启动定时更新"""
         if not self._host or not self._key:
             return
@@ -155,7 +155,7 @@ class WeatherService(QObject):
         # 启动7天预报定时器（每分钟检查一次是否到达固定时间点）
         self._timer_7d.start(60000)  # 60秒检查一次
 
-    def _check_and_fetch_7d(self):
+    def _check_and_fetch_7d(self) -> None:
         """检查是否到达固定时间点并刷新7天预报"""
         now = datetime.now()
         current_time = now.strftime("%H:%M")
@@ -172,7 +172,7 @@ class WeatherService(QObject):
                     return  # 今天这个时间点已经刷新过
             self._fetch_7d(force=True)
 
-    def stop_auto_update(self):
+    def stop_auto_update(self) -> None:
         """停止定时更新"""
         self._timer_now.stop()
         self._timer_7d.stop()
@@ -240,7 +240,7 @@ class WeatherService(QObject):
         worker.error.connect(lambda *_, t=api_type: self._workers.pop(t, None))
         worker.start()
 
-    def _fetch_now(self, force: bool = False):
+    def _fetch_now(self, force: bool = False) -> None:
         """获取实时天气"""
         if not self._host or not self._key:
             return
@@ -260,7 +260,7 @@ class WeatherService(QObject):
         # 发起请求
         self._start_worker("now", self._on_now_finished)
 
-    def _fetch_7d(self, force: bool = False):
+    def _fetch_7d(self, force: bool = False) -> None:
         """获取7天预报"""
         if not self._host or not self._key:
             return
@@ -279,7 +279,7 @@ class WeatherService(QObject):
 
         self._start_worker("7d", self._on_7d_finished)
 
-    def _on_now_finished(self, data: dict, api_type: str):
+    def _on_now_finished(self, data: dict, api_type: str) -> None:
         """实时天气请求完成"""
         self._now_cache = data.get("now", {})
         self._now_cache_time = datetime.now()
@@ -287,7 +287,7 @@ class WeatherService(QObject):
         # 写入缓存文件供脚本读取
         self._write_cache_to_file()
 
-    def _on_7d_finished(self, data: dict, api_type: str):
+    def _on_7d_finished(self, data: dict, api_type: str) -> None:
         """7天预报请求完成"""
         self._7d_cache = data.get("daily", [])
         self._7d_cache_time = datetime.now()
@@ -295,7 +295,7 @@ class WeatherService(QObject):
         # 写入缓存文件供脚本读取
         self._write_cache_to_file()
 
-    def _write_cache_to_file(self):
+    def _write_cache_to_file(self) -> None:
         """将天气缓存写入文件，供scripts/actions.py读取"""
         import json
         cache_file = _CACHE_FILE
@@ -307,7 +307,7 @@ class WeatherService(QObject):
         }
         cache_file.write_text(json.dumps(cache_data, ensure_ascii=False))
 
-    def _on_error(self, msg: str, api_type: str):
+    def _on_error(self, msg: str, api_type: str) -> None:
         """错误处理"""
         self.error_occurred.emit(f"[{api_type}] {msg}")
 
@@ -319,7 +319,7 @@ class WeatherService(QObject):
         """获取7天预报（同步，返回缓存）"""
         return self._7d_cache or []
 
-    def refresh(self):
+    def refresh(self) -> None:
         """强制刷新所有天气数据（用户主动触发）"""
         self._fetch_now(force=True)
         self._fetch_7d(force=True)

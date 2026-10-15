@@ -31,7 +31,7 @@ class PluginInfo:
 
 
 class PluginManager:
-    def __init__(self, plugins_dir: Path, settings, data_manager, app=None):
+    def __init__(self, plugins_dir: Path, settings, data_manager, app=None) -> None:
         self.plugins_dir = Path(plugins_dir)
         self.settings = settings
         self.data_manager = data_manager
@@ -96,7 +96,7 @@ class PluginManager:
         except Exception:  # noqa: BLE001
             return []
 
-    def _import_plugin_module(self, plugin_name: str, mod_path: Path):
+    def _import_plugin_module(self, plugin_name: str, mod_path: Path) -> object:
         """按插件名缓存地导入 plugin.py 模块（import module under a stable name per plugin）。"""
         if plugin_name in self._module_cache:
             return self._module_cache[plugin_name]
@@ -114,7 +114,7 @@ class PluginManager:
         regs: list = []
 
         class _API:
-            def register_panel(self, display_name: str, factory: Callable):
+            def register_panel(self, display_name: str, factory: Callable) -> None:
                 regs.append((display_name, factory))
 
         if hasattr(mod, "register") and callable(mod.register):
@@ -166,13 +166,13 @@ class PluginManager:
         except Exception:  # noqa: BLE001
             return False
 
-    def get_panels(self, plugin_name: str):
+    def get_panels(self, plugin_name: str) -> list:
         if plugin_name in self.panels:
             return self.panels[plugin_name]
         # lazy load definitions
         return self._load_plugin_definitions(plugin_name)
 
-    def create_panel(self, plugin_name: str, display_name: str, settings, ai_service, data_manager, parent=None):
+    def create_panel(self, plugin_name: str, display_name: str, settings, ai_service, data_manager, parent=None) -> object | None:
         regs = self.get_panels(plugin_name)
         for disp, factory in regs:
             if disp == display_name:

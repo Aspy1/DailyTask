@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 class DataManager(QObject):
     data_changed = Signal(str)
 
-    def __init__(self, data_dir: Path, parent=None):
+    def __init__(self, data_dir: Path, parent=None) -> None:
         super().__init__(parent)
         self.data_dir = data_dir
         data_dir.mkdir(parents=True, exist_ok=True)

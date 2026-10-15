@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 
 class CourseDetailDialog(QDialog):
-    def __init__(self, dm: DataManager, course_name: str, parent=None):
+    def __init__(self, dm: DataManager, course_name: str, parent=None) -> None:
         super().__init__(parent)
         self._dm = dm
         self._course_name = course_name

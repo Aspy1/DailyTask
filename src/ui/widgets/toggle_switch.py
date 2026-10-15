@@ -12,7 +12,7 @@ class ToggleSwitch(QWidget):
     
     toggled = Signal(bool)
     
-    def __init__(self, parent=None):
+    def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self._checked = False
         self.setFixedSize(44, 24)

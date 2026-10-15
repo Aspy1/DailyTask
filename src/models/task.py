@@ -16,7 +16,7 @@ DEFAULT_TASKS = {
 class TaskModel(BaseJsonModel):
     GENERIC_TAGS: ClassVar[set[str]] = {"作业", "考试", "pre", "ppt", "报告", "复习", "项目", "论文", "实验", "小组作业"}
 
-    def __init__(self, file_path: Path):
+    def __init__(self, file_path: Path) -> None:
         super().__init__(file_path, DEFAULT_TASKS)
         self._auto_archive()
         self._repair_course_names()

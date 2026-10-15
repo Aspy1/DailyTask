@@ -27,18 +27,18 @@ _STDOUT_LOCK = threading.Lock()
 logger = logging.getLogger(__name__)
 
 
-def load(name):
+def load(name) -> dict:
     p = DATA / name
     if not p.exists():
         return {}
     with open(p, encoding='utf-8') as f:
         return json.load(f)
 
-def save(name, obj):
+def save(name, obj) -> None:
     with open(DATA / name, 'w', encoding='utf-8') as f:
         json.dump(obj, f, ensure_ascii=False, indent=2)
 
-def gen_id(items, prefix):
+def gen_id(items, prefix) -> str:
     existing = set()
     for it in items:
         try:
@@ -51,7 +51,7 @@ def gen_id(items, prefix):
         n += 1
     return f"{prefix}_{n:03d}"
 
-def now_iso():
+def now_iso() -> str:
     return datetime.now().isoformat()
 
 def _match_exact_course(courses: list, name_lower: str) -> str | None:
@@ -233,7 +233,7 @@ def normalize_time(due_str: str) -> str:
 # Actions
 # ═══════════════════════════════════════════════════════════
 
-def cmd_add_task(args):
+def cmd_add_task(args) -> None:
     course = args.course or ""
     matched = match_course(course) or course or ""
     title = args.title
@@ -260,7 +260,7 @@ def cmd_add_task(args):
     save("tasks.json", data)
     print(f"OK add_task {tid} | {matched} | {title} | DDL {due[:16]}")
 
-def cmd_complete_task(args):
+def cmd_complete_task(args) -> None:
     tid = args.id
     data = load("tasks.json")
     data.setdefault("tasks", [])
@@ -281,7 +281,7 @@ def cmd_complete_task(args):
             return
     print(f"ERROR task not found: {tid}")
 
-def cmd_add_exam(args):
+def cmd_add_exam(args) -> None:
     course = args.course or ""
     matched = match_course(course)
     exam_date = parse_date(args.date) if args.date else ""
@@ -300,7 +300,7 @@ def cmd_add_exam(args):
     save("exams.json", data)
     print(f"OK add_exam {eid} | {matched} | {exam_date}")
 
-def cmd_add_habit(args):
+def cmd_add_habit(args) -> None:
     name = args.name
     schedule_str = args.schedule or "daily/1"
     typ, val = schedule_str.split("/", 1) if "/" in schedule_str else ("daily", "1")
@@ -329,7 +329,7 @@ def cmd_add_habit(args):
     save("habits.json", data)
     print(f"OK add_habit {hid} | {name} ({typ})")
 
-def cmd_log_habit(args):
+def cmd_log_habit(args) -> None:
     hid = args.id
     data = load("habits.json")
     today_str = date.today().isoformat()
@@ -346,7 +346,7 @@ def cmd_log_habit(args):
             return
     print(f"ERROR habit not found: {hid}")
 
-def cmd_add_plan(args):
+def cmd_add_plan(args) -> None:
     date_str = parse_date(args.date) if args.date else date.today().isoformat()
     plan = {
         "title": args.title,
@@ -362,7 +362,7 @@ def cmd_add_plan(args):
     save("daily_logs.json", data)
     print(f"OK add_plan | {date_str} | slot={plan['time_slot']} | {plan['title']}")
 
-def cmd_replace_plans(args):
+def cmd_replace_plans(args) -> None:
     date_str = parse_date(args.date) if args.date else date.today().isoformat()
     try:
         new_plans = json.loads(args.plans)
@@ -378,7 +378,7 @@ def cmd_replace_plans(args):
     save("daily_logs.json", data)
     print(f"OK replace_plans {date_str} | {len(new_plans)} items")
 
-def cmd_delete_plan(args):
+def cmd_delete_plan(args) -> None:
     date_str = parse_date(args.date) if args.date else date.today().isoformat()
     idx = args.index
     data = load("daily_logs.json")
@@ -392,7 +392,7 @@ def cmd_delete_plan(args):
     else:
         print(f"ERROR plan index out of range: {date_str}[{idx}]")
 
-def cmd_add_course(args):
+def cmd_add_course(args) -> None:
     name = args.name
     day = args.day
     weeks_str = args.weeks or "1-16"
@@ -428,7 +428,7 @@ def cmd_add_course(args):
     save("courses.json", data)
     print(f"OK add_course {cid} | {name} | 周{day} 第{slots_str}节")
 
-def cmd_delete_course(args):
+def cmd_delete_course(args) -> None:
     cid = args.id
     data = load("courses.json")
     courses = data.get("courses", [])
@@ -440,7 +440,7 @@ def cmd_delete_course(args):
             return
     print(f"ERROR course not found: {cid}")
 
-def cmd_add_item(args):
+def cmd_add_item(args) -> None:
     data = load("inventory.json")
     data.setdefault("items", [])
     iid = gen_id(data["items"], "i")
@@ -488,7 +488,7 @@ def _apply_item_updates(item: dict, args) -> None:
         item["tags"] = _split_tag_list(args.tags)
 
 
-def cmd_update_item(args):
+def cmd_update_item(args) -> None:
     data = load("inventory.json")
     for it in data.get("items", []):
         if it["id"] != args.id:
@@ -500,7 +500,7 @@ def cmd_update_item(args):
         return
     print(f"ERROR item not found: {args.id}")
 
-def cmd_delete_item(args):
+def cmd_delete_item(args) -> None:
     data = load("inventory.json")
     iid = args.id
     items = data.get("items", [])
@@ -513,7 +513,7 @@ def cmd_delete_item(args):
     print(f"ERROR item not found: {iid}")
 
 
-def cmd_need_restock(args):
+def cmd_need_restock(args) -> None:
     data = load("inventory.json")
     needs = [it for it in data.get("items", []) if it.get("status") in ("需购", "不足")]
     for it in needs:
@@ -521,7 +521,7 @@ def cmd_need_restock(args):
     if not needs:
         print("无需购物品")
 
-def cmd_lookup_item(args):
+def cmd_lookup_item(args) -> None:
     data = load("inventory.json")
     name = args.name.strip().lower()
     matches = []
@@ -538,7 +538,7 @@ def cmd_lookup_item(args):
     else:
         print("NOT_FOUND")
 
-def cmd_status(args):
+def cmd_status(args) -> None:
     t = load("tasks.json")
     h = load("habits.json")
     c = load("courses.json")
@@ -568,7 +568,7 @@ def _split_command_parts(cmd_str: str) -> list[str]:
     return parts
 
 
-def _to_int_or_str(val: str):
+def _to_int_or_str(val: str) -> int | str:
     """整数字符串转 int，否则原样返回。"""
     try:
         return int(val)
@@ -661,7 +661,7 @@ def run_in_process(cmd_str: str) -> str:
 # CLI
 # ═══════════════════════════════════════════════════════════
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(prog="actions", description="生活助手数据操作")
     sub = parser.add_subparsers(dest="action")
 

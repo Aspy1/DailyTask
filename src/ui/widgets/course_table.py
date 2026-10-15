@@ -107,7 +107,7 @@ class CourseTable(QTableWidget):
     course_delete_requested = Signal(str)
     view_course_tasks = Signal(str)  # course_name
 
-    def __init__(self, period_count: int = 5, parent=None):
+    def __init__(self, period_count: int = 5, parent=None) -> None:
         self._period_count = max(1, period_count)
         labels = self._build_labels()
 

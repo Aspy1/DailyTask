@@ -32,12 +32,12 @@ KNOWN_MISSING_HANDLERS = {"query_weather", "query_balance", "weather_stats"}
 KNOWN_MISSING_SUBPARSER = {"delete_item"}
 
 
-def test_prompt_still_advertises_core_commands():
+def test_prompt_still_advertises_core_commands() -> None:
     assert {"add_task", "add_item", "lookup_item"} <= set(ADVERTISED)
 
 
 @pytest.mark.parametrize("cmd", ADVERTISED)
-def test_advertised_command_is_executable(sandbox, cmd):
+def test_advertised_command_is_executable(sandbox, cmd) -> None:
     if cmd in KNOWN_MISSING_HANDLERS:
         pytest.xfail(f"'{cmd}' 在 SYSTEM_PROMPT_BASE 中宣传，但 actions.run_in_process 无 handler")
     out = actions.run_in_process(f"python scripts/actions.py {cmd}")
@@ -45,7 +45,7 @@ def test_advertised_command_is_executable(sandbox, cmd):
 
 
 @pytest.mark.parametrize("cmd", IMPLEMENTED)
-def test_cli_subparser_exists(capsys, monkeypatch, sandbox, cmd):
+def test_cli_subparser_exists(capsys, monkeypatch, sandbox, cmd) -> None:
     if cmd in KNOWN_MISSING_SUBPARSER:
         pytest.xfail(f"'{cmd}' 有 handler 但 main() 未注册 subparser")
     monkeypatch.setattr(sys, "argv", ["actions.py", cmd])

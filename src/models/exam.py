@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 class ExamModel(BaseJsonModel):
-    def __init__(self, file_path: Path):
+    def __init__(self, file_path: Path) -> None:
         super().__init__(file_path, DEFAULT_EXAMS)
 
     @property

@@ -63,7 +63,7 @@ DEFAULT_SETTINGS = {
 }
 
 class SettingsManager:
-    def __init__(self, file_path: Path):
+    def __init__(self, file_path: Path) -> None:
         self.file_path = file_path
         self._config = configparser.ConfigParser()
         if self.file_path.exists():

@@ -6,12 +6,12 @@ from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
 
 
-def register(api):
+def register(api) -> None:
     api.register_panel("番茄钟", factory)
 
 
 class PomodoroWidget(QWidget):
-    def __init__(self, settings, ai_service, data_manager, parent=None):
+    def __init__(self, settings, ai_service, data_manager, parent=None) -> None:
         super().__init__(parent)
         self.setMinimumSize(320, 180)
         self._timer = QTimer(self)
@@ -39,7 +39,7 @@ class PomodoroWidget(QWidget):
         sec = s % 60
         return f"{m:02d}:{sec:02d}"
 
-    def _tick(self):
+    def _tick(self) -> None:
         if self._remaining > 0:
             self._remaining -= 1
             self._label.setText(self._format(self._remaining))
@@ -48,7 +48,7 @@ class PomodoroWidget(QWidget):
             self._running = False
             self._start_btn.setText("开始")
 
-    def _start_pause(self):
+    def _start_pause(self) -> None:
         if self._running:
             self._timer.stop()
             self._running = False
@@ -58,7 +58,7 @@ class PomodoroWidget(QWidget):
             self._running = True
             self._start_btn.setText("暂停")
 
-    def _reset(self):
+    def _reset(self) -> None:
         self._timer.stop()
         self._remaining = 25 * 60
         self._label.setText(self._format(self._remaining))
@@ -66,5 +66,5 @@ class PomodoroWidget(QWidget):
         self._start_btn.setText("开始")
 
 
-def factory(settings, ai_service, data_manager, parent=None):
+def factory(settings, ai_service, data_manager, parent=None) -> PomodoroWidget:
     return PomodoroWidget(settings, ai_service, data_manager, parent)

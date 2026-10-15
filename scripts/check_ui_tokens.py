@@ -97,7 +97,7 @@ def load_tokens() -> tuple[set[str], dict[str, str]]:
     return names, value_to_name
 
 
-def _color_finding(lit: str, value_to_name: dict[str, str]):
+def _color_finding(lit: str, value_to_name: dict[str, str]) -> tuple[str, str, str]:
     """颜色字面量 → (kind, 片段, 建议)。"""
     tok = value_to_name.get(lit.lower())
     hint = f"→ 用 token `{tok}`" if tok else "→ 无对应 token，需在 tokens.json 新增"
@@ -138,7 +138,7 @@ def _find_token_name_findings(line: str, names: set[str]) -> list:
     return findings
 
 
-def check_line(line: str, names: set[str], value_to_name: dict[str, str], check_px: bool):
+def check_line(line: str, names: set[str], value_to_name: dict[str, str], check_px: bool) -> list[tuple[str, str, str]]:
     """返回 [(kind, 片段, 建议), ...]"""
     if IGNORE_MARK in line:          # 行级豁免
         return []
@@ -157,7 +157,7 @@ def check_line(line: str, names: set[str], value_to_name: dict[str, str], check_
     return findings
 
 
-def _parse_args():
+def _parse_args() -> argparse.Namespace:
     ap = argparse.ArgumentParser(description="UI 设计令牌约束检查")
     ap.add_argument("paths", nargs="*", default=["src"], help="要检查的路径（默认 src）")
     ap.add_argument("--strict", action="store_true", help="有违规时返回退出码 1")
