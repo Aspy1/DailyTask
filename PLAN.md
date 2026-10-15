@@ -28,7 +28,7 @@
   文档体系（Q-G3/Q-G4）· 异常处理（Q-I）· schema/版本号（Q-E4/E5）
 **P1b 规范落地（把决策应用到代码与文档）**
 - `A-1` ✅ 写 `ARCHITECTURE.md` + `git rm` 34 份 `.py.md` + `FORMAT_SPEC.md`
-- `A-2` ✅ 合并两份 `ERRORS.md`；`A-3` `AllTheFiles.md` 瘦身（待办）
+- `A-2` ✅ 合并两份 `ERRORS.md`；`A-3` ✅ `AllTheFiles.md` 瘦身（430→311 行）
 - `G-1` 🔄 `tokens.json` 已建 + `theme.py` 已改加载（G-1a ✅）；生成 `DESIGN_TOKENS.md` 待办（G-1b）
 - `H-1` / `Q-P1` ✅ 建 `resources/`、`image.png` 归位（`app.py` `_ICON_PATH` 同步；`rewrite_history.py` 路径同步）
 - `Q-N5` i18n key 命名空间落地
@@ -93,10 +93,12 @@
 - ✅ 2026-10-15：两份内容完全不同（根 6 条 vs `MD-files` 13 条），已合并为根 `ERRORS.md` 共 **19 条**；
   索引改为**按条目号**（去掉写死的 `L28-L50` 行号）；`MD-files/ERRORS.md` 已删除。
 
-### A-3 `[进行中]` `AllTheFiles.md` 瘦身
+### A-3 `[已完成]` `AllTheFiles.md` 瘦身
 
-- ✅ 2026-10-15：与 ARCHITECTURE 冲突的三章（初始化顺序 / 数据路径 / 信号总览）已加"已迁移"标注并指向 ARCHITECTURE；「文件详情」链接表已移除。
-- 待办：把这三章正文删掉（仅留指针）；`全局常量` 的魔法数字并入 `CODE_STANDARDS R-005`；处理 `MD-files/全量审核.md`（引用了已删的 `.py.md`，待判定是否废弃）。
+- ✅ 2026-10-16：三章（初始化顺序 / 数据路径 / 信号总览）**正文已删除**，只留指向 ARCHITECTURE 的指针（−75 行）；
+  「文件详情」链接表改为指针；DR 条目的 `详见 xxx.py.md` 死链已清除；`MD-files/全量审核.md`
+  （针对已删 `.py.md` 的审查笔记）已删除。**文件 430 → 311 行**。
+- 保留并作为权威：索引 · 全局常量（R-005 登记）· 术语映射 · 操作步骤清单 · 决策记录（DR-xxx）· 项目级禁止清单（R-001~R-008）。
 
 ---
 

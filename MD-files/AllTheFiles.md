@@ -139,81 +139,15 @@
 
 ## 初始化顺序
 
-> 【2026-10-15 已迁移】本节**已过时**（含细节错误，如 `show()` 的实际位置）。
-> 权威版本见 **[ARCHITECTURE.md](ARCHITECTURE.md) §3 启动顺序**。下表仅作存档。
-
-> 以下顺序不可颠倒。每个步骤的备注说明依赖关系。
-
-| 步骤 | 操作 | 关键代码 | 备注 |
-|------|------|----------|------|
-| 1 | 单实例检测 | `QLocalSocket.connectToServer` | 若连接成功则退出 |
-| 2 | 设置 AppID | `SetCurrentProcessExplicitAppUserModelID("LifeAssistant.StudentScheduler")` | Windows 任务栏图标归属 |
-| 3 | 加载配置 | `SettingsManager.load()` | 读取 INI |
-| 4 | 加载语言 | `i18n.load()` | 依赖 Settings |
-| 5 | 初始化主题 | `init_theme()` | 加载 QSS |
-| 6 | 同步自启 | `set_autostart()` | 写入注册表 |
-| 7 | 初始化 DataManager | `DataManager(DATA_DIR)` | **核心枢纽** |
-| 8 | 初始化 Services | `AIService`, `ReminderService`... | 依赖 DataManager |
-| 9 | 初始化 PluginManager | `PluginManager()` | 扫描插件目录 |
-| 10 | 初始化 MainWindow | `MainWindow()` | 依赖所有 Services |
-| 11 | 启动定时器 | `ReminderService.start()` | UI 就绪后启动 |
-| 12 | 设置托盘 | `_setup_tray()` | 依赖 MainWindow |
-| 13 | 监听新实例 | `QLocalServer.listen()` | 用于唤醒 |
-| 14 | 显示窗口 | `show()` | |
-
----
+> 【已迁移】权威版本见 **[ARCHITECTURE.md](ARCHITECTURE.md) §3 启动顺序**。
 
 ## 数据路径
 
-> 【2026-10-15 已迁移】本节**已过时**：实际是**三条**路径（UI / AI-TG / 外部修改），不是两条。
-> 权威版本见 **[ARCHITECTURE.md](ARCHITECTURE.md) §4 数据流**。下表仅作存档。
-
-项目有两条独立的数据操作路径，不可混用：
-
-| | 路径 A (UI 操作) | 路径 B (AI / TG 操作) |
-|---|---|---|
-| 入口 | Panel 控件 → `DataManager.add_*()` | AI 解析 → `scripts/actions.py` 子进程 |
-| 写入 | `DataManager` → JSON 文件 | `actions.py` → JSON 直接写入 |
-| 通知 | `DataManager` 自动 emit `data_changed` | `DataManager` 每 3s 检测文件 mtime → 差异 > 0.1s 则重载 Model 并 emit `data_changed("external")` |
-| 规则 | 见禁止清单 R-002 | 见禁止清单 R-002 |
-
-配置路径：`%APPDATA%/StudentScheduler/settings.ini`（由 `SettingsManager` 处理）
-
-资源路径：`{PROJECT_ROOT}/resources/`
-
-> **注意**：`DataManager` 每 `DATA_RELOAD_INTERVAL`（3000ms）轮询一次文件 `mtime`。若检测到 `mtime` 变化且差值 **> 100ms**，则判定为外部修改并触发 `data_changed`。3000ms 是轮询间隔，100ms 是变化判定阈值——两者独立。若 `actions.py` 在同一秒内多次写入，需确保时间间隔 > 100ms，否则可能漏触发。
-
----
+> 【已迁移】实际是**三条**路径（UI / AI-TG / 外部修改）；权威版本见 **[ARCHITECTURE.md](ARCHITECTURE.md) §4 数据流**。
 
 ## 信号总览
 
-> 【2026-10-15 已迁移】权威版本见 **[ARCHITECTURE.md](ARCHITECTURE.md) §5 信号总览**。下表仅作存档。
-
-| 发射者 | 信号签名 | 接收者 | 槽函数 | 作用 |
-|---|---|---|---|---|
-| `ReminderService` | `reminder_notify(str, str)` | App | `_show_reminder_notify` | 显示托盘通知 |
-| `ReminderService` | `ddl_alert(int)` | App | `_on_ddl_alert` | 触发托盘闪烁 |
-| `ScheduleView` | `arrange_requested(str)` | MainWindow | `_on_quick_arrange` | 发送快照 prompt 到 AI |
-| `DataManager` | `data_changed(str)` | GitSync | `on_data_changed` | 触发 Git 提交 |
-| `DataManager` | `data_changed(str)` | MainWindow → Panels | `refresh_*()` | 全局 UI 刷新 |
-
-> **参数约定**（`data_changed(str)`）：
-> - `"external"` — 文件被外部程序修改（`DataManager._auto_reload` 检测到 mtime 变化）
-> - `"ai_action"` — AI 通过 `actions.py` 修改（`InstructionParser.execute` 触发）
-> - `"internal"` — UI 直接调用 `DataManager` 方法修改
-> - `"update_course"` / `"delete_course"` — 课程面板操作
-> - `"exam"` — 考试面板操作
-> - `"expense"` / `"saving"` — 记账面板操作
-> - `"habit"` — 习惯面板操作
-| `GitSync` | `sync_status(str)` | App | `_on_sync_status` | 更新托盘 Tooltip |
-| `QLocalServer` | `newConnection()` | App | `_on_second_instance` | 唤醒窗口 |
-| `AIService` | `response_received(str)` | `ai_panel.py` | 显示回复 | AI 回复文本（已剥离代码块） |
-| `AIService` | `error_occurred(str)` | `ai_panel.py` | 显示错误 | 错误信息 |
-| `AIService` | `instructions_executed(str, list)` | `ai_panel.py` | 显示结果 | 显示文本 + 指令列表 |
-
-> 注：`QTimer → timeout() → _flash_tick` 为 app.py 内部信号，详见 app.py 函数合同。
-
----
+> 【已迁移】权威版本见 **[ARCHITECTURE.md](ARCHITECTURE.md) §5 信号总览**。
 
 ## 术语映射
 
@@ -302,7 +236,7 @@
 
 ## 决策记录
 
-> 【2026-10-15】以下 DR 条目中"详见 `xxx.py.md`"的链接已失效（`.py.md` 已删）；
+> 【2026-10-15】以下 DR 条目中""的链接已失效（`.py.md` 已删）；
 > 实现位置以源码与 `ARCHITECTURE.md` 为准。
 
 **DR-001：使用 QLocalServer 而非 QSharedMemory 做单实例锁**
@@ -352,27 +286,27 @@
 - **原因**：确保新进程继承原进程的启动参数（如调试模式、特定配置文件路径），维持运行环境一致性。
 - **位置**：`App._restart()` — `QProcess.startDetached(sys.executable, sys.argv)`
 
-**DR-BASE-001**：`os.replace` 原子写入 — 防断电损坏。详见 `base.py.md`
+**DR-BASE-001**：`os.replace` 原子写入 — 防断电损坏。
 
-**DR-BASE-002**：Windows Defender / Search Indexer 重试 5×50ms — 防 `PermissionError`。详见 `base.py.md`
+**DR-BASE-002**：Windows Defender / Search Indexer 重试 5×50ms — 防 `PermissionError`。
 
-**DR-BASE-003**：版本迁移框架 — `_version` + `migrate()`。详见 `base.py.md`
+**DR-BASE-003**：版本迁移框架 — `_version` + `migrate()`。
 
-**DR-AI-001**：AI 指令通过 subprocess 执行（非直接函数调用）— 隔离风险。详见 `ai_service.py.md`
+**DR-AI-001**：AI 指令通过 subprocess 执行（非直接函数调用）— 隔离风险。
 
-**DR-AI-002**：剥离代码块仅显示自然语言 — 用户体验。详见 `ai_service.py.md`
+**DR-AI-002**：剥离代码块仅显示自然语言 — 用户体验。
 
-**DR-AI-003**：Agent Loop 限制最大 5 轮 — 成本控制。详见 `ai_service.py.md`
+**DR-AI-003**：Agent Loop 限制最大 5 轮 — 成本控制。
 
-**DR-UI-001**：使用哈希确定课程颜色 — 避免随机变色。详见 `course_table.py.md`
+**DR-UI-001**：使用哈希确定课程颜色 — 避免随机变色。
 
-**DR-SETTINGS-001**：插件窗口列表持有引用 — 防 GC 关闭。详见 `settings_panel.py.md`
+**DR-SETTINGS-001**：插件窗口列表持有引用 — 防 GC 关闭。
 
-**DR-TASK-001**：QLabel 富文本实现 DDL 高亮 — QTableWidgetItem 不支持。详见 `task_panel.py.md`
+**DR-TASK-001**：QLabel 富文本实现 DDL 高亮 — QTableWidgetItem 不支持。
 
-**DR-UI-002**：`.bak` 文件实现 AI 调整回滚 — 一键撤销。详见 `schedule_view.py.md`
+**DR-UI-002**：`.bak` 文件实现 AI 调整回滚 — 一键撤销。
 
-**DR-AI-004**：Shell 指令超时设置为 30 秒 — 防止死锁。详见 `ai_service.py.md`
+**DR-AI-004**：Shell 指令超时设置为 30 秒 — 防止死锁。
 
 ---
 
