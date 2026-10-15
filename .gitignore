@@ -1,7 +1,8 @@
-# User data — sensitive / volatile files only
+# User data / sensitive / volatile files only
 data/app.log
 data/backup/
 data/settings.ini
+data/schedule_snapshot.txt
 
 # Python
 __pycache__/
