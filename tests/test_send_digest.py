@@ -1,9 +1,14 @@
-"""send_digest.build_digest 的冒烟测试（此前无任何覆盖）。"""
+"""send_digest.build_digest 的冒烟测试。
+
+⚠ 日期基准必须用 `beijing_today()`（= 摘要自己的"今天"），不能用 `date.today()`：
+CI 跑在 UTC runner 上，北京日期会比本地日期早一天，断言 `还有 N 天` 会整体错位
+（2026-10-16 CI 十连败的第二个根因）。
+"""
 
 import json
-from datetime import date, timedelta
+from datetime import timedelta
 
-from scripts.send_digest import build_digest
+from scripts.send_digest import beijing_today, build_digest
 
 
 def _write(data_dir, name, obj) -> None:
@@ -11,7 +16,7 @@ def _write(data_dir, name, obj) -> None:
 
 
 def test_build_digest_sections(tmp_path) -> None:
-    today = date.today()
+    today = beijing_today()
     _write(tmp_path, "courses.json", {"courses": [
         {"name": "算法", "day_of_week": today.isoweekday(),
          "time_slots": [{"start": 1, "end": 2}], "weeks": {"start": 1, "end": 20}},
@@ -52,7 +57,7 @@ def test_build_digest_sections(tmp_path) -> None:
 
 def test_digest_exam_from_exams_json_only(tmp_path) -> None:
     """回归：考试模块（exams.json）此前完全进不了摘要，只认 tasks 里的「考试」。"""
-    today = date.today()
+    today = beijing_today()
     _write(tmp_path, "tasks.json", {"tasks": [], "archived": []})
     _write(tmp_path, "exams.json", {"exams": [
         {"id": "e_001", "course_name": "线性代数",
@@ -64,7 +69,7 @@ def test_digest_exam_from_exams_json_only(tmp_path) -> None:
 
 def test_digest_dedupes_same_exam_in_both_sources(tmp_path) -> None:
     """同一场考试同时存在于 exams.json 与 tasks 时，考试分区只列一次。"""
-    today = date.today()
+    today = beijing_today()
     day = (today + timedelta(days=2)).isoformat()
     _write(tmp_path, "tasks.json", {"tasks": [
         {"id": "t_001", "title": "高等数学", "status": "pending", "tags": ["考试"],
@@ -77,7 +82,7 @@ def test_digest_dedupes_same_exam_in_both_sources(tmp_path) -> None:
 
 
 def test_digest_ignores_far_exams(tmp_path) -> None:
-    today = date.today()
+    today = beijing_today()
     _write(tmp_path, "exams.json", {"exams": [
         {"id": "e_001", "course_name": "遥远的考试",
          "exam_date": (today + timedelta(days=40)).isoformat()}]})

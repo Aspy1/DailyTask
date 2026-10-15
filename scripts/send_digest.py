@@ -152,7 +152,7 @@ def is_habit_done_today(habit: dict, logs: dict, today: date) -> bool:
     return entry.get("completed", False)
 
 
-def _beijing_today() -> date:
+def beijing_today() -> date:
     return datetime.now(timezone(timedelta(hours=8))).date()
 
 
@@ -184,7 +184,7 @@ def _add_exam_item(items: dict[str, dict], name: str, date_str: str) -> None:
 
 def build_digest(data_dir: Path) -> str:
     """组装每日摘要文本（按分区拼接）。"""
-    today = _beijing_today()
+    today = beijing_today()
     today_str = today.isoformat()
     weekday = WEEKDAY_NAMES[today.weekday()]
 
@@ -417,7 +417,7 @@ def main() -> None:
         print(f"Data directory not found: {data_dir}")
         return
 
-    today = _beijing_today()
+    today = beijing_today()
     today_str = today.isoformat()
     weekday = WEEKDAY_NAMES[today.weekday()]
 
