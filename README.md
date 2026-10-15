@@ -38,6 +38,7 @@ python -m venv .venv
 ├── AGENTS.md                       # AI Agent 开发约束
 ├── ERRORS.md                       # 已踩坑索引
 ├── README.md
+├── PLAN.md                         # 大框架整改计划
 ├── pyproject.toml                  # requires-python + pytest 配置
 ├── requirements.txt                # 运行时依赖（区间）
 ├── requirements-dev.txt            # 开发/测试依赖
@@ -92,6 +93,7 @@ python -m venv .venv
 ├── MD-files/                       # ATF 文档体系
 │   ├── AllTheFiles.md              #   全局索引
 │   ├── FORMAT_SPEC.md              #   格式规范
+│   ├── CODE_STANDARDS.md           #   代码质量规范（Q-xxx，可检查）
 │   └── src/                        #   逐文件 .py.md (35 文件)
 ├── dev-logs/                       # 开发日志
 ├── plugins/pomodoro/               # 番茄钟插件
