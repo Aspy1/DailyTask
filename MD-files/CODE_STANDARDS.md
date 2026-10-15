@@ -153,7 +153,7 @@
 - 现状：`✗` `#fff` 约 15 处、`settings_panel.py:296/299`、`app.py:65/82/115`、`toggle_switch.py:46`、`ai_panel.py:20/173` 等。
 
 **Q-H2 令牌单一真值**：规格文档由令牌文件**生成**，禁止规格与实现两份手写
-- 现状：`🔄` 2026-10-16：单一真值 `src/ui/styles/tokens.json` 已建、`theme.py` 已改为加载；`DESIGN_TOKENS.md` 仍为手写（待 `G-1b` 由脚本生成）。
+- 现状：`✔` 2026-10-16：`tokens.json` 为唯一真值，`DESIGN_TOKENS.md` 的令牌表由 `scripts/gen_design_tokens.py` 生成，并由 `tests/test_design_tokens_sync.py` 守卫漂移。
 
 **Q-H3 令牌命名：`<domain>_<variant>_<property>_<state>`，各槽取受控词表**
 

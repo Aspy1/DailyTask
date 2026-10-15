@@ -110,6 +110,7 @@
 ├── scripts/
 │   ├── actions.py                  # ✓ 统一数据操作脚本
 │   ├── build_index.py              # 模糊搜索索引生成
+│   ├── gen_design_tokens.py        # 令牌表生成（tokens.json → DESIGN_TOKENS.md）
 │   └── send_digest.py              # GitHub Actions 邮件摘要
 ├── plugins/pomodoro/               # 番茄钟插件
 ├── data/                           # JSON 数据文件

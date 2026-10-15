@@ -207,21 +207,15 @@
 
 ### G-1 `[进行中]` 令牌格式改造：单一真值 + 分层 + 命名约定
 
-- ✅ **G-1a（2026-10-16）**：建 `src/ui/styles/tokens.json`（48 色键 × 2 模式 + 11 字号 + 字体，值由脚本从 `theme.py` 导出，零转录风险）；
-  `theme.py` 改为加载；**逐键比对确认色值/字号完全未变**。
-- ⏳ **G-1b**：写生成器，产出手写的 `DESIGN_TOKENS.md` 令牌表（消除规格漂移）。
-- ⏳ **G-1c**：引入 `palette → semantic → component` 分层（`Q-H7`）。
-- 命名约定与受控词表见 `CODE_STANDARDS Q-H3`。
+- ✅ **G-1a（2026-10-16）**：建 `src/ui/styles/tokens.json`（48 色键 × 2 模式 + 11 字号 + 字体，值由脚本从 `theme.py` 导出，零转录风险）；`theme.py` 改为加载；**逐键比对确认色值/字号完全未变**。
+- ✅ **G-1b（2026-10-16）**：`scripts/gen_design_tokens.py` 从 `tokens.json` 生成 `DESIGN_TOKENS.md` 令牌表（颜色 48×2 + 字号 11；用途注释存于 `tokens.json` 的 `color_notes`/`size_notes`）；`tests/test_design_tokens_sync.py` 守卫漂移。**顺带修正规格中的漂移旧值**（如 `bg_surface` `#E8E5DE`→`#E0DDD6`）。
+- ⏳ **G-1c**：引入 `palette → semantic → component` 分层（`Q-H7`）；令牌"类型标签"尚未加。
 
-- **单一真值**：令牌收敛到一个机器可读文件（`src/ui/styles/tokens.json` 或 `.py`）；
-  `theme.py` 从它加载生成 QSS；`MD-files/DESIGN_TOKENS.md` **由脚本生成**，不再手写（根治漂移）。
-- **分层**：primitive（原始色板）→ semantic（角色：bg/fg/border/state…）→ component（btn/badge/nav/card/input…）。
-- **命名约定**（回答"一种用途应有统一前缀/后缀"）：
-  - 颜色：`<domain>_<property>[_<state>]`；域 = `bg_` `fg_` `border_` `accent_` `state_`(danger/success/warning/info) `btn_` `badge_` `nav_` `card_` `input_`；状态 = `base`/`hover`/`active`/`disabled`/`on_accent`。
-  - 尺寸：`space_*`（4px 网格）、`radius_*`、`size_<role>`（字号）、`icon_*`。
-  - 图形资源：图标 `ic_<name>_<size>`，图片 `img_<name>`。
-  - 动画：`dur_*` / `ease_*`（R-008 禁动画调试，先占位常量）。
-- **类型标签**：每条令牌带 type（color/length/duration/shadow），供检查器判断"此处该用什么"。
+**原始设计要点（对账）**：
+- 单一真值 ✅（`tokens.json`）；规格由脚本生成 ✅
+- 分层 ⏳（当前是扁平 48 键 + 长度混入，如 `badge_radius`）
+- 命名约定：受控词表见 `CODE_STANDARDS Q-H3`；尺寸域 `space_/radius_/size_/icon_/dur_` 尚未落地
+- 类型标签 ⏳；图形资源命名 `ic_<name>_<size>` 见 `Q-N6`
 
 ### G-2 `[待议]` 配套脚本：检查 + 可选改写
 
