@@ -21,16 +21,13 @@
 
 ## 1. 必须读取的文件（开发任何功能前，按序）
 
-1. **本文件 `AGENTS.md`**
-2. **`MD-files/AllTheFiles.md`** — 全局索引：文件树、初始化顺序、信号总览、禁止清单、术语映射
-3. **`MD-files/FORMAT_SPEC.md`** — 文档格式规范
+1. **本文件 `AGENTS.md`** — 流程、工作区、环境、DoD
+2. **`MD-files/ARCHITECTURE.md`** — 项目如何运作：分层、启动顺序、三条数据路径、信号链、并发模型、不变量、数据 schema
+   - 涉及数据流、信号、并发、架构决策时必读
+3. **`MD-files/CODE_STANDARDS.md`** — 代码与工程规范（Q-xxx）：**写代码 / 审查 / 重构时必读**；违规项以 `PLAN.md` 为准排期
 4. **`ERRORS.md`** — 已踩过的坑（先查索引，再跳到条目）
 5. **要修改的源文件** — 全文通读
-6. **对应的 `.py.md` 文档**（`MD-files/` 镜像目录，有则必读）
-   - 涉及函数合同、信号、数据流、架构决策时必须读
-   - trivial 改动（颜色、文案、拼写）可跳过
-7. **`MD-files/CODE_STANDARDS.md`** — 代码质量规范（Q-xxx 条目）：**写代码 / 审查 / 重构时必读**；
-   有疑问先对照它，违规项以 `PLAN.md` 为准排期。
+6. **`MD-files/AllTheFiles.md`** — 索引、术语映射、决策记录（DR-xxx）、操作步骤清单
 
 ## 2. 工作环境与依赖
 
@@ -81,12 +78,12 @@
 ### 步骤清单
 
 1. **读代码 + 模拟流程**：通读涉及的源文件，模拟数据/信号/线程全链路
-2. **查文档**：对应 .py.md + `ERRORS.md` 索引 + `AllTheFiles.md`
+2. **查文档**：`ARCHITECTURE.md` + `ERRORS.md` 索引 + `CODE_STANDARDS.md`
 3. **描述**：写清 bug 成因/功能执行流程（逐环节，不概括多个 bug）
 4. **列 todo**
 5. **改代码 + 写日志**：改完后在 `dev-logs/YYYY-MM-DD-主题.md` 记录变更清单
 6. **验证**：语法检查（`compileall`）→ 跑 `pytest` → 改后模拟（见 §4）
-7. **补文档**：更新 .py.md + `AllTheFiles.md` + `ERRORS.md`（如有新坑）
+7. **补文档**：更新 `ARCHITECTURE.md` / `CODE_STANDARDS.md` / `ERRORS.md`（如有新坑）
 8. **总结**：提炼犯错原因、决策原因
 
 ### 完成定义（DoD）
@@ -95,7 +92,7 @@
 
 - 语法检查通过；`pytest` 全绿（新行为补了对应测试）
 - 改后模拟通过（import 完整、变量已定义、信号已连接、控件已初始化）
-- 相关文档已同步（.py.md / AllTheFiles / ERRORS）
+- 相关文档已同步（ARCHITECTURE / CODE_STANDARDS / ERRORS）
 - `dev-logs/` 有本次记录
 - 已按 §7 提交
 
@@ -175,6 +172,8 @@
 
 ## 8. 文档维护规则
 
-- 修改代码后同步更新对应的 `.py.md` 文档
-- 新增文件后同步更新 `AllTheFiles.md` 索引和 `README.md`
-- 文档未覆盖的内容不编造，标注 `*（待补）*`
+- 文档体系固定见 `CODE_STANDARDS Q-G3`；**不再维护逐文件 `.py.md`**。
+- 改动影响运作原理 → 同步 `MD-files/ARCHITECTURE.md`。
+- 新增/修改规范 → 更新 `MD-files/CODE_STANDARDS.md`，并在 `PLAN.md` 登记。
+- 新增文件/目录 → 同步 `README.md`（并清理过期的 `AllTheFiles.md` 条目）。
+- 文档未覆盖的内容不编造，标注 `*（待补）*`。

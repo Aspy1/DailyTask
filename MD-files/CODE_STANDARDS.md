@@ -141,7 +141,7 @@
 **Q-G3 文档体系固定为**：`AGENTS.md`（流程/环境）· `PLAN.md`（计划与体检）· `CODE_STANDARDS.md`（规范）·
 `ARCHITECTURE.md`（运作原理）· `ERRORS.md`（坑）· `dev-logs/`（变更史）· `README.md`（概览）。
 **不再维护逐文件 `.py.md`**
-- 现状：`✗` 34 份 `.py.md` 待 `git rm`（见 PLAN A-1）。
+- 现状：`✔` 2026-10-15 完成（34 份 `.py.md` 与 `FORMAT_SPEC.md` 已删，新增 `ARCHITECTURE.md`）。
 
 **Q-G4 单一真值**：同一事实只允许一处权威来源；文档与代码冲突时以**代码**为准并立即修文档
 - 现状：`✗` `DESIGN_TOKENS.md`(规格) 与 `theme.py`(实现) 漂移；根 `ERRORS.md` 与 `MD-files/ERRORS.md` 重复。

@@ -8,6 +8,11 @@
 
 > ⚠️ **禁止清单**：见 [项目级禁止清单](#项目级禁止清单)
 
+> 【2026-10-15 变更】逐文件 `.py.md`（34 份）与 `FORMAT_SPEC.md` 已**废弃删除**。
+> 项目运作原理改由 **[ARCHITECTURE.md](ARCHITECTURE.md)** 承载；代码规范见 **[CODE_STANDARDS.md](CODE_STANDARDS.md)**。
+> 本文件保留：索引、术语映射、决策记录（DR-xxx）、操作步骤清单；
+> 其中「全局常量 / 初始化顺序 / 数据路径 / 信号总览」章节与 ARCHITECTURE 重复，**以 ARCHITECTURE 为准**（待 A-3 合并）。
+
 ---
 
 ## 目录
@@ -28,7 +33,7 @@
 
 ### 文件详情（每个文件通用格式）
 
-每个文件按以下模板编写（权威格式见 [FORMAT_SPEC.md](FORMAT_SPEC.md)）：
+> 【2026-10-15】逐文件模板已废弃（见 `ARCHITECTURE.md`）。以下模板仅作存档。
 
 ```
 ### <文件名>
@@ -288,6 +293,9 @@
 
 ## 决策记录
 
+> 【2026-10-15】以下 DR 条目中"详见 `xxx.py.md`"的链接已失效（`.py.md` 已删）；
+> 实现位置以源码与 `ARCHITECTURE.md` 为准。
+
 **DR-001：使用 QLocalServer 而非 QSharedMemory 做单实例锁**
 
 - **原因**：`QSharedMemory` 在 Windows 崩溃后会残留锁，导致下次启动误判已有实例运行。
@@ -415,28 +423,10 @@ UI 写操作的唯一合法入口是 `DataManager.save_all()` 和各 Model 的 `
 
 ## 文件详情
 
-| 文件 | 文档 |
-|---|---|
-| `app.py` | [src/app.py.md](src/app.py.md) ✅ — 应用入口 · 托盘 · 单实例 |
-| `data_manager.py` | [src/services/data_manager.py.md](src/services/data_manager.py.md) ✅ — 中央数据枢纽 |
-| `ai_service.py` | [src/services/ai_service.py.md](src/services/ai_service.py.md) ✅ — AI 对话 · Agent Loop |
-| `models/base.py` | [src/models/base.py.md](src/models/base.py.md) ✅ — 原子写入 · 版本迁移 |
-| `models/course.py` | [src/models/course.py.md](src/models/course.py.md) — 课程 · 学期 · 假期 |
-| `models/task.py` | [src/models/task.py.md](src/models/task.py.md) — 作业 · DDL |
-| `models/habit.py` | [src/models/habit.py.md](src/models/habit.py.md) — 日常 · 打卡 |
-| `models/expense.py` | [src/models/expense.py.md](src/models/expense.py.md) — 记账 · 预算 |
-| `models/exam.py` | [src/models/exam.py.md](src/models/exam.py.md) — 考试 · 范围 |
-| `models/daily_log.py` | [src/models/daily_log.py.md](src/models/daily_log.py.md) — 日程 · 储蓄 |
-| `models/inventory.py` | [src/models/inventory.py.md](src/models/inventory.py.md) — 物品 · 库存 |
-| `services/settings_manager.py` | [src/services/settings_manager.py.md](src/services/settings_manager.py.md) — 配置读写 |
-| `services/reminder_service.py` | [src/services/reminder_service.py.md](src/services/reminder_service.py.md) — 提醒 · DDL |
-| `services/git_sync.py` | [src/services/git_sync.py.md](src/services/git_sync.py.md) — Git 同步 |
-| `services/plugin_manager.py` | [src/services/plugin_manager.py.md](src/services/plugin_manager.py.md) — 插件管理 |
-| `main_window.py` | [src/ui/main_window.py.md](src/ui/main_window.py.md) — 主窗口 |
-| `scripts/actions.py` | [scripts/actions.py.md](scripts/actions.py.md) — 统一 CLI |
-| components / panels / widgets / styles / i18n | 骨架已生成（标记为*待补*） |
+> 【2026-10-15】逐文件 `.py.md` 已废弃删除。项目运作原理见 **[ARCHITECTURE.md](ARCHITECTURE.md)**；
+> 代码与工程规范见 **[CODE_STANDARDS.md](CODE_STANDARDS.md)**。文件清单见上方「[索引](#索引)」。
 
 ---
 
-> **格式规范**：[FORMAT_SPEC.md](FORMAT_SPEC.md)
+> **代码规范**：[CODE_STANDARDS.md](CODE_STANDARDS.md)
 > **项目约束**：[AGENTS.md](../AGENTS.md)

@@ -90,11 +90,11 @@ python -m venv .venv
 ├── tests/                          # pytest 测试
 │   ├── test_actions_smoke.py       #   actions.py 命令冒烟
 │   └── test_prompt_consistency.py  #   prompt↔actions 一致性
-├── MD-files/                       # ATF 文档体系
-│   ├── AllTheFiles.md              #   全局索引
-│   ├── FORMAT_SPEC.md              #   格式规范
-│   ├── CODE_STANDARDS.md           #   代码质量规范（Q-xxx，可检查）
-│   └── src/                        #   逐文件 .py.md (35 文件)
+├── MD-files/                       # 文档体系
+│   ├── ARCHITECTURE.md             #   项目运作原理（分层/数据流/信号/不变量/schema）
+│   ├── CODE_STANDARDS.md           #   代码与工程规范（Q-xxx，可检查）
+│   ├── AllTheFiles.md              #   索引 · 术语映射 · 决策记录
+│   └── DESIGN_TOKENS.md            #   设计令牌
 ├── dev-logs/                       # 开发日志
 ├── plugins/pomodoro/               # 番茄钟插件
 ├── data/                           # JSON 数据 (8 files)
