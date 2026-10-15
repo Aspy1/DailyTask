@@ -209,7 +209,7 @@ UI 显示文本必须经 `tr()` 取得，禁止硬编码中文
 - 现状：`✗` `zh-CN.json` 为扁平键；全项目仅约 47 处 `tr()` 调用。
 
 **Q-N6 资源与图形命名**：图标 `ic_<name>_<size>`（如 `ic_add_16`）；图片 `img_<name>`；统一放 `resources/`
-- 现状：`✗` 根目录 `image.png` 未归位。
+- 现状：`✔` 2026-10-15：已建 `resources/`，`image.png` 已归位（`app.py` 的 `_ICON_PATH` 同步更新）。
 
 **Q-N7 信号事件后缀受控**：`_changed`（数据变更）· `_requested`（用户意图）· `_ready`（异步就绪）·
 `_failed`（失败）· `_finished`（结束）
@@ -220,7 +220,7 @@ UI 显示文本必须经 `tr()` 取得，禁止硬编码中文
 **Q-P1 顶层目录白名单**：`src/ scripts/ tests/ plugins/ data/ resources/ MD-files/ dev-logs/ .github/`
 + 约定根文件（`main.py` `AGENTS.md` `README.md` `PLAN.md` `ERRORS.md` `pyproject.toml` `requirements*.txt` `.gitignore`）；
 新增顶层目录必须同步 `AllTheFiles.md` / `README.md` / 本文件
-- 现状：`✗` `resources/` 尚不存在，`image.png` 落在根目录。
+- 现状：`✔` 2026-10-15：`resources/` 已建（`image.png` 归位）；`data/` 与 `resources/` 职责见 Q-P2。
 
 **Q-P2 `data/` 是用户数据（含密钥），永不进发行版；`resources/` 是运行时资源**
 

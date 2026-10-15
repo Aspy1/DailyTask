@@ -58,8 +58,8 @@ def set_autostart(enabled: bool) -> None:
         key.Close()
 
 
-_ICON_PATH = DATA_DIR.parent / "image.png"
 _RESOURCES_DIR = Path(__file__).parent.parent / "resources"
+_ICON_PATH = _RESOURCES_DIR / "image.png"
 
 
 def _make_icon(color: str = "#007acc") -> QIcon:

@@ -30,7 +30,7 @@
 - `A-1` ✅ 写 `ARCHITECTURE.md` + `git rm` 34 份 `.py.md` + `FORMAT_SPEC.md`
 - `A-2` / `A-3` 合并两份 `ERRORS.md`、`AllTheFiles.md` 补齐
 - `G-1` 建 `src/ui/styles/tokens.json`（三层）→ `theme.py` 改为加载 → 生成 `DESIGN_TOKENS.md`
-- `H-1` / `Q-P1` 建 `resources/`、`image.png` 归位
+- `H-1` / `Q-P1` ✅ 建 `resources/`、`image.png` 归位（`app.py` `_ICON_PATH` 同步；`rewrite_history.py` 路径同步）
 - `Q-N5` i18n key 命名空间落地
 
 **P2 自动检查（把规范变成门禁）**

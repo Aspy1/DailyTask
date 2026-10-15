@@ -44,7 +44,7 @@ ui ──→ services ──→ models ──→ base(BaseJsonModel)
 1. 单实例探测：`QLocalSocket.connectToServer` → 成功则 `is_secondary=True` 直接返回
 2. `setApplicationName`、`setQuitOnLastWindowClosed(False)`
 3. Windows：`SetCurrentProcessExplicitAppUserModelID`（任务栏图标归属）
-4. 构建图标（`_make_icon`，可选 `image.png`）
+4. 构建图标（`_make_icon`，可选 `resources/image.png`）
 5. `SettingsManager(DATA_DIR/"settings.ini").load()`
 6. `i18n.load(language)`
 7. `init_theme(app, theme_mode)` + `setStyleSheet`

@@ -97,6 +97,7 @@ python -m venv .venv
 │   └── DESIGN_TOKENS.md            #   设计令牌
 ├── dev-logs/                       # 开发日志
 ├── plugins/pomodoro/               # 番茄钟插件
+├── resources/                      # 运行时资源（image.png 等）
 ├── data/                           # JSON 数据 (8 files)
 │   └── backup/                     #   自动备份
 ├── DESIGN_TOKENS.md

@@ -52,7 +52,7 @@ COMMITS = [
         "date": "2026-05-12T20:15:00 +0800",
         "msg": "主窗口布局：PCL 风格顶部导航栏、工作区切换、应用图标与系统托盘",
         "files": [
-            "image.png", "src/app.py", "src/ui/main_window.py",
+            "resources/image.png", "src/app.py", "src/ui/main_window.py",
             "src/ui/components/__init__.py", "src/ui/components/function_tabs.py",
             "src/ui/components/context_sidebar.py", "src/ui/components/main_workspace.py",
             "src/resources/function_tabs.json",
