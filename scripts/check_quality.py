@@ -35,6 +35,7 @@ import argparse
 import ast
 import contextlib
 import json
+import logging
 import os
 import re
 import shutil
@@ -45,6 +46,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 BASELINE_FILE = Path(__file__).resolve().parent / "quality_baseline.json"
+SECRETS_BASELINE = ROOT / ".secrets.baseline"
+
+logger = logging.getLogger(__name__)
 
 LIMITS = {"file": 800, "class": 400, "func": 60}
 UI_DIR = ROOT / "src" / "ui"
@@ -54,12 +58,10 @@ TOOLS = (("VULTURE", ["vulture", "src", "scripts", "plugins", "--min-confidence"
 # 控制台脚本类工具（不能 `-m` 运行）：(名称, 可执行名, 参数)
 CONSOLE_TOOLS = (
     ("IMPORT-LINTER", "lint-imports", []),
-    ("SECRETS", "detect-secrets", ["scan", "--baseline", ".secrets.baseline",
-                                   *[a for pat in ("data/.*", r"\.venv/.*", r"\.git/.*",
-                                                   r".*__pycache__.*", r"\.pytest_cache/.*",
-                                                   r"\.ruff_cache/.*", r"\.secrets\.baseline")
-                                     for a in ("--exclude-files", pat)]]),
 )
+# detect-secrets 的扫描排除项：`data/` 含真实密钥，绝不能进基线
+SECRETS_EXCLUDES = ("data/.*", r"\.venv/.*", r"\.git/.*", r".*__pycache__.*",
+                    r"\.pytest_cache/.*", r"\.ruff_cache/.*", r"\.secrets\.baseline")
 LOG_METHODS = {"debug", "info", "warning", "error", "exception", "critical", "log"}
 LOG_OWNERS = {"logger", "logging", "log"}
 
@@ -369,7 +371,7 @@ def _console_script(name: str) -> Path | None:
 
 
 def run_console_tool(name: str, args: list[str]) -> tuple[str, str]:
-    """控制台脚本类工具（lint-imports / detect-secrets）：成功 = 退出码 0。"""
+    """控制台脚本类工具（lint-imports）：成功 = 退出码 0。"""
     exe = _console_script(name)
     if exe is None:
         return "skip", "未安装"
@@ -378,6 +380,41 @@ def run_console_tool(name: str, args: list[str]) -> tuple[str, str]:
                           text=True, encoding="utf-8", errors="replace", env=_SUBPROC_ENV)
     out = (proc.stdout + proc.stderr).strip()
     return ("ok", "") if proc.returncode == 0 else ("bad", out)
+
+
+def run_secrets_scan() -> dict | None:
+    """跑 detect-secrets 扫描（**只读**：输出到 stdout，不碰基线文件）。
+
+    注意 `detect-secrets scan --baseline X` 的语义是"**更新**基线"（退出码恒 0），
+    不能当校验用；所以这里自己拿扫描结果与基线比对。
+    """
+    exe = _console_script("detect-secrets")
+    if exe is None:
+        return None
+    args = [str(exe), "scan"]
+    for pattern in SECRETS_EXCLUDES:
+        args += ["--exclude-files", pattern]
+    # 可执行文件与参数都是本模块写死的常量，无外部输入（S603/S607 不适用）
+    proc = subprocess.run(args, cwd=ROOT, capture_output=True, env=_SUBPROC_ENV)  # noqa: S603
+    try:
+        return json.loads(proc.stdout.decode("utf-8", errors="replace"))
+    except json.JSONDecodeError:
+        logger.debug("detect-secrets 输出无法解析", exc_info=True)
+        return {}
+
+
+def check_new_secrets() -> list[str] | None:
+    """只报"基线里没有的新发现"；工具未安装时返回 None（调用方标注跳过）。"""
+    found = run_secrets_scan()
+    if found is None:
+        return None
+    known: set[tuple[str, str]] = set()
+    if SECRETS_BASELINE.exists():
+        base = json.loads(SECRETS_BASELINE.read_text(encoding="utf-8")).get("results", {})
+        known = {(f, h.get("hashed_secret", "")) for f, hits in base.items() for h in hits}
+    return [f"{f}:{h.get('line_number')} ({h.get('type')})"
+            for f, hits in found.get("results", {}).items()
+            for h in hits if (f, h.get("hashed_secret", "")) not in known]
 
 
 def report_baseline_sizes(rep: Report, sizes: dict[str, int], base: dict[str, int]) -> None:
@@ -451,9 +488,20 @@ def write_baseline() -> None:
     BASELINE_FILE.write_text(
         json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
         encoding="utf-8", newline="")
+
+    scan = run_secrets_scan()
+    if scan is not None:
+        SECRETS_BASELINE.write_text(
+            json.dumps(scan, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8", newline="")
+        known = sum(len(v) for v in scan.get("results", {}).values())
+        baseline_note = f"密钥基线已刷新（{known} 处已知/误报）"
+    else:
+        baseline_note = "detect-secrets 未安装，密钥基线未刷新"
+
     print(f"已写入 {rel(BASELINE_FILE)}：尺寸 {len(sizes)} 项 / "
           f"令牌命名 {len(tokens_bad)} 项 / i18n 中文字面量 {ui_cn} 处 / "
-          f"块内唯一日志 {payload['log_sole_statement']} 处")
+          f"块内唯一日志 {payload['log_sole_statement']} 处；{baseline_note}")
 
 
 def report_items(rep: Report, tag: str, ok_text: str, items: list[str]) -> None:
@@ -482,6 +530,11 @@ def evaluate() -> Report:
     report_i18n(rep, count_ui_chinese_literals(), baseline.get("ui_chinese_literals"))
     report_items(rep, "TOP-DIR", "通过", check_top_level())
     report_items(rep, "SECRET", "通过（settings.ini 未入库）", check_secret_not_tracked())
+    new_secrets = check_new_secrets()
+    if new_secrets is None:
+        rep.add("SECRETS    跳过（detect-secrets 未安装）")
+    else:
+        rep.must_zero("SECRETS", "新出现的疑似密钥", new_secrets)
     report_tools(rep)
     return rep
 

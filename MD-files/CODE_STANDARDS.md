@@ -141,10 +141,13 @@
 
 **Q-E1 密钥不进代码 / 日志 / git**（本机 `data/settings.ini` 为明文，已在 `.gitignore`）
 - 检查：`scripts/check_quality.py` 的两项 —— `SECRET`（断言 `data/settings.ini` 未被 git 跟踪）
-  + `SECRETS`（`detect-secrets scan --baseline .secrets.baseline`，已装进 `requirements-dev.txt`；
-  扫描排除 `data/`、`.venv/`、缓存目录，避免把真实密钥写进基线）
-- 现状：`✔` 2026-10-16：`detect-secrets` 首次扫描 **0 处可疑**；
-  全历史扫描（gitleaks 类工具）仍未引入——`SECRETS` 只覆盖**当前文件内容**。
+  + `SECRETS`（**只读比对**：跑 `detect-secrets scan` 后与 `.secrets.baseline` 逐条对比，
+  只报"基线里没有的新发现"；扫描排除 `data/`、`.venv/`、缓存目录，避免把真实密钥写进基线）
+- ⚠ **不要用 `detect-secrets scan --baseline X` 当校验**：它的语义是"**更新**基线"（退出码恒 0，
+  等于没检查），而且会把工作区写脏。基线只应通过 `check_quality.py --write-baseline` 刷新。
+- 现状：`✔` 2026-10-16：首次扫描 4 处"Secret Keyword"均为**误报**（i18n 语言包里的
+  `API Key:` / `密码:` 等标签文案）→ 已记入基线；`SECRETS` 现在能真正拦住新增（已实测：
+  从基线删一条即报"新出现 1 处"）。全历史扫描（gitleaks 类）仍未引入——本项只覆盖**当前文件内容**。
 
 **Q-E2 数据写入必须原子（`os.replace`）且经 Model 或 `actions.py`**（= R-002）
 - 现状：`✔` `models/base.py` 已实现；`✗` 双写路径未统一。

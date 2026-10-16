@@ -9,6 +9,8 @@ import ast
 import json
 from pathlib import Path
 
+import pytest
+
 import scripts.check_quality as cq
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -78,6 +80,18 @@ def test_absolute_rules_are_clean() -> None:
     assert cq.check_log_embedded() == []
     assert cq.check_top_level() == []
     assert cq.check_secret_not_tracked() == []
+
+
+def test_no_new_secrets_beyond_baseline() -> None:
+    """`SECRETS` 是**只读比对**（基线之外的发现必须为 0）。
+
+    注意不能用 `detect-secrets scan --baseline X` —— 那个语义是"**更新**基线"
+    （退出码恒 0，等于没检查），且会写脏工作区。
+    """
+    result = cq.check_new_secrets()
+    if result is None:
+        pytest.skip("detect-secrets 未安装")
+    assert result == []
 
 
 def test_baseline_is_not_behind_current_state() -> None:
