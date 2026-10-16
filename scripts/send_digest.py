@@ -19,6 +19,7 @@ from pathlib import Path
 # 脚本目录会被放进 sys.path[0]，仓库根不在其中。
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from src.models import semester_paths
 from src.models.semester import week_number_for
 
 PERIOD_TIMES = [
@@ -182,18 +183,32 @@ def _add_exam_item(items: dict[str, dict], name: str, date_str: str) -> None:
     items.setdefault(key, {"key": key, "name": name, "date": day})
 
 
+def _load_semester_data(data_dir: Path) -> dict:
+    """合并「学期注册表 + 当前学期的课程表」成一个 dict。
+
+    按学期分文件后，`semesters` / `current_semester` 在 `semesters.json`，
+    而 `courses` / `holidays` 在 `semesters/<当前学期>/courses.json`。
+    本脚本**只读**，合并后其余取课表的辅助函数无需改动。
+    """
+    registry = load_json(semester_paths.registry_path(data_dir))
+    merged = dict(load_json(semester_paths.resolve(data_dir, "courses.json")))
+    merged["semesters"] = registry.get("semesters", [])
+    merged["current_semester"] = registry.get("current_semester", "")
+    return merged
+
+
 def build_digest(data_dir: Path) -> str:
     """组装每日摘要文本（按分区拼接）。"""
     today = beijing_today()
     today_str = today.isoformat()
     weekday = WEEKDAY_NAMES[today.weekday()]
 
-    courses_data = load_json(data_dir / "courses.json")
-    tasks_data = load_json(data_dir / "tasks.json")
+    courses_data = _load_semester_data(data_dir)
+    tasks_data = load_json(semester_paths.resolve(data_dir, "tasks.json"))
     habits_data = load_json(data_dir / "habits.json")
     daily_data = load_json(data_dir / "daily_logs.json")
     pending = [t for t in tasks_data.get("tasks", []) if t.get("status") != "completed"]
-    exams = collect_exam_items(tasks_data, load_json(data_dir / "exams.json"))
+    exams = collect_exam_items(tasks_data, load_json(semester_paths.resolve(data_dir, "exams.json")))
 
     lines = [f"【每日日程】{today_str} {weekday}", ""]
     lines += _digest_summary(courses_data, pending, habits_data, today)

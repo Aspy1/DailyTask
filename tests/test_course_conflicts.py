@@ -102,10 +102,14 @@ def test_model_find_conflicts_uses_current_week(tmp_path) -> None:
 
 
 def test_model_conflicts_empty_without_semester(tmp_path) -> None:
-    dm = DataManager(tmp_path)
-    dm.courses.add_course({"name": "A", "day_of_week": 1, "time_slots": [{"start": 1, "end": 1}]})
-    dm.courses.add_course({"name": "B", "day_of_week": 1, "time_slots": [{"start": 1, "end": 1}]})
-    assert dm.courses.find_conflicts() == []          # 不知道是哪一周 → 不猜
+    """没有学期（未绑定注册表）时不知道是哪一周 → 不猜、不报冲突。"""
+    from src.models.course import CourseModel
+
+    model = CourseModel(tmp_path / "courses.json")
+    for name in ("A", "B"):
+        model.add_course({"name": name, "day_of_week": 1,
+                          "time_slots": [{"start": 1, "end": 1}]})
+    assert model.find_conflicts() == []
 
 
 # ── 周视图：两门课都要画出来 ────────────────────────────────

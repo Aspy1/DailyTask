@@ -209,26 +209,22 @@ class SemesterDialog(QDialog):
 
     def _on_switch(self) -> None:
         semester_id = self._switch_combo.currentData()
-        if not semester_id or not self._dm.courses.set_current_semester(semester_id):
+        # 必须走 DataManager：它还要把 courses/tasks/exams **重定向**到新学期的文件
+        if not semester_id or not self._dm.switch_semester(semester_id):
             self._issues_label.setText(tr("dialog.semester.switch_failed"))
             return
-        self._dm.courses.save()
-        self._dm.data_changed.emit("course")
         self._refresh()
 
     def _on_create(self) -> None:
         qdate = self._start_input.date()
         start = date(qdate.year(), qdate.month(), qdate.day())
         name = self._name_input.text().strip() or start.isoformat()
-        semester_id = self._dm.courses.create_semester(
+        self._dm.create_semester(
             name=name, start=start,
             total_weeks=self._weeks_input.value(),
             period_count=self._periods_input.value(),
             exam_weeks=self._exam_input.value())
-        self._dm.courses.save()
-        self._dm.data_changed.emit("course")
         self._refresh()
         self._issues_label.setText(tr("dialog.semester.created", name=name))
         self._issues_label.setStyleSheet(
             f"color: {get_colors()['green']}; font-size: {SIZE_BODY_S}px;")
-        logger.info("已创建学期 %s（%s）", semester_id, start.isoformat())

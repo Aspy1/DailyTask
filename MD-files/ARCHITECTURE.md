@@ -119,8 +119,8 @@ ui ──→ services ──→ models ──→ base(BaseJsonModel)
 > Open-Meteo / DeepSeek 余额的**同步**实现分别在 `services/openmeteo.py` 与 `services/deepseek.py`
 > （每能力一套适配，`Q-A3`）；`api_service` 只负责起线程 + 发信号。
 
-**主线程定时器**：`DataManager._auto_reload`（3s，比对 7 个文件 mtime）、`ReminderService._check`（60s）、
-`MainWindow._status_timer`（30s）、`WeatherService` 自动更新（10min / 1min 轮询）。
+**主线程定时器**：`DataManager._auto_reload`（3s，比对 8 个文件 mtime —— 含 `semesters.json`）、
+`ReminderService._check`（60s）、`MainWindow._status_timer`（30s）、`WeatherService` 自动更新（10min / 1min 轮询）。
 
 **已知线程安全问题**（见 `CODE_STANDARDS §B`；2026-10-16 两轮整改后状态）：
 - ✅ AI worker 不再触碰 Model：`InstructionParser.execute` 只跑命令，重载/通知由主线程 `_on_response_with_instructions` 负责
@@ -150,17 +150,41 @@ ui ──→ services ──→ models ──→ base(BaseJsonModel)
 8. **课程时段规则单一**：`models/course_rules.py`（`is_active_week` / `slots_of` /
    `conflicts_by_cell`）。`time_slots` 的 `end` 是**闭区间**；**同一时段允许两门课**，
    冲突要检出并提示请假（见 `ERRORS #038`）。
-9. **`data/` 是用户数据**（含密钥 `settings.ini`），不进发行版（`Q-P2`）。
+9. **按学期分文件**：课程表 / 作业 / 考试各自在 `data/semesters/<当前学期>/` 下，
+   "有什么 / 记账 / 习惯 / 日程计划"跨学期共享（用户口径）。
+   切学期**只能**走 `DataManager.switch_semester()` —— 它把三个模型重定向到新文件；
+   直接改 `semesters.json` 的指针不会换数据（`ERRORS #040`）。
+   旧布局由 `semester_paths.migrate_legacy()` 一次性迁移（先写新文件、校验、再删旧文件）。
+10. **`data/` 是用户数据**（含密钥 `settings.ini`），不进发行版（`Q-P2`）。
 
 ## 8. 数据文件 schema 总表
+
+**布局（按学期分文件）**：
+
+```
+data/
+├── semesters.json                     学期注册表：semesters[] + current_semester（共享）
+├── semesters/<学期id>/
+│   ├── courses.json                   该学期课程表（含 holidays）
+│   ├── tasks.json                     该学期作业
+│   └── exams.json                     该学期考试
+├── habits.json / expenses.json / inventory.json / daily_logs.json    跨学期共享
+└── search_index.json / weather_*.json / scenes_meta.json             派生或遗留
+```
+
+> 路径解析**只有一处**：`models/semester_paths.resolve()`（应用、`actions.py`、`send_digest.py`、
+> `build_index.py`、测试助手都调它）。切学期必须走 `DataManager.switch_semester()`
+> —— 它会把 `courses/tasks/exams` **重定向**到新学期的文件（`ERRORS #040`）。
+
 | 文件 | `_version` | 顶层键 | 关键字段 |
 |---|---|---|---|
-| `courses.json` | 3 | `semesters[]` `current_semester` `courses[]` `holidays{excluded[],makeup{}}` | course: `id,name,teacher,day_of_week(1-7),weeks{start,end},time_slots[{start,end,location}],week_parity(all/odd/even),excluded_weeks[],notes`；semester: `id,name,start_date(YYYY-MM-DD),total_weeks(1-30，默认 16),exam_weeks(0-6，默认 1),period_count(1-12)` |
+| `semesters.json` | 1 | `semesters[]` `current_semester` | semester: `id,name,start_date(YYYY-MM-DD),total_weeks(1-30，默认 16),exam_weeks(0-6，默认 1),period_count(1-12)` |
+| `semesters/<id>/courses.json` | 1 | `courses[]` `holidays{excluded[],makeup{}}` | course: `id,name,teacher,day_of_week(1-7),weeks{start,end},time_slots[{start,end,location}],week_parity(all/odd/even),excluded_weeks[],notes` |
 > `time_slots` 的 `end` 是**闭区间**：单节连堂写 `{"start": 1, "end": 1}`。
 > **同一时段允许两门课**（选修过多 / 重修）→ 由 `course_rules.conflicts_by_cell()` 检出并提示请假（`ERRORS #038`）。
-| `tasks.json` | 2 | `tasks[]` `archived[]` | task: `id,title,course_name,due_date,status(pending/completed),priority,tags[],notes,created_at,completed_at,reminded` |
+| `semesters/<id>/tasks.json` | 2 | `tasks[]` `archived[]` | task: `id,title,course_name,due_date,status(pending/completed),priority,tags[],notes,created_at,completed_at,reminded` |
+| `semesters/<id>/exams.json` | 1 | `exams[]` | exam: `id,course_name,exam_date,scope,location,notes,tags[],created_at,updated_at` |
 | `habits.json` | 2 | `habits[]` `attached_task_templates[]` `logs{date:{hid:{completed,completed_at,note}}}` | habit: `id,name,schedule{type(daily/weekly/monthly/interval),days[],value,times_per_day,start_date},duration_minutes,reminder_time,streak,longest_streak,postpone_until,canceled_on[]` |
-| `exams.json` | 1 | `exams[]` | exam: `id,course_name,exam_date,scope,location,notes,tags[],created_at,updated_at` |
 | `expenses.json` | 1 | `categories[{id,name}]` `budget{monthly,by_category}` `records[]` | record: `id,amount,date,category,note,created_at` |
 | `daily_logs.json` | 4 | `logs{}` `plans{date:[...]}` `savings{date:[...]}` `reminders[]` | plan: `title,time_slot(1-6),type(custom/course_note),note,course_name,created_at`；reminder: `id,item_type,item_name,item_date,notify_time` |
 | `inventory.json` | 1 | `items[]` `categories[]` | item: `id,name,category,group,quantity,unit,status(充足/不足/需购),min_quantity,location,notes,tags[],instances[],doses_per_unit` |

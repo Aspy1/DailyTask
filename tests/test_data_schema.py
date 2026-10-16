@@ -63,14 +63,18 @@ def test_default_data_is_not_shared_between_instances(tmp_path) -> None:
 
 
 def test_shipped_data_files_are_versioned_and_valid() -> None:
-    """仓库内的 data/*.json 必须能解析且带 _version（派生文件除外）。"""
+    """仓库内的 data/*.json（含按学期分的那批）必须能解析且带 `_version`（派生文件除外）。"""
     derived = {"weather_cache.json", "weather_stats.json", "search_index.json",
                "scenes_meta.json"}
+    candidates = list((ROOT / "data").glob("*.json"))
+    semester_root = ROOT / "data" / "semesters"
+    if semester_root.is_dir():                      # 按学期分文件：semesters/<id>/*.json
+        candidates += list(semester_root.rglob("*.json"))
     checked = 0
-    for f in sorted((ROOT / "data").glob("*.json")):
+    for f in sorted(candidates):
         if f.name in derived:
             continue
         data = json.loads(f.read_text(encoding="utf-8"))
-        assert "_version" in data, f"{f.name} 缺少 _version"
+        assert "_version" in data, f"{f.relative_to(ROOT)} 缺少 _version"
         checked += 1
     assert checked >= 5

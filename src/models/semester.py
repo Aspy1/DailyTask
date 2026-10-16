@@ -126,6 +126,22 @@ def season_start_for(today: date) -> date:
     return date(today.year, month, day)
 
 
+DEFAULT_SEMESTER_ID = "sem_default"
+DEFAULT_SEMESTER_NAME = "默认学期"
+
+
+def default_semester(today: date | None = None) -> dict:
+    """全新数据目录用的默认学期（开始日按季节预设）。"""
+    return {
+        "id": DEFAULT_SEMESTER_ID,
+        "name": DEFAULT_SEMESTER_NAME,
+        "start_date": season_start_for(today or date.today()).isoformat(),
+        "total_weeks": DEFAULT_TOTAL_WEEKS,
+        "exam_weeks": DEFAULT_EXAM_WEEKS,
+        "period_count": DEFAULT_PERIOD_COUNT,
+    }
+
+
 def semester_status(semester: dict | None, today: date) -> dict:
     """**唯一口径**的学期状态。
 

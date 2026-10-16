@@ -40,13 +40,18 @@ def test_every_issue_code_has_text(qapp) -> None:
 
 # ── 课程表面板的周标签 ──────────────────────────────────────
 
+def _set_semester(dm, semester: dict) -> None:
+    """直接把某个学期设为当前（绕过 UI）—— 学期元信息在**注册表**里，不在课程模型上。"""
+    dm.semesters._data["semesters"] = [semester]
+    dm.semesters._data["current_semester"] = semester["id"]
+
+
 def test_week_label_says_expired_instead_of_nonsense_week(qapp, tmp_path) -> None:
     """回归：过期学期不得显示"第 32 / 16 周"这种没意义的数字。"""
     dm = DataManager(tmp_path)
-    dm.courses._data["semesters"] = [{
+    _set_semester(dm, {
         "id": "old", "start_date": (date.today() - timedelta(days=32 * 7)).isoformat(),
-        "total_weeks": 20, "period_count": 5}]
-    dm.courses._data["current_semester"] = "old"
+        "total_weeks": 20, "period_count": 5})
 
     from src.ui.panels.course_panel import CoursePanel
 
@@ -60,10 +65,9 @@ def test_week_label_says_expired_instead_of_nonsense_week(qapp, tmp_path) -> Non
 
 def test_week_label_active_shows_plain_week(qapp, tmp_path) -> None:
     dm = DataManager(tmp_path)
-    dm.courses._data["semesters"] = [{
+    _set_semester(dm, {
         "id": "s", "start_date": (date.today() - timedelta(days=7)).isoformat(),
-        "total_weeks": 20, "period_count": 5}]
-    dm.courses._data["current_semester"] = "s"
+        "total_weeks": 20, "period_count": 5})
 
     from src.ui.panels.course_panel import CoursePanel
 
@@ -80,7 +84,7 @@ def test_dialog_creates_semester_and_sets_current(qapp, tmp_path) -> None:
 
     dm = DataManager(tmp_path)
     dialog = SemesterDialog(dm)
-    assert dialog._switch_combo.count() == 0          # 还没有学期
+    assert dialog._switch_combo.count() == 1          # 全新目录已自动建一个默认学期
     # 默认开始日按季节预设（秋 9/21 / 春 3/2），总周数 16 + 期末周 1
     assert dialog._start_input.date().toPython() == season_start_for(date.today())
     assert dialog._weeks_input.value() == 16
@@ -90,29 +94,33 @@ def test_dialog_creates_semester_and_sets_current(qapp, tmp_path) -> None:
     dialog._periods_input.setValue(6)
     dialog._on_create()
 
-    assert dm.courses.current_semester
-    created = dm.courses.get_semester(dm.courses.current_semester)
+    assert dm.semesters.current_semester
+    created = dm.semesters.get_semester(dm.semesters.current_semester)
     assert created["name"] == "2026 秋"
     assert created["total_weeks"] == 16
     assert created["exam_weeks"] == 1
     assert created["period_count"] == 6
-    assert dialog._switch_combo.count() == 1          # 列表已刷新
+    assert dialog._switch_combo.count() == 2          # 默认学期 + 新建的
+    # 新学期的数据文件已就位（切学期 = 换一份数据）
+    assert dm.courses.file_path.parent.name == dm.semesters.current_semester
 
 
 def test_dialog_switch_semester(qapp, tmp_path) -> None:
     from src.ui.widgets.semester_dialog import SemesterDialog
 
     dm = DataManager(tmp_path)
-    first = dm.courses.create_semester("旧", date(2020, 2, 24))
-    second = dm.courses.create_semester("新", date.today())
+    default_id = dm.semesters.current_semester
+    first = dm.create_semester("旧", date(2020, 2, 24))
+    second = dm.create_semester("新", date.today())
 
     dialog = SemesterDialog(dm)
     dialog._switch_combo.setCurrentIndex(
         [dialog._switch_combo.itemData(i) for i in range(dialog._switch_combo.count())]
         .index(first))
     dialog._on_switch()
-    assert dm.courses.current_semester == first
-    assert second != first
+    assert dm.semesters.current_semester == first
+    assert dm.courses.file_path.parent.name == first
+    assert second not in (default_id, first)
 
 
 def test_state_text_covers_exam_week(qapp) -> None:
@@ -127,12 +135,12 @@ def test_ai_current_week_respects_current_semester(tmp_path) -> None:
     from src.services.settings_manager import SettingsManager
 
     dm = DataManager(tmp_path)
-    dm.courses._data["semesters"] = [
+    dm.semesters._data["semesters"] = [
         {"id": "old", "start_date": "2020-02-24", "total_weeks": 20, "period_count": 5},
         {"id": "new", "start_date": (date.today() - timedelta(days=7)).isoformat(),
          "total_weeks": 20, "period_count": 5},
     ]
-    dm.courses._data["current_semester"] = "new"
+    dm.semesters._data["current_semester"] = "new"
 
     settings = SettingsManager(tmp_path / "settings.ini")
     settings.load()

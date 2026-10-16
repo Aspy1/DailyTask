@@ -6,11 +6,16 @@
 """
 
 from datetime import date, timedelta
+from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 
 from src.models import semester as sem
-from src.models.course import CourseModel
+
+if TYPE_CHECKING:
+    from src.models.course import CourseModel
+    from src.models.semester_registry import SemesterRegistry
 
 
 def _sem(**overrides: object) -> dict:
@@ -179,13 +184,26 @@ def test_week_number_for_is_unclamped() -> None:
     assert sem.week_number_for(None, start) is None
 
 
-# ── CourseModel 集成 ────────────────────────────────────────
+# ── 注册表 + 模型（学期元信息 vs 按学期的数据）────────────────
+
+def _registry(tmp_path: Path) -> "SemesterRegistry":
+    from src.models.semester_registry import SemesterRegistry
+
+    return SemesterRegistry(tmp_path / "semesters.json")
+
+
+def _model(tmp_path: Path, registry: "SemesterRegistry") -> "CourseModel":
+    from src.models.course import CourseModel
+
+    return CourseModel(tmp_path / "courses.json", registry)
+
 
 def test_model_does_not_crash_on_broken_semester(tmp_path) -> None:
     """坏数据不能把界面搞崩（旧代码 `date.fromisoformat` 会直接抛）。"""
-    model = CourseModel(tmp_path / "courses.json")
-    model._data["semesters"] = [{"id": "bad", "start_date": "xx", "total_weeks": 20}]
-    model._data["current_semester"] = "bad"
+    registry = _registry(tmp_path)
+    registry._data["semesters"] = [{"id": "bad", "start_date": "xx", "total_weeks": 20}]
+    registry._data["current_semester"] = "bad"
+    model = _model(tmp_path, registry)
     model.add_course({"name": "高数", "day_of_week": 1,
                       "time_slots": [{"start": 1, "end": 2}]})
 
@@ -195,36 +213,127 @@ def test_model_does_not_crash_on_broken_semester(tmp_path) -> None:
     assert model.get_courses_for_day(1, 1)  # 直接按周次取仍然可用
 
 
-def test_model_repairs_missing_fields_and_picks_current(tmp_path) -> None:
-    model = CourseModel(tmp_path / "courses.json")
-    model._data["semesters"] = [
+def test_registry_repairs_missing_fields_and_picks_current(tmp_path) -> None:
+    registry = _registry(tmp_path)
+    registry._data["semesters"] = [
         {"id": "old", "start_date": "2020-02-24"},
         {"id": "new", "start_date": date.today().isoformat()},
     ]
-    model._data["current_semester"] = "不存在的 id"
-    model._repair_semesters()
+    registry._data["current_semester"] = "不存在的 id"
+    registry.repair()
 
-    assert model.current_semester == "new"                     # 今天所在的学期优先
-    for s in model.semesters:
-        assert s["total_weeks"] == sem.DEFAULT_TOTAL_WEEKS     # 缺省值已补
-        assert s["period_count"] == sem.DEFAULT_PERIOD_COUNT
+    assert registry.current_semester == "new"                  # 今天所在的学期优先
+    for semester in registry.semesters:
+        assert semester["total_weeks"] == sem.DEFAULT_TOTAL_WEEKS
+        assert semester["period_count"] == sem.DEFAULT_PERIOD_COUNT
+        assert semester["exam_weeks"] == sem.DEFAULT_EXAM_WEEKS
 
 
-def test_model_create_and_switch_semester(tmp_path) -> None:
-    model = CourseModel(tmp_path / "courses.json")
-    sid = model.create_semester("2026 秋", date(2026, 8, 31), total_weeks=18, period_count=6)
-    assert model.current_semester == sid
-    assert model.get_period_count() == 6
-    assert model.semester_status()["total_weeks"] == 18
-
-    assert model.set_current_semester("不存在") is False
-    assert model.set_current_semester(sid) is True
+def test_registry_create_and_switch(tmp_path) -> None:
+    registry = _registry(tmp_path)
+    sid = registry.create_semester("2026 秋", date(2026, 8, 31),
+                                   total_weeks=18, period_count=6)
+    assert registry.current_semester == sid
+    assert registry.period_count() == 6
+    assert registry.status()["total_weeks"] == 18
+    assert registry.set_current_semester("不存在") is False
+    assert registry.set_current_semester(sid) is True
 
 
 def test_model_validate_reports_issues(tmp_path) -> None:
-    model = CourseModel(tmp_path / "courses.json")
-    model._data["semesters"] = [{"id": "s", "start_date": "2026-02-23", "total_weeks": 20}]
-    model._data["current_semester"] = "s"
+    registry = _registry(tmp_path)
+    registry._data["semesters"] = [{"id": "s", "start_date": "2026-02-23", "total_weeks": 20}]
+    registry._data["current_semester"] = "s"
+    model = _model(tmp_path, registry)
     model._data["courses"] = [{"id": "c_001", "name": "坏课", "day_of_week": 9}]
     report = model.validate()
     assert sem.ISSUE_COURSE_DAY in report["courses"]
+
+
+# ── DataManager：切换学期 = 换一份数据文件 ──────────────────
+
+def test_switch_semester_switches_data_files(tmp_path, qapp) -> None:
+    """**本次改动的核心**：切学期要换课程/作业/考试的数据，而不是只改周次映射。"""
+    from src.services.data_manager import DataManager
+
+    dm = DataManager(tmp_path)
+    dm.courses.add_course({"name": "高数", "day_of_week": 1,
+                           "time_slots": [{"start": 1, "end": 1}]})
+    dm.courses.save()
+    dm.tasks.add({"title": "作业A", "due_date": "2026-12-01"})
+    dm.tasks.save()
+    first = dm.semesters.current_semester
+    assert len(dm.courses.courses) == 1
+
+    second = dm.create_semester("新学期", date(2027, 3, 2))
+    assert second != first
+    assert dm.courses.courses == []          # 新学期从**空白**开始
+    assert dm.tasks.tasks == []
+    assert dm.courses.file_path.parent.name == second
+    assert (tmp_path / "semesters" / first / "courses.json").exists()   # 旧学期文件仍在
+
+    assert dm.switch_semester(first) is True
+    assert len(dm.courses.courses) == 1      # 切回去，数据还在
+    assert len(dm.tasks.tasks) == 1
+
+
+def test_shared_data_survives_semester_switch(tmp_path, qapp) -> None:
+    """有什么 / 记账 / 习惯 / 日程计划 跨学期**继承**。"""
+    from src.services.data_manager import DataManager
+
+    dm = DataManager(tmp_path)
+    dm.inventory.add_item({"name": "洗发水", "category": "日常消耗品"})
+    dm.inventory.save()
+    dm.expenses.add({"amount": 12, "category": "food"})
+    dm.expenses.save()
+    dm.habits.add_habit({"name": "跑步"})
+    dm.habits.save()
+    dm.daily_logs.add_plan({"title": "复习", "time_slot": 3}, day="2027-03-02")
+    dm.daily_logs.save()
+
+    dm.create_semester("新学期", date(2027, 3, 2))
+
+    assert dm.inventory.items                # 有什么：继承
+    assert dm.expenses.records               # 记账：继承
+    assert dm.habits.habits                  # 习惯：继承
+    assert dm.daily_logs.get_plans("2027-03-02")   # 日程计划：继承
+
+
+def test_migration_from_legacy_layout(tmp_path, qapp) -> None:
+    """旧布局（courses.json 里同时放学期与课程）→ 按学期分文件（幂等）。"""
+    import json
+
+    from src.models import semester_paths
+    from src.services.data_manager import DataManager
+
+    legacy = {
+        "_version": 3,
+        "semesters": [{"id": "s1", "name": "旧学期", "start_date": "2026-03-09",
+                       "total_weeks": 16, "period_count": 5}],
+        "current_semester": "s1",
+        "courses": [{"id": "c_001", "name": "高数", "day_of_week": 1,
+                     "time_slots": [{"start": 1, "end": 1}]}],
+        "holidays": {"excluded": ["2026-04-06"], "makeup": {}},
+    }
+    (tmp_path / "courses.json").write_text(json.dumps(legacy, ensure_ascii=False),
+                                           encoding="utf-8")
+    (tmp_path / "tasks.json").write_text(
+        json.dumps({"_version": 2, "tasks": [{"id": "t_001", "title": "旧作业"}],
+                    "archived": []}), encoding="utf-8")
+    (tmp_path / "exams.json").write_text(
+        json.dumps({"_version": 1, "exams": [{"id": "e_001", "course_name": "高数"}]}),
+        encoding="utf-8")
+
+    dm = DataManager(tmp_path)
+
+    assert dm.semesters.current_semester == "s1"
+    assert [c["name"] for c in dm.courses.courses] == ["高数"]
+    assert [t["title"] for t in dm.tasks.tasks] == ["旧作业"]
+    assert len(dm.exams.exams) == 1
+    assert dm.courses.holidays["excluded"] == ["2026-04-06"]
+    # 旧文件已清理，新布局就位
+    assert not (tmp_path / "courses.json").exists()
+    assert not (tmp_path / "tasks.json").exists()
+    assert (tmp_path / "semesters" / "s1" / "courses.json").exists()
+    # 幂等：再跑一次不会重复迁移
+    assert semester_paths.migrate_legacy(tmp_path) is False

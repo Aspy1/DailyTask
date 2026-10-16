@@ -10,6 +10,7 @@
 
 import json
 import time
+from pathlib import Path
 
 from src.services.ai_service import AIService
 from src.services.data_manager import DataManager
@@ -22,6 +23,13 @@ def _workspace(tmp_path) -> tuple[DataManager, MainWorkspace]:
     settings = SettingsManager(tmp_path / "settings.ini")
     settings.load()
     return dm, MainWorkspace(settings, AIService(settings, dm), dm, None)
+
+
+def _per_semester_path(data_dir, name: str) -> Path:
+    """按学期分文件后，课程/作业/考试在 `semesters/<当前学期>/` 下。"""
+    from src.models import semester_paths
+
+    return semester_paths.resolve(data_dir, name)
 
 
 def _external_append(path, key, item) -> None:
@@ -42,7 +50,7 @@ def test_external_write_refreshes_task_panel_in_place(tmp_path, qapp) -> None:
     ws.switch_to("tasks")
     assert ws._task_panel._table.rowCount() == 1
 
-    _external_append(tmp_path / "tasks.json", "tasks", {
+    _external_append(_per_semester_path(tmp_path, "tasks.json"), "tasks", {
         "id": "t_999", "title": "TG 写入的作业", "due_date": "2026-01-02T23:00:00",
         "status": "pending", "course_name": "", "tags": [],
     })
@@ -88,7 +96,9 @@ def test_save_all_writes_every_model(tmp_path, qapp) -> None:
     dm.save_all()
 
     def _disk(name) -> dict:
-        return json.loads((tmp_path / name).read_text(encoding="utf-8"))
+        return json.loads(_per_semester_path(tmp_path, name).read_text(encoding="utf-8")) \
+            if name in ("exams.json", "tasks.json", "courses.json") \
+            else json.loads((tmp_path / name).read_text(encoding="utf-8"))
 
     assert any(e["course_name"] == "线性代数" for e in _disk("exams.json")["exams"])
     assert any(i["name"] == "纸巾" for i in _disk("inventory.json")["items"])

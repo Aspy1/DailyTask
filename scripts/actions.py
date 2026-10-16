@@ -27,15 +27,27 @@ _STDOUT_LOCK = threading.Lock()
 logger = logging.getLogger(__name__)
 
 
+def _path(name: str) -> Path:
+    """按学期分文件的解析：课程/作业/考试进 `semesters/<当前学期>/`，其余在根下。
+
+    这样 `load("tasks.json")` 这类调用点（30+ 处）**不用改**，也不会误写错学期。
+    """
+    from src.models import semester_paths
+
+    return semester_paths.resolve(DATA, name)
+
+
 def load(name) -> dict:
-    p = DATA / name
+    p = _path(name)
     if not p.exists():
         return {}
     with open(p, encoding='utf-8') as f:
         return json.load(f)
 
 def save(name, obj) -> None:
-    with open(DATA / name, 'w', encoding='utf-8') as f:
+    p = _path(name)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    with open(p, 'w', encoding='utf-8') as f:
         json.dump(obj, f, ensure_ascii=False, indent=2)
 
 def gen_id(items, prefix) -> str:

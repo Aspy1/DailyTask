@@ -302,6 +302,42 @@
 
 ---
 
+## P11 按学期分数据文件（切换学期 = 换一份数据）✅ 已完成（2026-10-16）
+
+**起因**：用户发现"切换学期不会修改应当显示的课程表"，并要求明确"哪些跨学期继承、哪些换新"。
+
+**根因（`ERRORS #040`）**：`courses[]` 是**全局一个列表**，每条课程没有学期字段；
+`tasks.json` / `exams.json` 同理 —— 切学期只改"周次→日期"的映射，24 门课永远都在。
+**不是刷新问题，是数据模型缺"学期"这个维度。**
+
+**用户口径**：
+
+| 按学期（换新） | 跨学期（继承） |
+|---|---|
+| 课程表 / 作业 / 考试 | 有什么 / 记账 / 习惯 / 日程计划 |
+
+**落地**：
+
+- **布局**：`data/semesters.json`（注册表：`semesters[]` + `current_semester`）
+  + `data/semesters/<学期id>/{courses,tasks,exams}.json`。
+- **路径解析只有一处**：`models/semester_paths.resolve()` —— 应用、`actions.py`、`send_digest.py`、
+  `build_index.py`、`tests/helpers.read_json` 全调它（**30+ 处 `load("tasks.json")` 调用点没改**）。
+- **切换收口**：`DataManager.switch_semester()` / `create_semester()` —— 改指针 + **重定向三个模型**
+  + 重载 + 通知界面；`semester_dialog` 改调它。
+- **模型拆分**：`SemesterRegistry`（新，`data/semesters.json`）承接原 `CourseModel` 的全部学期职责；
+  `CourseModel` 保留**同名转发**接口（`semester_status` / `current_week` / `get_period_count` /
+  `semesters` / `get_courses_for_date`…）→ 界面/AI 的 40 处调用点**零改动**。
+- **迁移**：`semester_paths.migrate_legacy()` 幂等，先写新文件 → 校验 → 再删旧文件。
+  真实数据实测 **24 课 / 2 作业 / 6 考试零丢失**（旧学期数据本就无法区分归属，统一归到当前学期）。
+- `GitSync` 同步范围加 `data/semesters`；`_auto_reload` 监视 8 个文件（含注册表）。
+
+**结果**：**293 passed**（290 → 293）· ruff 0 · 令牌 0 · 门禁 14 项全绿。
+
+**说明（重要）**：老学期 `2025-2026学年第二学期` 的课表**看起来是空的** ——
+旧数据没有学期归属，迁移时全部归到**当前学期**；那学期的数据无法反推，需要的话得手动补。
+
+---
+
 ## A. 文档体系
 
 ### A-1 `[已完成]` 废弃逐文件 `.py.md`，改用单一 `ARCHITECTURE.md`

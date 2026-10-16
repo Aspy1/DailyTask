@@ -73,7 +73,8 @@ class GitSync(QObject):
             ]
         else:
             cmds = [
-                ["git", "add", "data/*.json"],
+                # 按学期分文件后，课程/作业/考试在 data/semesters/<id>/ 下 —— 必须一并同步
+                ["git", "add", "data/*.json", "data/semesters"],
                 ["git", "commit", "-m", "data: auto-sync [skip ci]"],
                 ["git", "push"],
             ]

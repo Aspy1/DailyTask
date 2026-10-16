@@ -12,12 +12,31 @@ from scripts.send_digest import beijing_today, build_digest
 
 
 def _write(data_dir, name, obj) -> None:
-    (data_dir / name).write_text(json.dumps(obj, ensure_ascii=False), encoding="utf-8")
+    from src.models import semester_paths
+
+    path = semester_paths.resolve(data_dir, name) if semester_paths.is_per_semester(name) \
+        else data_dir / name
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(obj, ensure_ascii=False), encoding="utf-8")
+
+
+def _write_courses(data_dir, payload: dict) -> None:
+    """按学期分文件：学期信息 → `semesters.json`；课程/节假日 → 当前学期的 `courses.json`。"""
+    _write(data_dir, "semesters.json", {
+        "_version": 1,
+        "semesters": payload.get("semesters", []),
+        "current_semester": payload.get("current_semester", ""),
+    })
+    _write(data_dir, "courses.json", {
+        "_version": 1,
+        "courses": payload.get("courses", []),
+        "holidays": payload.get("holidays", {}),
+    })
 
 
 def test_build_digest_sections(tmp_path) -> None:
     today = beijing_today()
-    _write(tmp_path, "courses.json", {"courses": [
+    _write_courses(tmp_path, {"courses": [
         {"name": "算法", "day_of_week": today.isoweekday(),
          "time_slots": [{"start": 1, "end": 2}], "weeks": {"start": 1, "end": 20}},
     ], "semesters": [{"id": "s", "start_date": (today - timedelta(days=7)).isoformat(),

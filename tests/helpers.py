@@ -25,8 +25,16 @@ def run(cmd: str) -> str:
 
 
 def read_json(data_dir: Path, name: str) -> dict:
-    """读取沙箱数据目录下的 JSON；文件不存在时返回空 dict。"""
-    p = data_dir / name
+    """读取沙箱数据目录下的 JSON；文件不存在时返回空 dict。
+
+    按学期分文件后，`courses/tasks/exams.json` 实际在 `semesters/<当前学期>/` 下 ——
+    这里用**与生产代码同一套解析**（`semester_paths.resolve`），
+    这样测试断言 `read_json(sandbox, "tasks.json")` 依然成立。
+    """
+    from src.models import semester_paths
+
+    p = semester_paths.resolve(data_dir, name) if semester_paths.is_per_semester(name) \
+        else data_dir / name
     if not p.exists():
         return {}
     return json.loads(p.read_text(encoding="utf-8"))
