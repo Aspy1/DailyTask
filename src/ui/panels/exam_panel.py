@@ -60,7 +60,7 @@ class _ExamCard(QWidget):
         info.setSpacing(4)
 
         name_lbl = QLabel(exam.get("course_name", ""))
-        name_lbl.setStyleSheet(f"color: {c['fg_primary'] if days_left >= 0 else c['fg_disabled']}; font-size: 15px; font-weight: 600; border: none; background: transparent;")
+        name_lbl.setStyleSheet(f"color: {c['fg_primary'] if days_left >= 0 else c['fg_secondary']}; font-size: 15px; font-weight: 600; border: none; background: transparent;")
         info.addWidget(name_lbl)
 
         date_lbl = QLabel(f"📅 {exam.get('exam_date', '')}")
@@ -78,7 +78,8 @@ class _ExamCard(QWidget):
     def _make_urgency_colors(days_left: int, c: dict) -> tuple[str, str]:
         """按紧迫度返回卡片 (背景色, 强调色)。"""
         if days_left < 0:
-            return c["bg_surface"], c["fg_disabled"]
+            # 已过 ≠ 禁用：fg_disabled 在浅色下只有 1.5:1，正文必须仍可读
+            return c["bg_surface"], c["fg_secondary"]
         if days_left == 0:
             return c["red"] + "12", c["red"]
         if days_left <= 7:
@@ -95,7 +96,7 @@ class _ExamCard(QWidget):
         badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
         if days_left < 0:
             badge.setText("已过")
-            badge.setStyleSheet(f"color: {c['fg_disabled']}; font-size: 11px; font-weight: 600; background: {c['bg_input']}; border-radius: 26px;")
+            badge.setStyleSheet(f"color: {c['fg_hint']}; font-size: 11px; font-weight: 600; background: {c['bg_input']}; border-radius: {RADIUS['radius_pill']}px;")
         elif days_left == 0:
             badge.setText("今天")
             badge.setStyleSheet(f"color: {c['fg_on_fill']}; font-size: 13px; font-weight: 700; background: {c['red_fill']}; border-radius: {RADIUS['radius_pill']}px;")

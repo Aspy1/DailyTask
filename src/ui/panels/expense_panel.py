@@ -21,7 +21,7 @@ from PySide6.QtWidgets import (
 )
 
 from src.services.data_manager import DataManager
-from src.ui.styles.theme import FONT_CN, SIZE_SUBTITLE, get_colors
+from src.ui.styles.theme import FONT_CN, RADIUS, SIZE_SUBTITLE, get_colors
 
 logger = logging.getLogger(__name__)
 
@@ -88,7 +88,8 @@ class ExpensePanel(QWidget):
 
         # ── Add row ──────────────────────────────────────────
         add_row = QWidget()
-        add_row.setStyleSheet(f"background-color: {c['card_bg']}; border-radius: 8px;")
+        self._add_row = add_row
+        add_row.setStyleSheet(self._band_qss())
         al = QHBoxLayout(add_row)
         al.setContentsMargins(16, 4, 16, 4)
         al.setSpacing(8)
@@ -126,7 +127,8 @@ class ExpensePanel(QWidget):
 
         # ── Savings row ───────────────────────────────────────
         sav_row = QWidget()
-        sav_row.setStyleSheet(f"background-color: {c['card_bg']}; border-radius: 8px;")
+        self._sav_row = sav_row
+        sav_row.setStyleSheet(self._band_qss())
         sl = QHBoxLayout(sav_row)
         sl.setContentsMargins(16, 4, 16, 4)
         sl.setSpacing(8)
@@ -213,10 +215,22 @@ class ExpensePanel(QWidget):
             }}
         """
 
+    @staticmethod
+    def _band_qss() -> str:
+        """输入带（金额行/存钱行）底色。"""
+        return (f"background-color: {get_colors()['card_bg']};"
+                f" border-radius: {RADIUS['radius_md']}px;")
+
+    @staticmethod
+    def _card_qss() -> str:
+        """汇总卡片底色。"""
+        return (f"background-color: {get_colors()['card_bg']};"
+                f" border-radius: {RADIUS['radius_md']}px;")
+
     def _summary_card(self, label: str) -> QWidget:
         c = get_colors()
         w = QWidget()
-        w.setStyleSheet(f"background-color: {c['card_bg']}; border-radius: 8px;")
+        w.setStyleSheet(self._card_qss())
         lay = QVBoxLayout(w)
         lay.setContentsMargins(16, 8, 16, 8)
         title = QLabel(label)
@@ -384,7 +398,15 @@ class ExpensePanel(QWidget):
             self._time_btn.setText("时间筛选 ▼")
         self._refresh()
 
+    def _restyle_chrome(self) -> None:
+        """重刷 __init__ 里写死颜色的静态骨架（汇总卡片 + 两条输入带）。"""
+        for card in (self._sum_month, self._sum_today, self._sum_budget, self._sum_saved):
+            card.setStyleSheet(self._card_qss())
+        for band in (self._add_row, self._sav_row):
+            band.setStyleSheet(self._band_qss())
+
     def refresh_theme(self) -> None:
+        self._restyle_chrome()
         c = get_colors()
         # Update button styles
         btn_qss = self._btn_qss()

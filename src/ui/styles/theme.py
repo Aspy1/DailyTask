@@ -5,6 +5,7 @@ Tokens 的**单一真值**是同目录的 tokens.json（见 CODE_STANDARDS Q-H8�
 """
 
 import json
+import re
 from pathlib import Path
 
 from PySide6.QtCore import Qt
@@ -63,13 +64,62 @@ def elide_text(text: str, font: QFont, max_width: int) -> str:
     return metrics.elidedText(text, Qt.TextElideMode.ElideRight, max_width)
 
 
+def _theme_color_map(from_mode: str, to_mode: str) -> dict[str, str]:
+    """两个主题之间「同名 token 的色值」映射（只含颜色类 token）。"""
+    old, new = TOKENS.get(from_mode, {}), TOKENS.get(to_mode, {})
+    mapping: dict[str, str] = {}
+    for key, val in old.items():
+        if not isinstance(val, str) or not val.startswith(("#", "rgb")):
+            continue
+        new_val = new.get(key)
+        if isinstance(new_val, str) and new_val.startswith(("#", "rgb")) and new_val != val:
+            mapping[val] = new_val
+    return mapping
+
+
+def _remap_qss(qss: str, mapping: dict[str, str]) -> str:
+    """把样式表里的旧色值换成新色值（大小写不敏感）。"""
+    for old_val, new_val in mapping.items():
+        qss = re.sub(re.escape(old_val), new_val, qss, flags=re.IGNORECASE)
+    return qss
+
+
+def remap_stylesheets(app: QApplication, from_mode: str, to_mode: str) -> int:
+    """把已存在内联样式表里的旧主题色，整体替换成新主题色。
+
+    背景：大量部件是 `w.setStyleSheet(f"...{c['card_bg']}...")` 这样在**构造时**
+    把颜色写死的。换主题时这些样式不会自动更新，于是出现"切换不完全"：
+    浅色界面里留着深色卡片、深色界面里留着浅色卡片、字色与底色撞在一起。
+
+    与其给每个部件补 `refresh_theme()`（永远会漏），不如做一次**色值映射**：
+    遍历所有部件的样式表，把 from_mode 的色值替换为 to_mode 的同名 token 值。
+    返回被改写的部件数（便于测试断言）。
+    """
+    mapping = _theme_color_map(from_mode, to_mode)
+    if not mapping:
+        return 0
+    changed = 0
+    for widget in app.allWidgets():
+        qss = widget.styleSheet()
+        if not qss:
+            continue
+        new_qss = _remap_qss(qss, mapping)
+        if new_qss != qss:
+            widget.setStyleSheet(new_qss)
+            changed += 1
+    return changed
+
+
 def switch_theme(mode: str) -> str:
     global _current_mode, _color_cache
+    previous = _current_mode
     _current_mode = mode
     _color_cache = None
     app = QApplication.instance()
     if app is not None:
         apply_palette(app, mode)
+        if previous != mode:
+            remap_stylesheets(app, previous, mode)
     return build_theme(mode)
 
 

@@ -20,7 +20,7 @@ from PySide6.QtWidgets import (
 )
 
 from src.services.data_manager import DataManager
-from src.ui.styles.theme import FONT_CN, SIZE_SUBTITLE, get_colors
+from src.ui.styles.theme import FONT_CN, RADIUS, SIZE_SUBTITLE, get_colors
 
 PAGE_SIZE = 8
 
@@ -721,5 +721,23 @@ class InventoryPanel(QWidget):
         self._dm.daily_logs.save()
         QMessageBox.information(self, "已设置", "已设置补货提醒")
 
+    def _restyle_chrome(self) -> None:
+        """重刷面包屑/返回按钮（颜色在 __init__ 里写死）。"""
+        c = get_colors()
+        self._back_btn.setStyleSheet(
+            f"QPushButton {{ background: transparent; color: {c['accent_text']};"
+            f" border: none; padding: 2px 6px; font-size: 13px; font-weight: 600; }}"
+            f" QPushButton:hover {{ color: {c['fg_primary']}; }}")
+        bc_btn_qss = (
+            f"QPushButton {{ background: {c['bg_elevated']}; color: {c['fg_primary']};"
+            f" border: none; border-radius: {RADIUS['radius_sm']}px; padding: 2px 8px;"
+            f" font-size: 12px; }}"
+            f" QPushButton:hover {{ background: {c['accent_bg']}; }}")
+        for btn in (self._bc_cat, self._bc_group):
+            btn.setStyleSheet(bc_btn_qss)
+        for sep in (self._bc_sep1, self._bc_sep2):
+            sep.setStyleSheet(f"color: {c['fg_hint']}; font-size: 13px; border: none;")
+
     def refresh_theme(self) -> None:
+        self._restyle_chrome()
         self._refresh()

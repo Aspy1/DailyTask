@@ -125,3 +125,32 @@ def test_switch_theme_updates_settings_and_qss(tmp_path, qapp, mode) -> None:
 
     assert settings.get("General", "theme", "") == mode
     assert mw._workspace._task_panel is not None        # refresh_theme 未炸
+
+def test_static_labels_follow_theme(tmp_path, qapp) -> None:
+    """回归：构造时写死颜色的**静态**部件也要跟着主题变。
+
+    这类部件（汇总卡片的标题/数值、面包屑、设置分组标题…）不在 `_refresh()`
+    的重建范围内，靠 `theme.remap_stylesheets()` 做色值映射整体重写。
+    """
+    from src.services.ai_service import AIService
+    from src.services.data_manager import DataManager
+    from src.services.settings_manager import SettingsManager
+    from src.ui.main_window import MainWindow
+    from src.ui.styles.theme import TOKENS, init_theme
+
+    dm = DataManager(tmp_path)
+    settings = SettingsManager(tmp_path / "settings.ini")
+    settings.load()
+    qapp.setStyleSheet(init_theme(qapp, "dark"))
+    mw = MainWindow(settings, AIService(settings, dm), dm, None)
+
+    expense = mw._workspace._expense_panel
+    amount = expense._find_sum_label("\u672c\u6708\u652f\u51fa")
+    dark_qss = amount.styleSheet()
+    assert TOKENS["dark"]["fg_primary"] in dark_qss
+
+    mw._switch_theme("light")
+
+    assert TOKENS["light"]["fg_primary"] in amount.styleSheet()
+    assert TOKENS["light"]["card_bg"] in expense._sum_month.styleSheet()
+    assert TOKENS["light"]["bg_elevated"] in mw._workspace._inventory_panel._bc_cat.styleSheet()

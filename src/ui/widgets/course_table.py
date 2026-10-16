@@ -129,6 +129,12 @@ class CourseTable(QTableWidget):
         # Store course ref per cell for context lookups
         self._cell_courses: dict[tuple[int, int], dict] = {}
 
+        self._last_courses: list[dict] = []
+        self._last_week: int | None = None
+        self._apply_qss()
+
+    def _apply_qss(self) -> None:
+        """表格自身样式（切主题时重跑）。"""
         c = get_colors()
         self.setStyleSheet(f"""
             QTableWidget {{
@@ -169,7 +175,13 @@ class CourseTable(QTableWidget):
     def period_count(self) -> int:
         return self._period_count
 
+    def refresh_theme(self) -> None:
+        """切主题后重刷：样式表 + 单元格 QBrush 颜色（后者不会自动更新）。"""
+        self._apply_qss()
+        self.set_courses(self._last_courses, self._last_week)
+
     def set_courses(self, courses: list[dict], week: int | None = None) -> None:
+        self._last_courses, self._last_week = courses, week
         self.clearContents()
         self._cell_courses.clear()
         for course in courses:
