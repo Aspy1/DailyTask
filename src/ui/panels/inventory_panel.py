@@ -21,6 +21,13 @@ from PySide6.QtWidgets import (
 
 from src.services.data_manager import DataManager
 from src.ui.styles.theme import FONT_CN, RADIUS, SIZE_SUBTITLE, get_colors
+from src.ui.widgets.menu import (
+    add_action,
+    add_separator,
+    new_menu,
+    show_at_cursor,
+    show_below,
+)
 
 PAGE_SIZE = 8
 
@@ -151,25 +158,22 @@ class InventoryPanel(QWidget):
         return f"QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['fg_hint']}; border-radius: 8px; padding: 4px 12px; font-size: 13px; }} QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; color: {c['fg_secondary']}; }} QPushButton::menu-indicator {{ image: none; }}"
 
     def _show_cat_filter(self) -> None:
-        from src.ui.widgets.context_menu import ContextMenu
-        
-        menu = ContextMenu(self)
-        menu.add_action("全部分类").triggered.connect(lambda: self._apply_cat_filter("全部"))
-        menu.add_separator()
-        cats = self._dm.inventory.categories
-        for cat in cats:
-            menu.add_action(cat).triggered.connect(lambda checked, c2=cat: self._apply_cat_filter(c2))
-        menu.exec(self._cat_btn.mapToGlobal(self._cat_btn.rect().bottomLeft()))
+        menu = new_menu(self)
+        add_action(menu, "全部分类", lambda checked=False: self._apply_cat_filter("全部"))
+        add_separator(menu)
+        for cat in self._dm.inventory.categories:
+            add_action(menu, cat,
+                       lambda checked=False, c2=cat: self._apply_cat_filter(c2))
+        show_below(menu, self._cat_btn)
 
     def _show_tag_filter(self) -> None:
-        from src.ui.widgets.context_menu import ContextMenu
-        
-        menu = ContextMenu(self)
-        menu.add_action("全部标签").triggered.connect(lambda: self._apply_tag_filter(""))
-        menu.add_separator()
+        menu = new_menu(self)
+        add_action(menu, "全部标签", lambda checked=False: self._apply_tag_filter(""))
+        add_separator(menu)
         for tag in self._dm.inventory.all_tags:
-            menu.add_action(tag).triggered.connect(lambda checked, t=tag: self._apply_tag_filter(t))
-        menu.exec(self._tag_btn.mapToGlobal(self._tag_btn.rect().bottomLeft()))
+            add_action(menu, tag,
+                       lambda checked=False, t=tag: self._apply_tag_filter(t))
+        show_below(menu, self._tag_btn)
 
     def _apply_cat_filter(self, cat: str) -> None:
         self._cat_filter = cat
@@ -595,23 +599,23 @@ class InventoryPanel(QWidget):
         labels = self.CATEGORY_LABELS.get(cat, {"需购": "需购", "不足": "不足", "充足": "充足"})
         st = item.get("status", "充足")
 
-        from src.ui.widgets.context_menu import ContextMenu
-        menu = ContextMenu(self)
+        menu = new_menu(self)
 
         for target_status in ["需购", "不足", "充足"]:
             if st != target_status:
-                menu.add_action(labels[target_status]).triggered.connect(
-                    lambda checked, s=target_status: self._quick_update(item["id"], {"status": s}))
+                add_action(menu, labels[target_status],
+                           lambda checked=False, s=target_status:
+                           self._quick_update(item["id"], {"status": s}))
 
         ig = item.get("ignore_low_stock", False)
-        menu.add_action("恢复库存提醒" if ig else "忽略库存不足提醒").triggered.connect(
-            lambda: self._quick_update(item["id"], {"ignore_low_stock": not ig}))
-        menu.add_separator()
-        menu.add_action("设置邮件提醒").triggered.connect(lambda: self._email_reminder(item))
-        menu.add_action("修改标签").triggered.connect(lambda: self._edit_tags(item))
+        add_action(menu, "恢复库存提醒" if ig else "忽略库存不足提醒",
+                   lambda checked=False: self._quick_update(item["id"], {"ignore_low_stock": not ig}))
+        add_separator(menu)
+        add_action(menu, "设置邮件提醒", lambda checked=False: self._email_reminder(item))
+        add_action(menu, "修改标签", lambda checked=False: self._edit_tags(item))
         if cat != "虚拟品类":
-            menu.add_action("删除").triggered.connect(lambda: self._delete_item(item["id"]))
-        menu.exec()
+            add_action(menu, "删除", lambda checked=False: self._delete_item(item["id"]))
+        show_at_cursor(menu)
 
     def _quick_update(self, iid, data) -> None:
         self._dm.inventory.update_item(iid, data)

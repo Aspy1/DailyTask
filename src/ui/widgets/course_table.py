@@ -8,13 +8,19 @@ from PySide6.QtGui import QBrush, QColor, QFont
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QHeaderView,
+    QMenu,
     QTableWidget,
     QTableWidgetItem,
 )
 
 from src.models.course import PERIOD_TIMES
 from src.ui.styles.theme import FONT_CN, SIZE_TINY, get_colors
-from src.ui.widgets.context_menu import ContextMenu
+from src.ui.widgets.menu import (
+    add_action,
+    add_separator,
+    new_menu,
+    show_at_cursor,
+)
 
 DAY_LABELS = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
 
@@ -33,26 +39,20 @@ COURSE_ACTIONS = [
 ]
 
 
-def build_course_context_menu(course: dict, parent=None) -> object:
-    """Create a standalone course context menu — usable from schedule view too."""
-    from src.ui.widgets.context_menu import ContextMenu
-    
-    menu = ContextMenu(parent)
+def build_course_context_menu(course: dict, parent=None) -> QMenu:
+    """课程右键菜单（课程表与日程视图共用）。"""
+    menu = new_menu(parent)
     course_id = course.get("id", "")
-    
-    rename_action = menu.add_action("修改课程名称")
-    rename_action.setData(("rename", course_id))
-    delete_action = menu.add_action("删除这门课")
-    delete_action.setData(("delete", course_id))
-    view_tasks_action = menu.add_action("查看关于这门课的事项")
-    view_tasks_action.setData(("view_tasks", course.get("name", "")))
-    
-    menu.add_separator()
-    
+
+    add_action(menu, "修改课程名称", data=("rename", course_id))
+    add_action(menu, "删除这门课", data=("delete", course_id))
+    add_action(menu, "查看关于这门课的事项", data=("view_tasks", course.get("name", "")))
+
+    add_separator(menu)
+
     for action_label in COURSE_ACTIONS:
-        action = menu.add_action(action_label)
-        action.setData(("fill", action_label))
-    
+        add_action(menu, action_label, data=("fill", action_label))
+
     return menu
 
 
@@ -237,29 +237,13 @@ class CourseTable(QTableWidget):
             return
         course_id = course.get("id", "")
 
-        menu = ContextMenu(self)
-
-        # Section 1: course management
-        rename_action = menu.add_action("修改课程名称")
-        rename_action.setData(("rename", course_id))
-        delete_action = menu.add_action("删除这门课")
-        delete_action.setData(("delete", course_id))
-        view_tasks_action = menu.add_action("查看关于这门课的事项")
-        view_tasks_action.setData(("view_tasks", course.get("name", "")))
-
-        menu.add_separator()
-
-        # Section 2: task creation → fill AI prompt
-        for action_label in COURSE_ACTIONS:
-            action = menu.add_action(action_label)
-            action.setData(("fill", action_label))
-
-        menu.exec()
-        chosen = menu.last_action
-        if chosen is None or chosen.data is None:
+        menu = build_course_context_menu(course, self)
+        # 旧自研菜单的 exec() 永不返回，导致这段处理从未执行（见 menu.py 顶部说明）
+        chosen = show_at_cursor(menu)
+        if chosen is None or chosen.data() is None:
             return
 
-        action_type, payload = chosen.data
+        action_type, payload = chosen.data()()
         if action_type == "rename":
             self.course_rename_requested.emit(course_id)
         elif action_type == "delete":

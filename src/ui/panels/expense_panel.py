@@ -22,6 +22,12 @@ from PySide6.QtWidgets import (
 
 from src.services.data_manager import DataManager
 from src.ui.styles.theme import FONT_CN, RADIUS, SIZE_SUBTITLE, get_colors
+from src.ui.widgets.menu import (
+    add_action,
+    add_separator,
+    new_menu,
+    show_below,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -348,14 +354,13 @@ class ExpensePanel(QWidget):
         self._dm.data_changed.emit("saving")
 
     def _show_cat_filter(self) -> None:
-        from src.ui.widgets.context_menu import ContextMenu
-        
-        menu = ContextMenu(self)
-        menu.add_action("全部分类").triggered.connect(lambda: self._apply_cat_filter(""))
-        menu.add_separator()
+        menu = new_menu(self)
+        add_action(menu, "全部分类", lambda checked=False: self._apply_cat_filter(""))
+        add_separator(menu)
         for cat in self._dm.expenses.categories:
-            menu.add_action(cat["name"]).triggered.connect(lambda checked, cid=cat["id"]: self._apply_cat_filter(cid))
-        menu.exec(self._cat_btn.mapToGlobal(self._cat_btn.rect().bottomLeft()))
+            add_action(menu, cat["name"],
+                       lambda checked=False, cid=cat["id"]: self._apply_cat_filter(cid))
+        show_below(menu, self._cat_btn)
 
     def _apply_cat_filter(self, cat_id: str) -> None:
         self._filter_category = cat_id
@@ -366,14 +371,13 @@ class ExpensePanel(QWidget):
         self._refresh()
 
     def _show_time_filter(self) -> None:
-        from src.ui.widgets.context_menu import ContextMenu
-        
-        menu = ContextMenu(self)
-        menu.add_action("全部时间").triggered.connect(lambda: self._apply_time_filter("", ""))
-        menu.add_separator()
+        menu = new_menu(self)
+        add_action(menu, "全部时间", lambda checked=False: self._apply_time_filter("", ""))
+        add_separator(menu)
         for label, start, end in [("今天", "today", "today"), ("本周", "week", "week"), ("本月", "month", "month")]:
-            menu.add_action(label).triggered.connect(lambda checked, s=start, e=end: self._apply_time_preset(s, e))
-        menu.exec(self._time_btn.mapToGlobal(self._time_btn.rect().bottomLeft()))
+            add_action(menu, label,
+                       lambda checked=False, s=start, e=end: self._apply_time_preset(s, e))
+        show_below(menu, self._time_btn)
 
     def _apply_time_preset(self, start: str, end: str) -> None:
         today = date.today()

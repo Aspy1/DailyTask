@@ -369,27 +369,6 @@ def menu_qss() -> str:
     """
 
 
-def create_context_menu(parent=None) -> object:
-    """创建右键菜单（自动应用样式和去阴影）
-    
-    使用方式：
-        from src.ui.styles.theme import create_context_menu
-        
-        menu = create_context_menu(self)
-        menu.add_item("编辑", self._edit)
-        menu.add_item("删除", self._delete)
-        menu.exec()
-    
-    关键点：
-        1. 使用自定义 QWidget 实现，完全避免 Windows 原生阴影
-        2. 自动显示在鼠标当前位置
-        3. 点击外部自动关闭
-    """
-    from src.ui.widgets.context_menu import ContextMenu
-    
-    return ContextMenu(parent)
-
-
 def dialog_qss() -> str:
     """对话框样式"""
     c = get_colors()

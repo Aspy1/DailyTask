@@ -233,6 +233,16 @@
 - 每次 `exec()` 新建的弹窗天然拿到当前主题；**长驻弹窗**（如 API 测试）需实现 `refresh_theme()`
 - 兜底：`theme.remap_stylesheets()` 在切主题时统一重写所有内联样式表
 
+**Q-H15 弹出层（菜单）定位与模板**
+- **必须**走 `src/ui/widgets/menu.py` 的模板，禁止各自算坐标：
+  - `new_menu(parent)`：`QMenu` + token 配色 + `NoDropShadowWindowHint`（Windows 上清 `CS_DROPSHADOW`）+ 圆角
+  - 锚点三选一：`show_at_cursor`（右键 / 键盘）、`show_at(menu, widget, pos)`（右键回调的局部坐标）、`show_below(menu, widget)`（按钮下拉）
+- **禁止**"`exec()` 之后比较 `last_action`"：菜单结果要用 `QMenu.exec()` 的**返回值**（`QAction`）或直接给 `add_action` 传回调
+- 为什么：贴边翻转 / 多屏 / 缩放 / 键盘导航交给 Qt；自研实现只能在"单屏 + 100% 缩放"下碰巧正确，
+  且旧实现的 `exec()` 依赖 `destroyed` 结束内嵌事件循环，实际**永不返回**（`close()` 不销毁控件），
+  导致 5 个右键菜单失效并逐次遗留内嵌事件循环（见 `ERRORS #030`）
+- 检查：`tests/test_menus.py`（flags / 可执行 / `exec` 必须返回）+ 代码里不得再出现 `context_menu` 导入
+
 ## I. 异常与错误处理
 
 **Q-I1 禁止无理由盲捕获**：`except Exception` / 裸 `except:` 必须二选一——

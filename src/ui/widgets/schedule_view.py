@@ -21,6 +21,12 @@ from src.models.course import PERIOD_TIMES, schedule_date
 from src.services.data_manager import DataManager
 from src.ui.components.click_label import ClickLabel
 from src.ui.styles.theme import FONT_CN, SIZE_SUBTITLE, get_colors
+from src.ui.widgets.menu import (
+    add_action,
+    add_separator,
+    new_menu,
+    show_at_cursor,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -762,18 +768,16 @@ class ScheduleView(QWidget):
         return self._dm.daily_logs.find_reminder(item_type, item_name, item_date) is not None
 
     def _course_menu(self, pos, item, widget) -> None:
-        from PySide6.QtGui import QCursor
-
         from src.ui.widgets.course_table import build_course_context_menu
         menu = build_course_context_menu(item["course"], widget)
-        menu.addSeparator()
+        add_separator(menu)
         course_name = item["course"].get("name", "")
         item_date = self._target_date.isoformat()
         if self._has_email_reminder("course", course_name, item_date):
-            menu.addAction("📧 取消邮件提醒")
+            add_action(menu, "📧 取消邮件提醒")
         else:
-            menu.addAction("📧 添加邮件提醒")
-        chosen = menu.exec(QCursor.pos())
+            add_action(menu, "📧 添加邮件提醒")
+        chosen = show_at_cursor(menu)
         if chosen is None:
             return
         if chosen.text() == "📧 添加邮件提醒":
@@ -815,31 +819,20 @@ class ScheduleView(QWidget):
             self._dm.data_changed.emit("fill_prompt:" + prompt)
 
     def _plan_menu(self, pos, item, widget) -> None:
-        from src.ui.widgets.context_menu import ContextMenu
-
-        menu = ContextMenu()
-        done_action = menu.add_action("✓ 标记完成")
-        menu.add_action("修改 DDL")
-        remove_action = menu.add_action("✕ 移除")
-        menu.add_separator()
+        menu = new_menu()
         plan_name = item.get("title", "")
         plan_date = self._target_date.isoformat()
+        # 「移除」与「标记完成」都按内容匹配删除该计划（保持原行为）
+        add_action(menu, "✓ 标记完成", lambda checked=False: self._delete_plan_at(item))
+        add_action(menu, "✕ 移除", lambda checked=False: self._delete_plan_at(item))
+        add_separator(menu)
         if self._has_email_reminder("plan", plan_name, plan_date):
-            menu.add_action("📧 取消邮件提醒")
+            add_action(menu, "📧 取消邮件提醒",
+                       lambda checked=False: self._remove_email_reminder("plan", plan_name, plan_date))
         else:
-            menu.add_action("📧 添加邮件提醒")
-        menu.exec()
-
-        action = menu.last_action
-        if action and action.text == "📧 添加邮件提醒":
-            self._add_email_reminder_dialog("plan", plan_name, plan_date)
-            return
-        if action and action.text == "📧 取消邮件提醒":
-            self._remove_email_reminder("plan", plan_name, plan_date)
-            return
-        if action in (remove_action, done_action):
-            # 「移除」与「标记完成」都按内容匹配删除该计划
-            self._delete_plan_at(item)
+            add_action(menu, "📧 添加邮件提醒",
+                       lambda checked=False: self._add_email_reminder_dialog("plan", plan_name, plan_date))
+        show_at_cursor(menu)
 
     def _delete_plan_at(self, item) -> None:
         """按内容匹配删除当天该计划并刷新。"""
@@ -854,43 +847,30 @@ class ScheduleView(QWidget):
                 return
 
     def _habit_menu(self, pos, item, widget) -> None:
-        from src.ui.widgets.context_menu import ContextMenu
-        
-        menu = ContextMenu()
+        menu = new_menu()
         hid = item["habit"]["id"]
         done = self._dm.habits.is_done_today(hid)
-        toggle_action = menu.add_action("○ 标记未完成") if done else menu.add_action("✓ 标记完成")
-        postpone_action = menu.add_action("→ 推迟到明天")
-        cancel_action = menu.add_action("✕ 取消今天")
-        menu.add_separator()
         habit_name = item.get("name", "")
         habit_date = self._target_date.isoformat()
+
+        def _apply(mutate) -> None:
+            mutate()
+            self._dm.habits.save()
+            self._dm.data_changed.emit("habit")
+            self._refresh()
+
+        add_action(menu, "○ 标记未完成" if done else "✓ 标记完成",
+                   lambda checked=False: _apply(lambda: self._dm.habits.log(hid, not done)))
+        add_action(menu, "→ 推迟到明天",
+                   lambda checked=False: _apply(lambda: self._dm.habits.postpone(
+                       hid, (self._target_date + timedelta(days=1)).isoformat())))
+        add_action(menu, "✕ 取消今天",
+                   lambda checked=False: _apply(lambda: self._dm.habits.cancel_today(hid)))
+        add_separator(menu)
         if self._has_email_reminder("habit", habit_name, habit_date):
-            menu.add_action("📧 取消邮件提醒")
+            add_action(menu, "📧 取消邮件提醒",
+                       lambda checked=False: self._remove_email_reminder("habit", habit_name, habit_date))
         else:
-            menu.add_action("📧 添加邮件提醒")
-        menu.exec()
-        
-        action = menu.last_action
-        if action and action.text == "📧 添加邮件提醒":
-            self._add_email_reminder_dialog("habit", habit_name, habit_date)
-            return
-        if action and action.text == "📧 取消邮件提醒":
-            self._remove_email_reminder("habit", habit_name, habit_date)
-            return
-        if action == toggle_action:
-            self._dm.habits.log(hid, not done)
-            self._dm.habits.save()
-            self._dm.data_changed.emit("habit")
-            self._refresh()
-        elif action == postpone_action:
-            tomorrow = (self._target_date + timedelta(days=1)).isoformat()
-            self._dm.habits.postpone(hid, tomorrow)
-            self._dm.habits.save()
-            self._dm.data_changed.emit("habit")
-            self._refresh()
-        elif action == cancel_action:
-            self._dm.habits.cancel_today(hid)
-            self._dm.habits.save()
-            self._dm.data_changed.emit("habit")
-            self._refresh()
+            add_action(menu, "📧 添加邮件提醒",
+                       lambda checked=False: self._add_email_reminder_dialog("habit", habit_name, habit_date))
+        show_at_cursor(menu)

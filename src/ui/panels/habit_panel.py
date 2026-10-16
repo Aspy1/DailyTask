@@ -25,6 +25,11 @@ from PySide6.QtWidgets import (
 
 from src.services.data_manager import DataManager
 from src.ui.styles.theme import FONT_CN, SIZE_BODY, SIZE_SUBTITLE, get_colors
+from src.ui.widgets.menu import (
+    add_action,
+    new_menu,
+    show_at_cursor,
+)
 
 CARD_MIN_WIDTH = 210
 CARD_HEIGHT = 135
@@ -195,11 +200,10 @@ class _HabitCard(QWidget):
             self.toggled.emit(self._hid)
 
     def contextMenuEvent(self, ev) -> None:
-        from src.ui.widgets.context_menu import ContextMenu
         
-        menu = ContextMenu(self)
-        menu.add_action("编辑").triggered.connect(lambda: self.edit_requested.emit(self._hid))
-        menu.exec(ev.globalPos())
+        menu = new_menu(self)
+        add_action(menu, "编辑", lambda checked=False: self.edit_requested.emit(self._hid))
+        show_at_cursor(menu)
 
 
 def _describe_schedule(sched: dict) -> str:

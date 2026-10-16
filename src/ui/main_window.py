@@ -11,7 +11,6 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QMainWindow,
-    QMenu,
     QPushButton,
     QSplitter,
     QStatusBar,
@@ -134,28 +133,31 @@ class MainWindow(QMainWindow):
             self._content_splitter.setSizes([self.width(), 0])
 
     def _show_more_menu(self) -> None:
-        c = get_colors()
-        menu = QMenu(self)
-        menu.setStyleSheet(f"""
-            QMenu {{ background-color: {c['bg_elevated']}; color: {c['fg_primary']};
-                border: 1px solid {c['border_strong']}; padding: 4px; }}
-            QMenu::item {{ padding: 6px 24px 6px 12px; }}
-            QMenu::item:selected {{ background-color: {c['accent_bg']}; }}
-        """)
+        """「更多…」菜单：锚在该导航项下方（原来是写死在侧边栏右下角）。
 
-        # Theme submenu
-        theme_menu = QMenu("切换主题", menu)
-        theme_menu.setStyleSheet(menu.styleSheet())
+        用统一模板（Q-H15）：无原生阴影、token 配色、QMenu 负责贴边翻转。
+        """
+        from src.ui.widgets.menu import add_action, new_menu, show_below
+
+        menu = new_menu(self)
         current_theme = self._settings.get("General", "theme", "dark")
+
+        theme_menu = new_menu(menu)
+        theme_menu.setTitle("切换主题")
         for mode, label in [("dark", "深色"), ("light", "浅色")]:
             prefix = "● " if mode == current_theme else "    "
             action = theme_menu.addAction(f"{prefix}{label}")
             action.triggered.connect(lambda checked, m=mode: self._switch_theme(m))
         menu.addMenu(theme_menu)
 
-        menu.addAction(tr("tray.exit"), self.close)
-        menu.exec(self._sidebar.mapToGlobal(
-            self._sidebar.rect().bottomRight()))
+        add_action(menu, tr("tray.exit"), lambda checked=False: self.close())
+
+        anchor = self._sidebar.nav_item("more")
+        if anchor is not None:
+            show_below(menu, anchor)
+        else:
+            from src.ui.widgets.menu import show_at_cursor
+            show_at_cursor(menu)
 
     def _switch_theme(self, mode: str) -> None:
         from src.ui.styles.theme import switch_theme

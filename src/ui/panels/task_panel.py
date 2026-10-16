@@ -21,6 +21,12 @@ from PySide6.QtWidgets import (
 
 from src.services.data_manager import DataManager
 from src.ui.styles.theme import FONT_CN, SIZE_SUBTITLE, get_colors
+from src.ui.widgets.menu import (
+    add_action,
+    add_separator,
+    new_menu,
+    show_below,
+)
 
 PAGE_SIZE = 10
 
@@ -218,25 +224,20 @@ class TaskPanel(QWidget):
 
     def _show_course_filter(self) -> None:
         self._highlight_ddl = False
-        from src.ui.widgets.context_menu import ContextMenu
-        
-        menu = ContextMenu(self)
+        menu = new_menu(self)
 
-        all_action = menu.add_action("全部课程")
-        all_action.setCheckable(True)
-        all_action.setChecked(not self._selected_courses)
-        all_action.triggered.connect(lambda: self._apply_course_filter(set()))
+        add_action(menu, "全部课程",
+                   lambda checked=False: self._apply_course_filter(set()),
+                   checkable=True, checked=not self._selected_courses)
 
-        menu.add_separator()
+        add_separator(menu)
 
-        courses = self._course_set()
-        for cn in courses:
-            action = menu.add_action(cn)
-            action.setCheckable(True)
-            action.setChecked(cn in self._selected_courses)
-            action.triggered.connect(lambda checked, c=cn: self._toggle_course(c))
+        for cn in self._course_set():
+            add_action(menu, cn,
+                       lambda checked=False, c=cn: self._toggle_course(c),
+                       checkable=True, checked=cn in self._selected_courses)
 
-        menu.exec(self._filter_btn.mapToGlobal(self._filter_btn.rect().bottomLeft()))
+        show_below(menu, self._filter_btn)
 
     def _toggle_course(self, course: str) -> None:
         sel = set(self._selected_courses)
@@ -270,15 +271,12 @@ class TaskPanel(QWidget):
         self._refresh()
 
     def _show_time_filter(self) -> None:
-        from src.ui.widgets.context_menu import ContextMenu
-        
-        menu = ContextMenu(self)
+        menu = new_menu(self)
         for label, key in TIME_BUCKETS:
-            action = menu.add_action(label)
-            action.setCheckable(True)
-            action.setChecked(key == self._time_bucket)
-            action.triggered.connect(lambda checked, k=key: self._apply_time_filter(k))
-        menu.exec(self._time_btn.mapToGlobal(self._time_btn.rect().bottomLeft()))
+            add_action(menu, label,
+                       lambda checked=False, k=key: self._apply_time_filter(k),
+                       checkable=True, checked=key == self._time_bucket)
+        show_below(menu, self._time_btn)
 
     def _apply_time_filter(self, bucket: str | None) -> None:
         self._time_bucket = bucket

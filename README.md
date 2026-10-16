@@ -83,7 +83,7 @@ python -m venv .venv
 │       │   ├── schedule_view.py    #     日程视图 (增量更新 + AI 调整)
 │       │   ├── course_table.py     #     课程表表格
 │       │   ├── course_detail_dialog.py
-│       │   ├── context_menu.py     #     通用右键菜单
+│       │   ├── menu.py             #     弹出菜单模板（QMenu + 无阴影 + 三种锚点）
 │       │   ├── toggle_switch.py    #     开关控件
 │       │   └── api_test_dialog.py  #     API 连通性测试
 │       └── styles/

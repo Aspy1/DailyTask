@@ -22,6 +22,11 @@ from PySide6.QtWidgets import (
 
 from src.services.data_manager import DataManager
 from src.ui.styles.theme import FONT_CN, RADIUS, SIZE_SUBTITLE, get_colors
+from src.ui.widgets.menu import (
+    add_action,
+    new_menu,
+    show_at,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -228,12 +233,11 @@ class ExamPanel(QWidget):
             self._refresh()
 
     def _context_menu(self, pos, exam: dict) -> None:
-        from src.ui.widgets.context_menu import ContextMenu
         
-        menu = ContextMenu(self)
-        menu.add_item("编辑", lambda: self._add_exam(exam))
-        menu.add_item("删除", lambda: self._delete_exam(exam["id"]))
-        menu.exec()
+        menu = new_menu(self)
+        add_action(menu, "编辑", lambda checked=False: self._add_exam(exam))
+        add_action(menu, "删除", lambda checked=False: self._delete_exam(exam["id"]))
+        show_at(menu, self, pos)
 
     def _delete_exam(self, eid: str) -> None:
         name = eid
