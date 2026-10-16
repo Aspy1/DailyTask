@@ -3,7 +3,7 @@
 from datetime import date, datetime
 from pathlib import Path
 
-from src.models.base import BaseJsonModel
+from src.models.base import BaseJsonModel, next_id
 from src.models.course import schedule_date
 
 DEFAULT_DAILY_LOGS = {
@@ -74,7 +74,7 @@ class DailyLogModel(BaseJsonModel):
             day = date.today().isoformat()
         sav = self._data.setdefault("savings", {})
         day_sav = sav.setdefault(day, [])
-        sid = f"s_{len(day_sav) + 1:03d}"
+        sid = next_id("s", (e.get("id", "") for e in day_sav))
         entry = {"id": sid, "amount": amount, "note": note, "created_at": datetime.now().isoformat()}
         day_sav.append(entry)
         return sid
@@ -96,7 +96,7 @@ class DailyLogModel(BaseJsonModel):
 
     def add_reminder(self, item_type: str, item_name: str, item_date: str, notify_time: str) -> str:
         reminders = self._data.setdefault("reminders", [])
-        rid = f"rem_{len(reminders) + 1:04d}"
+        rid = next_id("rem", (r.get("id", "") for r in reminders), width=4)
         entry = {
             "id": rid,
             "item_type": item_type,

@@ -36,9 +36,12 @@
 
 **P2 自动检查（把规范变成门禁）**
 - `B-1` ✅ `[tool.ruff]` 已在 `pyproject.toml` 固定（基线可复现）；`mypy` 待接
-- `D-2` 规范检查器（`scripts/check_standards.py` + 审查 skill）
-- `G-2` UI 令牌检查器（`scripts/check_ui_tokens.py`，先只检查、不 `--fix`）
-- ✅ `B-6` CI 跑 pytest + lint（`.github/workflows/ci.yml`：ruff → 令牌检查器 → 令牌文档同步 → pytest）
+- `D-2` ✅ `[已完成]`（2026-10-16）→ 落地为 **`scripts/check_quality.py`**（尺寸/静默吞异常/ID 生成/
+  令牌命名/i18n 计数/顶层目录/密钥入库 + vulture + radon；存量债走 `scripts/quality_baseline.json`）
+- `G-2` ✅ UI 令牌检查器（`scripts/check_ui_tokens.py`，先只检查、不 `--fix`）
+- ✅ `B-2`（2026-10-16）radon/vulture **接进 CI**（此前只是"一次性测量"）
+- ✅ `B-6` CI 扩充为：`compileall` → ruff → `check_ui_tokens --strict` → **`check_quality --strict`** →
+  `pytest --cov --cov-fail-under=50`
 - `[待议]` `I-8` pre-commit 钩子（本地钩子；CI 已覆盖同一组检查）
 - `[待议]` `I-16` 依赖审计（`pip-audit`）
 
@@ -61,8 +64,7 @@
 - `H-2` 发行版目录与命名
 - `I-15` 性能基线门禁
 
-**P5 功能可用性排查与修复 ✅ 已完成（2026-10-16）**
-- ✅ `F-1` 对 README「功能」/ 本文件 ✅ 项做**可执行**排查（离屏 Qt + 临时目录，32 项断言）
+**P5 功能可用性排查与修复 ✅ 已完成（2026-10-16）**- ✅ `F-1` 对 README「功能」/ 本文件 ✅ 项做**可执行**排查（离屏 Qt + 临时目录，32 项断言）
 - ✅ `F-2` 15 项缺陷全部修复（数据解析 2 · 考试提醒 2 · 数据流 2 · AI 命令契约 4 · 主题入口 1 ·
   主线程网络 1 · 日期语义 1 · 模型默认值 1 · 文档漂移 1）
 - ✅ `F-3` 测试 92 → **149 passed，5 xfail 全部转正为真实断言**
@@ -71,6 +73,52 @@
 - ⏳ `F-4` README「吃什么」仍是占位面板（"即将上线"），未实现
 - ⏳ `F-5` 真实托盘 / 单实例 / 自启 / SMTP / GitHub Actions 运行未验证（需真实环境与凭据）
 - 详见 `dev-logs/2026-10-16-功能可用性排查.md`
+
+---
+
+## P6 规范门禁补强（审计驱动）✅ 已完成（2026-10-16）
+
+**起因**：一次"规范 vs 门禁"交叉审计发现 —— CI 实际只跑 ruff / 令牌 / pytest 三项，
+64 条 Q 规则里**只有约 16 条真正有门禁（25%）**；且 `CODE_STANDARDS` 的「现状」栏大面积过时
+（✔/✗ 都有错报）。结论：**光有 AGENTS.md 不足以可靠**，规范必须变成可运行的门禁。
+
+**A. 修掉 5 个"没被检查出"的真缺陷**
+
+| # | 缺陷 | 处理 |
+|---|---|---|
+| 1 | `habit.py` monthly 分支把 `logs` 顶层键（日期）当 habit_id 比较 → 每月习惯**永远判未达标** | 改为按"本月已完成次数 vs 配额"；新增 `tests/test_habit_schedule.py`（9 条，覆盖 daily/weekly/monthly/interval/推迟/取消） |
+| 2 | 2 处静默吞异常（`theme.py` / `check_ui_tokens.py`），且 **ruff S110 漏检具名 `except (A,B): pass`** | 改用 `contextlib.suppress(...)`；门禁用 AST 兜住 ruff 的漏检 |
+| 3 | 6 处 `len()+1` 生成 ID（R-008 明禁） | 新增 `models/base.next_id()`（最大后缀 +1）；`tests/test_ids.py`（8 条，含"删后再加不撞车"） |
+| 4 | `Q-A1` 尺寸超限实为 **36 项**（文档写 2 文件/5 类） | 记入 baseline 防新增；全量拆分留 P3 长尾 |
+| 5 | i18n（`Q-N5`）仅 19 处 `tr()`、**692 处**中文字面量 | 记入 baseline 防新增；全量迁移待裁决（见下） |
+
+**B. 门禁补强**
+
+- 新增 **`scripts/check_quality.py`**（含 `--strict` / `--write-baseline`）+ `scripts/quality_baseline.json`（存量债台账）：
+  `SIZE` · `SILENT` · `ID-GEN` · `TOKEN-NAME` · `I18N` · `TOP-DIR` · `SECRET` · `VULTURE` · `RADON`。
+  设计原则：**能绝对化的必须为 0；有历史债的走 baseline 只防新增**，债只减不增。
+- 新增 `tests/test_quality_gates.py`（8 条）：既验证"探测器真能探测"（合成违规），也验证"当前仓库真干净"。
+- CI 扩充：`compileall` → ruff → `check_ui_tokens --strict` → **`check_quality --strict`** →
+  `pytest --cov=src --cov=scripts --cov-fail-under=50`。
+- 归档：`hermes-skill-life-assistant.md`（第三方 skill，指令"直接读写 `data/` JSON"，与 R-002 冲突）
+  → `MD-files/archive/`，附说明；`Q-P1` 白名单补 `design/`。
+
+**C. 文档修正**
+
+- `CODE_STANDARDS.md` 全量对账「现状」栏（把 6 条已修的 ✗ 改 ✔、3 条"一次性测量"标为已接 CI、
+  更新尺寸/覆盖率/`tr()` 计数），并新增 **`Q-F4 规范必须门禁化`**。
+- `AGENTS.md` §3 步骤 6 的验证命令与 CI 对齐。
+
+**结果**：202 passed（177 → 202）· ruff 0 · 令牌违规 0 · 门禁 9 项全绿 · 覆盖率 54%（下限 50）。
+
+**仍待裁决（原样保留）**：
+
+- `Q-N5` i18n：**全量迁移**（692 处，~1 天）还是"新文本必须走 `tr()`、存量改到即补"？
+  现状是后者 + baseline 防新增。
+- `Q-A1` 尺寸：36 项超限（4 文件 / 6 类 / ~26 函数）何时拆分？
+- `Q-H3` 令牌命名：10 处存量（`red/green/yellow/orange` + `colors.badge_radius`）何时重命名？
+- `Q-A3` 天气 3 套实现 / `Q-E2` 双写路径 / `Q-H7` 令牌分层：仍是已知债。
+- 工具缺口：`Q-A2`（`import-linter` 未装）、`Q-E1`（`gitleaks`/`detect-secrets` 未装）、`Q-D3`（AST 剥离检查未实现）。
 
 ---
 

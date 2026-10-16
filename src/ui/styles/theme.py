@@ -4,6 +4,7 @@ Tokens 的**单一真值**是 `design/tokens.json`（见 `design/INDEX.md` 与 C
 改色值/字号请改 tokens.json，本文件只负责加载并生成 QSS。
 """
 
+import contextlib
 import json
 import re
 from pathlib import Path
@@ -151,13 +152,13 @@ class _RoundedFrameFixer(QObject):
 
     def eventFilter(self, obj, event) -> bool:
         if event.type() == QEvent.Type.Show and type(obj).__name__ in self._TYPES:
-            try:
+            # 控件可能在 Show 事件期间已被销毁（C++ 对象已释放）或没有 setFrame，
+            # 两种情况都不需要处理 —— 显式忽略（Q-I2：不用 except-pass，改用 suppress）
+            with contextlib.suppress(RuntimeError, AttributeError):
                 # 不再要求控件自带 border-radius：全局 QSS 也会给它们圆角，
                 # 只查自带样式表会漏掉一半（角点残留的根因之一）
                 if hasattr(obj, "setFrame"):
                     obj.setFrame(False)
-            except (RuntimeError, AttributeError):
-                pass
         return False
 
 

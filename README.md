@@ -84,23 +84,28 @@ python -m venv .venv
 │       │   ├── course_table.py     #     课程表表格
 │       │   ├── course_detail_dialog.py
 │       │   ├── menu.py             #     弹出菜单模板（QMenu + 无阴影 + 三种锚点）
+│       │   ├── rounded_input.py    #     自绘抗锯齿圆角输入框（Q-H17）
+│       │   ├── rounded_button.py   #     自绘抗锯齿圆角按钮（Q-H17）
 │       │   ├── toggle_switch.py    #     开关控件
 │       │   └── api_test_dialog.py  #     API 连通性测试
+│       ├── animations.py           #   动效模板（opacity/位移 + 总开关，Q-H16）
 │       └── styles/
-│           ├── theme.py            #     设计令牌加载 · QSS
-│           └── theme.py            #     令牌加载 · QSS（真值见 design/）
+│           └── theme.py            #     令牌加载 · QSS（真值见 design/tokens.json）
 ├── scripts/
 │   ├── actions.py                  # 统一数据操作 (16 命令 + 内存调用)
 │   ├── build_index.py              # 模糊搜索索引
 │   ├── send_digest.py              # GitHub Actions 邮件摘要
 │   ├── gen_design_tokens.py        # 从 tokens.json 生成 DESIGN_TOKENS.md
 │   ├── check_ui_tokens.py          # UI 令牌约束检查（--strict 供 CI）
+│   ├── check_quality.py            # 工程规范门禁（尺寸/异常/ID/命名/i18n/目录 + vulture/radon）
+│   ├── quality_baseline.json       #   门禁存量债台账（只防新增）
 │   └── rewrite_history.py          # 历史重写脚本（一次性工具）
-├── tests/                          # pytest 测试（9 个测试文件 + conftest/helpers）
+├── tests/                          # pytest 测试（22 个测试文件 + conftest/helpers）
 ├── MD-files/                       # 文档体系
 │   ├── ARCHITECTURE.md             #   项目运作原理（分层/数据流/信号/不变量/schema）
 │   ├── CODE_STANDARDS.md           #   代码与工程规范（Q-xxx，可检查）
 │   ├── DEV_PRINCIPLES.md           #   可迁移的通用开发准则
+│   ├── archive/                    #   归档区（含第三方 skill 存档，见其 README）
 │   └── （UI 规范与原型见 design/INDEX.md）
 │   ├── PLUGINS.md                  #   插件开发约定
 │   ├── AllTheFiles.md              #   索引 · 术语映射 · 决策记录

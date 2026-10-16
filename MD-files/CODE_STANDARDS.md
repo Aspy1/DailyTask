@@ -14,6 +14,10 @@
 > `现状`：`✔ 达标` / `✗ 违规（见 PLAN）` / `🔄 进行中` / `? 未核查`。
 > 章节：**A** 结构分层 · **B** 线程并发 · **C** 复杂度资源 · **D** 日志调试 · **E** 安全数据 ·
 > **F** 测试 · **G** 文档 · **H** UI 与令牌 · **I** 异常处理 · **N** 命名约定 · **P** 目录结构。
+>
+> **2026-10-16 门禁对账**：`现状` 栏曾大面积失真（✔/✗ 都错报）。现已全量复核，并确立
+> **Q-F4**：每条规则要么有可运行的检查（接进 CI），要么显式标注"人工 / 工具未装"。
+> 门禁实现在 `scripts/check_quality.py`，存量债见 `scripts/quality_baseline.json`。
 
 ---
 
@@ -22,12 +26,16 @@
 **Q-A1 单一职责：函数 ≤ 60 行、类 ≤ 400 行、单文件 ≤ 800 行**
 - 阈值：**采用默认（2026-10-15 定）**。
 - 为什么：超过认知上限后，改动成本与 bug 率非线性上升。
-- 检查：行数脚本（`dev-logs/2026-10-15-现状基线.md` §1b）、`radon`、`vulture`。
-- 现状：`✗` 文件超限 2 个（`habit_panel.py` 863、`schedule_view.py` 848）；类超限 5 个（`ScheduleView` 828、`SettingsPanel` 716、`InventoryPanel` 663、`MainWindow` 543、`AIService` 406）。
+- 检查：`scripts/check_quality.py`（`SIZE` 项，2026-10-16 起接 CI）、`radon`、`vulture`。
+- 现状：`✗` 2026-10-16 实测超限 **36 项**：文件 4（`habit_panel.py` 907、`schedule_view.py` 877、
+  `main_window.py` 828、`actions.py` 825）；类 6（`ScheduleView` 844、`SettingsPanel` 705、
+  `InventoryPanel` 713、`MainWindow` 552、`AIService` 475、`ReminderService` 420）；函数 ~26（多为 `__init__`）。
+  **已记入 `scripts/quality_baseline.json` 防新增**；全量拆分见 `PLAN P3`。
 
 **Q-A2 依赖单向：UI → Service → Model，禁止反向 import**
 - 为什么：反向依赖使分层失效、难以测试。
-- 检查：`import-linter`（contract: layers）。
+- 检查：`import-linter`（contract: layers）—— ⚠ **工具尚未安装**（`requirements-dev.txt` 无此项），
+  目前靠人工审查；接入前本条的 `✔` 属"一次人工核查"，不是守卫。
 - 现状：`✔` 2026-10-16：该 import 实为**未使用的死导入**，已删除 —— 服务层不再反向依赖 UI 层。
 
 **Q-A3 同一外部能力只保留一套适配**
@@ -37,9 +45,9 @@
 
 **Q-A4 禁止死代码**
 - 为什么：误导读者、掩盖真实路径。
-- 检查：`vulture src scripts --min-confidence 80`。
+- 检查：`vulture src scripts plugins --min-confidence 80`（已接 CI：`scripts/check_quality.py` 的 `VULTURE` 项）。
 - 现状：`✔` 2026-10-16：`main_window._shopping_label` 死代码路径（引用从未创建的控件）已删除；
-  `vulture --min-confidence 80` 现为 **0**。
+  `vulture --min-confidence 80` 现为 **0**，并已纳入 CI 门禁。
 
 **Q-A5 不用继承表达"部分复用"**
 - 为什么：继承是 is-a，不是"借用几个方法"。
@@ -76,14 +84,14 @@
 
 **Q-B6 禁止闭包捕获循环变量**（`lambda` / 生成器引用外层循环变量）
 - 为什么：所有闭包共享同一变量 → 偶发跳错项，且难复现。
-- 检查：`ruff --select B023`。
-- 现状：`✗` `B023` **3 处**。
+- 检查：`ruff --select B023`（在固定规则集内，已接 CI）。
+- 现状：`✔` 2026-10-16：**3 处已修**（`a189421`），ruff `B023` 现为 **0**。
 
 ## C. 复杂度与资源
 
 **Q-C1 圈复杂度 ≤ 10（B 级）**
 - 阈值：**≤ 10（B 级，采用 radon 默认分档；2026-10-15 定）**。
-- 检查：`radon cc -n C -s src scripts`。
+- 检查：`radon cc -n C -s src scripts plugins`（已接 CI：`check_quality.py` 的 `RADON` 项，要求无输出）。
 - 现状：`✔` 2026-10-16：**`radon cc -n C` 为空**（所有函数 ≤ B 级）；全局平均复杂度 A。
   拆分中抽出约 40 个语义化辅助函数；期间发现并修复 1 个真实崩溃（见 dev-log）。
 
@@ -94,11 +102,15 @@
 
 **Q-C3 全表扫描类统计需评估规模上限或加缓存**
 - 为什么：面板刷新 + 30s 状态栏会反复触发。
-- 现状：`✗` 记账/考试统计每次 O(n)；且 `habit.py:122-129` monthly 分支遍历层级写错（每月习惯永远判"未完成"）。
+- 检查：`tests/test_habit_schedule.py`（daily/weekly/monthly/interval + 推迟/取消）。
+- 现状：`🔄` 2026-10-16：**monthly 分支的层级错误已修**（`logs` 是 `logs[日期][habit_id]` 两层，
+  旧代码把顶层键当 habit_id 比较 → 每月习惯永远判"未达标"），并补齐 9 条调度测试。
+  记账/考试统计仍是每次 O(n)（当前数据量下无感，暂缓）。
 
 **Q-C4 文件/线程/连接等资源必须显式释放**
 - 检查：`ruff --select SIM115` + QThread 人工核查。
-- 现状：`✗` `SIM115`（文件未用上下文管理器）**3 处**；QThread 反复 `new` 不 `deleteLater`（`weather_service.py:118`、`api_service.py:147`）。
+- 现状：`✔` 2026-10-16：`SIM115`（文件未用上下文管理器）**已清零**（ruff 0）；
+  `weather_service` / `api_service` / `ai_service` 的 QThread 均已 `deleteLater` 回收。
 
 ## D. 日志与调试输出
 
@@ -119,7 +131,8 @@
 ## E. 安全与数据
 
 **Q-E1 密钥不进代码 / 日志 / git**（本机 `data/settings.ini` 为明文，已在 `.gitignore`）
-- 检查：`gitleaks` / `detect-secrets`。
+- 检查：`scripts/check_quality.py` 的 `SECRET` 项（断言 `data/settings.ini` 未被 git 跟踪，已接 CI）；
+  `gitleaks` / `detect-secrets` ⚠ **尚未安装**（需更强的全历史扫描时再补）。
 
 **Q-E2 数据写入必须原子（`os.replace`）且经 Model 或 `actions.py`**（= R-002）
 - 现状：`✔` `models/base.py` 已实现；`✗` 双写路径未统一。
@@ -139,24 +152,33 @@
 ## F. 测试与可验证性
 
 **Q-F1 新增/修改行为必须有测试**（见 `AGENTS.md` DoD）
-- 现状：`🔄` 2026-10-16：覆盖率 **42%**（7650 语句），**149 passed / 0 xfailed**。
-  已有：actions 命令冒烟 + 日期解析、提示词↔实现**双向**一致性、令牌同步/合规、
-  `send_digest`（含 exams.json）、考试提醒阈值、数据流（外部刷新 / save_all）、
-  UI 接线（导航/主题/三态筛选）、AI 上下文非阻塞、数据 schema 守卫。
-  存量 5 个 xfail 已全部转为真实断言；UI 布局与部分服务仍无覆盖。
+- 现状：`🔄` 2026-10-16：覆盖率 **54%**（8907 语句），**202 passed / 0 xfailed**，CI 加了
+  `--cov-fail-under=50` 下限（防"越改越少测"）。已有：actions 命令冒烟 + 日期解析、提示词↔实现**双向**
+  一致性、令牌同步/合规、`send_digest`（含 exams.json）、考试提醒阈值、数据流（外部刷新 / save_all）、
+  UI 接线（导航/主题/三态筛选）、AI 上下文非阻塞、数据 schema 守卫、习惯调度（4 种 schedule）、
+  ID 生成、工程门禁自身。UI 布局与部分服务仍无覆盖。
 
 **Q-F2 契约必须可校验**：prompt ↔ `actions.py` ↔ TG skill 的命令集一致
 - 现状：`✔` `tests/test_prompt_consistency.py`（3 处已知缺口以 xfail 固化）。
 
 **Q-F3 改变更完成后必须自检**：import 完整、信号已连接、控件已初始化
 
+**Q-F4 规范必须门禁化**：每条 Q 规则要么有**可运行的检查**（脚本/测试，且接进 CI），
+要么在「检查」栏显式标注"人工"或"工具未装（待办）"——禁止留"写了检查方法但跑不起来"
+- 为什么：2026-10-16 审计发现，64 条 Q 规则里只有约 16 条真正有门禁（25%），
+  其余只有散文约束；`CODE_STANDARDS` 的「现状」栏因此大面积失真（✔/✗ 都错报）
+- 落地：`scripts/check_quality.py`（可绝对化的必须为 0；有历史债的走
+  `scripts/quality_baseline.json` 只防新增）；`tests/test_quality_gates.py` 守卫门禁本身
+- 现状：`🔄` 2026-10-16：已补 9 类检查并接 CI；`Q-A2`/`Q-E1`(gitleaks)/`Q-D3` 三项因工具未装仍待办
+
 ## G. 文档
 
 **Q-G1 文档只写代码表达不了的东西**（跨文件时序、不变量、为什么、外部契约）；签名/参数/字段不抄
-- 现状：`✗` 34 份 `.py.md` 逐文件抄签名（见 PLAN A-1）。
+- 现状：`✔` 2026-10-16：34 份 `.py.md` 与 `FORMAT_SPEC.md` **已全部删除**（`A-1`），
+  现存 `.py.md` 文件数 = **0**。
 
 **Q-G2 文档必须可校验，或明确标注 `*（待补）*`**；禁止"参见源码"式占位
-- 现状：`✗` `task.py.md` 等为批量骨架。
+- 现状：`✔` 2026-10-16：批量骨架文档已随 `A-1` 删除，现存文档均为手写内容。
 
 **Q-G3 文档体系固定为**：`AGENTS.md`（流程/环境）· `PLAN.md`（计划与体检）· `CODE_STANDARDS.md`（规范）·
 `ARCHITECTURE.md`（运作原理）· `ERRORS.md`（坑）· `dev-logs/`（变更史）· `README.md`（概览）。
@@ -164,7 +186,8 @@
 - 现状：`✔` 2026-10-15 完成（34 份 `.py.md` 与 `FORMAT_SPEC.md` 已删，新增 `ARCHITECTURE.md`）。
 
 **Q-G4 单一真值**：同一事实只允许一处权威来源；文档与代码冲突时以**代码**为准并立即修文档
-- 现状：`✗` `DESIGN_TOKENS.md`(规格) 与 `theme.py`(实现) 漂移（待 `G-1`）；`ERRORS.md` 重复问题已于 2026-10-15 解决。
+- 现状：`✔` 2026-10-16：`design/tokens.json` 为唯一真值，`design/DESIGN_TOKENS.md` 由
+  `scripts/gen_design_tokens.py` 生成、`tests/test_design_tokens_sync.py` 守卫漂移；`ERRORS.md` 重复问题已解决。
 
 ## H. UI 与设计令牌
 
@@ -187,13 +210,17 @@
 
 - 示例：`bg_card`、`fg_primary`、`state_danger_subtle`、`btn_primary_bg_hover`、`nav_selected_fg`、`fg_on_accent`
 - 禁止用原始色名当令牌名（`red`/`green`/`yellow`）；禁止把尺寸混进颜色集（如 `badge_radius`）
-- 现状：`✗` 现存 `red/green/yellow/orange`、`badge_radius` 等违反。
+- 现状：`🔄` 2026-10-16：仍有 **10 处**存量（`colors.*.red/green/yellow/orange` + `colors.*.badge_radius`），
+  **已记入 `quality_baseline.json` 防新增**；重命名会牵动调用点，与 `Q-H7` 分层一起排期。
 
 **Q-H4 QSS 选择器仅 `#objectName`，禁止类名选择器**（= R-008）
+- 检查：`scripts/check_ui_tokens.py` 的 `QSS-CLASS` 项（已接 CI）。
 - 现状：`✔` 2026-10-16：`_HabitCard` / `_ExamCard` 已改为 `#objectName` 选择器（并补 `setObjectName`）——
   此前类名选择器在 Windows PySide6 **不生效**，卡片的背景/圆角/悬停实际从未应用，现按设计生效。
+  实测已无自定义类名选择器（全局 QSS 里的 `QPushButton {}` 等原生类名不属此列）。
 
 **Q-H5 颜色必须属于主题 token 集合**（禁止 `settings_panel.py:296/299` 那种非主题色）
+- 现状：`✔` 2026-10-16：`check_ui_tokens.py` 巡检 0 违规；原先的 VS Code 风状态色已改主题 `green`/`red`。
 
 **Q-H6 视觉克制**：accent 像素面积 < 5%；禁止第四种色相、纯黑/纯白（人工核对）
 
@@ -212,13 +239,14 @@
 
 **Q-H10 弹窗不得重复画标题**
 - 保留系统标题栏（原生拖拽 / 关闭 / 置顶行为正确），**内容区不再写一遍同名大标题**
-- 现状：`场景管理` 在系统标题栏与内容区各出现一次
+- 现状：`✔` 2026-10-16：「场景管理」已随场景存档功能弃用而删除（`F-6`），弹窗不再重复标题。
 
 **Q-H11 按钮区规范**
 - 顺序：`取消` 在左，**主操作在最右**；主操作用 `btn_primary_qss()`，次操作用 `btn_secondary_qss()`
 - 文案必须是中文动词（保存 / 取消 / 删除 / 确定），**禁止 `OK` / `Cancel`**
 - 危险操作（删除 / 清空）二次确认，确认按钮用 `red_fill` 填充 + `fg_on_fill`
-- 现状：`场景管理` 用 `OK / Cancel`；库存标签对话框混用 `添加 / 删除选中 / OK`
+- 现状：`✔` 2026-10-16：全项目已无 `OK`/`Cancel` 文案（实测 `grep` 为 0）；「场景管理」已删除，
+  库存标签对话框文案已统一。新增弹窗按本条执行（人工核对，尚无门禁）。
 
 **Q-H12 输入控件高度统一**
 - 同一弹窗内所有输入类控件（`QLineEdit` / `QComboBox` / `QSpinBox` / `QDateTimeEdit`）**同高**，字号走 `SIZE_BODY_S`
@@ -289,9 +317,10 @@
 
 **Q-I2 禁止静默吞异常**：`except ...: pass` 必须改为 `logger.debug/warning(..., exc_info=True)`，或注释说明为何可忽略
 - 为什么：静默吞异常是"AI 说做了、实际没做"这类故障的温床。
-- 检查：`ruff --select S110`。
-- 现状：`✔` 2026-10-16：**40 处** `except: pass`（含 ruff 默认不检查的具名 except）已改为
-  `logger.debug("<位置> 中忽略异常", exc_info=True)`，并为缺少 logger 的 20 个模块补齐。
+- 检查：`scripts/check_quality.py` 的 `SILENT` 项（AST，**含具名异常**）+ `ruff --select S110`。
+- 现状：`✔` 2026-10-16：**40 处** `except: pass` 已改为 `logger.debug(..., exc_info=True)`，并为缺 logger 的
+  20 个模块补齐。审计后又发现 **ruff S110 漏检具名异常**（`except (A, B): pass`），
+  剩余 2 处已改用 `contextlib.suppress(...)`，现为 **0 处**，且由 AST 门禁兜住该类漏检。
 
 ## N. 命名约定
 
@@ -305,7 +334,10 @@
 
 **Q-N5 i18n key 命名空间**：`<area>.<subarea>.<name>`（如 `panel.task.title`、`dialog.course.edit`、`tray.exit`）；
 UI 显示文本必须经 `tr()` 取得，禁止硬编码中文
-- 现状：`✗` `zh-CN.json` 为扁平键；全项目仅约 47 处 `tr()` 调用。
+- 检查：`scripts/check_quality.py` 的 `I18N` 项（计数不得超过 baseline）。
+- 现状：`🔄` 2026-10-16 实测：`src/ui` 内 `tr()` 仅 **19 处**、含中文字面量 **692 处**、
+  `zh-CN.json` **92 个扁平键**（要求点号分层）。**已记入 baseline 防新增**；
+  是否全量迁移待裁决（`PLAN P6`），现状策略是"新文本必须走 `tr()`、存量改到即补"。
 
 **Q-N6 资源与图形命名**：图标 `ic_<name>_<size>`（如 `ic_add_16`）；图片 `img_<name>`；统一放 `resources/`
 - 现状：`✔` 2026-10-15：已建 `resources/`，`image.png` 已归位（`app.py` 的 `_ICON_PATH` 同步更新）。
@@ -316,10 +348,12 @@ UI 显示文本必须经 `tr()` 取得，禁止硬编码中文
 
 ## P. 目录与文件结构
 
-**Q-P1 顶层目录白名单**：`src/ scripts/ tests/ plugins/ data/ resources/ MD-files/ dev-logs/ .github/`
+**Q-P1 顶层目录白名单**：`src/ scripts/ tests/ plugins/ data/ resources/ MD-files/ dev-logs/ .github/ design/`
 + 约定根文件（`main.py` `AGENTS.md` `README.md` `PLAN.md` `ERRORS.md` `pyproject.toml` `requirements*.txt` `.gitignore`）；
 新增顶层目录必须同步 `AllTheFiles.md` / `README.md` / 本文件
-- 现状：`✔` 2026-10-15：`resources/` 已建（`image.png` 归位）；`data/` 与 `resources/` 职责见 Q-P2。
+- 检查：`scripts/check_quality.py` 的 `TOP-DIR` 项（只查 **git 跟踪**的顶层项，本地垃圾不影响 CI）。
+- 现状：`✔` 2026-10-16：`design/`（UI 规范入口）已入白名单；根目录的第三方 skill
+  `hermes-skill-life-assistant.md` 已归档到 `MD-files/archive/`（与 R-002 冲突，见该目录 README）。
 
 **Q-P2 `data/` 是用户数据（含密钥），永不进发行版；`resources/` 是运行时资源**
 

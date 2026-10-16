@@ -18,6 +18,7 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import io
 import json
 import re
@@ -260,10 +261,10 @@ def _force_utf8_stdout() -> None:
     只改本进程的 stdout/stderr，不动环境变量。
     """
     for stream in (sys.stdout, sys.stderr):
-        try:
+        # 少数流没有 reconfigure（AttributeError）或不允许重配置（OSError）：
+        # 此时保持原样即可 —— 显式忽略（Q-I2）
+        with contextlib.suppress(AttributeError, OSError):
             stream.reconfigure(encoding="utf-8", errors="replace")
-        except (AttributeError, OSError):
-            pass
 
 
 def main() -> None:

@@ -3,7 +3,7 @@
 from datetime import date, datetime
 from pathlib import Path
 
-from src.models.base import BaseJsonModel
+from src.models.base import BaseJsonModel, next_id
 from src.models.course import schedule_date
 
 DEFAULT_EXPENSES = {
@@ -39,7 +39,7 @@ class ExpenseModel(BaseJsonModel):
 
     def add(self, expense: dict) -> str:
         records = self._data.setdefault("records", [])
-        record_id = expense.get("id", f"e_{len(records) + 1:03d}")
+        record_id = expense.get("id") or next_id("e", (r.get("id", "") for r in records))
         expense["id"] = record_id
         expense.setdefault("date", date.today().isoformat())
         expense.setdefault("created_at", datetime.now().isoformat())

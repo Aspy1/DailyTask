@@ -3,8 +3,24 @@ import json
 import os
 import shutil
 import time
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
+
+
+def next_id(prefix: str, existing_ids: Iterable[str], width: int = 3) -> str:
+    """按现有 ID 的**最大数字后缀 + 1** 生成新 ID。
+
+    R-008 禁止 `len()+1` 生成 ID：删过条目后列表长度不再等于最大序号，
+    新 ID 会与既有 ID 撞车（删掉 `c_002` 后再新增，len 仍为 2 → 又生成 `c_002`）。
+    保持 `<prefix>_<零填充数字>` 格式，`actions.py` 的序号解析仍可用。
+    """
+    max_n = 0
+    for raw in existing_ids:
+        suffix = str(raw or "").rsplit("_", 1)[-1]
+        if suffix.isdigit():
+            max_n = max(max_n, int(suffix))
+    return f"{prefix}_{max_n + 1:0{width}d}"
 
 
 class BaseJsonModel:

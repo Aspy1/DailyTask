@@ -5,7 +5,7 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from src.models.base import BaseJsonModel
+from src.models.base import BaseJsonModel, next_id
 
 if TYPE_CHECKING:
     from src.models.inventory import InventoryModel
@@ -55,7 +55,7 @@ class HabitModel(BaseJsonModel):
 
     def add_habit(self, habit: dict) -> str:
         habits = self._data.setdefault("habits", [])
-        hid = habit.get("id", f"h_{len(habits) + 1:03d}")
+        hid = habit.get("id") or next_id("h", (h.get("id", "") for h in habits))
         habit["id"] = hid
         habit.setdefault("streak", 0)
         habit.setdefault("longest_streak", 0)
@@ -137,13 +137,15 @@ class HabitModel(BaseJsonModel):
             days = schedule.get("days", [])
             return today.isoweekday() in days
         if st == "monthly":
-            # Active if monthly completions not yet met
+            # 本月已完成次数未达配额才激活。注意 logs 是**两层**结构
+            # （`logs[日期][habit_id] = {completed: ...}`），顶层键是日期不是 habit_id。
             this_month = today.strftime("%Y-%m")
-            monthly_logs = [
-                ts for hid, ts in self.logs.items()
-                if hid == habit_id and ts[:7] == this_month
-            ]
-            return len(monthly_logs) < schedule.get("value", 4)
+            done = sum(
+                1
+                for day_str, day_log in self.logs.items()
+                if day_str[:7] == this_month and day_log.get(habit_id, {}).get("completed")
+            )
+            return done < schedule.get("value", 4)
         if st == "interval":
             return self._is_active_by_interval(schedule, today)
         # daily — always active
@@ -169,7 +171,7 @@ class HabitModel(BaseJsonModel):
 
     def add_template(self, template: dict) -> str:
         templates = self._data.setdefault("attached_task_templates", [])
-        tid = template.get("id", f"at_{len(templates) + 1:03d}")
+        tid = template.get("id") or next_id("at", (t.get("id", "") for t in templates))
         template["id"] = tid
         template.setdefault("delay_hours", 24)
         template.setdefault("duration_minutes", 15)

@@ -3,7 +3,7 @@
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-from src.models.base import BaseJsonModel
+from src.models.base import BaseJsonModel, next_id
 
 
 def schedule_date() -> date:
@@ -80,7 +80,7 @@ class CourseModel(BaseJsonModel):
 
     def add_course(self, course: dict) -> str:
         courses = self._data.setdefault("courses", [])
-        course["id"] = course.get("id", f"c_{len(courses) + 1:03d}")
+        course["id"] = course.get("id") or next_id("c", (c.get("id", "") for c in courses))
         course.setdefault("weeks", {"start": 1, "end": 20})
         course.setdefault("week_parity", "all")
         course.setdefault("day_of_week", 1)
