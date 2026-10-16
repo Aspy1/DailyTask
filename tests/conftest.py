@@ -36,3 +36,25 @@ def qapp() -> Iterator:
     from PySide6.QtWidgets import QApplication
     app = QApplication.instance() or QApplication([])
     yield app
+
+
+@pytest.fixture(autouse=True)
+def _cleanup_qt_leftovers() -> Iterator[None]:
+    """每个测试结束后清掉 Qt 残留（控件 / 延迟删除事件）。
+
+    为什么必须做：整个测试会话共用一个 QApplication，226 个测试累积下来的
+    顶层控件与排队事件会让后面的 `processEvents()` **随机崩进程**
+    （CI 上表现为 `Windows fatal exception: access violation`，
+    栈顶永远落在某个 `processEvents()` 上）。
+    """
+    yield
+    from PySide6.QtCore import QEvent
+    from PySide6.QtWidgets import QApplication
+
+    app = QApplication.instance()
+    if app is None:
+        return
+    for widget in app.topLevelWidgets():
+        widget.close()
+        widget.deleteLater()
+    app.sendPostedEvents(None, QEvent.Type.DeferredDelete)

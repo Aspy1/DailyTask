@@ -5,6 +5,8 @@
 """
 
 import pytest
+from PySide6.QtCore import QEvent
+from PySide6.QtWidgets import QApplication
 
 
 def test_sidebar_nav_keys_are_all_routed(qapp) -> None:
@@ -174,8 +176,9 @@ def test_rounded_inputs_drop_native_frame(qapp) -> None:
     edit.setStyleSheet(f"QLineEdit {{ border-radius: {RADIUS['radius_md']}px; }}")
     plain = QLineEdit()                       # 自带样式表里没圆角
     for w in (combo, edit, plain):
-        w.show()
-    qapp.processEvents()
+        # 直接投递 Show 事件即可让钩子跑起来：不必真上屏、也不必排空全局事件队列
+        # （CI runner 上 `show()+processEvents()` 会崩，见 dev-log）
+        QApplication.sendEvent(w, QEvent(QEvent.Type.Show))
 
     # 一律关掉：全局 QSS 也会给输入框圆角，只查自带样式表会漏掉一半（角点残留的根因）
     assert not combo.hasFrame()
