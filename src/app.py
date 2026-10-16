@@ -31,6 +31,17 @@ APP_REGISTRY_NAME = "StudentScheduler"
 logger = logging.getLogger(__name__)
 
 
+def configure_locale() -> None:
+    """把 Qt 默认区域固定为**用 ASCII 数字**的区域（本机 zh_HK 会出问题）。
+
+    实现已移到 `ui/styles/theme.py`（由 `init_theme()` 统一调用，任何 UI 入口都覆盖），
+    这里保留同名入口，方便"启动即设置"的语义更显式。
+    """
+    from src.ui.styles.theme import configure_locale as _configure
+
+    _configure()
+
+
 def _get_startup_command() -> str:
     """Build the command line for auto-start (uses pythonw to avoid console)."""
     main_py = str(Path(__file__).parent.parent / "main.py")
@@ -91,6 +102,8 @@ def _make_icon(color: str = "#007acc") -> QIcon:  # token-check: ignore（图标
 
 class App(QApplication):
     def __init__(self, args: list[str]) -> None:
+        # 必须在任何控件创建前：本机 zh_HK 会让日期/数字控件显示 CJK 数字
+        configure_locale()
         super().__init__(args)
 
         # Single-instance: try to contact existing instance

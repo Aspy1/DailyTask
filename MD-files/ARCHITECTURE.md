@@ -139,14 +139,18 @@ ui ──→ services ──→ models ──→ base(BaseJsonModel)
 3. **显式保存**：Model 改内存态后**不会自动落盘**，必须显式 `save()`。
 4. **日期语义**：`course.schedule_date()` —— **0:00–1:00 视为前一天**；跨模块统一用它，不要直接用 `date.today()`。
 5. **时区**：全部本地时间，无 tz 处理；`due_date` 形如 `YYYY-MM-DDThh:mm:ss`，日期型为 `YYYY-MM-DD`。
-6. **ID 生成**：**目前有两套**（`len()+1` 与 max+1 并存），见下节债务。
-7. **`data/` 是用户数据**（含密钥 `settings.ini`），不进发行版（`Q-P2`）。
+6. **ID 生成**：统一走 `models/base.next_id()`（最大后缀 +1）；禁用 `len()+1`（R-008）。
+7. **学期口径单一**：所有"第几周 / 学期是否结束"的判断**只能**走 `models/semester.py`
+   （`semester_status()` / `week_number_for()`），模型与脚本（含 `send_digest.py`）都调它。
+   状态：`none`（无学期）/ `invalid`（数据不合法，算不出周次）/ `not_started` / `active` / `expired`。
+   历史上这里散过 5 处各算各的（状态栏不钳上界 → 显示"第 32 / 16 周"、AI 忽略
+   `current_semester`、摘要第三套算法），见 `ERRORS #037`。
+8. **`data/` 是用户数据**（含密钥 `settings.ini`），不进发行版（`Q-P2`）。
 
 ## 8. 数据文件 schema 总表
-
 | 文件 | `_version` | 顶层键 | 关键字段 |
 |---|---|---|---|
-| `courses.json` | 3 | `semesters[]` `current_semester` `courses[]` `holidays{excluded[],makeup{}}` | course: `id,name,teacher,day_of_week(1-7),weeks{start,end},time_slots[{start,end,location}],week_parity(all/odd/even),notes` |
+| `courses.json` | 3 | `semesters[]` `current_semester` `courses[]` `holidays{excluded[],makeup{}}` | course: `id,name,teacher,day_of_week(1-7),weeks{start,end},time_slots[{start,end,location}],week_parity(all/odd/even),notes`；semester: `id,name,start_date(YYYY-MM-DD),total_weeks(1-30),period_count(1-12)` |
 | `tasks.json` | 2 | `tasks[]` `archived[]` | task: `id,title,course_name,due_date,status(pending/completed),priority,tags[],notes,created_at,completed_at,reminded` |
 | `habits.json` | 2 | `habits[]` `attached_task_templates[]` `logs{date:{hid:{completed,completed_at,note}}}` | habit: `id,name,schedule{type(daily/weekly/monthly/interval),days[],value,times_per_day,start_date},duration_minutes,reminder_time,streak,longest_streak,postpone_until,canceled_on[]` |
 | `exams.json` | 1 | `exams[]` | exam: `id,course_name,exam_date,scope,location,notes,tags[],created_at,updated_at` |

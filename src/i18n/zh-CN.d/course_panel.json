@@ -5,6 +5,8 @@
   "panel.course.btn_next_week": "下一周 >",
 
   "panel.course.week_label": "第 {week} / {total} 周",
+  "panel.course.week_label_state": "{state} · {weeks}",
+  "panel.course.btn_semester": "学期",
   "panel.course.course_count": "{n} 门课程",
   "panel.course.unknown_name": "未知课程",
   "panel.course.view_day": "日",

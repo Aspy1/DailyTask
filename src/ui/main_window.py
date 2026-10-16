@@ -27,10 +27,12 @@ from src.ui.animations import count_to
 from src.ui.components.ai_panel import AIPanel
 from src.ui.components.click_label import ClickLabel
 from src.ui.components.main_workspace import MainWorkspace
+from src.ui.components.semester_text import ALERT_STATES, semester_state_text
 from src.ui.components.sidebar import Sidebar
 from src.ui.styles.theme import get_colors
 from src.ui.widgets.menu import add_action, new_menu, show_at_cursor, show_below
 from src.ui.widgets.rounded_button import RoundedButton
+from src.ui.widgets.semester_dialog import SemesterDialog
 
 logger = logging.getLogger(__name__)
 
@@ -313,6 +315,17 @@ class MainWindow(QMainWindow):
         self._date_label = QLabel()
         self._statusbar.addPermanentWidget(self._date_label)
 
+        sep_semester = QLabel("|")
+        sep_semester.setStyleSheet(f"color: {c['border_strong']}; margin: 0 5px;")
+        self._statusbar.addPermanentWidget(sep_semester)
+
+        # 学期片段：可点击 → 学期管理（新建 / 切换 / 看数据问题）
+        self._semester_label = ClickLabel()
+        self._semester_label.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._semester_label.setToolTip(tr("semester.tooltip"))
+        self._semester_label.clicked.connect(self._on_semester_click)
+        self._statusbar.addPermanentWidget(self._semester_label)
+
         self._showing_tomorrow = False
 
 
@@ -402,23 +415,32 @@ class MainWindow(QMainWindow):
 
     def _update_date(self) -> None:
         now = datetime.now()
-        semester = self._data_manager.courses.get_semester(
-            self._data_manager.courses.current_semester)
-        week_str = ""
-        if semester:
-            try:
-                start = date.fromisoformat(semester["start_date"])
-                delta = (now.date() - start).days
-                week = max(1, delta // 7 + 1) if delta >= 0 else 1
-                total = semester.get("total_weeks", "?")
-                week_str = tr("window.status.week", week=week, total=total)
-            except (KeyError, ValueError):
-                logger.debug("MainWindow._update_date 中忽略异常", exc_info=True)
+        self._render_semester()
         day_names = [tr(k) for k in ("day.monday", "day.tuesday", "day.wednesday",
                                      "day.thursday", "day.friday", "day.saturday",
                                      "day.sunday")]
         self._date_label.setText(
-            f"{week_str}{day_names[now.weekday()]} {now.strftime('%H:%M')}  |  {date.today().isoformat()}")
+            f"{day_names[now.weekday()]} {now.strftime('%H:%M')}  |  {date.today().isoformat()}")
+
+    def _render_semester(self) -> None:
+        """状态栏的学期片段（**唯一口径**见 `models/semester.py`）。
+
+        此前这里自己算周次且**不钳上界** —— 学期过期后显示"第 32 / 16 周"这种没意义的数字。
+        现在过期/未开学/数据异常会直接说明状态，并用强调色提示"点我处理"。
+        """
+        c = get_colors()
+        status = self._data_manager.courses.semester_status()
+        self._semester_label.setText(semester_state_text(status))
+        alert = status.get("state") in ALERT_STATES
+        self._semester_label.setStyleSheet(
+            f"color: {c['accent_text'] if alert else c['fg_secondary']}; font-size: 12px;"
+            + (" font-weight: 600;" if alert else ""))
+
+    def _on_semester_click(self) -> None:
+        dialog = SemesterDialog(self._data_manager, self)
+        if dialog.exec():
+            self._render_semester()
+            self._workspace.schedule_view.refresh_theme()
 
     def _update_next_course(self) -> None:
         if self._showing_tomorrow:

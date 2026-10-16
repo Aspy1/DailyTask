@@ -10,9 +10,16 @@ import json
 import logging
 import os
 import smtplib
+import sys
 from datetime import date, datetime, timedelta, timezone
 from email.mime.text import MIMEText
 from pathlib import Path
+
+# 让 `python scripts/send_digest.py`（CWD = 仓库根）也能 import src：
+# 脚本目录会被放进 sys.path[0]，仓库根不在其中。
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from src.models.semester import week_number_for
 
 PERIOD_TIMES = [
     ("08:30", "10:05"),
@@ -56,19 +63,12 @@ def _find_current_semester(courses_data: dict) -> dict | None:
 
 
 def _week_number_for(courses_data: dict, target: date) -> int | None:
-    """目标日期属当前学期第几周；学期缺失/尚未开学/超出总周数返回 None。"""
-    semester = _find_current_semester(courses_data)
-    if not semester or "start_date" not in semester:
-        return None
+    """目标日期属当前学期第几周；学期缺失/不合法/未开学/超出总周数返回 None。
 
-    start = date.fromisoformat(semester["start_date"])
-    delta = (target - start).days
-    if delta < 0:
-        return None
-    week_number = delta // 7 + 1
-    if week_number > semester.get("total_weeks", 20):
-        return None
-    return week_number
+    口径与桌面端**同一份实现**（`src/models/semester.py` 是纯函数、无 Qt）：
+    此前这里是第三套算法，和状态栏 / 面板各算各的。
+    """
+    return week_number_for(_find_current_semester(courses_data), target)
 
 
 def _is_off_day(courses_data: dict, target: date) -> bool:

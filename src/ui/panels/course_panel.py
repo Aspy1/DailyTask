@@ -16,10 +16,18 @@ from PySide6.QtWidgets import (
 )
 
 from src.i18n.loader import tr
+from src.models.semester import (
+    DEFAULT_TOTAL_WEEKS,
+    STATE_ACTIVE,
+    STATE_EXPIRED,
+    STATE_NONE,
+)
 from src.services.data_manager import DataManager
+from src.ui.components.semester_text import semester_state_text
 from src.ui.styles.theme import FONT_CN, SIZE_BODY_S, get_colors
 from src.ui.widgets.course_table import CourseTable
 from src.ui.widgets.rounded_button import RoundedButton
+from src.ui.widgets.semester_dialog import SemesterDialog
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +54,16 @@ class CoursePanel(QWidget):
         self._week_label.setFont(QFont(FONT_CN, SIZE_BODY_S))
         self._week_label.setStyleSheet("font-weight: 600; border: none;")
         bar_layout.addWidget(self._week_label)
+
+        semester_btn = RoundedButton(tr("panel.course.btn_semester"))
+        semester_btn.setStyleSheet(f"""
+            QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
+                border-radius: 8px; padding: 4px 12px; font-size: 13px; }}
+            QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; color: {c['btn_secondary_hover_fg']}; }}
+        """)
+        semester_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        semester_btn.clicked.connect(self._open_semester_dialog)
+        bar_layout.addWidget(semester_btn)
 
         refresh_btn = RoundedButton(tr("panel.course.btn_refresh"))
         refresh_btn.setStyleSheet(f"""
@@ -109,11 +127,34 @@ class CoursePanel(QWidget):
             base = 1
         return max(1, min(base + self._current_week_offset, total))
 
+    @property
+    def _week_number(self) -> int:
+        """当前显示的周次 = **状态口径**的当前周 + 手动偏移（钳在 1..总周数）。
+
+        口径统一在 `models/semester.py`：此前这里自己算日期、且状态栏另算一套，
+        结果学期过期时两处显示不一致。
+        """
+        status = self._dm.courses.semester_status()
+        total = status.get("total_weeks") or DEFAULT_TOTAL_WEEKS
+        base = status.get("week") or (total if status["state"] == STATE_EXPIRED else 1)
+        return max(1, min(base + self._current_week_offset, total))
+
     def _refresh(self) -> None:
+        status = self._dm.courses.semester_status()
         week = self._week_number
-        semester = self._dm.courses.get_semester(self._dm.courses.current_semester)
-        total = semester.get("total_weeks", 20) if semester else "?"
-        self._week_label.setText(tr("panel.course.week_label", week=week, total=total))
+        total = status.get("total_weeks") or DEFAULT_TOTAL_WEEKS
+        weeks_text = tr("panel.course.week_label", week=week, total=total)
+        if status.get("state") == STATE_ACTIVE:
+            self._week_label.setText(weeks_text)
+        elif status.get("state") == STATE_NONE and not self._dm.courses.semesters:
+            self._week_label.setText(semester_state_text(status))
+        else:
+            # 未开学 / 已结束 / 数据异常：状态 + 正在看的周次，两件事都说清
+            self._week_label.setText(
+                tr("panel.course.week_label_state",
+                   state=semester_state_text(status), weeks=weeks_text))
+        self._week_label.setStyleSheet(
+            f"font-weight: 600; border: none; color: {get_colors()['fg_primary']};")
 
         courses = []
         for day in range(1, 8):
@@ -181,6 +222,13 @@ class CoursePanel(QWidget):
     def _go_today(self) -> None:
         self._current_week_offset = 0
         self._refresh()
+
+    def _open_semester_dialog(self) -> None:
+        """打开学期管理（新建 / 切换 / 查看数据检查结果）。"""
+        dialog = SemesterDialog(self._dm, self)
+        if dialog.exec():
+            self._current_week_offset = 0
+            self._refresh()
 
     def _rename_course(self, course_id: str) -> None:
         course = None

@@ -30,10 +30,18 @@ def sandbox(tmp_path, monkeypatch) -> Path:
 
 @pytest.fixture(scope="session")
 def qapp() -> Iterator:
-    """离屏 QApplication（Qt 控件测试用，避免依赖 pytest-qt）。"""
+    """离屏 QApplication（Qt 控件测试用，避免依赖 pytest-qt）。
+
+    同时把默认区域设成与**应用启动一致**（`App.__init__` 会调 `configure_locale()`）：
+    本机系统区域是 zh_HK，不设的话日期/数字控件会显示 CJK 数字。
+    """
     import os
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
     from PySide6.QtWidgets import QApplication
+
+    from src.app import configure_locale
+    configure_locale()
     app = QApplication.instance() or QApplication([])
     yield app
 

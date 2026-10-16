@@ -204,6 +204,8 @@
 **Q-G4 单一真值**：同一事实只允许一处权威来源；文档与代码冲突时以**代码**为准并立即修文档
 - 现状：`✔` 2026-10-16：`design/tokens.json` 为唯一真值，`design/DESIGN_TOKENS.md` 由
   `scripts/gen_design_tokens.py` 生成、`tests/test_design_tokens_sync.py` 守卫漂移；`ERRORS.md` 重复问题已解决。
+  同年 10-16 又收拢两处"多处各算一遍"：**周次计算**（5 处 → `models/semester.py`，见 `ERRORS #037`）
+  与**天气/余额适配**（3 套 → `services/openmeteo.py` + `services/deepseek.py`，见 `PLAN P7`）。
 
 ## H. UI 与设计令牌
 
@@ -267,6 +269,10 @@
 **Q-H12 输入控件高度统一**
 - 同一弹窗内所有输入类控件（`QLineEdit` / `QComboBox` / `QSpinBox` / `QDateTimeEdit`）**同高**，字号走 `SIZE_BODY_S`
 - 可编辑 `QComboBox` 的内嵌 `QLineEdit` 必须重置 padding，否则文字被裁（2026-10-16 实测）
+- **日期/数字控件必须显示 ASCII 数字**：`theme.configure_locale()` 把默认区域固定为
+  `en_US`（由 `init_theme()` 调用）。本机系统区域是 `zh_HK`，其 CLDR 用 **CJK 数字**，
+  不设的话 `QDateEdit` 会把 `2026-10-19` 显示成 `〢〇〢〦-〡〇-〡〩`（`ERRORS #036`）。
+  守卫：`tests/test_locale.py`
 - 现状：`设置 → 模型` 曾因叠加 padding 被裁，已修
 
 **Q-H13 弹窗配色只走 token**

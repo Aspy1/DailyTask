@@ -551,15 +551,12 @@ class AIService(QObject):
         return "\n".join(lines)
 
     def _get_current_week(self) -> int:
-        semesters = self._dm.courses._data.get("semesters", [])
-        for s in semesters:
-            try:
-                start = date.fromisoformat(s["start_date"])
-                delta = (date.today() - start).days
-                return max(1, delta // 7 + 1)
-            except (KeyError, ValueError):
-                logger.debug("AIService._get_current_week 中忽略异常", exc_info=True)
-        return 1
+        """当前教学周（**唯一口径**见 `models/semester.py`）；未知时按第 1 周。
+
+        此前这里遍历 `semesters` 取**第一个**、且忽略 `current_semester` ——
+        多个学期时 AI 提示词里的"第 N 周 / 单双周"会算错。
+        """
+        return self._dm.courses.current_week() or 1
 
     def _get_week_parity(self) -> str:
         return "单周" if self._get_current_week() % 2 == 1 else "双周"

@@ -213,6 +213,56 @@
 
 ---
 
+## P9 学期合法性检测 + 学期过期处理 ✅ 已完成（2026-10-16）
+
+**起因**：用户真实数据的学期 `start_date` 过旧，状态栏显示 **"第 32 / 16 周"**（第 32 周不存在）。
+排查发现根因不是"某个算式写错"，而是**同一件事（第几周）在 5 处各算一遍、口径不同**。
+
+**A. 单一真值：`src/models/semester.py`（纯函数，无 Qt / 无 IO）**
+
+| 函数 | 用途 |
+|---|---|
+| `semester_status(sem, today)` | **显示口径**：`state` ∈ `none` / `invalid` / `not_started` / `active` / `expired`；已结束时 `week` 钳到总周数 |
+| `week_number_for(sem, target)` | **取课表口径**：超范围返回 `None`（不钳制） |
+| `validate_semester` / `validate_courses` / `validate_all` | **合法性检测**：14 个问题码（机器可读，UI 翻译） |
+
+改为调用它的 5 处：`CourseModel`（含 `get_courses_for_date` / 新增 `semester_status()` / `validate()` /
+`current_week()`）、`MainWindow` 状态栏、`CoursePanel` 周标签、`AIService._get_current_week`
+（**修掉"忽略 `current_semester`"的真 bug**）、`scripts/send_digest.py`（第三套算法 → 同一份实现）。
+
+**B. 合法性检测**（问题码 → 文案在 `ui/components/semester_text.py`）
+
+- 学期级：缺 id / 缺或无法解析的开始日期 / 开始日期超出 2000–2100 / 缺总周数 / 总周数不在 1–30 /
+  节次不在 1–12
+- 模型级：`current_semester` 指向不存在 / 有课程却没学期 / id 重复 / 学期区间重叠
+- 课程级：周次超出学期 / 星期不在 1–7 / 节次无效（空、起止颠倒、超上限）
+
+**C. 安全自愈**（`_repair_semesters`，幂等，只补能安全推断的）
+
+补 `id` / `total_weeks=20` / `period_count=5`；`current_semester` 失效时挑一个最合理的
+（今天落在其区间内的 > 开始日最新的）。**不猜 `start_date`** —— 猜不出就报出来让用户改。
+
+**D. 学期过期处理（UI）**
+
+- **状态栏**：`学期已结束` / `学期未开始` / `学期数据异常` / `未设置学期`，过期等异常状态用强调色；
+  该片段可点击 → 学期管理。**不再显示"第 32 / 16 周"**。
+- **课程表周标签**：`学期已结束 · 第 20 / 20 周`（状态 + 正在看的周次，两件事都说清）；
+  工具栏新增「学期」按钮。
+- **新增 `SemesterDialog`**（学期管理，`Q-H9~Q-H14`）：显示状态与检测结果、切换当前学期、
+  **新建学期**（默认开始日 = 下一个周一，可设总周数/每天节次，创建后即设为当前）。
+
+**E. 顺带修掉的坑**
+
+- `ERRORS #036`：本机区域 `zh_HK` 用 **CJK 数字**，`QDateEdit`/`QSpinBox` 显示 `〢〇〢〦-〡〇-〡〩`。
+  项目里原本有两处给单个控件打补丁，新控件又中招 → 改为 `theme.configure_locale()`
+  由 `init_theme()` 统一调用（任何 UI 入口都覆盖），守卫 `tests/test_locale.py`。
+- 删掉 `CourseModel.active_courses`（**无人调用的死代码**，`Q-A4`）。
+
+**结果**：**270 passed**（235 → 270）· ruff 0 · 令牌 0 · 门禁 14 项全绿 · 覆盖率 59%；
+离屏截图核对：状态栏 / 周标签 / 对话框（含日期控件数字）三处均正确。
+
+---
+
 ## A. 文档体系
 
 ### A-1 `[已完成]` 废弃逐文件 `.py.md`，改用单一 `ARCHITECTURE.md`

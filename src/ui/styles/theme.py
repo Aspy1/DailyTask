@@ -9,7 +9,7 @@ import json
 import re
 from pathlib import Path
 
-from PySide6.QtCore import QEvent, QObject, Qt
+from PySide6.QtCore import QEvent, QLocale, QObject, Qt
 from PySide6.QtGui import QFont, QFontDatabase
 from PySide6.QtWidgets import QApplication
 from shiboken6 import isValid
@@ -170,6 +170,23 @@ class _RoundedFrameFixer(QObject):
 _ACCENT_PROPERTY = "accentButton"
 
 
+def configure_locale() -> None:
+    """把 Qt 默认区域固定为**用 ASCII 数字**的区域（本机 zh_HK 会出问题）。
+
+    为什么必须做：zh_HK 等区域在 CLDR 里用 **CJK 数字**，于是 `QDateEdit` /
+    `QSpinBox` / `QDateTimeEdit` 会把 `2026-10-19` 显示成 `〢〇〢〦-〡〇-〡〩`
+    （〇〡〢〣 是汉字/杭州码数字）—— 用户根本看不懂。
+
+    此前项目里已有两处各自打补丁（`inventory_panel` / `schedule_view` 给单个控件
+    `setLocale(English, US)`），但只要新增日期/数字控件就会再中一次
+    （`habit_panel` 的 QSpinBox、`semester_dialog` 的 QDateEdit 都中过）。
+
+    放在这里并由 `init_theme()` 调用：**任何 UI 入口**都会经过 `init_theme`，
+    这样就不会有"忘了设区域"的入口（`App.__init__` 也显式调一次，见 `src/app.py`）。
+    """
+    QLocale.setDefault(QLocale(QLocale.Language.English, QLocale.Country.UnitedStates))
+
+
 def mark_accent_button(button) -> None:
     """把按钮标为"主按钮"（强调色填充）。
 
@@ -232,6 +249,7 @@ def apply_palette(app: QApplication, mode: str) -> None:
 
 def init_theme(app: QApplication, mode: str = "light") -> str:
     global FONT_CN, _current_mode, _color_cache
+    configure_locale()          # 日期/数字控件必须用 ASCII 数字（本机 zh_HK 会出 CJK 数字）
     FONT_CN = _resolve_font()
     _current_mode = mode
     _color_cache = None
