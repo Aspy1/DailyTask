@@ -116,7 +116,7 @@
 │   └── send_digest.py              # GitHub Actions 邮件摘要
 ├── plugins/pomodoro/               # 番茄钟插件
 ├── data/                           # JSON 数据文件
-├── DESIGN_TOKENS.md                # 设计规范
+├── design/                        # UI 规范与原型（入口 design/INDEX.md）
 ├── 规划书.md                        # 开发规划
 ├── 接口文档.md                      # API 文档
 └── 修改说明.md                      # 变更日志
@@ -190,7 +190,7 @@
 ### 修改应用图标
 1. 替换 `resources/image.png`（推荐 256×256 或 512×512 PNG）
 2. 若需修改兜底图标样式，编辑 `_make_icon` 中的绘制逻辑
-3. 更新 `DESIGN_TOKENS.md` 记录颜色值
+3. 更新 `design/DESIGN_TOKENS.md`（或跑 `scripts/gen_design_tokens.py`）记录颜色值
 
 ### 添加新的全局服务
 1. 在 `src/services/` 下创建新类

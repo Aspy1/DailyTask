@@ -2,7 +2,7 @@
 """从令牌单一真值生成 DESIGN_TOKENS.md 的令牌表。
 
 单一真值：src/ui/styles/tokens.json
-产出：MD-files/DESIGN_TOKENS.md 中 `<!-- TOKENS:xxx:BEGIN/END -->` 之间内容
+产出：design/DESIGN_TOKENS.md 中 `<!-- TOKENS:xxx:BEGIN/END -->` 之间内容
 
 用法：
     .venv\\Scripts\\python.exe scripts/gen_design_tokens.py
@@ -15,7 +15,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 TOKENS_FILE = ROOT / "src/ui/styles/tokens.json"
-DOC_FILE = ROOT / "MD-files/DESIGN_TOKENS.md"
+DOC_FILE = ROOT / "design/DESIGN_TOKENS.md"
 
 # 颜色令牌的输出顺序（按用途域，见 CODE_STANDARDS Q-H3）
 DOMAIN_ORDER = [
@@ -66,7 +66,7 @@ def _replace_between(text: str, tag: str, body: str) -> str:
     begin = f"<!-- TOKENS:{tag}:BEGIN -->"
     end = f"<!-- TOKENS:{tag}:END -->"
     if begin not in text or end not in text:
-        raise SystemExit(f"标记缺失: {tag}（请先在 DESIGN_TOKENS.md 插入 BEGIN/END 标记）")
+        raise SystemExit(f"标记缺失: {tag}（请先在 design/DESIGN_TOKENS.md 插入 BEGIN/END 标记）")
     i = text.index(begin) + len(begin)
     j = text.index(end)
     return text[:i] + "\n" + body + "\n" + text[j:]

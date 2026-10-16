@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parent.parent
 
 def test_design_tokens_doc_in_sync() -> None:
     data = json.loads((ROOT / "src/ui/styles/tokens.json").read_text(encoding="utf-8"))
-    doc = (ROOT / "MD-files/DESIGN_TOKENS.md").read_text(encoding="utf-8")
+    doc = (ROOT / "design/DESIGN_TOKENS.md").read_text(encoding="utf-8")
 
     assert _color_table(data) in doc, "颜色表与 tokens.json 不同步 → 跑 gen_design_tokens.py"
     assert _size_table(data) in doc, "字号表与 tokens.json 不同步 → 跑 gen_design_tokens.py"

@@ -201,7 +201,7 @@
 - 组件层只允许引用 `semantic` / `component`，**禁止直接引用 `palette`**
 
 **Q-H8 令牌文件与生成链**：`src/ui/styles/tokens.json`（唯一真值）→ `theme.py` 加载并生成 QSS →
-`MD-files/DESIGN_TOKENS.md` 由脚本生成；组件经 `get_colors()` 取 `semantic` / `component` 名
+`design/DESIGN_TOKENS.md` 由脚本生成（**UI 规范总入口是 `design/INDEX.md`**）；组件经 `get_colors()` 取 `semantic` / `component` 名
 - 现状：`🔄` 2026-10-16：真值已移至 `src/ui/styles/tokens.json`（`theme.py` 加载）；`DESIGN_TOKENS.md` 待由脚本生成；`palette` 分层（`Q-H7`）尚未引入。
 
 **Q-H9 弹窗（Dialog）结构与尺寸**
@@ -268,6 +268,13 @@
 - 为什么：2026-10-16 实测同时存在 5 套副本（全局半径 4 / 面板半径 8、padding 与字号各不相同），
   同一个界面上输入框外观不一致，也让"圆角角点"这类问题难以定位
 - 检查：`tests/test_ui_wiring.py` 断言各面板的 `_input_qss()` 与 `theme.input_qss()` 完全一致
+
+**Q-H19 UI 规范入口唯一**
+- 所有 UI 规范（令牌 / 样式工厂 / 菜单与动效模板 / 弹窗规范 / 原型）**登记在 `design/INDEX.md`**，
+  动 UI 前先读它；表里没有对应规范时**先问用户**，确认后再创建并补进该文件
+- 为什么：2026-10-16 实测同时存在 5 套输入框样式、菜单有 5 种坐标写法、令牌文档与实现漂移多年，
+  根因都是"没有单一入口，各处各写一套"
+- 检查：`design/INDEX.md` 存在且含权威位置表；`AGENTS.md` §3「UI 规范入口」为流程约束
 
 ## I. 异常与错误处理
 

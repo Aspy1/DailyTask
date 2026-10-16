@@ -335,7 +335,7 @@ QToolTip {{ background-color: {t["bg_elevated"]}; color: {t["fg_primary"]}; bord
 """
 
 
-# ── Public style helpers (see DESIGN_TOKENS.md §5-7) ──────────────
+# ── Public style helpers（见 design/INDEX.md 与 design/DESIGN_TOKENS.md）──
 
 def btn_primary_qss() -> str:
     """主按钮样式 - accent 填充 + 白色文字"""

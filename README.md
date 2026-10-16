@@ -101,10 +101,15 @@ python -m venv .venv
 │   ├── ARCHITECTURE.md             #   项目运作原理（分层/数据流/信号/不变量/schema）
 │   ├── CODE_STANDARDS.md           #   代码与工程规范（Q-xxx，可检查）
 │   ├── DEV_PRINCIPLES.md           #   可迁移的通用开发准则
-│   ├── DESIGN_TOKENS.md            #   设计令牌（由脚本生成）
+│   └── （UI 规范与原型见 design/INDEX.md）
 │   ├── PLUGINS.md                  #   插件开发约定
 │   ├── AllTheFiles.md              #   索引 · 术语映射 · 决策记录
 │   ├── 规划书.md · 接口文档.md · 修改说明.md
+├── design/                         # UI 规范与原型（**入口 design/INDEX.md**）
+│   ├── INDEX.md                    #   规范总入口：令牌/样式工厂/模板/弹窗/原型
+│   ├── DESIGN_TOKENS.md            #   令牌表（由脚本生成，勿手改）
+│   ├── showcase.html               #   设计原型（意图与结构参考）
+│   └── sidebar-preview.html
 ├── dev-logs/                       # 开发日志
 ├── plugins/pomodoro/               # 番茄钟插件（当前禁用：IsOpen.able.disable）
 ├── resources/                      # 运行时资源（image.png）
