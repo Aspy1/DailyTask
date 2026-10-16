@@ -18,16 +18,18 @@
 from __future__ import annotations
 
 import argparse
+import io
 import json
 import re
 import sys
+import tokenize
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 TOKENS_FILE = ROOT / "src/ui/styles/tokens.json"
 
 RE_HEX = re.compile(r"#[0-9a-fA-F]{3,8}\b")
-RE_RGB = re.compile(r"\brgba?\([^)]*\)")
+RE_RGB = re.compile(r"\brgba?\(\s*\d[^)]*\)")   # 必须紧跟数字：`rgba({x},{y})` 是构造式，不是字面量
 # 误报豁免：`ERRORS #020` / `条目 #012` 这类**问题编号**不是颜色字面量
 RE_ISSUE_REF = re.compile(r"(?:ERRORS|ERR|条目|问题|issue)\s*#\d+\b", re.IGNORECASE)
 RE_QSS_CLASS = re.compile(r"(?<![\w.])(_?[A-Z][A-Za-z0-9_]*)\s*\{\{")
@@ -183,6 +185,35 @@ def _collect_files(paths: list[str]) -> list[Path]:
     return files
 
 
+def mask_doc_lines(lines: list[str]) -> list[bool]:
+    """标记「整行属于注释或文档字符串」的行。
+
+    这些行里的 `rgba(...)` / `#hex` 是**说明文字**，不是颜色字面量。
+    误报会让人开始绕过检查器（加 ignore 注释 / 干脆不写引用），所以按规则修而不是改文案。
+
+    用 `tokenize` 判断而不是数引号：多行 f-string（QSS 内容）**不能**被掩掉，
+    单行 docstring 又必须掩掉，靠引号计数两头都会错。
+    """
+    mask = [False] * len(lines)
+    try:
+        tokens = list(tokenize.generate_tokens(io.StringIO("\n".join(lines)).readline))
+    except (tokenize.TokenError, IndentationError, SyntaxError):
+        return mask                     # 解析不了就全查（宁可误报，不可漏报）
+
+    prev_kind = tokenize.NEWLINE
+    for tok in tokens:
+        if tok.type == tokenize.COMMENT:
+            mask[tok.start[0] - 1] = True
+        elif tok.type == tokenize.STRING and prev_kind in (
+                tokenize.NEWLINE, tokenize.INDENT, tokenize.DEDENT, tokenize.NL):
+            # 语句级字符串 = docstring（含跨行）
+            for row in range(tok.start[0], tok.end[0] + 1):
+                mask[row - 1] = True
+        if tok.type not in (tokenize.NL, tokenize.COMMENT):
+            prev_kind = tok.type
+    return mask
+
+
 def _scan_files(files: list[Path], names: set[str], value_to_name: dict[str, str],
                 check_px: bool) -> tuple[int, dict[str, int], dict[str, int]]:
     """逐文件逐行检查并打印违规明细，返回 (总数, 按类型, 按文件)。"""
@@ -193,7 +224,11 @@ def _scan_files(files: list[Path], names: set[str], value_to_name: dict[str, str
     for f in files:
         if f.name in SKIP_FILES:
             continue
-        for lineno, line in enumerate(f.read_text(encoding="utf-8").splitlines(), 1):
+        lines = f.read_text(encoding="utf-8").splitlines()
+        masked = mask_doc_lines(lines)
+        for lineno, line in enumerate(lines, 1):
+            if masked[lineno - 1]:          # 注释 / docstring 行不判颜色
+                continue
             for kind, frag, hint in check_line(line, names, value_to_name, check_px):
                 total += 1
                 by_kind[kind] = by_kind.get(kind, 0) + 1

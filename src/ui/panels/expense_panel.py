@@ -21,7 +21,7 @@ from PySide6.QtWidgets import (
 )
 
 from src.services.data_manager import DataManager
-from src.ui.styles.theme import FONT_CN, RADIUS, SIZE_SUBTITLE, get_colors
+from src.ui.styles.theme import FONT_CN, RADIUS, SIZE_BODY_S, SIZE_SUBTITLE, get_colors
 from src.ui.widgets.menu import (
     add_action,
     add_separator,
@@ -134,14 +134,17 @@ class ExpensePanel(QWidget):
         # ── Savings row ───────────────────────────────────────
         sav_row = QWidget()
         self._sav_row = sav_row
-        sav_row.setStyleSheet(self._band_qss())
+        sav_row.setStyleSheet(self._sub_band_qss())
         sl = QHBoxLayout(sav_row)
         sl.setContentsMargins(16, 4, 16, 4)
         sl.setSpacing(8)
-        sl.addWidget(QLabel("存钱"))
+        sav_label = QLabel("存钱")
+        sav_label.setFixedWidth(80)              # 让「省了多少」与上面「金额」左对齐
+        sav_label.setStyleSheet(self._sub_label_qss())
+        sl.addWidget(sav_label)
         self._sav_amount = QLineEdit()
         self._sav_amount.setPlaceholderText("省了多少")
-        self._sav_amount.setFixedWidth(100)
+        self._sav_amount.setFixedWidth(80)       # 与上面「金额」输入框同宽
         self._sav_amount.setStyleSheet(self._input_qss())
         sl.addWidget(self._sav_amount)
         self._sav_note = QLineEdit()
@@ -151,9 +154,10 @@ class ExpensePanel(QWidget):
         sav_btn = QPushButton("记一笔")
         sav_btn.setFixedWidth(70)
         sav_btn.setStyleSheet(f"""
-            QPushButton {{ background-color: {c['accent']}; color: {c['fg_on_fill']}; border: none;
-                border-radius: 8px; padding: 5px 12px; font-weight: 600; font-size: 13px; }}
-            QPushButton:hover {{ background-color: {c['accent_hover']}; }}
+            QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
+                border: 1px solid {c['border_strong']}; border-radius: 8px; padding: 5px 12px;
+                font-size: 13px; }}
+            QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; color: {c['btn_secondary_hover_fg']}; }}
         """)
         sav_btn.clicked.connect(self._add_saving)
         sl.addWidget(sav_btn)
@@ -220,6 +224,20 @@ class ExpensePanel(QWidget):
                 selection-background-color: {c['accent_bg']}; outline: none;
             }}
         """
+
+    @staticmethod
+    def _sub_band_qss() -> str:
+        """次级行（存钱）：透明底 + 顶部细线，视觉上从属于上面的支出行。"""
+        c = get_colors()
+        return (f"background: transparent;"
+                f" border-top: 1px solid {c['divider']};")
+
+    @staticmethod
+    def _sub_label_qss() -> str:
+        """次级行标签：13px/600 次要色，固定宽度与输入框对齐。"""
+        c = get_colors()
+        return (f"color: {c['fg_secondary']}; font-size: {SIZE_BODY_S}px;"
+                f" font-weight: 600; background: transparent;")
 
     @staticmethod
     def _band_qss() -> str:
@@ -406,8 +424,8 @@ class ExpensePanel(QWidget):
         """重刷 __init__ 里写死颜色的静态骨架（汇总卡片 + 两条输入带）。"""
         for card in (self._sum_month, self._sum_today, self._sum_budget, self._sum_saved):
             card.setStyleSheet(self._card_qss())
-        for band in (self._add_row, self._sav_row):
-            band.setStyleSheet(self._band_qss())
+        self._add_row.setStyleSheet(self._band_qss())
+        self._sav_row.setStyleSheet(self._sub_band_qss())
 
     def refresh_theme(self) -> None:
         self._restyle_chrome()

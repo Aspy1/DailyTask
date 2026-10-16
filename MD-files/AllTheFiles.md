@@ -359,7 +359,9 @@ UI 写操作的唯一合法入口是 `DataManager.save_all()` 和各 Model 的 `
 - 复选框信号：**禁止 `toggled`**，必须用 `clicked(bool)`（避免 `setChecked` 触发回环）
 - 颜色：**禁止硬编码 hex**，必须通过 `get_colors()` 获取 token 字典，引用 `c['key']`
 - f-string：`{c['key']}` 外层必须用双引号，QSS 花括号双写 `{{ }}`
-- 动画：**禁止动画调试**，侧边栏用 `show()` / `hide()` 即时切换
+- 动画：**允许** opacity / 位移类动画（时长 ≤180ms，缓动 `OutCubic`，模板见 `src/ui/animations.py`）；
+  **禁止**动画化布局尺寸（宽高/间距）与侧边栏手风琴（保持 `show()` / `hide()` 即时切换）；
+  动画对象必须保引用，控件销毁时停止（历史坑：旋转 QSS 箭头 + 动菜单几何 → 方向错乱且闪烁，见 `ERRORS #031`）
 - ID 生成：**禁止 `len() + 1`**，必须遍历现有 ID + archived 找最大编号 + 1
 - 数据集操作：**禁止 LLM 直接修改结构化文件**（JSON/Markdown），必须通过脚本接口
 - 字符串硬编码：UI 显示文本应通过 `i18n` / `tr()` 获取，**禁止硬编码中文**
