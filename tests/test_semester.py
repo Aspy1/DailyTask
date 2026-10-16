@@ -114,8 +114,48 @@ def test_status_active_computes_week_and_days_left() -> None:
     assert status["state"] == sem.STATE_ACTIVE
     assert status["week"] == 2
     assert status["total_weeks"] == 20
-    assert status["end_date"] == start + timedelta(days=20 * 7 - 1)
-    assert status["days_left"] == 20 * 7 - 1 - 10
+    assert status["exam_weeks"] == sem.DEFAULT_EXAM_WEEKS
+    assert status["teaching_end_date"] == start + timedelta(days=20 * 7 - 1)
+    assert status["end_date"] == start + timedelta(days=21 * 7 - 1)     # 含期末周
+    assert status["days_left"] == 21 * 7 - 1 - 10
+
+
+def test_status_exam_week_after_teaching_weeks() -> None:
+    """教学周上完后是**期末周**（状态 `exam`），此时不上课。"""
+    start = date(2026, 9, 21)
+    semester = _sem(start_date=start.isoformat(), total_weeks=16, exam_weeks=1)
+    during_exam = start + timedelta(days=16 * 7 + 1)
+    status = sem.semester_status(semester, during_exam)
+    assert status["state"] == sem.STATE_EXAM
+    assert status["week"] == 16                     # 仍显示最后一周的课表
+    assert sem.week_number_for(semester, during_exam) is None
+
+
+def test_status_expired_only_after_exam_weeks() -> None:
+    start = date(2026, 9, 21)
+    semester = _sem(start_date=start.isoformat(), total_weeks=16, exam_weeks=1)
+    assert sem.semester_status(semester, start + timedelta(days=17 * 7 - 1))["state"] \
+        == sem.STATE_EXAM
+    assert sem.semester_status(semester, start + timedelta(days=17 * 7))["state"] \
+        == sem.STATE_EXPIRED
+
+
+def test_autumn_semester_matches_user_example() -> None:
+    """用户口径：秋季 9/21 起、16 教学周 → 第 16 周周五 = 次年 1/8，之后进入期末周。"""
+    start = date(2026, 9, 21)
+    assert start.isoweekday() == 1
+    last_class = start + timedelta(days=16 * 7 - 3)          # 第 16 周周五
+    assert last_class == date(2027, 1, 8)
+    semester = _sem(start_date=start.isoformat(), total_weeks=16, exam_weeks=1)
+    assert sem.semester_status(semester, last_class)["state"] == sem.STATE_ACTIVE
+    assert sem.semester_status(semester, last_class + timedelta(days=3))["state"] \
+        == sem.STATE_EXAM
+
+
+def test_season_start_presets() -> None:
+    assert sem.season_start_for(date(2026, 10, 16)) == date(2026, 9, 21)   # 秋季
+    assert sem.season_start_for(date(2027, 3, 1)) == date(2027, 3, 2)      # 春季
+    assert sem.season_start_for(date(2027, 7, 1)) == date(2027, 9, 21)     # 7 月起算秋季
 
 
 def test_status_expired_clamps_week_to_total() -> None:

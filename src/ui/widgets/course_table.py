@@ -23,10 +23,12 @@ from PySide6.QtWidgets import (
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
+    QWidget,
 )
 
 from src.i18n.loader import tr
 from src.models.course import PERIOD_TIMES
+from src.models.course_rules import slots_of
 from src.ui.styles.theme import RADIUS, SIZE_BODY_S, SIZE_TINY, get_colors
 from src.ui.widgets.menu import (
     add_action,
@@ -135,6 +137,69 @@ class _CourseChip(QFrame):
             f" background: transparent;")
 
 
+class _ConflictChip(QFrame):
+    """同一时段有两门课：一块里把两门都列出来。
+
+    为什么需要：原来 `setCellWidget` 直接放块，**同一格的第二门课会覆盖第一门** ——
+    选修/重修撞课时，课表看起来"只有一门课"，用户不知道要请假。
+    """
+
+    def __init__(self, courses: list[dict], parent=None) -> None:
+        super().__init__(parent)
+        self.setObjectName("courseConflictChip")
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.setMinimumHeight(40)
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self._courses = courses
+
+        body = QVBoxLayout(self)
+        body.setContentsMargins(10, 7, 10, 7)
+        body.setSpacing(2)
+
+        self._header = QLabel(tr("widget.course_table.conflict_header"))
+        self._header.setWordWrap(True)
+        body.addWidget(self._header)
+
+        self._names: list[QLabel] = []
+        for course in courses:
+            label = QLabel(course.get("name", ""))
+            label.setWordWrap(True)
+            body.addWidget(label)
+            self._names.append(label)
+        body.addStretch()
+        self.refresh_theme()
+
+    @property
+    def courses(self) -> list[dict]:
+        return self._courses
+
+    def refresh_theme(self) -> None:
+        c = get_colors()
+        self.setStyleSheet(
+            f"#courseConflictChip {{ background-color: {c['accent_bg']};"
+            f" border: 1px solid {c['accent']};"
+            f" border-radius: {RADIUS['radius_md']}px; }}")
+        self._header.setStyleSheet(
+            f"color: {c['accent_text']}; font-size: {SIZE_TINY}px; font-weight: 600;"
+            f" background: transparent;")
+        for label in self._names:
+            label.setStyleSheet(
+                f"color: {c['fg_primary']}; font-size: {SIZE_BODY_S}px; font-weight: 600;"
+                f" background: transparent;")
+
+
+def build_conflict_menu(courses: list[dict], parent=None) -> QMenu:
+    """冲突块的右键菜单：逐门课提供"查看事项"（重命名/删除请走非冲突处的课程块）。"""
+    menu = new_menu(parent)
+    header = add_action(menu, tr("widget.course_table.conflict_header"))
+    header.setEnabled(False)
+    add_separator(menu)
+    for course in courses:
+        add_action(menu, tr("widget.course_table.menu_view_tasks"),
+                   data=("view_tasks", course.get("name", "")))
+    return menu
+
+
 def build_course_context_menu(course: dict, parent=None) -> QMenu:
     """课程右键菜单（课程表与日程视图共用）。"""
     menu = new_menu(parent)
@@ -223,11 +288,12 @@ class CourseTable(QTableWidget):
         self.customContextMenuRequested.connect(self._on_context_menu)
 
         self._cell_courses: dict[tuple[int, int], dict] = {}
-        self._chips: dict[tuple[int, int], _CourseChip] = {}
+        self._chips: dict[tuple[int, int], QWidget] = {}
         self._marker_labels: dict[int, QLabel] = {}
         self._last_courses: list[dict] = []
         self._last_week: int | None = None
         self._last_markers: dict[int, list[str]] = {}
+        self._last_conflicts: dict[tuple[int, int], list[dict]] = {}
         self._apply_qss()
 
     # ── 样式 ────────────────────────────────────────────────
@@ -306,16 +372,26 @@ class CourseTable(QTableWidget):
     def refresh_theme(self) -> None:
         """切主题后重刷：样式表 + 课程块（块内颜色是写死的，必须重建）。"""
         self._apply_qss()
-        self.set_courses(self._last_courses, self._last_week, self._last_markers)
+        self.set_courses(self._last_courses, self._last_week,
+                         self._last_markers, self._last_conflicts)
 
     # ── 数据 → 视图 ─────────────────────────────────────────
 
     def set_courses(self, courses: list[dict], week: int | None = None,
-                    markers: dict[int, list[str]] | None = None) -> None:
-        """`markers`：`{isoweekday(1-7): [文案, ...]}` —— 当天的事项（DDL/考试/计划）。"""
+                    markers: dict[int, list[str]] | None = None,
+                    conflicts: dict[tuple[int, int], list[dict]] | None = None) -> None:
+        """`markers`：`{isoweekday(1-7): [文案, ...]}` —— 当天的事项（DDL/考试/计划）。
+        `conflicts`：`{(day_of_week, 节次): [课程, ...]}` —— 同一时段两门课的格子。
+        """
         self._last_courses, self._last_week = courses, week
         self._last_markers = markers or {}
+        self._last_conflicts = conflicts or {}
 
+        self._clear_cells()
+        self._place_all(courses)
+        self._render_markers()
+
+    def _clear_cells(self) -> None:
         self.clearSpans()
         for chip in self._chips.values():
             chip.setParent(None)
@@ -324,19 +400,59 @@ class CourseTable(QTableWidget):
         self._cell_courses.clear()
         self.clearContents()
 
+    def _place_all(self, courses: list[dict]) -> None:
+        """逐门课放块；冲突格只画一次（一个块里列出两门课）。"""
+        drawn: set[tuple[int, int]] = set()
         for course in courses:
             day = course.get("day_of_week", 1) - 1
             if day < 0 or day > 6:
                 continue
             for slot in course.get("time_slots", []):
-                location = slot.get("location", course.get("location", ""))
                 start = slot["start"] - 1
                 end = min(slot["end"], self._period_count)
                 if start < 0 or start >= end:
                     continue
+                cell = (course.get("day_of_week", 1), slot["start"])
+                if cell in self._last_conflicts:
+                    if cell in drawn:
+                        continue
+                    drawn.add(cell)
+                    self._place_conflict(day, self._last_conflicts[cell])
+                    continue
+                location = slot.get("location", course.get("location", ""))
                 self._place_course(start, end, day, course, location)
 
-        self._render_markers()
+    def _place_conflict(self, col: int, courses: list[dict]) -> None:
+        """冲突格：按两门课合起来的节次范围放一个"列出两门课"的块。"""
+        rows = [slot for course in courses for slot in slots_of(course)]
+        start = max(0, (min(rows) if rows else 1) - 1)
+        end = min(self._period_count, max(rows) if rows else 1)
+        if start >= end:
+            end = start + 1
+        if end - start > 1:
+            self.setSpan(start, col, end - start, 1)
+
+        chip = _ConflictChip(courses, self)
+        chip.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        chip.customContextMenuRequested.connect(
+            lambda pos, c=chip: self._show_conflict_menu(c))
+        self.setCellWidget(start, col, chip)
+        self._chips[(start, col)] = chip
+
+        item = QTableWidgetItem("")
+        item.setFlags(Qt.ItemFlag.ItemIsEnabled)
+        self.setItem(start, col, item)
+        for row in range(start, end):
+            self._cell_courses.setdefault((row, col), courses[0])
+
+    def _show_conflict_menu(self, chip: _ConflictChip) -> None:
+        menu = build_conflict_menu(chip.courses, self)
+        chosen = show_at_cursor(menu)
+        if chosen is None or chosen.data() is None:
+            return
+        action_type, payload = chosen.data()
+        if action_type == "view_tasks":
+            self.view_course_tasks.emit(payload)
 
     def _render_markers(self) -> None:
         """末行列出当天事项。

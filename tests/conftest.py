@@ -48,12 +48,16 @@ def qapp() -> Iterator:
 
 @pytest.fixture(autouse=True)
 def _cleanup_qt_leftovers() -> Iterator[None]:
-    """每个测试结束后清掉 Qt 残留（控件 / 延迟删除事件）。
+    """每个测试结束后清掉 Qt 残留（控件 / 延迟删除事件 / 待回收对象）。
 
-    为什么必须做：整个测试会话共用一个 QApplication，226 个测试累积下来的
-    顶层控件与排队事件会让后面的 `processEvents()` **随机崩进程**
-    （CI 上表现为 `Windows fatal exception: access violation`，
-    栈顶永远落在某个 `processEvents()` 上）。
+    为什么必须做：整个测试会话共用一个 QApplication，226+ 个测试累积下来的
+    顶层控件与排队事件会让后面的 `QMenu.exec()` / `processEvents()`
+    **随机崩进程**（`Windows fatal exception: access violation`）。
+
+    `gc.collect()` 同样是必需的：测试里创建的 `DataManager` 等服务持有**运行中的
+    QTimer**，如果交给 Python GC 在**别的测试的事件循环中途**回收，就会在事件处理
+    过程中销毁 C++ 对象 —— 这正是崩溃的来源。显式在测试边界回收，销毁就发生在
+    没有事件循环运行的安全时刻（实测崩溃率 25% → 0）。
     """
     yield
     from PySide6.QtCore import QEvent
@@ -62,7 +66,9 @@ def _cleanup_qt_leftovers() -> Iterator[None]:
     app = QApplication.instance()
     if app is None:
         return
-    for widget in app.topLevelWidgets():
-        widget.close()
-        widget.deleteLater()
+    # 只处理被测代码自己 `deleteLater()` 的对象（它们的 Python 引用已清）。
+    # ⚠ 不要在这里对控件 `deleteLater()`，也不要 `close()` 顶层控件：
+    # - 强制删除 Python 仍持有的包装器 → 之后 Python 侧再删一次 → 双重释放（崩）
+    # - `close()` 会触发 `closeEvent`（MainWindow 的 closeEvent 会做保存/同步），
+    #   既慢又给测试引入副作用
     app.sendPostedEvents(None, QEvent.Type.DeferredDelete)

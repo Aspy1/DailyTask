@@ -9,8 +9,6 @@ import ast
 import json
 from pathlib import Path
 
-import pytest
-
 import scripts.check_quality as cq
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -82,16 +80,39 @@ def test_absolute_rules_are_clean() -> None:
     assert cq.check_secret_not_tracked() == []
 
 
-def test_no_new_secrets_beyond_baseline() -> None:
-    """`SECRETS` 是**只读比对**（基线之外的发现必须为 0）。
+def test_new_secrets_are_detected_against_baseline(monkeypatch, tmp_path) -> None:
+    """`SECRETS` 是**只读比对**：基线之外的发现必须报出来。
 
     注意不能用 `detect-secrets scan --baseline X` —— 那个语义是"**更新**基线"
-    （退出码恒 0，等于没检查），且会写脏工作区。
+    （退出码恒 0，等于没检查），而且会写脏工作区。
+    这里用合成扫描结果测**比对逻辑**（真实全仓扫描由 CI 的门禁步骤负责）。
     """
-    result = cq.check_new_secrets()
-    if result is None:
-        pytest.skip("detect-secrets 未安装")
-    assert result == []
+    baseline = tmp_path / ".secrets.baseline"
+    baseline.write_text(json.dumps({"results": {
+        "known.py": [{"hashed_secret": "h1", "type": "Secret Keyword", "line_number": 1}]},
+    }), encoding="utf-8")
+    monkeypatch.setattr(cq, "SECRETS_BASELINE", baseline)
+    monkeypatch.setattr(cq, "run_secrets_scan", lambda: {"results": {
+        "known.py": [{"hashed_secret": "h1", "type": "Secret Keyword", "line_number": 1}],
+        "new.py": [{"hashed_secret": "h2", "type": "Secret Keyword", "line_number": 3}],
+    }})
+    assert cq.check_new_secrets() == ["new.py:3 (Secret Keyword)"]
+
+
+def test_secrets_check_is_silent_when_only_known(monkeypatch, tmp_path) -> None:
+    baseline = tmp_path / ".secrets.baseline"
+    baseline.write_text(json.dumps({"results": {
+        "known.py": [{"hashed_secret": "h1", "type": "T", "line_number": 1}]}}),
+        encoding="utf-8")
+    monkeypatch.setattr(cq, "SECRETS_BASELINE", baseline)
+    monkeypatch.setattr(cq, "run_secrets_scan", lambda: {"results": {
+        "known.py": [{"hashed_secret": "h1", "type": "T", "line_number": 9}]}})   # 行号变了也算已知
+    assert cq.check_new_secrets() == []
+
+
+def test_secrets_check_reports_missing_tool(monkeypatch) -> None:
+    monkeypatch.setattr(cq, "run_secrets_scan", lambda: None)
+    assert cq.check_new_secrets() is None          # 未安装 → 调用方标注"跳过"
 
 
 def test_baseline_is_not_behind_current_state() -> None:

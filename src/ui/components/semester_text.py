@@ -7,6 +7,7 @@
 from src.i18n.loader import tr
 from src.models.semester import (
     STATE_ACTIVE,
+    STATE_EXAM,
     STATE_EXPIRED,
     STATE_INVALID,
     STATE_NONE,
@@ -27,6 +28,7 @@ def semester_state_text(status: dict) -> str:
         STATE_NONE: tr("semester.state.none"),
         STATE_INVALID: tr("semester.state.invalid"),
         STATE_NOT_STARTED: tr("semester.state.not_started"),
+        STATE_EXAM: tr("semester.state.exam"),
         STATE_EXPIRED: tr("semester.state.expired"),
     }.get(state, tr("semester.state.none"))
 

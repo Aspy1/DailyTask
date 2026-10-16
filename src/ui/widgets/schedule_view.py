@@ -555,6 +555,27 @@ class ScheduleView(QWidget):
         }, sort_keys=True).encode()
         return hashlib.md5(content_key, usedforsecurity=False).hexdigest()
 
+    @staticmethod
+    def _add_slot_empty(layout: QVBoxLayout, c: dict) -> None:
+        """空态也是正文：fg_disabled 在浅色下只有 1.78:1（几乎看不见）。"""
+        empty = QLabel(tr("widget.schedule.slot_empty"))
+        empty.setStyleSheet(f"color: {c['fg_hint']}; font-size: 13px; padding: 4px 0;")
+        layout.addWidget(empty)
+
+    def _add_slot_items(self, layout: QVBoxLayout, items: list[dict],
+                        plans: list[dict], c: dict) -> None:
+        """时段内容：撞课提示（同一时段两门课 → 记得请假）+ 各条目。"""
+        if len([i for i in items if i.get("type") == "course"]) > 1:
+            warn = QLabel(tr("widget.schedule.slot_conflict"))
+            warn.setStyleSheet(
+                f"color: {c['accent_text']}; font-size: 12px; font-weight: 600;"
+                f" background: transparent; padding: 2px 0;")
+            layout.addWidget(warn)
+        for item in items:
+            widget = self._create_item_widget(item, plans, c)
+            if widget is not None:
+                layout.addWidget(widget)
+
     def _create_slot_card(self, period: int, items: list[dict], ddls: list[dict],
                           plans: list[dict], is_current: bool, c: dict) -> QWidget:
         """构建单个时段卡片（时间头 + 条目 + DDL 标记）。"""
@@ -587,15 +608,9 @@ class ScheduleView(QWidget):
         cl.addLayout(hdr)
 
         if not items:
-            empty = QLabel(tr("widget.schedule.slot_empty"))
-            # 空态也是正文：fg_disabled 在浅色下只有 1.78:1（几乎看不见）
-            empty.setStyleSheet(f"color: {c['fg_hint']}; font-size: 13px; padding: 4px 0;")
-            cl.addWidget(empty)
+            self._add_slot_empty(cl, c)
         else:
-            for item in items:
-                widget = self._create_item_widget(item, plans, c)
-                if widget is not None:
-                    cl.addWidget(widget)
+            self._add_slot_items(cl, items, plans, c)
 
         for t in ddls:
             cl.addWidget(self._create_ddl_label(t, c))

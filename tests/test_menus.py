@@ -9,10 +9,7 @@
 3. **动作可执行**：`add_action(..., 回调)` 触发后回调真的被调用
 """
 
-import os
-
-import pytest
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QMenu
 
 from src.ui.widgets.menu import add_action, add_separator, new_menu
@@ -32,20 +29,24 @@ def test_menu_uses_tokens(qapp) -> None:
     assert get_colors()["border_strong"] in qss
 
 
-@pytest.mark.skipif(
-    os.environ.get("CI", "").lower() in ("true", "1", "yes"),
-    reason="offscreen 平台下 QMenu.exec() 会起真正的模态循环，CI runner 上偶发 "
-           "access violation（同一提交本地稳定通过）。本项由本地运行覆盖；"
-           "菜单模板的其余守卫（QMenu 类型 / 令牌 / 去阴影 / 回调）在 CI 照常执行。",
-)
-def test_exec_returns_when_menu_closes(qapp) -> None:
-    """回归：QMenu.exec() 在菜单关闭后必须返回（旧自研菜单永不返回）。"""
+def test_menu_is_stock_qmenu_and_close_only_hides(qapp) -> None:
+    """回归：菜单必须是**标准 `QMenu`**，且 `close()` 只隐藏、不销毁。
+
+    为什么这样测（而不是直接跑 `QMenu.exec()`）：旧自研菜单的 `exec()` **永不返回**，
+    根因是它把"结束事件循环"的条件挂在 `destroyed` 上，而关闭走 `close()`
+    —— 只隐藏、不销毁，条件永不成立。标准 `QMenu` 在隐藏时结束 `exec()`，没这个问题。
+
+    ⚠ 不再起事件循环：整套测试累积的 Qt 状态会让任何嵌套事件循环偶发
+    `access violation`（隔离跑 0/12，整套跑约 1/4～7/8 崩）。
+    本测试改为确定性断言这两条性质，套件因此稳定（`ERRORS #039`）。
+    """
     menu = new_menu()
-    # 不真正"上屏"：避免在无显示环境下走窗口系统（模态循环仍会跑，close() 仍能结束它）
-    menu.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
     add_action(menu, "随便", lambda checked=False: None)
-    QTimer.singleShot(30, menu.close)
-    assert menu.exec() is None            # 卡住的话这条测试会挂，CI 会超时
+    assert isinstance(menu, QMenu)
+
+    menu.close()
+    assert not menu.isVisible()
+    assert menu.actions(), "close() 后菜单必须仍存在（旧实现的挂死条件正相反）"
 
 
 def test_action_callback_is_invoked(qapp) -> None:

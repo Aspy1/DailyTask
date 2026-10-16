@@ -75,22 +75,26 @@ def test_week_label_active_shows_plain_week(qapp, tmp_path) -> None:
 # ── 对话框 ──────────────────────────────────────────────────
 
 def test_dialog_creates_semester_and_sets_current(qapp, tmp_path) -> None:
-    from src.ui.widgets.semester_dialog import SemesterDialog, next_monday
+    from src.models.semester import season_start_for
+    from src.ui.widgets.semester_dialog import SemesterDialog
 
     dm = DataManager(tmp_path)
     dialog = SemesterDialog(dm)
     assert dialog._switch_combo.count() == 0          # 还没有学期
-    assert dialog._start_input.date().toPython() == next_monday()
+    # 默认开始日按季节预设（秋 9/21 / 春 3/2），总周数 16 + 期末周 1
+    assert dialog._start_input.date().toPython() == season_start_for(date.today())
+    assert dialog._weeks_input.value() == 16
+    assert dialog._exam_input.value() == 1
 
     dialog._name_input.setText("2026 秋")
-    dialog._weeks_input.setValue(18)
     dialog._periods_input.setValue(6)
     dialog._on_create()
 
     assert dm.courses.current_semester
     created = dm.courses.get_semester(dm.courses.current_semester)
     assert created["name"] == "2026 秋"
-    assert created["total_weeks"] == 18
+    assert created["total_weeks"] == 16
+    assert created["exam_weeks"] == 1
     assert created["period_count"] == 6
     assert dialog._switch_combo.count() == 1          # 列表已刷新
 
@@ -111,13 +115,8 @@ def test_dialog_switch_semester(qapp, tmp_path) -> None:
     assert second != first
 
 
-def test_next_monday_is_always_monday() -> None:
-    from src.ui.widgets.semester_dialog import next_monday
-
-    for offset in range(7):
-        day = next_monday(date(2026, 2, 23) + timedelta(days=offset))
-        assert day.isoweekday() == 1
-        assert day > date(2026, 2, 23) + timedelta(days=offset) - timedelta(days=1)
+def test_state_text_covers_exam_week(qapp) -> None:
+    assert semester_state_text(_status(sem.STATE_EXAM)) == "期末周"
 
 
 # ── 口径一致：AI 提示词与邮件摘要 ───────────────────────────

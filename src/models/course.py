@@ -4,9 +4,16 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 
 from src.models.base import BaseJsonModel, next_id
+from src.models.course_rules import conflicts_by_cell, find_conflicts, is_active_week
 from src.models.semester import (
+    DEFAULT_EXAM_WEEKS,
     DEFAULT_PERIOD_COUNT,
     DEFAULT_TOTAL_WEEKS,
+    MAX_EXAM_WEEKS,
+    MAX_PERIOD_COUNT,
+    MAX_TOTAL_WEEKS,
+    MIN_PERIOD_COUNT,
+    MIN_TOTAL_WEEKS,
     as_int,
     parse_date,
     validate_all,
@@ -79,6 +86,9 @@ class CourseModel(BaseJsonModel):
         if as_int(semester.get("period_count")) is None:
             semester["period_count"] = DEFAULT_PERIOD_COUNT
             changed = True
+        if as_int(semester.get("exam_weeks")) is None:
+            semester["exam_weeks"] = DEFAULT_EXAM_WEEKS
+            changed = True
         return changed
 
     def _pick_semester(self) -> dict | None:
@@ -144,6 +154,7 @@ class CourseModel(BaseJsonModel):
 
     def create_semester(self, name: str, start: date, total_weeks: int = DEFAULT_TOTAL_WEEKS,
                         period_count: int = DEFAULT_PERIOD_COUNT,
+                        exam_weeks: int = DEFAULT_EXAM_WEEKS,
                         make_current: bool = True) -> str:
         """新建学期并（默认）设为当前。"""
         semesters = self._data.setdefault("semesters", [])
@@ -152,8 +163,9 @@ class CourseModel(BaseJsonModel):
             "id": sid,
             "name": name or sid,
             "start_date": start.isoformat(),
-            "total_weeks": max(1, min(int(total_weeks), 30)),
-            "period_count": max(1, min(int(period_count), 12)),
+            "total_weeks": max(MIN_TOTAL_WEEKS, min(int(total_weeks), MAX_TOTAL_WEEKS)),
+            "period_count": max(MIN_PERIOD_COUNT, min(int(period_count), MAX_PERIOD_COUNT)),
+            "exam_weeks": max(0, min(int(exam_weeks), MAX_EXAM_WEEKS)),
         })
         if make_current:
             self._data["current_semester"] = sid
@@ -209,21 +221,22 @@ class CourseModel(BaseJsonModel):
         return False
 
     def _is_active_week(self, course: dict, week_number: int) -> bool:
-        weeks = course.get("weeks", {})
-        if weeks:
-            w_start = weeks.get("start", 1)
-            w_end = weeks.get("end", 20)
-            if week_number < w_start or week_number > w_end:
-                return False
+        """该课程第 `week_number` 周是否上课（规则见 `models/course_rules.py`）。"""
+        return is_active_week(course, week_number)
 
-        excluded = course.get("excluded_weeks", [])
-        if week_number in excluded:
-            return False
+    def find_conflicts(self, week: int | None = None) -> list[dict]:
+        """同一时段有两门课的冲突列表：`[{"day","slot","courses"}]`。
 
-        parity = course.get("week_parity", "all")
-        if parity == "odd" and week_number % 2 == 0:
-            return False
-        return not (parity == "even" and week_number % 2 == 1)
+        `week` 省略时用当前教学周（未开学/已结束/期末周时为 `None` → 空列表）。
+        """
+        target = week if week is not None else self.current_week()
+        if target is None:
+            return []
+        return find_conflicts(self.courses, target, self.get_period_count())
+
+    def conflicts_by_cell(self, week: int) -> dict[tuple[int, int], list[dict]]:
+        """`{(day, 节次): [课程, ...]}`（周视图渲染用）。"""
+        return conflicts_by_cell(self.courses, week, self.get_period_count())
 
     def get_courses_for_day(self, day_of_week: int, week_number: int) -> list[dict]:
         result = []

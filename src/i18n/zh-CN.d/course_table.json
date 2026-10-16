@@ -12,6 +12,7 @@
   "widget.course_table.period_nth": "第{n}节",
 
   "widget.course_table.row_items": "事项",
+  "widget.course_table.conflict_header": "⚠ 两门课冲突",
   "widget.course_table.marker_due": "截止 · {name}",
   "widget.course_table.marker_exam": "考试 · {name}",
   "widget.course_table.marker_plan": "计划 · {name}"

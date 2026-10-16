@@ -7,7 +7,7 @@
 """
 
 import logging
-from datetime import date, timedelta
+from datetime import date
 
 from PySide6.QtCore import QDate
 from PySide6.QtWidgets import (
@@ -22,12 +22,15 @@ from PySide6.QtWidgets import (
 
 from src.i18n.loader import tr
 from src.models.semester import (
+    DEFAULT_EXAM_WEEKS,
     DEFAULT_PERIOD_COUNT,
     DEFAULT_TOTAL_WEEKS,
+    MAX_EXAM_WEEKS,
     MAX_PERIOD_COUNT,
     MAX_TOTAL_WEEKS,
     MIN_PERIOD_COUNT,
     MIN_TOTAL_WEEKS,
+    season_start_for,
 )
 from src.services.data_manager import DataManager
 from src.ui.components.semester_text import issue_text, semester_state_text
@@ -38,12 +41,6 @@ from src.ui.widgets.rounded_input import RoundedLineEdit
 logger = logging.getLogger(__name__)
 
 WIDTH = 460
-
-
-def next_monday(today: date | None = None) -> date:
-    """下一个周一（默认的新学期开始日）。"""
-    today = today or date.today()
-    return today + timedelta(days=(8 - today.isoweekday()) % 7 or 7)
 
 
 class SemesterDialog(QDialog):
@@ -98,17 +95,26 @@ class SemesterDialog(QDialog):
         self._periods_input = QSpinBox()
         self._periods_input.setRange(MIN_PERIOD_COUNT, MAX_PERIOD_COUNT)
         self._periods_input.setValue(DEFAULT_PERIOD_COUNT)
+        self._exam_input = QSpinBox()
+        self._exam_input.setRange(0, MAX_EXAM_WEEKS)
+        self._exam_input.setValue(DEFAULT_EXAM_WEEKS)
         for widget in (self._name_input, self._start_input, self._weeks_input,
-                       self._periods_input):
+                       self._periods_input, self._exam_input):
             widget.setFixedHeight(34)
 
         for label_key, widget in (
             ("dialog.semester.label_name", self._name_input),
             ("dialog.semester.label_start", self._start_input),
             ("dialog.semester.label_weeks", self._weeks_input),
+            ("dialog.semester.label_exam_weeks", self._exam_input),
             ("dialog.semester.label_periods", self._periods_input),
         ):
             layout.addLayout(self._field_row(tr(label_key), widget))
+
+        hint = QLabel(tr("dialog.semester.hint_season"))
+        hint.setWordWrap(True)
+        hint.setStyleSheet(f"color: {get_colors()['fg_hint']}; font-size: {SIZE_BODY_S}px;")
+        layout.addWidget(hint)
 
         row = QHBoxLayout()
         row.addStretch()
@@ -145,37 +151,45 @@ class SemesterDialog(QDialog):
 
     # ── 数据 ────────────────────────────────────────────────
     def _refresh(self) -> None:
-        c = get_colors()
         courses = self._dm.courses
         status = courses.semester_status()
-        report = courses.validate()
+        self._render_status(status, courses.validate())
+        self._fill_switch_combo(courses)
+        self._reset_new_fields(status)
 
+    def _render_status(self, status: dict, report: dict) -> None:
+        c = get_colors()
         text = semester_state_text(status)
         if status.get("start_date") and status.get("end_date"):
             text += "　" + tr("dialog.semester.range_hint",
                               start=status["start_date"].isoformat(),
                               end=status["end_date"].isoformat(),
-                              total=status["total_weeks"])
+                              total=status["total_weeks"],
+                              exam=status.get("exam_weeks") or 0)
         self._status_label.setText(text)
         self._status_label.setStyleSheet(
             f"color: {c['accent_text']}; font-size: {SIZE_BODY_S}px; font-weight: 600;")
+        self._render_issues(report)
 
+    def _render_issues(self, report: dict) -> None:
+        """数据检查结果（合法性检测的用户出口）。"""
+        c = get_colors()
         issues = list(report.get("model", []))
         for codes in report.get("semesters", {}).values():
             issues += codes
         issues += report.get("courses", [])
-        if issues:
-            lines = [f"· {issue_text(code)}" for code in dict.fromkeys(issues)]
-            self._issues_label.setText(
-                tr("dialog.semester.section_issues") + "\n" + "\n".join(lines))
-            self._issues_label.setStyleSheet(
-                f"color: {c['red']}; font-size: {SIZE_BODY_S}px;")
-        else:
+        if not issues:
             self._issues_label.setText(
                 f"{tr('dialog.semester.section_issues')}：{tr('dialog.semester.issues_none')}")
             self._issues_label.setStyleSheet(
                 f"color: {c['fg_hint']}; font-size: {SIZE_BODY_S}px;")
+            return
+        lines = [f"· {issue_text(code)}" for code in dict.fromkeys(issues)]
+        self._issues_label.setText(
+            tr("dialog.semester.section_issues") + "\n" + "\n".join(lines))
+        self._issues_label.setStyleSheet(f"color: {c['red']}; font-size: {SIZE_BODY_S}px;")
 
+    def _fill_switch_combo(self, courses) -> None:
         self._switch_combo.clear()
         for semester in courses.semesters:
             label = semester.get("name") or semester.get("id", "")
@@ -184,8 +198,13 @@ class SemesterDialog(QDialog):
             self._switch_combo.addItem(label, semester.get("id"))
         self._switch_btn.setEnabled(self._switch_combo.count() > 0)
 
-        self._start_input.setDate(QDate(next_monday().year, next_monday().month,
-                                        next_monday().day))
+    def _reset_new_fields(self, status: dict) -> None:
+        """新建区的默认值：开始日按季节预设，周数/节次沿用当前学期。"""
+        start = season_start_for(date.today())
+        self._start_input.setDate(QDate(start.year, start.month, start.day))
+        self._weeks_input.setValue(status.get("total_weeks") or DEFAULT_TOTAL_WEEKS)
+        exam = status.get("exam_weeks")
+        self._exam_input.setValue(DEFAULT_EXAM_WEEKS if exam is None else exam)
         self._periods_input.setValue(status.get("period_count") or DEFAULT_PERIOD_COUNT)
 
     def _on_switch(self) -> None:
@@ -204,7 +223,8 @@ class SemesterDialog(QDialog):
         semester_id = self._dm.courses.create_semester(
             name=name, start=start,
             total_weeks=self._weeks_input.value(),
-            period_count=self._periods_input.value())
+            period_count=self._periods_input.value(),
+            exam_weeks=self._exam_input.value())
         self._dm.courses.save()
         self._dm.data_changed.emit("course")
         self._refresh()

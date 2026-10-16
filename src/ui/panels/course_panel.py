@@ -160,7 +160,8 @@ class CoursePanel(QWidget):
         for day in range(1, 8):
             courses.extend(self._dm.courses.get_courses_for_day(day, week))
 
-        self._table.set_courses(courses, week, self._collect_markers(week))
+        self._table.set_courses(courses, week, self._collect_markers(week),
+                                self._dm.courses.conflicts_by_cell(week))
         self._count_label.setText(tr("panel.course.course_count", n=len(courses)))
 
     def _week_monday(self, week: int) -> date:

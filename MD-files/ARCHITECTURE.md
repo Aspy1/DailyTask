@@ -142,15 +142,22 @@ ui ──→ services ──→ models ──→ base(BaseJsonModel)
 6. **ID 生成**：统一走 `models/base.next_id()`（最大后缀 +1）；禁用 `len()+1`（R-008）。
 7. **学期口径单一**：所有"第几周 / 学期是否结束"的判断**只能**走 `models/semester.py`
    （`semester_status()` / `week_number_for()`），模型与脚本（含 `send_digest.py`）都调它。
-   状态：`none`（无学期）/ `invalid`（数据不合法，算不出周次）/ `not_started` / `active` / `expired`。
+   状态：`none`（无学期）/ `invalid`（数据不合法，算不出周次）/ `not_started` / `active` /
+   **`exam`（期末周）** / `expired`。学期 = **16 教学周（默认）+ 1 期末周（默认）**；
+   `teaching_end_date` 是教学周最后一天，`end_date` 含期末周。
    历史上这里散过 5 处各算各的（状态栏不钳上界 → 显示"第 32 / 16 周"、AI 忽略
    `current_semester`、摘要第三套算法），见 `ERRORS #037`。
-8. **`data/` 是用户数据**（含密钥 `settings.ini`），不进发行版（`Q-P2`）。
+8. **课程时段规则单一**：`models/course_rules.py`（`is_active_week` / `slots_of` /
+   `conflicts_by_cell`）。`time_slots` 的 `end` 是**闭区间**；**同一时段允许两门课**，
+   冲突要检出并提示请假（见 `ERRORS #038`）。
+9. **`data/` 是用户数据**（含密钥 `settings.ini`），不进发行版（`Q-P2`）。
 
 ## 8. 数据文件 schema 总表
 | 文件 | `_version` | 顶层键 | 关键字段 |
 |---|---|---|---|
-| `courses.json` | 3 | `semesters[]` `current_semester` `courses[]` `holidays{excluded[],makeup{}}` | course: `id,name,teacher,day_of_week(1-7),weeks{start,end},time_slots[{start,end,location}],week_parity(all/odd/even),notes`；semester: `id,name,start_date(YYYY-MM-DD),total_weeks(1-30),period_count(1-12)` |
+| `courses.json` | 3 | `semesters[]` `current_semester` `courses[]` `holidays{excluded[],makeup{}}` | course: `id,name,teacher,day_of_week(1-7),weeks{start,end},time_slots[{start,end,location}],week_parity(all/odd/even),excluded_weeks[],notes`；semester: `id,name,start_date(YYYY-MM-DD),total_weeks(1-30，默认 16),exam_weeks(0-6，默认 1),period_count(1-12)` |
+> `time_slots` 的 `end` 是**闭区间**：单节连堂写 `{"start": 1, "end": 1}`。
+> **同一时段允许两门课**（选修过多 / 重修）→ 由 `course_rules.conflicts_by_cell()` 检出并提示请假（`ERRORS #038`）。
 | `tasks.json` | 2 | `tasks[]` `archived[]` | task: `id,title,course_name,due_date,status(pending/completed),priority,tags[],notes,created_at,completed_at,reminded` |
 | `habits.json` | 2 | `habits[]` `attached_task_templates[]` `logs{date:{hid:{completed,completed_at,note}}}` | habit: `id,name,schedule{type(daily/weekly/monthly/interval),days[],value,times_per_day,start_date},duration_minutes,reminder_time,streak,longest_streak,postpone_until,canceled_on[]` |
 | `exams.json` | 1 | `exams[]` | exam: `id,course_name,exam_date,scope,location,notes,tags[],created_at,updated_at` |

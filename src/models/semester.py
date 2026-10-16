@@ -18,21 +18,30 @@
 
 from datetime import date, timedelta
 
-DEFAULT_TOTAL_WEEKS = 20
+from src.models.coerce import as_int, parse_date
+
+DEFAULT_TOTAL_WEEKS = 16          # 教学周（用户：每个学期 16 周）
+DEFAULT_EXAM_WEEKS = 1            # 期末周（教学周之后）
 DEFAULT_PERIOD_COUNT = 5
 MIN_TOTAL_WEEKS = 1
 MAX_TOTAL_WEEKS = 30
+MAX_EXAM_WEEKS = 6
 MIN_PERIOD_COUNT = 1
 MAX_PERIOD_COUNT = 12
 EARLIEST_START = date(2000, 1, 1)
 LATEST_START = date(2100, 12, 31)
 
+# 按季节给新学期预设开始日（用户口径：秋季 9/21 起、春季 3/2 起）
+AUTUMN_START = (9, 21)
+SPRING_START = (3, 2)
+
 # ── 状态 ────────────────────────────────────────────────────
 STATE_NONE = "none"                # 没有学期
 STATE_INVALID = "invalid"          # 有学期但数据不合法（算不出周次）
 STATE_NOT_STARTED = "not_started"  # 尚未开学
-STATE_ACTIVE = "active"            # 学期进行中
-STATE_EXPIRED = "expired"          # 学期已结束
+STATE_ACTIVE = "active"            # 学期进行中（教学周内）
+STATE_EXAM = "exam"                # 期末周（教学周之后、学期结束之前）
+STATE_EXPIRED = "expired"          # 学期已结束（含期末周也过了）
 
 # ── 问题码：学期自身 ────────────────────────────────────────
 ISSUE_ID_MISSING = "id_missing"
@@ -41,6 +50,7 @@ ISSUE_START_UNPARSABLE = "start_date_unparsable"
 ISSUE_START_OUT_OF_RANGE = "start_date_out_of_range"
 ISSUE_TOTAL_MISSING = "total_weeks_missing"
 ISSUE_TOTAL_OUT_OF_RANGE = "total_weeks_out_of_range"
+ISSUE_EXAM_OUT_OF_RANGE = "exam_weeks_out_of_range"
 ISSUE_PERIOD_OUT_OF_RANGE = "period_count_out_of_range"
 
 # ── 问题码：模型级 ──────────────────────────────────────────
@@ -61,23 +71,29 @@ BLOCKING_ISSUES = frozenset({
 })
 
 
-def parse_date(value: object) -> date | None:
-    """宽松解析日期：接受 `date`、`"YYYY-MM-DD"`、`"YYYY-MM-DDThh:mm"`；不可解析返回 None。"""
-    if isinstance(value, date):
-        return value
-    text = str(value or "").strip()[:10]
-    try:
-        return date.fromisoformat(text)
-    except ValueError:
-        return None
+def _start_issues(semester: dict) -> list[str]:
+    raw = semester.get("start_date")
+    if raw in (None, ""):
+        return [ISSUE_START_MISSING]
+    start = parse_date(raw)
+    if start is None:
+        return [ISSUE_START_UNPARSABLE]
+    return [] if EARLIEST_START <= start <= LATEST_START else [ISSUE_START_OUT_OF_RANGE]
 
 
-def as_int(value: object) -> int | None:
-    """宽松取整：非数字返回 None（不抛异常）。"""
-    try:
-        return int(str(value).strip())
-    except (TypeError, ValueError):
-        return None
+def _range_issues(value: object, missing: str, out_of_range: str,
+                  low: int, high: int) -> list[str]:
+    """必填的整数范围检查（缺失 / 越界各给一个码）。"""
+    number = as_int(value)
+    if number is None:
+        return [missing]
+    return [] if low <= number <= high else [out_of_range]
+
+
+def _optional_range_issue(value: object, code: str, low: int, high: int) -> list[str]:
+    """选填的整数范围检查（缺失不算错）。"""
+    number = as_int(value)
+    return [] if number is None or low <= number <= high else [code]
 
 
 def validate_semester(semester: dict) -> list[str]:
@@ -85,44 +101,45 @@ def validate_semester(semester: dict) -> list[str]:
     issues: list[str] = []
     if not str(semester.get("id") or "").strip():
         issues.append(ISSUE_ID_MISSING)
-
-    raw_start = semester.get("start_date")
-    if raw_start in (None, ""):
-        issues.append(ISSUE_START_MISSING)
-    else:
-        start = parse_date(raw_start)
-        if start is None:
-            issues.append(ISSUE_START_UNPARSABLE)
-        elif not (EARLIEST_START <= start <= LATEST_START):
-            issues.append(ISSUE_START_OUT_OF_RANGE)
-
-    total = as_int(semester.get("total_weeks"))
-    if total is None:
-        issues.append(ISSUE_TOTAL_MISSING)
-    elif not (MIN_TOTAL_WEEKS <= total <= MAX_TOTAL_WEEKS):
-        issues.append(ISSUE_TOTAL_OUT_OF_RANGE)
-
-    period = as_int(semester.get("period_count"))
-    if period is not None and not (MIN_PERIOD_COUNT <= period <= MAX_PERIOD_COUNT):
-        issues.append(ISSUE_PERIOD_OUT_OF_RANGE)
+    issues += _start_issues(semester)
+    issues += _range_issues(semester.get("total_weeks"), ISSUE_TOTAL_MISSING,
+                            ISSUE_TOTAL_OUT_OF_RANGE, MIN_TOTAL_WEEKS, MAX_TOTAL_WEEKS)
+    issues += _optional_range_issue(semester.get("period_count"), ISSUE_PERIOD_OUT_OF_RANGE,
+                                    MIN_PERIOD_COUNT, MAX_PERIOD_COUNT)
+    issues += _optional_range_issue(semester.get("exam_weeks"), ISSUE_EXAM_OUT_OF_RANGE,
+                                    0, MAX_EXAM_WEEKS)
     return issues
 
 
 def end_date_of(start: date, total_weeks: int) -> date:
-    """学期最后一天（第 total_weeks 周的最后一天）。"""
+    """第 `total_weeks` 周的最后一天。"""
     return start + timedelta(days=total_weeks * 7 - 1)
+
+
+def season_start_for(today: date) -> date:
+    """按季节给"新建学期"预设开始日（用户口径：秋 9/21、春 3/2）。
+
+    7–12 月 → 当年 9/21（秋季学期，通常正在进行）；1–6 月 → 当年 3/2（春季学期）。
+    **故意不往后推一年**：10 月建学期时默认给"当年 9/21"才是用户所处的那个学期。
+    """
+    month, day = AUTUMN_START if today.month >= 7 else SPRING_START
+    return date(today.year, month, day)
 
 
 def semester_status(semester: dict | None, today: date) -> dict:
     """**唯一口径**的学期状态。
 
-    返回：`{state, week, total_weeks, period_count, start_date, end_date, days_left, issues}`
-    - `week`：当前周次（`not_started`/`invalid`/`none` 时为 `None`；`expired` 时钳到总周数）
-    - `days_left`：距学期结束的天数（已结束为负数）
+    返回：`{state, week, total_weeks, exam_weeks, period_count, start_date,
+    teaching_end_date, end_date, days_left, issues}`
+    - `state`：`none` / `invalid` / `not_started` / `active` / **`exam`（期末周）** / `expired`
+    - `week`：当前教学周（`exam`/`expired` 时是总周数；`not_started`/`invalid`/`none` 时为 `None`）
+    - `teaching_end_date`：教学周最后一天；`end_date`：**含期末周**的学期最后一天
+    - `days_left`：距学期（含期末周）结束的天数
     """
     status = {
-        "state": STATE_NONE, "week": None, "total_weeks": None, "period_count": None,
-        "start_date": None, "end_date": None, "days_left": None, "issues": [],
+        "state": STATE_NONE, "week": None, "total_weeks": None, "exam_weeks": None,
+        "period_count": None, "start_date": None, "teaching_end_date": None,
+        "end_date": None, "days_left": None, "issues": [],
     }
     if not semester:
         return status
@@ -136,22 +153,33 @@ def semester_status(semester: dict | None, today: date) -> dict:
         return status
 
     period = as_int(semester.get("period_count"))
+    exam = as_int(semester.get("exam_weeks"))
+    if exam is None or not (0 <= exam <= MAX_EXAM_WEEKS):
+        exam = DEFAULT_EXAM_WEEKS
+    teaching_end = end_date_of(start, total)
+    semester_end = end_date_of(start, total + exam)
     status.update({
         "total_weeks": total,
+        "exam_weeks": exam,
         "period_count": period if period and period > 0 else DEFAULT_PERIOD_COUNT,
         "start_date": start,
-        "end_date": end_date_of(start, total),
-        "days_left": (end_date_of(start, total) - today).days,
+        "teaching_end_date": teaching_end,
+        "end_date": semester_end,
+        "days_left": (semester_end - today).days,
     })
     week = (today - start).days // 7 + 1
     if today < start:
         status["state"] = STATE_NOT_STARTED
-    elif week > total:
-        status["state"] = STATE_EXPIRED
-        status["week"] = total
-    else:
+    elif week <= total:
         status["state"] = STATE_ACTIVE
         status["week"] = max(1, week)
+    elif today <= semester_end:
+        # 期末周：教学周已上完，仍显示最后一周的课表（不是空白页）
+        status["state"] = STATE_EXAM
+        status["week"] = total
+    else:
+        status["state"] = STATE_EXPIRED
+        status["week"] = total
     return status
 
 

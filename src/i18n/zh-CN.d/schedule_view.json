@@ -12,6 +12,7 @@
 
   "widget.schedule.slot_fallback": "时段{n}",
   "widget.schedule.slot_empty": "空闲",
+  "widget.schedule.slot_conflict": "⚠ 本时段有两门课，记得请假",
   "widget.schedule.habit_minutes": "{dur}分钟",
   "widget.schedule.ddl_due": " 截止 {time}",
 
