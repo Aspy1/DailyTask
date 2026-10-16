@@ -7,7 +7,6 @@ from PySide6.QtGui import QFont, QKeyEvent
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
-    QPushButton,
     QScrollArea,
     QSizePolicy,
     QTextEdit,
@@ -17,6 +16,7 @@ from PySide6.QtWidgets import (
 
 from src.i18n.loader import tr
 from src.ui.styles.theme import FONT_CN, SIZE_BODY_S, SIZE_CAPTION, get_colors
+from src.ui.widgets.rounded_button import RoundedButton
 
 
 def _md_to_html(text: str) -> str:
@@ -145,7 +145,7 @@ class AIPanel(QWidget):
         self._input.send_requested.connect(self._on_send)
         input_layout.addWidget(self._input)
 
-        self._send_btn = QPushButton(tr("ai.send"))
+        self._send_btn = RoundedButton(tr("ai.send"))
         self._send_btn.setFixedSize(64, 36)
         self._send_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._send_btn.setStyleSheet(f"""

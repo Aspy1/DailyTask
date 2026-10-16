@@ -11,7 +11,6 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QMainWindow,
-    QPushButton,
     QSplitter,
     QStatusBar,
     QVBoxLayout,
@@ -31,6 +30,7 @@ from src.ui.components.main_workspace import MainWorkspace
 from src.ui.components.sidebar import Sidebar
 from src.ui.styles.theme import get_colors
 from src.ui.widgets.menu import add_action, new_menu, show_at_cursor, show_below
+from src.ui.widgets.rounded_button import RoundedButton
 
 logger = logging.getLogger(__name__)
 
@@ -622,7 +622,7 @@ class WeatherDetailDialog(QDialog):
         title_row.addWidget(self._update_time_label)
         title_row.addStretch()
 
-        self._refresh_btn = QPushButton("刷新")
+        self._refresh_btn = RoundedButton("刷新")
         self._refresh_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._refresh_btn.setStyleSheet(f"""
             QPushButton {{

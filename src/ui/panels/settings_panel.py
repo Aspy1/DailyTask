@@ -13,7 +13,6 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QMessageBox,
-    QPushButton,
     QScrollArea,
     QVBoxLayout,
     QWidget,
@@ -34,6 +33,7 @@ from src.ui.styles.theme import (
     input_qss,
 )
 from src.ui.widgets.api_test_dialog import ApiTestDialog
+from src.ui.widgets.rounded_button import RoundedButton
 from src.ui.widgets.rounded_input import RoundedComboBox, RoundedLineEdit
 from src.ui.widgets.toggle_switch import ToggleSwitch
 
@@ -201,7 +201,7 @@ class SettingsPanel(QWidget):
         self._status_label = QLabel()
         sr.addWidget(self._status_label)
         sr.addStretch()
-        save_btn = QPushButton("保存")
+        save_btn = RoundedButton("保存")
         save_btn.setFixedSize(72, 30)
         save_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         save_btn.setStyleSheet(f"""
@@ -213,7 +213,7 @@ class SettingsPanel(QWidget):
         save_btn.clicked.connect(self._save_ai_settings)
         sr.addWidget(save_btn)
 
-        test_btn = QPushButton("API 测试")
+        test_btn = RoundedButton("API 测试")
         test_btn.setFixedSize(80, 30)  # 增加宽度以容纳文字
         test_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         test_btn.setStyleSheet(f"""
@@ -259,7 +259,7 @@ class SettingsPanel(QWidget):
         br = QHBoxLayout(btn_row)
         br.setContentsMargins(16, 12, 16, 12)
         br.addStretch()
-        save_btn = QPushButton("保存")
+        save_btn = RoundedButton("保存")
         save_btn.setFixedSize(72, 30)
         save_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         save_btn.setStyleSheet(f"""
@@ -353,7 +353,7 @@ class SettingsPanel(QWidget):
         test_row.setStyleSheet("background: transparent;")
         trl = QHBoxLayout(test_row)
         trl.setContentsMargins(16, 8, 16, 8)
-        test_btn = QPushButton("发送测试邮件")
+        test_btn = RoundedButton("发送测试邮件")
         test_btn.setFixedWidth(120)
         test_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         test_btn.setStyleSheet(f"""
@@ -372,7 +372,7 @@ class SettingsPanel(QWidget):
         br = QHBoxLayout(btn_row)
         br.setContentsMargins(16, 12, 16, 12)
         br.addStretch()
-        save_btn = QPushButton("保存")
+        save_btn = RoundedButton("保存")
         save_btn.setFixedSize(72, 30)
         save_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         save_btn.setStyleSheet(f"""
@@ -487,7 +487,7 @@ class SettingsPanel(QWidget):
         br = QHBoxLayout(btn_row)
         br.setContentsMargins(16, 12, 16, 12)
         br.addStretch()
-        save_btn = QPushButton("保存")
+        save_btn = RoundedButton("保存")
         save_btn.setFixedSize(72, 30)
         save_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         save_btn.setStyleSheet(f"""
@@ -560,7 +560,7 @@ class SettingsPanel(QWidget):
         link.setStyleSheet(f"background: transparent; font-size: {SIZE_BODY_S}px;")
         layout.addWidget(link)
 
-        data_btn = QPushButton("打开数据目录")
+        data_btn = RoundedButton("打开数据目录")
         data_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         data_btn.setStyleSheet(btn_secondary_qss())
         data_btn.clicked.connect(self._open_data_dir)
@@ -613,7 +613,7 @@ class SettingsPanel(QWidget):
             enabled_cb.toggled.connect(lambda checked, n=pinfo.name: self._toggle_plugin(n, checked))
             rl.addWidget(enabled_cb)
             panels = self._plugin_manager.get_panels(pinfo.name)
-            open_btn = QPushButton("打开面板")
+            open_btn = RoundedButton("打开面板")
             open_btn.setEnabled(bool(panels) and pinfo.enabled)
             open_btn.clicked.connect(lambda _=None, n=pinfo.name: self._open_plugin(n))
             open_btn.setStyleSheet(f"background-color: {self._c()['accent']}; color: {self._c()['fg_on_fill']}; border-radius: 8px; padding:6px 10px; font-weight:600;")
@@ -732,7 +732,7 @@ class SettingsPanel(QWidget):
         br.addWidget(hint)
 
         br.addStretch()
-        save_btn = QPushButton("保存")
+        save_btn = RoundedButton("保存")
         save_btn.setFixedSize(72, 30)
         save_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         save_btn.setStyleSheet(f"""

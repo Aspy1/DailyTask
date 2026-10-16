@@ -28,6 +28,7 @@ from src.ui.widgets.menu import (
     new_menu,
     show_below,
 )
+from src.ui.widgets.rounded_button import RoundedButton
 from src.ui.widgets.rounded_input import RoundedComboBox, RoundedLineEdit
 
 logger = logging.getLogger(__name__)
@@ -61,7 +62,7 @@ class ExpensePanel(QWidget):
         bar_layout.addStretch()
 
         for text, slot in [("按分类筛选 ▼", self._show_cat_filter), ("时间筛选 ▼", self._show_time_filter)]:
-            btn = QPushButton(text)
+            btn = RoundedButton(text)
             btn.setStyleSheet(self._btn_qss())
             btn.clicked.connect(slot)
             bar_layout.addWidget(btn)
@@ -70,7 +71,7 @@ class ExpensePanel(QWidget):
             else:
                 self._time_btn = btn
 
-        refresh_btn = QPushButton("刷新")
+        refresh_btn = RoundedButton("刷新")
         refresh_btn.setStyleSheet(self._btn_qss())
         refresh_btn.clicked.connect(self._refresh)
         bar_layout.addWidget(refresh_btn)
@@ -120,7 +121,7 @@ class ExpensePanel(QWidget):
         self._note_input.setStyleSheet(self._input_qss())
         al.addWidget(self._note_input)
 
-        add_btn = QPushButton("添加")
+        add_btn = RoundedButton("添加")
         add_btn.setFixedWidth(56)
         c = get_colors()
         add_btn.setStyleSheet(f"""
@@ -152,7 +153,7 @@ class ExpensePanel(QWidget):
         self._sav_note.setPlaceholderText("怎么省的（可选）")
         self._sav_note.setStyleSheet(self._input_qss())
         sl.addWidget(self._sav_note)
-        sav_btn = QPushButton("记一笔")
+        sav_btn = RoundedButton("记一笔")
         sav_btn.setFixedWidth(70)
         sav_btn.setStyleSheet(f"""
             QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};

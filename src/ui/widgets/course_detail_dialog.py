@@ -11,7 +11,6 @@ from PySide6.QtWidgets import (
     QLabel,
     QListWidget,
     QListWidgetItem,
-    QPushButton,
     QTabWidget,
     QVBoxLayout,
     QWidget,
@@ -19,6 +18,7 @@ from PySide6.QtWidgets import (
 
 from src.services.data_manager import DataManager
 from src.ui.styles.theme import FONT_CN, SIZE_TITLE, get_colors
+from src.ui.widgets.rounded_button import RoundedButton
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +77,7 @@ class CourseDetailDialog(QDialog):
 
         btn_row = QHBoxLayout()
         btn_row.addStretch()
-        close_btn = QPushButton("关闭")
+        close_btn = RoundedButton("关闭")
         close_btn.setStyleSheet(f"""
             QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['fg_primary']};
                 border-radius: 8px; padding: 6px 20px; font-size: 13px; }}

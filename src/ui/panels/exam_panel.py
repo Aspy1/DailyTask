@@ -13,7 +13,6 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QMessageBox,
-    QPushButton,
     QScrollArea,
     QSizePolicy,
     QVBoxLayout,
@@ -27,6 +26,7 @@ from src.ui.widgets.menu import (
     new_menu,
     show_at,
 )
+from src.ui.widgets.rounded_button import RoundedButton
 
 logger = logging.getLogger(__name__)
 
@@ -162,7 +162,7 @@ class ExamPanel(QWidget):
         bl.addWidget(title)
         bl.addStretch()
 
-        add_btn = QPushButton("添加")
+        add_btn = RoundedButton("添加")
         add_btn.setStyleSheet(f"""
             QPushButton {{ background-color: {c['accent']}; color: {c['fg_on_fill']}; border: none;
                 border-radius: 8px; padding: 4px 14px; font-size: 13px; font-weight: 600; }}
@@ -171,7 +171,7 @@ class ExamPanel(QWidget):
         add_btn.clicked.connect(lambda: self._add_exam())
         bl.addWidget(add_btn)
 
-        refresh_btn = QPushButton("刷新")
+        refresh_btn = RoundedButton("刷新")
         refresh_btn.setStyleSheet(f"""
             QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
                 border-radius: 8px; padding: 4px 12px; font-size: 13px; }}

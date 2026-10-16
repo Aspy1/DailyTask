@@ -11,7 +11,6 @@ from PySide6.QtWidgets import (
     QLabel,
     QListWidget,
     QMessageBox,
-    QPushButton,
     QScrollArea,
     QSizePolicy,
     QVBoxLayout,
@@ -27,6 +26,7 @@ from src.ui.widgets.menu import (
     show_at_cursor,
     show_below,
 )
+from src.ui.widgets.rounded_button import RoundedButton
 from src.ui.widgets.rounded_input import RoundedLineEdit
 
 PAGE_SIZE = 8
@@ -54,12 +54,12 @@ class InventoryPanel(QWidget):
         bc_layout.setContentsMargins(16, 4, 16, 4)
         bc_layout.setSpacing(4)
 
-        self._back_btn = QPushButton("←")
+        self._back_btn = RoundedButton("←")
         self._back_btn.setStyleSheet(f"QPushButton {{ background: transparent; color: {c['accent_text']}; border: none; padding: 2px 6px; font-size: 13px; font-weight: 600; }} QPushButton:hover {{ color: {c['fg_primary']}; }}")
         self._back_btn.clicked.connect(self._go_back)
         bc_layout.addWidget(self._back_btn)
 
-        self._bc_cat = QPushButton()
+        self._bc_cat = RoundedButton()
         self._bc_cat.setStyleSheet(f"QPushButton {{ background: {c['bg_elevated']}; color: {c['fg_primary']}; border: none; border-radius: 4px; padding: 2px 8px; font-size: 12px; }} QPushButton:hover {{ background: {c['accent_bg']}; }}")
         self._bc_cat.clicked.connect(lambda: self._navigate_to(1))
         self._bc_cat.hide()
@@ -70,7 +70,7 @@ class InventoryPanel(QWidget):
         self._bc_sep1.hide()
         bc_layout.addWidget(self._bc_sep1)
 
-        self._bc_group = QPushButton()
+        self._bc_group = RoundedButton()
         self._bc_group.setStyleSheet(f"QPushButton {{ background: {c['bg_elevated']}; color: {c['fg_primary']}; border: none; border-radius: 4px; padding: 2px 8px; font-size: 12px; }} QPushButton:hover {{ background: {c['accent_bg']}; }}")
         self._bc_group.clicked.connect(lambda: self._navigate_to(2))
         self._bc_group.hide()
@@ -103,17 +103,17 @@ class InventoryPanel(QWidget):
 
         bl.addStretch()
 
-        self._cat_btn = QPushButton("全部分类")
+        self._cat_btn = RoundedButton("全部分类")
         self._cat_btn.setStyleSheet(self._btn_qss())
         self._cat_btn.clicked.connect(self._show_cat_filter)
         bl.addWidget(self._cat_btn)
 
-        self._tag_btn = QPushButton("全部标签")
+        self._tag_btn = RoundedButton("全部标签")
         self._tag_btn.setStyleSheet(self._btn_qss())
         self._tag_btn.clicked.connect(self._show_tag_filter)
         bl.addWidget(self._tag_btn)
 
-        refresh_btn = QPushButton("刷新")
+        refresh_btn = RoundedButton("刷新")
         refresh_btn.setStyleSheet(self._btn_qss())
         refresh_btn.clicked.connect(self._refresh)
         bl.addWidget(refresh_btn)
@@ -145,7 +145,7 @@ class InventoryPanel(QWidget):
         fl.addStretch()
 
         for text, slot in [("< 上一页", self._prev_page), ("下一页 >", self._next_page)]:
-            btn = QPushButton(text)
+            btn = RoundedButton(text)
             btn.setStyleSheet(f"QPushButton {{ background: transparent; color: {c['fg_hint']}; border: none; padding: 4px 8px; font-size: 13px; }} QPushButton:hover {{ color: {c['fg_primary']}; }}")
             btn.clicked.connect(slot)
             fl.addWidget(btn)
@@ -666,7 +666,7 @@ class InventoryPanel(QWidget):
         self._tag_input = RoundedLineEdit()
         self._tag_input.setPlaceholderText("新标签...")
         add_row.addWidget(self._tag_input)
-        add_btn = QPushButton("添加")
+        add_btn = RoundedButton("添加")
         add_row.addWidget(add_btn)
         layout.addLayout(add_row)
 
@@ -680,7 +680,7 @@ class InventoryPanel(QWidget):
         self._tag_input.returnPressed.connect(add_tag)
 
         # Remove selected
-        del_btn = QPushButton("删除选中")
+        del_btn = RoundedButton("删除选中")
         del_btn.clicked.connect(lambda: tag_list.takeItem(tag_list.currentRow()) if tag_list.currentRow() >= 0 else None)
         layout.addWidget(del_btn)
 

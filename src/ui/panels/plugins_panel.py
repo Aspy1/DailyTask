@@ -11,13 +11,13 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QMessageBox,
-    QPushButton,
     QScrollArea,
     QVBoxLayout,
     QWidget,
 )
 
 from src.ui.styles.theme import get_colors
+from src.ui.widgets.rounded_button import RoundedButton
 
 logger = logging.getLogger(__name__)
 
@@ -86,7 +86,7 @@ class PluginsPanel(QWidget):
             rl.addWidget(enabled_cb)
 
             panels = self._pm.get_panels(pinfo.name)
-            open_btn = QPushButton("打开")
+            open_btn = RoundedButton("打开")
             open_btn.setEnabled(bool(panels) and pinfo.enabled)
             open_btn.setStyleSheet(f"background-color: {c['accent']}; color:{c['fg_on_fill']}; border-radius: 8px; padding:6px 10px;")
             open_btn.clicked.connect(lambda _=None, n=pinfo.name: self._open(n))

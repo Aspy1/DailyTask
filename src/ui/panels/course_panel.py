@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 from src.services.data_manager import DataManager
 from src.ui.styles.theme import FONT_CN, SIZE_BODY_S, get_colors
 from src.ui.widgets.course_table import CourseTable
+from src.ui.widgets.rounded_button import RoundedButton
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +46,7 @@ class CoursePanel(QWidget):
         self._week_label.setStyleSheet("font-weight: 600; border: none;")
         bar_layout.addWidget(self._week_label)
 
-        refresh_btn = QPushButton("刷新")
+        refresh_btn = RoundedButton("刷新")
         refresh_btn.setStyleSheet(f"""
             QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
                 border-radius: 8px; padding: 4px 12px; font-size: 13px; }}
@@ -58,7 +59,7 @@ class CoursePanel(QWidget):
         bar_layout.addStretch()
 
         for text, slot in [("< 上一周", self._prev_week), ("本周", self._go_today), ("下一周 >", self._next_week)]:
-            btn = QPushButton(text)
+            btn = RoundedButton(text)
             btn.setStyleSheet(f"""
                 QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
                     border-radius: 8px; padding: 4px 12px; font-size: 13px; }}

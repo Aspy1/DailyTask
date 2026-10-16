@@ -11,7 +11,6 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QMessageBox,
-    QPushButton,
     QScrollArea,
     QVBoxLayout,
     QWidget,
@@ -27,6 +26,7 @@ from src.ui.widgets.menu import (
     new_menu,
     show_at_cursor,
 )
+from src.ui.widgets.rounded_button import RoundedButton
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +63,7 @@ class ScheduleView(QWidget):
         bl.addWidget(title)
 
         # Course table button
-        ct_btn = QPushButton("课程表")
+        ct_btn = RoundedButton("课程表")
         ct_btn.setStyleSheet(f"""
             QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
                 border-radius: 8px; padding: 3px 10px; font-size: 13px; }}
@@ -75,7 +75,7 @@ class ScheduleView(QWidget):
         bl.addStretch()
 
         # Undo + Save buttons (hidden until arrange done)
-        self._undo_btn = QPushButton("撤销")
+        self._undo_btn = RoundedButton("撤销")
         self._undo_btn.setStyleSheet(f"""
             QPushButton {{ background-color: {c['red']}30; color: {c['red']};
                 border: 1px solid {c['red']}60; border-radius: 8px;
@@ -86,7 +86,7 @@ class ScheduleView(QWidget):
         self._undo_btn.hide()
         bl.addWidget(self._undo_btn)
 
-        self._save_btn = QPushButton("保存")
+        self._save_btn = RoundedButton("保存")
         self._save_btn.setStyleSheet(f"""
             QPushButton {{ background-color: {c['green']}30; color: {c['green']};
                 border: 1px solid {c['green']}60; border-radius: 8px;
@@ -97,7 +97,7 @@ class ScheduleView(QWidget):
         self._save_btn.hide()
         bl.addWidget(self._save_btn)
 
-        refresh_btn = QPushButton("刷新")
+        refresh_btn = RoundedButton("刷新")
         refresh_btn.setStyleSheet(f"""
             QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
                 border-radius: 8px; padding: 3px 10px; font-size: 13px; }}
@@ -107,7 +107,7 @@ class ScheduleView(QWidget):
         bl.addWidget(refresh_btn)
 
         # Quick arrange button
-        self._arrange_btn = QPushButton("调整")
+        self._arrange_btn = RoundedButton("调整")
         self._arrange_btn.setStyleSheet(f"""
             QPushButton {{ background-color: {c['accent']}; color: {c['fg_on_fill']};
                 border-radius: 8px; padding: 3px 14px; font-size: 13px; font-weight: 600; }}
@@ -117,7 +117,7 @@ class ScheduleView(QWidget):
         bl.addWidget(self._arrange_btn)
 
         for text, slot in [("< 前一天", self._prev_day), ("今天", self._go_today), ("后一天 >", self._next_day)]:
-            btn = QPushButton(text)
+            btn = RoundedButton(text)
             btn.setStyleSheet(f"""
                 QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
                     border-radius: 8px; padding: 3px 10px; font-size: 13px; }}
@@ -698,7 +698,7 @@ class ScheduleView(QWidget):
 
     def _add_email_reminder_dialog(self, item_type: str, item_name: str, item_date: str) -> None:
         """Show datetime picker and save a custom email reminder."""
-        from PySide6.QtWidgets import QDateTimeEdit, QDialog, QHBoxLayout, QLabel, QPushButton, QVBoxLayout
+        from PySide6.QtWidgets import QDateTimeEdit, QDialog, QHBoxLayout, QLabel, QVBoxLayout
         c = get_colors()
         dlg = QDialog(self)
         dlg.setWindowTitle("添加邮件提醒")
@@ -737,14 +737,14 @@ class ScheduleView(QWidget):
 
         btn_row = QHBoxLayout()
         btn_row.addStretch()
-        cancel = QPushButton("取消")
+        cancel = RoundedButton("取消")
         cancel.setStyleSheet(f"""
             QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
                 border-radius: 8px; padding: 6px 18px; font-size: 13px; }}
         """)
         cancel.clicked.connect(dlg.reject)
         btn_row.addWidget(cancel)
-        confirm = QPushButton("确认")
+        confirm = RoundedButton("确认")
         confirm.clicked.connect(dlg.accept)
         btn_row.addWidget(confirm)
         layout.addLayout(btn_row)

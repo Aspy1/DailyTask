@@ -14,7 +14,6 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QListWidget,
     QMessageBox,
-    QPushButton,
     QScrollArea,
     QSizePolicy,
     QSpinBox,
@@ -29,6 +28,7 @@ from src.ui.widgets.menu import (
     new_menu,
     show_at_cursor,
 )
+from src.ui.widgets.rounded_button import RoundedButton
 from src.ui.widgets.rounded_input import RoundedComboBox, RoundedLineEdit
 
 CARD_MIN_WIDTH = 210
@@ -154,7 +154,7 @@ class _HabitCard(QWidget):
         btn_row = QHBoxLayout()
         btn_row.setSpacing(8)
 
-        done_btn = QPushButton("完成打卡")
+        done_btn = RoundedButton("完成打卡")
         done_btn.setStyleSheet(f"""
                 QPushButton {{
                     background-color: {c['accent']}; color: {c['fg_on_fill']}; border: none;
@@ -166,7 +166,7 @@ class _HabitCard(QWidget):
         done_btn.clicked.connect(lambda: self.toggled.emit(self._hid))
         btn_row.addWidget(done_btn)
 
-        postpone_btn = QPushButton("推迟")
+        postpone_btn = RoundedButton("推迟")
         postpone_btn.setStyleSheet(f"""
                 QPushButton {{
                     background: transparent; color: {c['fg_secondary']};
@@ -180,7 +180,7 @@ class _HabitCard(QWidget):
             lambda: self.postpone_clicked.emit(self._hid))
         btn_row.addWidget(postpone_btn)
 
-        skip_btn = QPushButton("跳过")
+        skip_btn = RoundedButton("跳过")
         skip_btn.setStyleSheet(f"""
                 QPushButton {{
                     background: transparent; color: {c['fg_hint']}; border: none;
@@ -298,7 +298,7 @@ class HabitPanel(QWidget):
         bar_layout.addWidget(title)
         bar_layout.addStretch()
 
-        refresh_btn = QPushButton("刷新")
+        refresh_btn = RoundedButton("刷新")
         refresh_btn.setStyleSheet(self._btn_qss())
         refresh_btn.clicked.connect(self._refresh)
         bar_layout.addWidget(refresh_btn)
@@ -315,7 +315,7 @@ class HabitPanel(QWidget):
 
         # Floating + button
         c = get_colors()
-        self._fab = QPushButton("+", self)
+        self._fab = RoundedButton("+", self)
         self._fab.setFixedSize(48, 48)
         self._fab.setStyleSheet(f"""
             QPushButton {{ background-color: {c['accent']}; color: {c['fg_on_fill']}; border: none;
@@ -548,7 +548,7 @@ class HabitDialog(QDialog):
 
         at_btns = QHBoxLayout()
         for text, slot in [("+ 添加", self._add_attached), ("引用已有", self._use_existing), ("移除", self._remove_attached)]:
-            btn = QPushButton(text)
+            btn = RoundedButton(text)
             btn.setStyleSheet(f"""
                 QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
                     border: none; border-radius: 4px; padding: 4px 10px; font-size: 12px; }}
@@ -570,7 +570,7 @@ class HabitDialog(QDialog):
         layout.addWidget(self._linked_list)
         lk_btns = QHBoxLayout()
         for text, slot in [("+ 关联物品", self._add_linked), ("移除", self._remove_linked)]:
-            btn = QPushButton(text)
+            btn = RoundedButton(text)
             btn.setStyleSheet(self._btn_secondary_qss())
             btn.clicked.connect(slot)
             lk_btns.addWidget(btn)
@@ -855,7 +855,7 @@ class _AttachedTaskDialog(QDialog):
         dur_row.addStretch()
         form.addRow("用时:", dur_row)
 
-        save_tpl = QPushButton("同时保存为模板（方便下次引用）")
+        save_tpl = RoundedButton("同时保存为模板（方便下次引用）")
         save_tpl.setStyleSheet(f"""
             QPushButton {{ background-color: transparent; color: {c['accent_text']}; border: none; font-size: 13px; text-align: left; }}
         """)
@@ -875,7 +875,7 @@ class _AttachedTaskDialog(QDialog):
         layout.addWidget(self._linked_list)
         lk_btns = QHBoxLayout()
         for text, slot in [("+ 关联物品", self._add_linked), ("移除", self._remove_linked)]:
-            btn = QPushButton(text)
+            btn = RoundedButton(text)
             btn.setStyleSheet(f"QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']}; border: none; border-radius: 8px; padding: 8px 12px; font-size: 13px; }} QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; }} QPushButton:pressed {{ background-color: {c['accent_bg']}; }}")
             btn.clicked.connect(slot)
             lk_btns.addWidget(btn)

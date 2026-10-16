@@ -27,6 +27,7 @@ from src.ui.widgets.menu import (
     new_menu,
     show_below,
 )
+from src.ui.widgets.rounded_button import RoundedButton
 
 PAGE_SIZE = 10
 
@@ -112,22 +113,22 @@ class TaskPanel(QWidget):
 
         bar_layout.addStretch()
 
-        self._filter_btn = QPushButton("课程筛选")
+        self._filter_btn = RoundedButton("课程筛选")
         self._filter_btn.setStyleSheet(self._btn_qss())
         self._filter_btn.clicked.connect(self._show_course_filter)
         bar_layout.addWidget(self._filter_btn)
 
-        self._time_btn = QPushButton("时间筛选")
+        self._time_btn = RoundedButton("时间筛选")
         self._time_btn.setStyleSheet(self._btn_qss())
         self._time_btn.clicked.connect(self._show_time_filter)
         bar_layout.addWidget(self._time_btn)
 
-        self._status_btn = QPushButton("未完成")
+        self._status_btn = RoundedButton("未完成")
         self._status_btn.setStyleSheet(self._btn_qss())
         self._status_btn.clicked.connect(self._toggle_status_filter)
         bar_layout.addWidget(self._status_btn)
 
-        refresh_btn = QPushButton("刷新")
+        refresh_btn = RoundedButton("刷新")
         refresh_btn.setStyleSheet(self._btn_qss())
         refresh_btn.clicked.connect(self._refresh)
         bar_layout.addWidget(refresh_btn)
@@ -177,7 +178,7 @@ class TaskPanel(QWidget):
         fl.addStretch()
 
         for text, slot in [("< 上一页", self._prev_page), ("下一页 >", self._next_page)]:
-            btn = QPushButton(text)
+            btn = RoundedButton(text)
             btn.setStyleSheet(self._btn_qss())
             btn.clicked.connect(slot)
             fl.addWidget(btn)

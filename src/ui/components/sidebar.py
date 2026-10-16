@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
 )
 
 from src.ui.styles.theme import FONT_CN, SIZE_BODY_M, get_colors
+from src.ui.widgets.rounded_button import RoundedButton
 
 
 class SectionHeader(QPushButton):
@@ -199,7 +200,7 @@ class Sidebar(QWidget):
             bl.addWidget(btn)
         layout.addWidget(self._bottom)
 
-        self._ai_btn = QPushButton("AI 助手")
+        self._ai_btn = RoundedButton("AI 助手")
         self._ai_btn.setFlat(True)
         self._ai_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._ai_btn.clicked.connect(self._toggle_ai)

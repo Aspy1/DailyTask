@@ -256,8 +256,9 @@
 - 输入类控件（`QLineEdit` / `QComboBox` / `QAbstractSpinBox`）**必须关掉原生方框**
   （`setFrame(False)`）：Windows 上原生方框是直角，会从 QSS 圆角外露出"角点"
   → 已由 `theme.install_rounded_frame_fixer()` 全局钩子自动处理（带 `border-radius` 的才关）
-- 需要"绝对可控"的圆角（高 DPI 下 QSS 圆角会按设备像素取整、出现台阶）时：
-  改用自绘 `QPainter` + `Antialiasing` 画背景（QSS 里把背景设透明），见 `ERRORS #032`
+- 需要"绝对可控"的圆角时：**自绘**（`QPainter` + `Antialiasing`，QSS 只留透明底）。
+  已有两族自绘控件：`widgets/rounded_input.py`（输入）、`widgets/rounded_button.py`（按钮）
+  → 判据与"为什么不能全局统一"见 `design/INDEX.md` §5（渲染路径）与 `ERRORS #032`
 - 检查：`tests/test_ui_wiring.py::test_rounded_inputs_drop_native_frame`
 
 **Q-H18 输入框样式唯一化**

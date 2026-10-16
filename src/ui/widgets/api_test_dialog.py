@@ -9,13 +9,13 @@ from PySide6.QtWidgets import (
     QFormLayout,
     QGroupBox,
     QLabel,
-    QPushButton,
     QTextEdit,
     QVBoxLayout,
 )
 
 from src.services.api_service import ApiService
 from src.ui.styles.theme import FONT_CN, SIZE_BODY, SIZE_SUBTITLE, get_colors
+from src.ui.widgets.rounded_button import RoundedButton
 from src.ui.widgets.rounded_input import RoundedLineEdit
 
 
@@ -96,7 +96,7 @@ class ApiTestDialog(QDialog):
         self._lon_input.setText("121")
         weather_layout.addRow("经度:", self._lon_input)
 
-        self._weather_btn = QPushButton("测试天气预报")
+        self._weather_btn = RoundedButton("测试天气预报")
         self._weather_btn.clicked.connect(self._test_weather)
         weather_layout.addRow("", self._weather_btn)
 
@@ -111,7 +111,7 @@ class ApiTestDialog(QDialog):
         self._api_key_input.setPlaceholderText("sk-...")
         balance_layout.addRow("API Key:", self._api_key_input)
 
-        self._balance_btn = QPushButton("查询余额")
+        self._balance_btn = RoundedButton("查询余额")
         self._balance_btn.clicked.connect(self._test_balance)
         balance_layout.addRow("", self._balance_btn)
 
