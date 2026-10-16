@@ -20,7 +20,6 @@ from PySide6.QtWidgets import (
 )
 
 from src.i18n.loader import tr
-from src.models.scene_archive import SceneArchive
 from src.services.ai_service import AIService
 from src.services.api_service import ApiService
 from src.services.settings_manager import SettingsManager
@@ -29,12 +28,10 @@ from src.ui.styles.theme import (
     RADIUS,
     SIZE_BODY_L,
     SIZE_BODY_S,
-    SIZE_SUBTITLE,
     btn_secondary_qss,
     get_colors,
 )
 from src.ui.widgets.api_test_dialog import ApiTestDialog
-from src.ui.widgets.scene_manager_dialog import SceneManagerDialog
 from src.ui.widgets.toggle_switch import ToggleSwitch
 
 # 数据目录（本文件在 src/ui/panels/ 下，往上 3 层是仓库根）
@@ -68,7 +65,6 @@ class SettingsPanel(QWidget):
         self._plugin_manager = plugin_manager
         self._data_manager = data_manager
         self._api_service = ApiService()  # API 服务
-        self._archive = SceneArchive(_DATA_DIR)  # 场景存档管理器
         # Keep references to opened plugin windows to avoid GC closing them
         self._open_plugin_windows = []
 
@@ -89,8 +85,6 @@ class SettingsPanel(QWidget):
         layout.addWidget(self._build_balance_card())
         layout.addWidget(self._section_heading("天气设置"))
         layout.addWidget(self._build_weather_card())
-        layout.addWidget(self._section_heading("场景管理"))
-        layout.addWidget(self._build_scene_card())
         # 插件管理
         if self._plugin_manager is not None:
             layout.addWidget(self._section_heading("插件"))
@@ -112,7 +106,7 @@ class SettingsPanel(QWidget):
     def _section_heading(self, title: str) -> QLabel:
         c = self._c()
         lbl = QLabel(title)
-        lbl.setFont(QFont(FONT_CN, SIZE_SUBTITLE))
+        lbl.setFont(QFont(FONT_CN, SIZE_BODY_L))
         lbl.setStyleSheet(f"color: {c['section_heading']}; font-weight: 600; padding: 0 2px;")
         return lbl
 
@@ -474,6 +468,21 @@ class SettingsPanel(QWidget):
         layout.addWidget(self._row("API Host", self._weather_api_host))
         layout.addWidget(self._divider())
 
+        # 位置（经度/纬度）：原「场景存档」的位置并入此处
+        self._weather_lat = QLineEdit()
+        self._weather_lat.setStyleSheet(self._input_qss())
+        self._weather_lat.setText(self._settings.weather_lat)
+        self._weather_lat.setPlaceholderText("纬度，如 31.23")
+        layout.addWidget(self._row("纬度", self._weather_lat))
+        layout.addWidget(self._divider())
+
+        self._weather_lon = QLineEdit()
+        self._weather_lon.setStyleSheet(self._input_qss())
+        self._weather_lon.setText(self._settings.weather_lon)
+        self._weather_lon.setPlaceholderText("经度，如 121.47")
+        layout.addWidget(self._row("经度", self._weather_lon))
+        layout.addWidget(self._divider())
+
         # 定时更新
         self._weather_auto_update = ToggleSwitch()
         self._weather_auto_update.setChecked(self._settings.weather_auto_update)
@@ -534,50 +543,19 @@ class SettingsPanel(QWidget):
         self._settings.weather_api_key = self._weather_api_key.text().strip()
         self._settings.weather_api_host = self._weather_api_host.text().strip()
         self._settings.weather_auto_update = self._weather_auto_update.isChecked()
+        for field, attr, default in ((self._weather_lat, "weather_lat", "31.23"),
+                                     (self._weather_lon, "weather_lon", "121.47")):
+            raw = field.text().strip()
+            try:
+                float(raw)
+            except ValueError:
+                raw = default
+            setattr(self._settings, attr, raw)
         self._settings.save()
         self._update_weather_stats()
         QMessageBox.information(self, "设置", "天气设置已保存。")
 
-    # ── 场景管理卡片 ────────────────────────────────────────
-    def _build_scene_card(self) -> QFrame:
-        """场景管理卡片"""
-        c = self._c()
-        card = self._card()
-        layout = QVBoxLayout(card)
-        layout.setContentsMargins(8, 8, 8, 8)
-        layout.setSpacing(12)
-
-        current = self._archive.get_current_scene()
-        current_label = QLabel(f"当前场景：{current.get('name', '默认')}")
-        current_label.setStyleSheet(f"color: {c['fg_primary']}; font-size: 14px; font-weight: 500;")
-        layout.addWidget(current_label)
-
-        desc_label = QLabel("场景用于区分不同学期或在在家/在校数据")
-        desc_label.setStyleSheet(f"color: {c['fg_hint']}; font-size: 12px;")
-        layout.addWidget(desc_label)
-
-        open_btn = QPushButton("管理场景")
-        open_btn.setFixedWidth(100)
-        open_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        open_btn.setStyleSheet(f"""
-            QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
-                border: none; border-radius: 8px; padding: 8px 12px; font-size: 13px; }}
-            QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; }}
-        """)
-        open_btn.clicked.connect(self._open_scene_manager)
-        layout.addWidget(open_btn)
-
-        return card
-
-    def _open_scene_manager(self) -> None:
-        """打开场景管理对话框"""
-        from src.models.scene_archive import SceneArchive
-        archive = SceneArchive(_DATA_DIR)
-        dialog = SceneManagerDialog(archive, self)
-        if dialog.exec():
-            # 场景已切换，可能需要刷新 UI
-            self._refresh_current_scene()
-
+    # ── 关于卡片 ────────────────────────────────────────────
     def _build_about_card(self) -> QFrame:
         """关于：版本 / 说明 / 仓库链接 / 数据目录（原侧边栏弹窗并入设置）。"""
         c = self._c()
@@ -612,11 +590,6 @@ class SettingsPanel(QWidget):
     def _open_data_dir(self) -> None:
         """在文件管理器里打开 data/（数据是本地 JSON，用户可能想直接看）。"""
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(_DATA_DIR)))
-
-    def _refresh_current_scene(self) -> None:
-        """刷新当前场景显示"""
-        current = self._archive.get_current_scene()
-        QMessageBox.information(self, "场景已切换", f"已切换到场景：{current.get('name', '未知')}")
 
     # ── 插件卡片 ────────────────────────────────────────────
     def _build_plugins_card(self) -> QFrame:

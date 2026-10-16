@@ -383,10 +383,11 @@ class AIService(QObject):
         try:
             import requests
 
-            from src.models.scene_archive import SceneArchive
-            archive = SceneArchive(self._dm.data_dir)
-            loc = archive.get_location()
-            lat, lon = loc["lat"], loc["lon"]
+            try:
+                lat = float(self._settings.get("Weather", "lat", "31.23"))
+                lon = float(self._settings.get("Weather", "lon", "121.47"))
+            except ValueError:
+                lat, lon = 31.23, 121.47
 
             resp = requests.get(
                 "https://api.open-meteo.com/v1/forecast",

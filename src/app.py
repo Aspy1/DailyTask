@@ -18,7 +18,7 @@ from src.services.data_manager import DataManager
 from src.services.git_sync import GitSync
 from src.services.plugin_manager import PluginManager
 from src.services.reminder_service import ReminderService
-from src.services.settings_manager import SettingsManager
+from src.services.settings_manager import SettingsManager, migrate_legacy_scene_location
 from src.ui.main_window import MainWindow
 from src.ui.styles.theme import FONT_CN, SIZE_TITLE, init_theme
 
@@ -121,6 +121,8 @@ class App(QApplication):
 
         self._settings = SettingsManager(DATA_DIR / "settings.ini")
         self._settings.load()
+        # 场景功能已弃用：把旧场景里的位置迁到天气设置（一次性、幂等）
+        migrate_legacy_scene_location(DATA_DIR, self._settings)
 
         i18n.load(self._settings.get("General", "language", "zh-CN"))
 

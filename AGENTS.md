@@ -149,7 +149,7 @@
 > 完整定义与理由见 `MD-files/AllTheFiles.md` → 项目级禁止清单。此处为速查。
 
 - **R-001** 单例：`SettingsManager`、`DataManager`、`AIService` 仅 `App.__init__` 实例化。
-  （现状：`WeatherService`/`ApiService`/`SceneArchive` 尚有面板级实例化，属待整改。）
+  （现状：`WeatherService`/`ApiService` 尚有面板级实例化，属待整改。）
 - **R-002** 数据写入路径：只有两条合法写入路径——UI 走 `DataManager`/Model 的 `save()`（原子写入）；
   AI/TG 走 `scripts/actions.py`。**除这两处外**，禁止直接 `open()`/`json.dump()` 写 `data/*.json`。
 - **R-003** 信号与槽类型匹配（如 `ddl_alert(int)` 不能连无参槽）。

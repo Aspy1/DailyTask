@@ -6,8 +6,6 @@ from pathlib import Path
 import requests
 from PySide6.QtCore import QObject, QThread, QTimer, Signal
 
-from src.models.scene_archive import SceneArchive
-
 # 绝对路径：应用可能被自启（CWD 非项目根），禁止用相对 "data/..."（见 CODE_STANDARDS Q-E2）
 _DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data"
 _STATS_FILE = _DATA_DIR / "weather_stats.json"
@@ -103,9 +101,13 @@ class WeatherService(QObject):
     MONTHLY_WARN = 45000
     MONTHLY_LIMIT = 49900
 
-    def __init__(self, scene_archive: SceneArchive = None) -> None:
+    # 位置并入天气设置（settings.ini [Weather] lat/lon）；未配置时用默认值
+    DEFAULT_LAT = "31.23"
+    DEFAULT_LON = "121.47"
+
+    def __init__(self, settings=None) -> None:
         super().__init__()
-        self._scene = scene_archive
+        self._settings = settings
         self._host = ""
         self._key = ""
 
@@ -129,16 +131,11 @@ class WeatherService(QObject):
         self._host = host
         self._key = key
 
-    def set_scene_archive(self, scene: SceneArchive) -> None:
-        """设置场景存档"""
-        self._scene = scene
-
     def get_location(self) -> str:
-        """获取当前位置（经纬度）"""
-        if self._scene:
-            loc = self._scene.get_location()
-            return f"{loc['lon']},{loc['lat']}"
-        return "121.47,31.23"  # 默认上海
+        """当前位置（和风天气要求「经度,纬度」）。"""
+        lat = self._settings.weather_lat if self._settings else self.DEFAULT_LAT
+        lon = self._settings.weather_lon if self._settings else self.DEFAULT_LON
+        return f"{lon},{lat}"
 
     def start_auto_update(self) -> None:
         """启动定时更新"""

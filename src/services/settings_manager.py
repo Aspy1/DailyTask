@@ -1,5 +1,10 @@
 import configparser
+import json
+import logging
+import pathlib
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_SETTINGS = {
     "General": {
@@ -128,6 +133,22 @@ class SettingsManager:
         self.set("General", "first_run", str(value).lower())
 
     @property
+    def weather_lat(self) -> str:
+        return self.get("Weather", "lat", "31.23")
+
+    @weather_lat.setter
+    def weather_lat(self, value: str) -> None:
+        self.set("Weather", "lat", value)
+
+    @property
+    def weather_lon(self) -> str:
+        return self.get("Weather", "lon", "121.47")
+
+    @weather_lon.setter
+    def weather_lon(self, value: str) -> None:
+        self.set("Weather", "lon", value)
+
+    @property
     def weather_api_key(self) -> str:
         return self.get("Weather", "api_key")
 
@@ -150,3 +171,33 @@ class SettingsManager:
     @weather_auto_update.setter
     def weather_auto_update(self, value: bool) -> None:
         self.set("Weather", "auto_update", str(value).lower())
+
+
+def migrate_legacy_scene_location(data_dir: pathlib.Path, settings: SettingsManager) -> bool:
+    """把旧「场景存档」里的位置迁到天气设置（场景功能已弃用）。
+
+    旧数据在 `data/scenes_meta.json` 的当前场景 `location{lat,lon}`。
+    若设置里还没有 `[Weather] lat/lon`，就写进去；返回是否发生了迁移（幂等）。
+    """
+    if settings.get("Weather", "lat") or settings.get("Weather", "lon"):
+        return False
+    meta = data_dir / "scenes_meta.json"
+    if not meta.exists():
+        return False
+    try:
+        data = json.loads(meta.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        logger.warning("scenes_meta.json 无法解析，跳过位置迁移")
+        return False
+
+    scenes = data.get("scenes", {})
+    scene = scenes.get(data.get("current_scene", "")) or next(iter(scenes.values()), {})
+    loc = (scene or {}).get("location") or {}
+    lat, lon = loc.get("lat"), loc.get("lon")
+    if lat is None or lon is None:
+        return False
+
+    settings.weather_lat, settings.weather_lon = str(lat), str(lon)
+    settings.save()
+    logger.info("已把旧场景位置迁移到天气设置：%s,%s", lat, lon)
+    return True

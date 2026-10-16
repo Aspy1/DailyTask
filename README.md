@@ -45,7 +45,7 @@ python -m venv .venv
 ├── requirements.lock.txt           # 精确锁定版本
 ├── src/
 │   ├── app.py                      # 应用入口 · 托盘 · 单实例
-│   ├── models/                     # 数据模型 (7 models + base + scene_archive)
+│   ├── models/                     # 数据模型 (7 models + base)
 │   │   ├── base.py                 #   BaseJsonModel (原子写入)
 │   │   ├── course.py               #   课程 · 学期 · 假期
 │   │   ├── task.py                 #   作业 · DDL
@@ -53,8 +53,7 @@ python -m venv .venv
 │   │   ├── expense.py              #   支出 · 预算 · 余额
 │   │   ├── exam.py                 #   考试 · 日期 · 范围
 │   │   ├── daily_log.py            #   日程计划 · 储蓄 · 自定义提醒
-│   │   ├── inventory.py            #   物品库存 · 5 分类
-│   │   └── scene_archive.py        #   场景档案 · 位置
+│   │   └── inventory.py            #   物品库存 · 5 分类
 │   ├── services/                   # 业务服务 (8)
 │   │   ├── ai_service.py           #   AI 对话 · Agent Loop · DeepSeek 余额
 │   │   ├── data_manager.py         #   数据聚合 · 3s 自动 reload
@@ -86,8 +85,7 @@ python -m venv .venv
 │       │   ├── course_detail_dialog.py
 │       │   ├── context_menu.py     #     通用右键菜单
 │       │   ├── toggle_switch.py    #     开关控件
-│       │   ├── api_test_dialog.py  #     API 连通性测试
-│       │   └── scene_manager_dialog.py
+│       │   └── api_test_dialog.py  #     API 连通性测试
 │       └── styles/
 │           ├── theme.py            #     设计令牌加载 · QSS
 │           └── tokens.json         #     设计令牌单一真值

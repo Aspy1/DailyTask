@@ -50,7 +50,7 @@ class MainWindow(QMainWindow):
         self._arrange_pending = False
 
         # 天气服务
-        self._weather_service = WeatherService()
+        self._weather_service = WeatherService(settings)
         if settings.weather_api_key and settings.weather_api_host:
             self._weather_service.set_credentials(
                 settings.weather_api_host, settings.weather_api_key)
