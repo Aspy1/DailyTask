@@ -367,8 +367,8 @@
 ## P. 目录与文件结构
 
 **Q-P1 顶层目录白名单**：`src/ scripts/ tests/ plugins/ data/ resources/ MD-files/ dev-logs/ .github/ design/`
-+ 约定根文件（`main.py` `AGENTS.md` `README.md` `PLAN.md` `ERRORS.md` `pyproject.toml` `requirements*.txt` `.gitignore`）；
-新增顶层目录必须同步 `AllTheFiles.md` / `README.md` / 本文件
++ 约定根文件（`main.py` `AGENTS.md` `README.md` `PLAN.md` `ERRORS.md` `pyproject.toml` `requirements*.txt`
+  `.gitignore` `.importlinter` `.secrets.baseline`）；新增顶层目录必须同步 `AllTheFiles.md` / `README.md` / 本文件
 - 检查：`scripts/check_quality.py` 的 `TOP-DIR` 项（只查 **git 跟踪**的顶层项，本地垃圾不影响 CI）。
 - 现状：`✔` 2026-10-16：`design/`（UI 规范入口）已入白名单；根目录的第三方 skill
   `hermes-skill-life-assistant.md` 已归档到 `MD-files/archive/`（与 R-002 冲突，见该目录 README）。

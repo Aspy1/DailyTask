@@ -37,6 +37,7 @@ import contextlib
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 from collections.abc import Iterator
@@ -74,7 +75,7 @@ TOP_DIRS = {"src", "scripts", "tests", "plugins", "data", "resources",
             "MD-files", "dev-logs", ".github", "design"}
 TOP_FILES = {"main.py", "AGENTS.md", "README.md", "PLAN.md", "ERRORS.md",
              "pyproject.toml", "requirements.txt", "requirements.lock.txt",
-             "requirements-dev.txt", ".gitignore"}
+             "requirements-dev.txt", ".gitignore", ".importlinter", ".secrets.baseline"}
 
 
 class Report:
@@ -354,12 +355,17 @@ def run_tool(args: list[str]) -> tuple[str, str]:
 
 
 def _console_script(name: str) -> Path | None:
-    scripts_dir = Path(sys.executable).parent
-    for candidate in (scripts_dir / f"{name}.exe", scripts_dir / name,
-                      scripts_dir / f"{name}.cmd"):
-        if candidate.exists():
-            return candidate
-    return None
+    """找控制台脚本。**venv 与非 venv 布局不同**：venv 里 `python.exe` 就在 `Scripts/` 下，
+    而 CI（hostedtoolcache）里脚本在 `<python根>/Scripts/`，与 `python.exe` 同级目录**不同**。
+    """
+    base = Path(sys.executable).parent
+    dirs = [base, base / "Scripts", Path(sys.prefix) / "Scripts", Path(sys.prefix) / "bin"]
+    for d in dirs:
+        for candidate in (d / f"{name}.exe", d / name, d / f"{name}.cmd"):
+            if candidate.exists():
+                return candidate
+    found = shutil.which(name)
+    return Path(found) if found else None
 
 
 def run_console_tool(name: str, args: list[str]) -> tuple[str, str]:
