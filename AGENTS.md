@@ -113,7 +113,7 @@
 - 表里**有**对应规范 → 按权威位置改，**不要另建一套**（例如输入框只能委托 `theme.input_qss()`）
 - 表里**没有** → **先问用户**：是新增规范，还是已有规范够用？**确认后**再创建，
   并把新条目补进 `design/INDEX.md`（保持"一个入口"）
-- 颜色/字号/圆角**只能**改 `src/ui/styles/tokens.json`；改完跑 `scripts/gen_design_tokens.py`
+- 颜色/字号/圆角**只能**改 `design/tokens.json`；改完跑 `scripts/gen_design_tokens.py`
   （`Q-H8`，有同步测试守卫）
 - 硬编码颜色会被 `scripts/check_ui_tokens.py` 拦下
 

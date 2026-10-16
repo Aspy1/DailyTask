@@ -9,7 +9,6 @@ from PySide6.QtWidgets import (
     QDialogButtonBox,
     QHBoxLayout,
     QLabel,
-    QLineEdit,
     QListWidget,
     QMessageBox,
     QPushButton,
@@ -28,6 +27,7 @@ from src.ui.widgets.menu import (
     show_at_cursor,
     show_below,
 )
+from src.ui.widgets.rounded_input import RoundedLineEdit
 
 PAGE_SIZE = 8
 
@@ -663,7 +663,7 @@ class InventoryPanel(QWidget):
 
         # Add new tag
         add_row = QHBoxLayout()
-        self._tag_input = QLineEdit()
+        self._tag_input = RoundedLineEdit()
         self._tag_input.setPlaceholderText("新标签...")
         add_row.addWidget(self._tag_input)
         add_btn = QPushButton("添加")

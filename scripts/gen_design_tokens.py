@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """从令牌单一真值生成 DESIGN_TOKENS.md 的令牌表。
 
-单一真值：src/ui/styles/tokens.json
+单一真值：design/tokens.json
 产出：design/DESIGN_TOKENS.md 中 `<!-- TOKENS:xxx:BEGIN/END -->` 之间内容
 
 用法：
@@ -14,7 +14,7 @@ import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-TOKENS_FILE = ROOT / "src/ui/styles/tokens.json"
+TOKENS_FILE = ROOT / "design/tokens.json"
 DOC_FILE = ROOT / "design/DESIGN_TOKENS.md"
 
 # 颜色令牌的输出顺序（按用途域，见 CODE_STANDARDS Q-H3）

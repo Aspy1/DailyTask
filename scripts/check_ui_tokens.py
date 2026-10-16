@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """检查 UI 代码是否符合设计令牌约束（CODE_STANDARDS §H）。
 
-单一真值：src/ui/styles/tokens.json
+单一真值：design/tokens.json
 
 检查项：
   COLOR      字面量颜色（#hex / rgb() / rgba()）→ 建议改用对应 token
@@ -26,7 +26,7 @@ import tokenize
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-TOKENS_FILE = ROOT / "src/ui/styles/tokens.json"
+TOKENS_FILE = ROOT / "design/tokens.json"
 
 RE_HEX = re.compile(r"#[0-9a-fA-F]{3,8}\b")
 RE_RGB = re.compile(r"\brgba?\(\s*\d[^)]*\)")   # 必须紧跟数字：`rgba({x},{y})` 是构造式，不是字面量

@@ -88,7 +88,7 @@ python -m venv .venv
 │       │   └── api_test_dialog.py  #     API 连通性测试
 │       └── styles/
 │           ├── theme.py            #     设计令牌加载 · QSS
-│           └── tokens.json         #     设计令牌单一真值
+│           └── theme.py            #     令牌加载 · QSS（真值见 design/）
 ├── scripts/
 │   ├── actions.py                  # 统一数据操作 (16 命令 + 内存调用)
 │   ├── build_index.py              # 模糊搜索索引
@@ -107,6 +107,7 @@ python -m venv .venv
 │   ├── 规划书.md · 接口文档.md · 修改说明.md
 ├── design/                         # UI 规范与原型（**入口 design/INDEX.md**）
 │   ├── INDEX.md                    #   规范总入口：令牌/样式工厂/模板/弹窗/原型
+│   ├── tokens.json                 #   **令牌单一真值**（运行时读取，发行版必须带）
 │   ├── DESIGN_TOKENS.md            #   令牌表（由脚本生成，勿手改）
 │   ├── showcase.html               #   设计原型（意图与结构参考）
 │   └── sidebar-preview.html

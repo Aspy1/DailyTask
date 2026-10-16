@@ -1,6 +1,6 @@
 """Design system — Warm Paper Study palette (light-first).
 
-Tokens 的**单一真值**是同目录的 tokens.json（见 CODE_STANDARDS Q-H8）。
+Tokens 的**单一真值**是 `design/tokens.json`（见 `design/INDEX.md` 与 CODE_STANDARDS Q-H8）。
 改色值/字号请改 tokens.json，本文件只负责加载并生成 QSS。
 """
 
@@ -12,8 +12,10 @@ from PySide6.QtCore import QEvent, QObject, Qt
 from PySide6.QtGui import QFont, QFontDatabase
 from PySide6.QtWidgets import QApplication
 
-# ── Tokens：从单一真值 tokens.json 加载（CODE_STANDARDS Q-H8）──
-_TOKENS_DATA = json.loads((Path(__file__).parent / "tokens.json").read_text(encoding="utf-8"))
+# ── Tokens：从单一真值 design/tokens.json 加载（CODE_STANDARDS Q-H8）──
+# src/ui/styles/theme.py → 上溯 3 层是仓库根，令牌真值在 design/
+_TOKENS_FILE = Path(__file__).resolve().parents[3] / "design" / "tokens.json"
+_TOKENS_DATA = json.loads(_TOKENS_FILE.read_text(encoding="utf-8"))
 
 FONT_CN = _TOKENS_DATA["font"]["cn"]
 FONT_MONO = _TOKENS_DATA["font"]["mono"]
@@ -388,13 +390,11 @@ def input_qss() -> str:
     c = get_colors()
     return f"""
         QLineEdit {{
-            background-color: {c['input_bg']}; color: {c['fg_primary']};
-            border: 1px solid {c['border']};
-            border-radius: {RADIUS['radius_md']}px;
+            background: transparent; color: {c['fg_primary']};
+            border: none;
             padding: 0 10px; font-size: {SIZE_BODY_S}px;
             min-height: {FIELD_H}px;
         }}
-        QLineEdit:focus {{ border-color: {c['accent']}; }}
     """
 
 
@@ -403,14 +403,11 @@ def combo_qss() -> str:
     c = get_colors()
     return f"""
         QComboBox {{
-            background-color: {c['input_bg']}; color: {c['fg_primary']};
-            border: 1px solid {c['border']};
-            border-radius: {RADIUS['radius_md']}px;
+            background: transparent; color: {c['fg_primary']};
+            border: none;
             padding: 0 10px; font-size: {SIZE_BODY_S}px;
             min-height: {FIELD_H}px;
         }}
-        QComboBox:hover {{ border-color: {c['border_strong']}; }}
-        QComboBox:focus {{ border-color: {c['accent']}; }}
         QComboBox::drop-down {{ border: none; width: 22px; }}
         QComboBox QLineEdit {{ background: transparent; border: none; padding: 0; }}
         QComboBox QAbstractItemView {{

@@ -9,8 +9,8 @@
 
 | 我要改… | 权威位置 | 说明 |
 |---|---|---|
-| **颜色 / 字号 / 圆角** 的具体值 | `src/ui/styles/tokens.json` | **唯一真值**（51 键 × 深浅两模式 + 字号 + 圆角刻度）。改完跑 `scripts/gen_design_tokens.py` 同步文档 |
-| 令牌的**用途说明** | `tokens.json` 的 `color_notes` / `size_notes` | 与值同文件，避免两处漂移 |
+| **颜色 / 字号 / 圆角** 的具体值 | `design/tokens.json` | **唯一真值**（51 键 × 深浅两模式 + 字号 + 圆角刻度）。改完跑 `scripts/gen_design_tokens.py` 同步文档 |
+| 令牌的**用途说明** | `design/tokens.json` 的 `color_notes` / `size_notes` | 与值同文件，避免两处漂移 |
 | 令牌的**人类可读表** | `design/DESIGN_TOKENS.md` | **由脚本生成，不要手改**；`tests/test_design_tokens_sync.py` 守卫漂移 |
 | **全局 QSS**（控件长相） | `src/ui/styles/theme.py` 的 `build_theme()` | 只有 `#objectName` 选择器（R-008） |
 | **输入框样式** | `theme.input_qss()` / `theme.combo_qss()` | 唯一工厂（`Q-H18`）；面板只能委托，不得自写 |
@@ -43,8 +43,10 @@
 **结论**：把原型当"意图与结构"的参考，把 `tokens.json` 当"可执行的数值真值"。
 想回到原型的某个数值时，先确认它是否满足对比度（`Q-H5`/`Q-H6`）。
 
-## 4. 运行时数据为什么不放进这个文件夹
+## 4. 发行版注意（重要）
 
-`tokens.json` 是**运行时**要读的（`theme.py` 启动即加载），而本文件夹是**文档/原型**，
-按 `PLAN H-2` 发行版会排除文档目录。把运行时数据放进文档文件夹，会让"排除文档"误伤应用。
-所以：**文档与原型进 `design/`，运行时数据留在 `src/ui/styles/`，但都在本文件登记**。
+`design/tokens.json` 是**运行时**要读的（`theme.py` 启动即加载）。本文件夹其余内容
+（`INDEX.md` / `DESIGN_TOKENS.md` / 原型 HTML）是文档。
+
+所以按 `PLAN H-2`：**发行版必须带上 `design/tokens.json`**，其余文档可以不带
+（打包时保留 `design/` 目录但只放 tokens.json，或整目录带上都行）。

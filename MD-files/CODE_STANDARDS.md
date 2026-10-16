@@ -200,9 +200,9 @@
 **Q-H7 令牌分三层**：`palette`（原始色板）→ `semantic`（角色：bg/fg/border/state）→ `component`（btn/badge/nav/card/input）
 - 组件层只允许引用 `semantic` / `component`，**禁止直接引用 `palette`**
 
-**Q-H8 令牌文件与生成链**：`src/ui/styles/tokens.json`（唯一真值）→ `theme.py` 加载并生成 QSS →
+**Q-H8 令牌文件与生成链**：`design/tokens.json`（唯一真值）→ `theme.py` 加载并生成 QSS →
 `design/DESIGN_TOKENS.md` 由脚本生成（**UI 规范总入口是 `design/INDEX.md`**）；组件经 `get_colors()` 取 `semantic` / `component` 名
-- 现状：`🔄` 2026-10-16：真值已移至 `src/ui/styles/tokens.json`（`theme.py` 加载）；`DESIGN_TOKENS.md` 待由脚本生成；`palette` 分层（`Q-H7`）尚未引入。
+- 现状：`✔` 2026-10-16：真值在 `design/tokens.json`（`theme.py` 加载）；`design/DESIGN_TOKENS.md` 由脚本生成并有同步测试；`palette` 分层（`Q-H7`）尚未引入。
 
 **Q-H9 弹窗（Dialog）结构与尺寸**
 - 三段式：**标题区**（`SIZE_BODY_L` 16px / 600，左对齐，与内容同缩进）→ **内容区** → **按钮区**（右对齐）

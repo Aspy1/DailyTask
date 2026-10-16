@@ -28,6 +28,7 @@ from src.ui.widgets.menu import (
     new_menu,
     show_below,
 )
+from src.ui.widgets.rounded_input import RoundedComboBox, RoundedLineEdit
 
 logger = logging.getLogger(__name__)
 
@@ -100,13 +101,13 @@ class ExpensePanel(QWidget):
         al.setContentsMargins(16, 4, 16, 4)
         al.setSpacing(8)
 
-        self._amount_input = QLineEdit()
+        self._amount_input = RoundedLineEdit()
         self._amount_input.setPlaceholderText("金额")
         self._amount_input.setFixedWidth(80)
         self._amount_input.setStyleSheet(self._input_qss())
         al.addWidget(self._amount_input)
 
-        self._cat_combo = QComboBox()
+        self._cat_combo = RoundedComboBox()
         self._cat_combo.setFixedWidth(100)
         self._cat_combo.setStyleSheet(self._combo_qss())
         cats = self._dm.expenses.categories
@@ -114,7 +115,7 @@ class ExpensePanel(QWidget):
             self._cat_combo.addItem(cat.get("name", cat["id"]), cat["id"])
         al.addWidget(self._cat_combo)
 
-        self._note_input = QLineEdit()
+        self._note_input = RoundedLineEdit()
         self._note_input.setPlaceholderText("备注（可选）")
         self._note_input.setStyleSheet(self._input_qss())
         al.addWidget(self._note_input)
@@ -142,12 +143,12 @@ class ExpensePanel(QWidget):
         sav_label.setFixedWidth(80)              # 让「省了多少」与上面「金额」左对齐
         sav_label.setStyleSheet(self._sub_label_qss())
         sl.addWidget(sav_label)
-        self._sav_amount = QLineEdit()
+        self._sav_amount = RoundedLineEdit()
         self._sav_amount.setPlaceholderText("省了多少")
         self._sav_amount.setFixedWidth(80)       # 与上面「金额」输入框同宽
         self._sav_amount.setStyleSheet(self._input_qss())
         sl.addWidget(self._sav_amount)
-        self._sav_note = QLineEdit()
+        self._sav_note = RoundedLineEdit()
         self._sav_note.setPlaceholderText("怎么省的（可选）")
         self._sav_note.setStyleSheet(self._input_qss())
         sl.addWidget(self._sav_note)

@@ -9,7 +9,6 @@ from PySide6.QtWidgets import (
     QFormLayout,
     QGroupBox,
     QLabel,
-    QLineEdit,
     QPushButton,
     QTextEdit,
     QVBoxLayout,
@@ -17,6 +16,7 @@ from PySide6.QtWidgets import (
 
 from src.services.api_service import ApiService
 from src.ui.styles.theme import FONT_CN, SIZE_BODY, SIZE_SUBTITLE, get_colors
+from src.ui.widgets.rounded_input import RoundedLineEdit
 
 
 class ApiTestDialog(QDialog):
@@ -86,12 +86,12 @@ class ApiTestDialog(QDialog):
         weather_layout = QFormLayout()
         weather_group.setLayout(weather_layout)
 
-        self._lat_input = QLineEdit()
+        self._lat_input = RoundedLineEdit()
         self._lat_input.setPlaceholderText("如: 31.23")
         self._lat_input.setText("31")
         weather_layout.addRow("纬度:", self._lat_input)
 
-        self._lon_input = QLineEdit()
+        self._lon_input = RoundedLineEdit()
         self._lon_input.setPlaceholderText("如: 121.47")
         self._lon_input.setText("121")
         weather_layout.addRow("经度:", self._lon_input)
@@ -107,7 +107,7 @@ class ApiTestDialog(QDialog):
         balance_layout = QFormLayout()
         balance_group.setLayout(balance_layout)
 
-        self._api_key_input = QLineEdit()
+        self._api_key_input = RoundedLineEdit()
         self._api_key_input.setPlaceholderText("sk-...")
         balance_layout.addRow("API Key:", self._api_key_input)
 

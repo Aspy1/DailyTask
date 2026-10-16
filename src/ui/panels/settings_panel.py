@@ -34,6 +34,7 @@ from src.ui.styles.theme import (
     input_qss,
 )
 from src.ui.widgets.api_test_dialog import ApiTestDialog
+from src.ui.widgets.rounded_input import RoundedComboBox, RoundedLineEdit
 from src.ui.widgets.toggle_switch import ToggleSwitch
 
 # 数据目录（本文件在 src/ui/panels/ 下，往上 3 层是仓库根）
@@ -163,7 +164,7 @@ class SettingsPanel(QWidget):
         layout.setSpacing(0)
 
         current = self._settings.get("AI", "provider", "deepseek")
-        self._provider_combo = QComboBox()
+        self._provider_combo = RoundedComboBox()
         self._provider_combo.setStyleSheet(self._combo_qss())
         for key, info in PROVIDERS.items():
             self._provider_combo.addItem(info["name"], key)
@@ -173,14 +174,14 @@ class SettingsPanel(QWidget):
         layout.addWidget(self._row("提供商", self._provider_combo))
         layout.addWidget(self._divider())
 
-        self._api_key_input = QLineEdit()
+        self._api_key_input = RoundedLineEdit()
         self._api_key_input.setEchoMode(QLineEdit.EchoMode.Password)
         self._api_key_input.setStyleSheet(self._input_qss())
         self._api_key_input.setText(self._settings.api_key)
         layout.addWidget(self._row("API Key", self._api_key_input))
         layout.addWidget(self._divider())
 
-        self._model_combo = QComboBox()
+        self._model_combo = RoundedComboBox()
         self._model_combo.setStyleSheet(self._combo_qss())
         self._model_combo.setEditable(True)
         self._model_combo.setMinimumWidth(200)
@@ -188,7 +189,7 @@ class SettingsPanel(QWidget):
         layout.addWidget(self._row("模型", self._model_combo))
         layout.addWidget(self._divider())
 
-        self._endpoint_input = QLineEdit()
+        self._endpoint_input = RoundedLineEdit()
         self._endpoint_input.setStyleSheet(self._input_qss())
         layout.addWidget(self._row("端点", self._endpoint_input))
         layout.addWidget(self._divider())
@@ -431,7 +432,7 @@ class SettingsPanel(QWidget):
         layout.setSpacing(0)
 
         # API Key
-        self._weather_api_key = QLineEdit()
+        self._weather_api_key = RoundedLineEdit()
         self._weather_api_key.setEchoMode(QLineEdit.EchoMode.Password)
         self._weather_api_key.setStyleSheet(self._input_qss())
         self._weather_api_key.setText(self._settings.weather_api_key)
@@ -440,7 +441,7 @@ class SettingsPanel(QWidget):
         layout.addWidget(self._divider())
 
         # API Host
-        self._weather_api_host = QLineEdit()
+        self._weather_api_host = RoundedLineEdit()
         self._weather_api_host.setStyleSheet(self._input_qss())
         self._weather_api_host.setText(self._settings.weather_api_host)
         self._weather_api_host.setPlaceholderText("如: qh3qqthvqx.re.qweatherapi.com")
@@ -448,14 +449,14 @@ class SettingsPanel(QWidget):
         layout.addWidget(self._divider())
 
         # 位置（经度/纬度）：原「场景存档」的位置并入此处
-        self._weather_lat = QLineEdit()
+        self._weather_lat = RoundedLineEdit()
         self._weather_lat.setStyleSheet(self._input_qss())
         self._weather_lat.setText(self._settings.weather_lat)
         self._weather_lat.setPlaceholderText("纬度，如 31.23")
         layout.addWidget(self._row("纬度", self._weather_lat))
         layout.addWidget(self._divider())
 
-        self._weather_lon = QLineEdit()
+        self._weather_lon = RoundedLineEdit()
         self._weather_lon.setStyleSheet(self._input_qss())
         self._weather_lon.setText(self._settings.weather_lon)
         self._weather_lon.setPlaceholderText("经度，如 121.47")

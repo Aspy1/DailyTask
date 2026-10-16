@@ -6,7 +6,6 @@ from PySide6.QtCore import QRect, QSize, Qt, Signal
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QCheckBox,
-    QComboBox,
     QDialog,
     QDialogButtonBox,
     QFormLayout,
@@ -30,6 +29,7 @@ from src.ui.widgets.menu import (
     new_menu,
     show_at_cursor,
 )
+from src.ui.widgets.rounded_input import RoundedComboBox, RoundedLineEdit
 
 CARD_MIN_WIDTH = 210
 CARD_HEIGHT = 135
@@ -487,7 +487,7 @@ class HabitDialog(QDialog):
         sched = habit.get("schedule", {}) if habit else {}
         sched_type = sched.get("type", "daily")
 
-        self._sched_type_combo = QComboBox()
+        self._sched_type_combo = RoundedComboBox()
         self._sched_type_combo.addItems(["每日", "每周几", "每月N次"])
         type_map = {"daily": 0, "weekly": 1, "monthly": 2, "interval": 0}
         self._sched_type_combo.setCurrentIndex(type_map.get(sched_type, 0))
@@ -512,7 +512,7 @@ class HabitDialog(QDialog):
         form.addRow("周期:", sched_row)
 
         # Duration
-        self._duration = QComboBox()
+        self._duration = RoundedComboBox()
         self._duration.setEditable(True)
         self._duration.setFixedWidth(80)
         self._duration.addItems(["15", "30", "45", "60", "90", "120", "180"])
@@ -524,7 +524,7 @@ class HabitDialog(QDialog):
         form.addRow("用时:", dur_layout)
 
         # Reminder
-        self._reminder_time = QLineEdit()
+        self._reminder_time = RoundedLineEdit()
         self._reminder_time.setPlaceholderText("如 22:30（可选）")
         self._reminder_time.setText(habit.get("reminder_time", "") if habit else "")
         form.addRow("提醒:", self._reminder_time)
@@ -589,7 +589,7 @@ class HabitDialog(QDialog):
         dl.setContentsMargins(0, 0, 0, 0)
         dl.setSpacing(4)
         dl.addWidget(QLabel("每天"))
-        self._times_per_day = QComboBox()
+        self._times_per_day = RoundedComboBox()
         self._times_per_day.setEditable(True)
         self._times_per_day.setFixedWidth(60)
         self._times_per_day.addItems(["1", "2", "3"])
@@ -625,7 +625,7 @@ class HabitDialog(QDialog):
         ml.setContentsMargins(0, 0, 0, 0)
         ml.setSpacing(4)
         ml.addWidget(QLabel("每月完成"))
-        self._monthly_times = QComboBox()
+        self._monthly_times = RoundedComboBox()
         self._monthly_times.setEditable(True)
         self._monthly_times.setFixedWidth(60)
         self._monthly_times.addItems(["1", "2", "3", "4", "5", "8", "10", "15", "20", "30"])
@@ -827,11 +827,11 @@ class _AttachedTaskDialog(QDialog):
         """)
         layout = QVBoxLayout(self)
         form = QFormLayout()
-        self._name = QLineEdit()
+        self._name = RoundedLineEdit()
         self._name.setPlaceholderText("如：收晾好的衣服")
         form.addRow("名称:", self._name)
 
-        self._delay = QComboBox()
+        self._delay = RoundedComboBox()
         self._delay.setEditable(True)
         self._delay.setFixedWidth(80)
         self._delay.setStyleSheet(num_qss)
@@ -843,7 +843,7 @@ class _AttachedTaskDialog(QDialog):
         delay_row.addStretch()
         form.addRow("延迟:", delay_row)
 
-        self._duration = QComboBox()
+        self._duration = RoundedComboBox()
         self._duration.setEditable(True)
         self._duration.setFixedWidth(80)
         self._duration.setStyleSheet(num_qss)

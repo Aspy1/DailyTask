@@ -241,7 +241,7 @@
 
 - ✅ **G-2a（2026-10-16）**：`scripts/check_ui_tokens.py` —— 四类检查
   （`COLOR` / `QSS-CLASS` / `QFONT` / `TOKEN-NAME`），支持行级豁免 `# token-check: ignore`；
-  默认只报告，`--strict` 供 CI。修掉了把 `tokens.json` 真值当违规、以及把 `QFont` 第 3 参（字重）误判为字号的 bug。
+  默认只报告，`--strict` 供 CI。修掉了把令牌真值当违规、以及把 `QFont` 第 3 参（字重）误判为字号的 bug。
 - ✅ **清理（2026-10-16）**：首轮 **50 处 → 0 处**。新增令牌 `fg_on_fill` / `code_bg` / `bg_hover`；
   `course_table` 8 个 `rgba` 改走 `course_color_*`；`_HabitCard`/`_ExamCard` 改 `#objectName`；
   硬编码字号改 `SIZE_*`。由 `tests/test_ui_tokens_clean.py` 守卫。
@@ -272,6 +272,7 @@
 - 产物目录 `dist/`；命名 `LifeAssistant-<version>-win64/`（版本与 `pyproject.toml` 单一来源）。
 - **包含**：入口、打包产物（`.pyc`/二进制）、`resources/`、`plugins/`、`README`。
 - **排除**：`data/`（密钥）、`.venv/`、`.git/`、`MD-files/`、`dev-logs/`、`tests/`、`PLAN.md`、`AGENTS.md`。
+- ⚠ **例外**：`design/tokens.json` 是**运行时**要读的，必须随发行版带上（`design/` 里其余是文档，可带可不带）。
 - 打包工具与 `C-1` 一致（PyInstaller/Nuitka）。
 
 ---
