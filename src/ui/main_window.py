@@ -169,15 +169,27 @@ class MainWindow(QMainWindow):
         app = QApplication.instance()
         if app is not None:
             app.setStyleSheet(switch_theme(mode))
-        try:
-            self._ai_panel.refresh_theme()
-        except Exception:
-            logger.debug("MainWindow._switch_theme 中忽略异常", exc_info=True)
-        try:
-            if hasattr(self, "_workspace") and hasattr(self._workspace, "refresh_theme"):
-                self._workspace.refresh_theme()
-        except Exception:
-            logger.debug("MainWindow._switch_theme 中忽略异常", exc_info=True)
+        self.refresh_theme()
+
+    def refresh_theme(self) -> None:
+        """切主题后重刷"颜色写死在样式表里"的自有部件。
+
+        面板们自己有 refresh_theme；但侧边栏、状态栏、分隔条、AI 面板是
+        MainWindow 自己建的，不重刷就会留着上一个主题的颜色。
+        """
+        c = get_colors()
+        for step, fn in (
+            ("sidebar", lambda: self._sidebar.refresh_theme()),
+            ("statusbar", lambda: self._statusbar.setStyleSheet(self._statusbar_qss(c))),
+            ("splitter", lambda: self._content_splitter.setStyleSheet(
+                f"QSplitter::handle {{ background-color: {c['border']}; }}")),
+            ("ai_panel", lambda: self._ai_panel.refresh_theme()),
+            ("workspace", lambda: self._workspace.refresh_theme()),
+        ):
+            try:
+                fn()
+            except Exception:
+                logger.debug("MainWindow.refresh_theme(%s) 中忽略异常", step, exc_info=True)
 
     def _show_about(self) -> None:
         from PySide6.QtWidgets import QDialog, QVBoxLayout
@@ -228,11 +240,9 @@ class MainWindow(QMainWindow):
 
     # ── Status bar ─────────────────────────────────────────────
 
-    def _setup_statusbar(self) -> None:
-        self._statusbar = QStatusBar()
-        self.setStatusBar(self._statusbar)
-        c = get_colors()
-        self._statusbar.setStyleSheet(f"""
+    @staticmethod
+    def _statusbar_qss(c: dict) -> str:
+        return f"""
             QStatusBar {{
                 background-color: {c['status_bar_bg']};
                 color: {c['fg_secondary']}; font-size: 12px;
@@ -240,7 +250,13 @@ class MainWindow(QMainWindow):
                 padding: 4px 16px;
             }}
             QLabel {{ color: {c['fg_secondary']}; font-size: 12px; border: none; background: transparent; }}
-        """)
+        """
+
+    def _setup_statusbar(self) -> None:
+        self._statusbar = QStatusBar()
+        self.setStatusBar(self._statusbar)
+        c = get_colors()
+        self._statusbar.setStyleSheet(self._statusbar_qss(c))
 
         self._course_info_label = QLabel()
         self._statusbar.addWidget(self._course_info_label)

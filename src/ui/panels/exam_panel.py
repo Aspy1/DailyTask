@@ -42,6 +42,7 @@ class _ExamCard(QWidget):
         bg, accent_color = self._make_urgency_colors(days_left, c)
 
         self.setObjectName("examCard")
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.setStyleSheet(f"""
             #examCard {{ background-color: {bg}; border-radius: 8px; }}
             #examCard:hover {{ background-color: {c['accent_bg']}; }}
@@ -144,6 +145,7 @@ class ExamPanel(QWidget):
         # Toolbar
         bar = QWidget()
         bar.setObjectName("taskBar")
+        bar.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         bl = QHBoxLayout(bar)
         bl.setContentsMargins(16, 8, 16, 8)
         bl.setSpacing(8)

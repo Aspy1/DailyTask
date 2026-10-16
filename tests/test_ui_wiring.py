@@ -69,6 +69,46 @@ def test_theme_menu_is_reachable_from_sidebar(tmp_path, qapp, monkeypatch) -> No
     assert "more" not in mw._workspace._panel_map, "more 不是面板，不该被 switch_to"
 
 
+def test_theme_switch_repaints_baked_styles(tmp_path, qapp, monkeypatch) -> None:
+    """回归：切主题后，"颜色写死在样式表里"的部件必须重刷。
+
+    两个真实缺陷（2026-10-16 视觉审查）：
+    1. 侧边栏 / 内容区 / 顶栏都是普通 QWidget，Qt 不绘制它们的 QSS 背景，
+       需要 WA_StyledBackground（否则侧边栏与内容区糊在一起、只有边框可见）；
+    2. ScheduleView 的 hash 增量把卡片跳过重建，深色模式下留着**白卡片**。
+    """
+    from PySide6.QtCore import Qt
+
+    from src.services.ai_service import AIService
+    from src.services.data_manager import DataManager
+    from src.services.settings_manager import SettingsManager
+    from src.ui.main_window import MainWindow
+    from src.ui.styles.theme import TOKENS, init_theme
+
+    dm = DataManager(tmp_path)
+    settings = SettingsManager(tmp_path / "settings.ini")
+    settings.load()
+    qapp.setStyleSheet(init_theme(qapp, "light"))
+    mw = MainWindow(settings, AIService(settings, dm), dm, None)
+    sv = mw._workspace._schedule_view
+    mw._workspace.switch_to("schedule")
+
+    light_sidebar_qss = mw._sidebar.styleSheet()
+    light_card_qss = sv._slot_cards[1].styleSheet()
+
+    assert mw._sidebar.testAttribute(Qt.WidgetAttribute.WA_StyledBackground)
+    assert mw._workspace.testAttribute(Qt.WidgetAttribute.WA_StyledBackground)
+
+    mw._switch_theme("dark")
+
+    dark = TOKENS["dark"]
+    assert dark["sidebar_bg"] in mw._sidebar.styleSheet()
+    assert mw._sidebar.styleSheet() != light_sidebar_qss
+    card = sv._slot_cards[1]
+    assert dark["card_bg"] in card.styleSheet() or dark["bg_card"] in card.styleSheet()
+    assert card.styleSheet() != light_card_qss, "切主题后时段卡片必须重建"
+
+
 @pytest.mark.parametrize("mode", ["light", "dark"])
 def test_switch_theme_updates_settings_and_qss(tmp_path, qapp, mode) -> None:
     from src.services.ai_service import AIService

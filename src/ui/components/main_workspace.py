@@ -40,6 +40,7 @@ class MainWorkspace(QWidget):
 
         c = get_colors()
         self.setObjectName("workspace")
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.setStyleSheet(
             f"#workspace {{ background-color: {c['bg_root']}; }}")
         layout = QVBoxLayout(self)
@@ -162,6 +163,10 @@ class MainWorkspace(QWidget):
                 panel._refresh()
 
     def refresh_theme(self) -> None:
+        # 自身底色也是构造时写死的，换主题必须重刷（否则内容区留着旧主题色）
+        c = get_colors()
+        self.setStyleSheet(
+            f"#workspace {{ background-color: {c['bg_root']}; }}")
         for attr in (
             "_course_panel", "_task_panel", "_schedule_view",
             "_habit_panel", "_expense_panel", "_inventory_panel",

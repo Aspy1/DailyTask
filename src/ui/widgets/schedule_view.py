@@ -46,6 +46,7 @@ class ScheduleView(QWidget):
         # Toolbar
         bar = QWidget()
         bar.setObjectName("taskBar")
+        bar.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         bl = QHBoxLayout(bar)
         bl.setContentsMargins(16, 8, 16, 8)
         bl.setSpacing(6)
@@ -627,8 +628,13 @@ class ScheduleView(QWidget):
         ddl_label.clicked.connect(lambda cn=course_name: self.task_focus_requested.emit(cn))
         return ddl_label
 
-    def _refresh(self) -> None:
-        """重建当日时段视图（hash 增量：内容未变的时段跳过）。"""
+    def _refresh(self, force: bool = False) -> None:
+        """重建当日时段视图（hash 增量：内容未变的时段跳过）。
+
+        `force=True` 用于**主题切换**：卡片颜色是创建时写死进各自样式表的，
+        内容没变也必须在换主题后重建，否则会留着上一个主题的颜色
+        （2026-10-16：深色模式下白卡片）。
+        """
         if not hasattr(self, '_slot_cards'):
             self._slot_cards = {}
             self._slot_hashes = {}
@@ -653,7 +659,7 @@ class ScheduleView(QWidget):
             is_current = (period == current_slot and self._day_offset == 0)
             new_hash = self._content_hash(items, ddls, is_current)
 
-            if period in self._slot_cards and self._slot_hashes.get(period) == new_hash:
+            if not force and period in self._slot_cards and self._slot_hashes.get(period) == new_hash:
                 continue  # 未变，跳过重建
 
             if period in self._slot_cards:
@@ -677,7 +683,7 @@ class ScheduleView(QWidget):
     def refresh_theme(self) -> None:
         """Re-render the schedule to pick up new theme colors."""
         try:
-            self._refresh()
+            self._refresh(force=True)
         except Exception:
             logger.debug("ScheduleView.refresh_theme 中忽略异常", exc_info=True)
 

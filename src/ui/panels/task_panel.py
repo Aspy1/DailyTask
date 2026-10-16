@@ -94,6 +94,7 @@ class TaskPanel(QWidget):
         # ── Toolbar ──────────────────────────────────────────
         bar = QWidget()
         bar.setObjectName("taskBar")
+        bar.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         bar_layout = QHBoxLayout(bar)
         bar_layout.setContentsMargins(16, 8, 16, 8)
         bar_layout.setSpacing(8)
@@ -160,6 +161,7 @@ class TaskPanel(QWidget):
         # ── Footer ───────────────────────────────────────────
         footer = QWidget()
         footer.setObjectName("taskFooter")
+        footer.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         fl = QHBoxLayout(footer)
         fl.setContentsMargins(16, 4, 16, 4)
 

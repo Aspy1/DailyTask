@@ -84,6 +84,7 @@ class InventoryPanel(QWidget):
         # === Toolbar ===
         bar = QWidget()
         bar.setObjectName("taskBar")
+        bar.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         bl = QHBoxLayout(bar)
         bl.setContentsMargins(16, 8, 16, 8)
         bl.setSpacing(6)
@@ -127,6 +128,7 @@ class InventoryPanel(QWidget):
         # === Footer with pagination ===
         footer = QWidget()
         footer.setObjectName("taskFooter")
+        footer.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         fl = QHBoxLayout(footer)
         fl.setContentsMargins(16, 4, 16, 4)
 

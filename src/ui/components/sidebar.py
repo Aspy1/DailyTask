@@ -17,10 +17,14 @@ class SectionHeader(QPushButton):
     """Clickable group header. No arrow — just bold text."""
 
     def __init__(self, text: str, parent=None) -> None:
-        c = get_colors()
         super().__init__(text, parent)
         self.setFlat(True)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.refresh_theme()
+
+    def refresh_theme(self) -> None:
+        """重新按当前主题上色（切主题时由 Sidebar 调用）。"""
+        c = get_colors()
         self.setStyleSheet(f"""
             QPushButton {{
                 background: transparent; border: none;
@@ -37,14 +41,20 @@ class NavItem(QPushButton):
     clicked_with_key = Signal(str)
 
     def __init__(self, key: str, text: str, indent: bool = True, parent=None) -> None:
-        c = get_colors()
         super().__init__(text, parent)
         self._key = key
+        self._indent = indent
         self.setCheckable(True)
         self.setFlat(True)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
-        pl = "36px" if indent else "16px"
-        fs = "13px" if indent else "12px"
+        self.clicked.connect(lambda: self.clicked_with_key.emit(self._key))
+        self.refresh_theme()
+
+    def refresh_theme(self) -> None:
+        """重新按当前主题上色（切主题时由 Sidebar 调用）。"""
+        c = get_colors()
+        pl = "36px" if self._indent else "16px"
+        fs = "13px" if self._indent else "12px"
         self.setStyleSheet(f"""
             QPushButton {{
                 background: transparent; border: none;
@@ -61,7 +71,6 @@ class NavItem(QPushButton):
                 font-weight: 600;
             }}
         """)
-        self.clicked.connect(lambda: self.clicked_with_key.emit(self._key))
 
     @property
     def nav_key(self) -> str:
@@ -118,6 +127,12 @@ class SidebarSection(QWidget):
     def nav_items(self) -> dict[str, NavItem]:
         return self._nav_items
 
+    def refresh_theme(self) -> None:
+        """切主题时重新给本分区的标题与条目上色。"""
+        self._header.refresh_theme()
+        for item in self._nav_items.values():
+            item.refresh_theme()
+
     @property
     def expanded(self) -> bool:
         return self._expanded
@@ -130,13 +145,10 @@ class Sidebar(QWidget):
     ai_toggled = Signal(bool)
 
     def __init__(self, parent=None) -> None:
-        c = get_colors()
         super().__init__(parent)
         self.setObjectName("sidebar")
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.setFixedWidth(184)
-        # Direct style — grey sidebar, no CSS ID dependency
-        self.setStyleSheet(
-            f"#sidebar {{ background-color: {c['sidebar_bg']}; }}")
 
         self._sections: dict[str, SidebarSection] = {}
         self._nav_items: dict[str, NavItem] = {}
@@ -147,13 +159,9 @@ class Sidebar(QWidget):
         layout.setContentsMargins(0, 20, 0, 0)
         layout.setSpacing(0)
 
-        title = QLabel("生活助手")
-        title.setFont(QFont(FONT_CN, SIZE_BODY_M, QFont.Weight.Bold))
-        title.setStyleSheet(f"""
-            color: {c['fg_primary']}; background: transparent;
-            padding: 0 16px 16px 16px;
-        """)
-        layout.addWidget(title)
+        self._title = QLabel("生活助手")
+        self._title.setFont(QFont(FONT_CN, SIZE_BODY_M, QFont.Weight.Bold))
+        layout.addWidget(self._title)
 
         func_section = SidebarSection("func", "功能", [
             ("schedule", "日程总览"), ("courses", "课程表"),
@@ -178,15 +186,10 @@ class Sidebar(QWidget):
         spacer.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         layout.addWidget(spacer)
 
-        bottom = QWidget()
-        bottom.setStyleSheet(f"""
-            QWidget {{
-                background: transparent;
-                border-top: 1px solid {c['border_strong']};
-                padding-top: 4px;
-            }}
-        """)
-        bl = QVBoxLayout(bottom)
+        self._bottom = QWidget()
+        self._bottom.setObjectName("sidebarBottom")
+        self._bottom.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        bl = QVBoxLayout(self._bottom)
         bl.setContentsMargins(0, 0, 0, 0)
         bl.setSpacing(0)
         for key, label in [("settings", "设置"), ("about", "关于"), ("more", "更多…")]:
@@ -194,21 +197,52 @@ class Sidebar(QWidget):
             btn.clicked_with_key.connect(self._on_nav_clicked)
             self._nav_items[key] = btn
             bl.addWidget(btn)
-        layout.addWidget(bottom)
+        layout.addWidget(self._bottom)
 
         self._ai_btn = QPushButton("AI 助手")
         self._ai_btn.setFlat(True)
         self._ai_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._ai_btn.setStyleSheet(f"""
+        self._ai_btn.clicked.connect(self._toggle_ai)
+        layout.addWidget(self._ai_btn)
+
+        self.refresh_theme()
+
+    def refresh_theme(self) -> None:
+        """按当前主题重上色（切主题时由 MainWindow 调用）。
+
+        侧边栏/导航条/底部条的颜色是构造时写进各自样式表的，换主题不重刷就会
+        留着上一个主题的颜色（2026-10-16 视觉审查）。
+        """
+        c = get_colors()
+        self.setStyleSheet(
+            f"#sidebar {{ background-color: {c['sidebar_bg']}; }}")
+        self._title.setStyleSheet(f"""
+            color: {c['fg_primary']}; background: transparent;
+            padding: 0 16px 16px 16px;
+        """)
+        self._bottom.setStyleSheet(f"""
+            QWidget {{
+                background: transparent;
+                border-top: 1px solid {c['border_strong']};
+                padding-top: 4px;
+            }}
+        """)
+        self._ai_btn.setStyleSheet(self._ai_btn_qss(c))
+        for sec in self._sections.values():
+            sec.refresh_theme()
+
+    def _ai_btn_qss(self, c: dict) -> str:
+        """AI 按钮样式（选中态用强调色文字，未选中用次要文字）。"""
+        color = c['accent_text'] if self._ai_on else c['fg_secondary']
+        weight = "font-weight: 600;" if self._ai_on else ""
+        return f"""
             QPushButton {{
                 background: transparent; border: none;
-                color: {c['fg_hint']}; font-size: 12px;
+                color: {color}; font-size: 12px; {weight}
                 text-align: left; padding: 8px 16px;
             }}
             QPushButton:hover {{ color: {c['accent_text']}; }}
-        """)
-        self._ai_btn.clicked.connect(self._toggle_ai)
-        layout.addWidget(self._ai_btn)
+        """
 
     def _on_nav_clicked(self, key: str) -> None:
         self.set_active(key)
@@ -231,22 +265,6 @@ class Sidebar(QWidget):
         self._sections[target_id].set_expanded(True)
 
     def _toggle_ai(self) -> None:
-        c = get_colors()
         self._ai_on = not self._ai_on
-        if self._ai_on:
-            self._ai_btn.setStyleSheet(f"""
-                QPushButton {{
-                    background: transparent; border: none;
-                    color: {c['accent_text']}; font-size: 12px; font-weight: 600;
-                    text-align: left; padding: 8px 16px;
-                }}
-            """)
-        else:
-            self._ai_btn.setStyleSheet(f"""
-                QPushButton {{
-                    background: transparent; border: none;
-                    color: {c['fg_hint']}; font-size: 12px;
-                    text-align: left; padding: 8px 16px;
-                }}
-            """)
+        self._ai_btn.setStyleSheet(self._ai_btn_qss(get_colors()))
         self.ai_toggled.emit(self._ai_on)

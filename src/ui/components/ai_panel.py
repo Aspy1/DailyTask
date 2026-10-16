@@ -86,6 +86,7 @@ class AIPanel(QWidget):
         super().__init__(parent)
         c = get_colors()
         self.setObjectName("aiPanel")
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.setMinimumWidth(260)
         self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
 
@@ -96,6 +97,7 @@ class AIPanel(QWidget):
         # Header
         header = QWidget()
         header.setObjectName("aiHeader")
+        header.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         header_layout = QHBoxLayout(header)
         header_layout.setContentsMargins(12, 12, 12, 8)
         title = QLabel(tr("ai.title"))
@@ -134,6 +136,7 @@ class AIPanel(QWidget):
         # Input area
         input_container = QWidget()
         input_container.setObjectName("aiInputContainer")
+        input_container.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         input_layout = QHBoxLayout(input_container)
         input_layout.setContentsMargins(8, 8, 8, 8)
         input_layout.setSpacing(8)

@@ -68,6 +68,7 @@ class _HabitCard(QWidget):
             desc_fg = c["fg_secondary"]
 
         self.setObjectName("habitCard")
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.setStyleSheet(f"""
             #habitCard {{
                 background-color: {bg};
@@ -284,6 +285,7 @@ class HabitPanel(QWidget):
         # Toolbar
         bar = QWidget()
         bar.setObjectName("taskBar")
+        bar.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         bar_layout = QHBoxLayout(bar)
         bar_layout.setContentsMargins(16, 8, 16, 8)
         title = QLabel("日常")

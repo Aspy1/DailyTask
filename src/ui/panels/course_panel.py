@@ -36,6 +36,7 @@ class CoursePanel(QWidget):
         # Toolbar
         bar = QWidget()
         bar.setObjectName("courseBar")
+        bar.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         bar_layout = QHBoxLayout(bar)
         bar_layout.setContentsMargins(16, 8, 16, 8)
 
@@ -78,6 +79,7 @@ class CoursePanel(QWidget):
         # Footer
         footer = QWidget()
         footer.setObjectName("courseFooter")
+        footer.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         fl = QHBoxLayout(footer)
         fl.setContentsMargins(16, 4, 16, 4)
         self._count_label = QLabel()
