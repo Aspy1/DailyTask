@@ -491,6 +491,8 @@ def write_baseline() -> None:
 
     scan = run_secrets_scan()
     if scan is not None:
+        # 丢掉 `generated_at`：否则每次刷新都会产生一行"假改动"，把 diff 弄脏
+        scan.pop("generated_at", None)
         SECRETS_BASELINE.write_text(
             json.dumps(scan, ensure_ascii=False, indent=2) + "\n",
             encoding="utf-8", newline="")
