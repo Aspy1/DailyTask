@@ -33,7 +33,7 @@ def test_menu_uses_tokens(qapp) -> None:
 
 
 @pytest.mark.skipif(
-    os.environ.get("CI") == "True",
+    os.environ.get("CI", "").lower() in ("true", "1", "yes"),
     reason="offscreen 平台下 QMenu.exec() 会起真正的模态循环，CI runner 上偶发 "
            "access violation（同一提交本地稳定通过）。本项由本地运行覆盖；"
            "菜单模板的其余守卫（QMenu 类型 / 令牌 / 去阴影 / 回调）在 CI 照常执行。",
