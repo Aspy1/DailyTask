@@ -21,7 +21,8 @@ DEFAULT_SETTINGS = {
         "api_key": "",
         "api_endpoint": "https://api.deepseek.com",
         "model": "deepseek-chat",
-        "max_tokens": "4096",
+        # 输出预算：这类模型先推理再输出，4096 容易被推理吃光（content 变空）
+        "max_tokens": "8192",
         "temperature": "0.3",
     },
     "Semester": {

@@ -175,6 +175,25 @@ def _looks_truncated(text: str) -> bool:
     return text.count("```") % 2 == 1
 
 
+def _continuation_nudge(text: str, truncated: bool) -> str | None:
+    """该不该要求模型"继续"？需要时返回提示语，正常回复返回 None。
+
+    - **空回复**（0 字符）：多半是推理把输出预算吃光（`finish_reason=length`）
+      → 明确要求它直接输出命令、别长篇思考；
+    - **被截断**（围栏没收尾）→ 要求分批继续。
+
+    非空的普通文本回复**不**续跑：那可能是它在向用户提问（"请提供课表"），
+    硬续跑只会把问题刷成 5 遍。
+    """
+    if not text.strip():
+        return ("[系统] 你上一轮没有输出任何内容。请**直接**输出 ```sh 命令块"
+                "（每轮最多 8 条），不要长篇思考，也不要只解释。")
+    if truncated:
+        return ("[系统] 你的回复被输出上限截断了。请**分批**继续："
+                "每轮最多 8 条命令，先执行完这批再继续下一批。")
+    return None
+
+
 def provider_headers(base_url: str) -> dict | None:
     """按端点补充请求头；不需要时返回 None。
 
@@ -211,7 +230,17 @@ class DeepSeekProvider:
             max_tokens=max_tokens,
             temperature=temperature,
         )
-        return response.choices[0].message.content or ""
+        choice = response.choices[0]
+        # 关键诊断：`finish_reason=length` + content 为空 = 推理把输出预算吃光了
+        # （2026-10-16 用户报"连续返回空内容"，没有这行日志就只能靠猜）
+        usage = getattr(response, "usage", None)
+        details = getattr(usage, "completion_tokens_details", None)
+        logger.info("模型返回: finish_reason=%s | 补全 %s（推理 %s）| 提示 %s",
+                    choice.finish_reason,
+                    getattr(usage, "completion_tokens", "?"),
+                    getattr(details, "reasoning_tokens", "?"),
+                    getattr(usage, "prompt_tokens", "?"))
+        return choice.message.content or ""
 
 
 # ── Worker ─────────────────────────────────────────────────────
@@ -231,18 +260,31 @@ class AIWorker(QObject):
         self._dm = dm
         self._settings = settings
 
+    def _max_tokens(self) -> int:
+        """输出预算：读设置 `AI.max_tokens`（默认 8192）。
+
+        不能太小：这类模型会先花几百到上千 token **推理**，预算不够时
+        `finish_reason=length` 而 content 为空（2026-10-16 用户报"连续返回空内容"）。
+        """
+        raw = self._settings.get("AI", "max_tokens", "8192") if self._settings else "8192"
+        try:
+            return max(512, min(int(raw), 32768))
+        except (TypeError, ValueError):
+            return 8192
+
     def run(self) -> None:
         try:
             msgs = list(self._messages)
             final_text = ""
             all_instructions = []  # collect across multi-turn agent loop
+            max_tokens = self._max_tokens()
             for turn in range(5):  # max 5 turns
                 started = time.monotonic()
                 text = self._provider.chat(
                     system_prompt=self._system_prompt,
                     messages=msgs,
                     model=self._model,
-                    max_tokens=4096,
+                    max_tokens=max_tokens,
                     temperature=0.3,
                 )
                 # 生命周期日志：用户会盯着日志等结果（"怎么没有 200 OK"），
@@ -253,13 +295,11 @@ class AIWorker(QObject):
                             len(InstructionParser.parse(text)))
                 instructions = InstructionParser.parse(text)
                 if not instructions:
-                    if truncated:
-                        # 回复被输出上限截断 → 让模型**继续**（分批），而不是原地结束
-                        logger.warning("AI 回复疑似被截断且没有可执行命令，要求分批继续")
+                    nudge = _continuation_nudge(text, truncated) if turn < 4 else None
+                    if nudge:
+                        logger.warning("AI 第 %d 轮没有可执行命令，要求继续", turn + 1)
                         msgs.append({"role": "assistant", "content": text})
-                        msgs.append({"role": "user", "content":
-                                     "[系统] 你的回复被输出上限截断了。请**分批**继续："
-                                     "每轮最多 8 条命令，先执行完这批再继续下一批。"})
+                        msgs.append({"role": "user", "content": nudge})
                         final_text = text
                         continue
                     # No tool calls — done

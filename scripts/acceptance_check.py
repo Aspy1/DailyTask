@@ -121,7 +121,11 @@ def main() -> int:
 
     section("1. 启动")
     app = App([])
-    check("App 构造成功（非第二实例）", app.is_secondary is False)
+    if not check("App 构造成功（非第二实例）", app.is_secondary is False,
+                 "应用正在运行 → 单实例锁生效"):
+        print("\n[中止] 检测到应用已在运行：验收需要独占单实例锁。")
+        print("       请先关闭应用（托盘 → 退出）再重跑本脚本。")
+        return 2
     check("主窗口已创建并显示", app._window is not None and app._window.isVisible())
     check("主题已应用（QSS 非空）", len(app.styleSheet()) > 500, f"{len(app.styleSheet())} 字符")
     dm = app._data_manager
