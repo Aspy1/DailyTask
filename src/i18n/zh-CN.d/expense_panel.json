@@ -1,0 +1,33 @@
+{
+  "panel.expense.title": "记账",
+
+  "panel.expense.btn_refresh": "刷新",
+  "panel.expense.btn_add": "添加",
+  "panel.expense.btn_record_saving": "记一笔",
+
+  "panel.expense.filter_category": "按分类筛选 ▼",
+  "panel.expense.filter_time": "时间筛选 ▼",
+  "panel.expense.filter_all_categories": "全部分类",
+  "panel.expense.filter_all_time": "全部时间",
+  "panel.expense.filter_category_active": "分类: {cat} ▼",
+  "panel.expense.filter_time_active": "时间: 已筛选 ▼",
+  "panel.expense.preset_today": "今天",
+  "panel.expense.preset_week": "本周",
+  "panel.expense.preset_month": "本月",
+
+  "panel.expense.sum_month": "本月支出",
+  "panel.expense.sum_today": "今日支出",
+  "panel.expense.sum_budget": "预算剩余",
+  "panel.expense.sum_saved": "今省",
+
+  "panel.expense.label_saving": "存钱",
+  "panel.expense.placeholder_note": "备注（可选）",
+  "panel.expense.placeholder_saving_amount": "省了多少",
+  "panel.expense.placeholder_saving_note": "怎么省的（可选）",
+
+  "panel.expense.col_date": "日期",
+  "panel.expense.footer_summary": "{n} 条记录{cat}{date}  合计 ¥{total}",
+
+  "panel.expense.error_title": "错误",
+  "panel.expense.msg_invalid_amount": "请输入有效金额。"
+}

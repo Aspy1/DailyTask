@@ -144,7 +144,7 @@ def test_static_labels_follow_theme(tmp_path, qapp) -> None:
     mw = MainWindow(settings, AIService(settings, dm), dm, None)
 
     expense = mw._workspace._expense_panel
-    amount = expense._find_sum_label("\u672c\u6708\u652f\u51fa")
+    amount = expense._find_sum_label("month")
     dark_qss = amount.styleSheet()
     assert TOKENS["dark"]["fg_primary"] in dark_qss
 

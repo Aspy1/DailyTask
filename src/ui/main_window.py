@@ -143,8 +143,9 @@ class MainWindow(QMainWindow):
         current_theme = self._settings.get("General", "theme", "dark")
 
         theme_menu = new_menu(menu)
-        theme_menu.setTitle("切换主题")
-        for mode, label in [("dark", "深色"), ("light", "浅色")]:
+        theme_menu.setTitle(tr("menu.view.toggle_theme"))
+        for mode, label in [("dark", tr("window.theme.dark")),
+                            ("light", tr("window.theme.light"))]:
             prefix = "● " if mode == current_theme else "    "
             action = theme_menu.addAction(f"{prefix}{label}")
             action.triggered.connect(lambda checked, m=mode: self._switch_theme(m))
@@ -191,7 +192,7 @@ class MainWindow(QMainWindow):
         from PySide6.QtWidgets import QDialog, QVBoxLayout
         c = get_colors()
         dlg = QDialog(self)
-        dlg.setWindowTitle("关于")
+        dlg.setWindowTitle(tr("menu.help.about"))
         dlg.setFixedSize(360, 240)
         dlg.setStyleSheet(f"""
             QDialog {{
@@ -216,7 +217,7 @@ class MainWindow(QMainWindow):
 
         layout.addSpacing(12)
 
-        desc = QLabel("AI 驱动的学生时间管理与生活助手")
+        desc = QLabel(tr("window.about.description"))
         desc.setStyleSheet(
             f"font-size: 13px; color: {c['fg_secondary']};")
         desc.setWordWrap(True)
@@ -227,7 +228,7 @@ class MainWindow(QMainWindow):
         link = QLabel(
             '<a href="https://github.com/Aspy1/DailyTask" '
             f'style="color: {c['accent_text']};text-decoration:none;">'
-            'GitHub 仓库</a>')
+            f'{tr("window.about.github_link")}</a>')
         link.setOpenExternalLinks(True)
         link.setStyleSheet("font-size: 12px;")
         layout.addWidget(link)
@@ -302,7 +303,7 @@ class MainWindow(QMainWindow):
         self._weather_label.setCursor(Qt.CursorShape.PointingHandCursor)
         self._weather_label.setStyleSheet(f"color: {c['fg_secondary']}; font-size: 12px;")
         self._weather_label.clicked.connect(self._on_weather_click)
-        self._weather_label.setText("天气: --")
+        self._weather_label.setText(tr("window.status.weather_placeholder"))
         self._statusbar.addPermanentWidget(self._weather_label)
 
         sep_weather = QLabel("|")
@@ -339,37 +340,38 @@ class MainWindow(QMainWindow):
         """Handle AI text response. Route arrange results through arrange_pending check."""
         if getattr(self, '_arrange_pending', False):
             self._arrange_pending = False
-            self._course_info_label.setText("日程调整完成")
-            self._workspace._schedule_view.on_arrange_done(True, "AI 已响应")
+            self._course_info_label.setText(tr("window.arrange.done"))
+            self._workspace._schedule_view.on_arrange_done(True, "")
         self._ai_panel.append_message_ai(text)
 
     def _on_quick_arrange(self, prompt: str) -> None:
         """Handle schedule quick-arrange: send to AI, execute instructions, notify view."""
         sv = self._workspace._schedule_view
-        self._course_info_label.setText("AI 正在整理日程...")
+        self._course_info_label.setText(tr("window.arrange.progress"))
         self._arrange_pending = True
         try:
             self._ai_service.send_message(prompt)
         except Exception as e:
             self._arrange_pending = False
-            self._course_info_label.setText(f"安排失败: {e}")
+            self._course_info_label.setText(tr("window.arrange.failed", err=e))
             sv.on_arrange_done(False, str(e))
 
     def _on_ai_error(self, error_msg: str) -> None:
         if getattr(self, '_arrange_pending', False):
             self._arrange_pending = False
-            self._course_info_label.setText(f"安排失败: {error_msg}")
+            self._course_info_label.setText(
+                tr("window.arrange.failed", err=error_msg))
             self._workspace._schedule_view.on_arrange_done(False, error_msg)
             return
-        self._ai_panel.append_message("ai", f"错误: {error_msg}")
+        self._ai_panel.append_message("ai", tr("window.ai.error", err=error_msg))
         self._ai_panel._on_response_done()
 
     def _on_instructions_done(self, text: str, instructions: list) -> None:
         if getattr(self, '_arrange_pending', False):
             self._arrange_pending = False
-            self._course_info_label.setText(f"日程调整完成，{len(instructions)} 条指令")
-            self._workspace._schedule_view.on_arrange_done(True,
-                f"已安排 {len(instructions)} 条指令")
+            self._course_info_label.setText(
+                tr("window.arrange.done_count", n=len(instructions)))
+            self._workspace._schedule_view.on_arrange_done(True, "")
             return
         self._ai_panel.append_message("ai", text)
         self._ai_panel._on_response_done()
@@ -390,7 +392,8 @@ class MainWindow(QMainWindow):
         if data:
             temp = data.get("temp", "?")
             text = data.get("text", "?")
-            self._weather_label.setText(f"天气: {temp}°C {text}")
+            self._weather_label.setText(
+                tr("window.status.weather", temp=temp, text=text))
 
     def _on_weather_click(self) -> None:
         """点击天气标签，显示详细天气"""
@@ -408,10 +411,12 @@ class MainWindow(QMainWindow):
                 delta = (now.date() - start).days
                 week = max(1, delta // 7 + 1) if delta >= 0 else 1
                 total = semester.get("total_weeks", "?")
-                week_str = f"第{week}/{total}周 "
+                week_str = tr("window.status.week", week=week, total=total)
             except (KeyError, ValueError):
                 logger.debug("MainWindow._update_date 中忽略异常", exc_info=True)
-        day_names = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
+        day_names = [tr(k) for k in ("day.monday", "day.tuesday", "day.wednesday",
+                                     "day.thursday", "day.friday", "day.saturday",
+                                     "day.sunday")]
         self._date_label.setText(
             f"{week_str}{day_names[now.weekday()]} {now.strftime('%H:%M')}  |  {date.today().isoformat()}")
 
@@ -465,11 +470,12 @@ class MainWindow(QMainWindow):
                     upcoming = (start_t, course)
                     break
         if upcoming is None:
-            return f"共{total}节课，已上{finished}节，今日课已上完  ▸"
+            return tr("window.status.course_all_done", total=total,
+                      finished=finished)
         start_t, course = upcoming
         name = course.get("name", "")
-        return (f"共{total}节课，已上{finished}节，下一节: {name} "
-                f"{start_t.strftime('%H:%M')}  ▸")
+        return tr("window.status.course_next", total=total, finished=finished,
+                  name=name, start=start_t.strftime('%H:%M'))
 
     def _update_tomorrow_preview(self) -> None:
         c = get_colors()
@@ -479,19 +485,20 @@ class MainWindow(QMainWindow):
 
         tomorrow = schedule_date() + timedelta(days=1)
         courses = self._data_manager.courses.get_courses_for_date(tomorrow)
-        day_name = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"][
-            tomorrow.weekday()]
+        day_name = [tr(k) for k in ("day.monday", "day.tuesday", "day.wednesday",
+                                    "day.thursday", "day.friday", "day.saturday",
+                                    "day.sunday")][tomorrow.weekday()]
 
         # DDL
         threshold = (tomorrow + timedelta(days=2)).isoformat()
         pending = self._data_manager.tasks.pending
         urgent = [t for t in pending
                   if t.get("due_date", "") and t["due_date"] < threshold]
-        ddl_text = f"  |  {len(urgent)}项DDL" if urgent else ""
+        ddl_text = tr("window.status.ddl_count", n=len(urgent)) if urgent else ""
 
         if not courses:
             self._course_info_label.setText(
-                f"⏎ 明日({day_name}): 无课  |  不用早起{ddl_text}  ▸")
+                tr("window.status.tomorrow_no_course", day=day_name, ddl=ddl_text))
             return
 
         first = courses[0]
@@ -503,14 +510,18 @@ class MainWindow(QMainWindow):
         wake_dt = dt.combine(schedule_date(), start_t) - timedelta(minutes=30)
         wake_time = wake_dt.strftime("%H:%M")
 
-        prefix = f"⏎ 明日({day_name}): {len(courses)}节课  |  "
+        prefix = tr("window.status.tomorrow_prefix", day=day_name,
+                    n=len(courses))
         if is_early:
             text = (
-                f'{prefix}<span style="color:{c['red']};">需要早起</span>'
-                f"  最早{first_start}  建议{wake_time}起床{ddl_text}  ▸"
+                f'{prefix}<span style="color:{c['red']};">'
+                f'{tr("window.status.need_early")}</span>'
+                + tr("window.status.tomorrow_early", first=first_start,
+                     wake=wake_time, ddl=ddl_text)
             )
         else:
-            text = f"{prefix}不用早起  最早{first_start}{ddl_text}  ▸"
+            text = prefix + tr("window.status.tomorrow_normal",
+                               first=first_start, ddl=ddl_text)
 
         self._course_info_label.setText(text)
 
@@ -531,10 +542,11 @@ class MainWindow(QMainWindow):
         total = len(today_habits)
         c3 = get_colors()
         if total > 0:
-            self._habit_count_label.setText(f"日常{done}/{total}")
+            self._habit_count_label.setText(
+                tr("window.status.habit_count", done=done, total=total))
             self._habit_count_label.setStyleSheet(f"color: {c3['green'] if done == total else c3['fg_secondary']}; font-size: 12px; padding: 0 3px;")
         else:
-            self._habit_count_label.setText("今日无事")
+            self._habit_count_label.setText(tr("window.status.habit_none"))
             self._habit_count_label.setStyleSheet(f"color: {c3['fg_hint']}; font-size: 12px; padding: 0 3px;")
 
     def _update_exam_alert(self) -> None:
@@ -557,7 +569,7 @@ class MainWindow(QMainWindow):
             color = c["orange"]
         else:
             color = c["fg_secondary"]
-        self._exam_alert_label.setText(f"备考{count}科")
+        self._exam_alert_label.setText(tr("window.status.exam_count", n=count))
         self._exam_alert_label.setStyleSheet(
             f"color: {color}; font-size: 12px; font-weight: 600; padding: 0 3px;")
         self._exam_alert_label.show()
@@ -571,13 +583,13 @@ class MainWindow(QMainWindow):
     def set_ddl_alert(self, count: int) -> None:
         c = get_colors()
         if count > 0:
-            self._ddl_alert_label.setText(f"DDL {count}")
+            self._ddl_alert_label.setText(tr("window.status.ddl_alert", n=count))
             self._ddl_alert_label.setStyleSheet(
                 f"color: {c['red']}; font-size: 12px; font-weight: 600;"
                 f"padding: 0 3px;")
             self._ddl_alert_label.setCursor(Qt.CursorShape.PointingHandCursor)
         else:
-            self._ddl_alert_label.setText("暂无DDL")
+            self._ddl_alert_label.setText(tr("window.status.ddl_none"))
             self._ddl_alert_label.setStyleSheet(
                 f"color: {c['fg_hint']}; font-size: 12px;"
                 f"padding: 0 3px;")
@@ -597,7 +609,7 @@ class WeatherDetailDialog(QDialog):
         self._ws = weather_service
         c = get_colors()
 
-        self.setWindowTitle("天气详情")
+        self.setWindowTitle(tr("window.weather.title"))
         self.setMinimumWidth(360)
         self.setStyleSheet(f"""
             QDialog {{ background-color: {c['bg_card']}; }}
@@ -610,7 +622,7 @@ class WeatherDetailDialog(QDialog):
 
         # 标题栏
         title_row = QHBoxLayout()
-        self._title = QLabel("天气详情")
+        self._title = QLabel(tr("window.weather.title"))
         self._title.setStyleSheet(
             f"font-size: 20px; font-weight: 700; color: {c['fg_primary']};")
         title_row.addWidget(self._title)
@@ -622,7 +634,7 @@ class WeatherDetailDialog(QDialog):
         title_row.addWidget(self._update_time_label)
         title_row.addStretch()
 
-        self._refresh_btn = RoundedButton("刷新")
+        self._refresh_btn = RoundedButton(tr("window.weather.refresh"))
         self._refresh_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._refresh_btn.setStyleSheet(f"""
             QPushButton {{
@@ -702,7 +714,7 @@ class WeatherDetailDialog(QDialog):
         self._layout.insertWidget(1, self._now_card)
 
         # 预报标题
-        self._forecast_title = QLabel("未来3天预报")
+        self._forecast_title = QLabel(tr("window.weather.forecast_title"))
         self._forecast_title.setStyleSheet(
             f"font-size: 15px; font-weight: 600; color: {c['fg_primary']};")
         self._layout.insertWidget(2, self._forecast_title)
@@ -745,13 +757,15 @@ class WeatherDetailDialog(QDialog):
         # 更新最后更新时间
         now_cache_time = self._ws._now_cache_time
         if now_cache_time:
-            self._update_time_label.setText(f"最后更新: {now_cache_time.strftime('%H:%M')}")
+            self._update_time_label.setText(
+                tr("window.weather.updated_at",
+                   time=now_cache_time.strftime('%H:%M')))
         else:
             self._update_time_label.setText("")
 
         # 恢复刷新按钮状态
         self._refresh_btn.setEnabled(True)
-        self._refresh_btn.setText("刷新")
+        self._refresh_btn.setText(tr("window.weather.refresh"))
 
         # 更新实时天气
         self._update_now_section()
@@ -772,12 +786,15 @@ class WeatherDetailDialog(QDialog):
             self._temp_label.setText(f"{now.get('temp', '?')}°C")
         if self._info_label:
             self._info_label.setText(
-                f"{now.get('text', '?')}  ·  体感 {now.get('feelsLike', '?')}°C")
+                tr("window.weather.feels_like", text=now.get('text', '?'),
+                   feels=now.get('feelsLike', '?')))
         if self._hum_label:
-            self._hum_label.setText(f"湿度 {now.get('humidity', '?')}%")
+            self._hum_label.setText(
+                tr("window.weather.humidity", value=now.get('humidity', '?')))
         if self._wind_label:
             self._wind_label.setText(
-                f"{now.get('windDir', '?')} {now.get('windScale', '?')}级")
+                tr("window.weather.wind", direction=now.get('windDir', '?'),
+                   scale=now.get('windScale', '?')))
 
     def _update_forecast_section(self) -> None:
         """更新未来三天预报行。"""
@@ -795,7 +812,7 @@ class WeatherDetailDialog(QDialog):
         row["text"].setText(day.get('textDay', '?'))
         precip = day.get('precip', '0')
         if precip and float(precip) > 0:
-            row["rain"].setText(f"雨量{precip}mm")
+            row["rain"].setText(tr("window.weather.precip", value=precip))
             row["rain"].show()
         else:
             row["rain"].hide()

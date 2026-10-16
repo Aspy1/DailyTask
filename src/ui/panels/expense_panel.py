@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from src.i18n.loader import tr
 from src.services.data_manager import DataManager
 from src.ui.styles.theme import FONT_CN, RADIUS, SIZE_BODY_S, SIZE_SUBTITLE, combo_qss, get_colors, input_qss
 from src.ui.widgets.menu import (
@@ -55,13 +56,17 @@ class ExpensePanel(QWidget):
         bar_layout.setContentsMargins(16, 8, 16, 8)
         bar_layout.setSpacing(8)
 
-        title = QLabel("记账")
+        title = QLabel(tr("panel.expense.title"))
         title.setFont(QFont(FONT_CN, SIZE_SUBTITLE))
         title.setStyleSheet("font-weight: 600; border: none;")
         bar_layout.addWidget(title)
         bar_layout.addStretch()
 
-        for text, slot in [("按分类筛选 ▼", self._show_cat_filter), ("时间筛选 ▼", self._show_time_filter)]:
+        filter_buttons = [
+            (tr("panel.expense.filter_category"), self._show_cat_filter),
+            (tr("panel.expense.filter_time"), self._show_time_filter),
+        ]
+        for text, slot in filter_buttons:
             btn = RoundedButton(text)
             btn.setStyleSheet(self._btn_qss())
             btn.clicked.connect(slot)
@@ -71,7 +76,7 @@ class ExpensePanel(QWidget):
             else:
                 self._time_btn = btn
 
-        refresh_btn = RoundedButton("刷新")
+        refresh_btn = RoundedButton(tr("panel.expense.btn_refresh"))
         refresh_btn.setStyleSheet(self._btn_qss())
         refresh_btn.clicked.connect(self._refresh)
         bar_layout.addWidget(refresh_btn)
@@ -83,10 +88,10 @@ class ExpensePanel(QWidget):
         cl = QHBoxLayout(cards)
         cl.setContentsMargins(16, 12, 16, 8)
         cl.setSpacing(12)
-        self._sum_month = self._summary_card("本月支出")
-        self._sum_today = self._summary_card("今日支出")
-        self._sum_budget = self._summary_card("预算剩余")
-        self._sum_saved = self._summary_card("今省")
+        self._sum_month = self._summary_card("month", tr("panel.expense.sum_month"))
+        self._sum_today = self._summary_card("today", tr("panel.expense.sum_today"))
+        self._sum_budget = self._summary_card("budget", tr("panel.expense.sum_budget"))
+        self._sum_saved = self._summary_card("saved", tr("panel.expense.sum_saved"))
         cl.addWidget(self._sum_month)
         cl.addWidget(self._sum_today)
         cl.addWidget(self._sum_budget)
@@ -103,7 +108,7 @@ class ExpensePanel(QWidget):
         al.setSpacing(8)
 
         self._amount_input = RoundedLineEdit()
-        self._amount_input.setPlaceholderText("金额")
+        self._amount_input.setPlaceholderText(tr("expense.amount"))
         self._amount_input.setFixedWidth(80)
         self._amount_input.setStyleSheet(self._input_qss())
         al.addWidget(self._amount_input)
@@ -117,11 +122,11 @@ class ExpensePanel(QWidget):
         al.addWidget(self._cat_combo)
 
         self._note_input = RoundedLineEdit()
-        self._note_input.setPlaceholderText("备注（可选）")
+        self._note_input.setPlaceholderText(tr("panel.expense.placeholder_note"))
         self._note_input.setStyleSheet(self._input_qss())
         al.addWidget(self._note_input)
 
-        add_btn = RoundedButton("添加")
+        add_btn = RoundedButton(tr("panel.expense.btn_add"))
         add_btn.setFixedWidth(56)
         c = get_colors()
         add_btn.setStyleSheet(f"""
@@ -140,20 +145,20 @@ class ExpensePanel(QWidget):
         sl = QHBoxLayout(sav_row)
         sl.setContentsMargins(16, 4, 16, 4)
         sl.setSpacing(8)
-        sav_label = QLabel("存钱")
+        sav_label = QLabel(tr("panel.expense.label_saving"))
         sav_label.setFixedWidth(80)              # 让「省了多少」与上面「金额」左对齐
         sav_label.setStyleSheet(self._sub_label_qss())
         sl.addWidget(sav_label)
         self._sav_amount = RoundedLineEdit()
-        self._sav_amount.setPlaceholderText("省了多少")
+        self._sav_amount.setPlaceholderText(tr("panel.expense.placeholder_saving_amount"))
         self._sav_amount.setFixedWidth(80)       # 与上面「金额」输入框同宽
         self._sav_amount.setStyleSheet(self._input_qss())
         sl.addWidget(self._sav_amount)
         self._sav_note = RoundedLineEdit()
-        self._sav_note.setPlaceholderText("怎么省的（可选）")
+        self._sav_note.setPlaceholderText(tr("panel.expense.placeholder_saving_note"))
         self._sav_note.setStyleSheet(self._input_qss())
         sl.addWidget(self._sav_note)
-        sav_btn = RoundedButton("记一笔")
+        sav_btn = RoundedButton(tr("panel.expense.btn_record_saving"))
         sav_btn.setFixedWidth(70)
         sav_btn.setStyleSheet(f"""
             QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
@@ -169,7 +174,12 @@ class ExpensePanel(QWidget):
         # ── Table ────────────────────────────────────────────
         self._table = QTableWidget(0, 4)
         self._table.setObjectName("taskTable")
-        self._table.setHorizontalHeaderLabels(["日期", "分类", "金额", "备注"])
+        self._table.setHorizontalHeaderLabels([
+            tr("panel.expense.col_date"),
+            tr("expense.category"),
+            tr("expense.amount"),
+            tr("expense.note"),
+        ])
         self._table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive)
         self._table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Interactive)
         self._table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Interactive)
@@ -243,7 +253,7 @@ class ExpensePanel(QWidget):
         return (f"background-color: {get_colors()['card_bg']};"
                 f" border-radius: {RADIUS['radius_md']}px;")
 
-    def _summary_card(self, label: str) -> QWidget:
+    def _summary_card(self, key: str, label: str) -> QWidget:
         c = get_colors()
         w = QWidget()
         w.setStyleSheet(self._card_qss())
@@ -256,7 +266,7 @@ class ExpensePanel(QWidget):
         amount = QLabel("¥0")
         amount.setStyleSheet(f"color: {c['fg_primary']}; font-size: 16px; font-weight: 600; border: none;")
         amount.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        amount.setObjectName(f"sum_{label}")
+        amount.setObjectName(f"sum_{key}")
         lay.addWidget(amount)
         return w
 
@@ -316,17 +326,18 @@ class ExpensePanel(QWidget):
         remaining = budget - month_total
         today_saved = self._dm.daily_logs.today_savings_total()
 
-        self._find_sum_label("本月支出").setText(f"¥{month_total:.0f}")
-        self._find_sum_label("今日支出").setText(f"¥{today_total:.0f}")
-        self._find_sum_label("预算剩余").setText(f"¥{remaining:.0f}")
-        self._find_sum_label("今省").setText(f"¥{today_saved:.0f}")
+        self._find_sum_label("month").setText(f"¥{month_total:.0f}")
+        self._find_sum_label("today").setText(f"¥{today_total:.0f}")
+        self._find_sum_label("budget").setText(f"¥{remaining:.0f}")
+        self._find_sum_label("saved").setText(f"¥{today_saved:.0f}")
 
         # Footer: filtered total
         cat_info = f" ({self._filter_category})" if self._filter_category else ""
         date_info = ""
         if self._filter_start or self._filter_end:
             date_info = f" {self._filter_start or '...'} ~ {self._filter_end or '...'}"
-        self._total_label.setText(f"{len(records)} 条记录{cat_info}{date_info}  合计 ¥{total:.2f}")
+        self._total_label.setText(tr("panel.expense.footer_summary", n=len(records), cat=cat_info,
+                                     date=date_info, total=f"{total:.2f}"))
 
     def _add_expense(self) -> None:
         text = self._amount_input.text().strip()
@@ -335,7 +346,7 @@ class ExpensePanel(QWidget):
         try:
             amount = float(text)
         except ValueError:
-            QMessageBox.warning(self, "错误", "请输入有效金额。")
+            QMessageBox.warning(self, tr("panel.expense.error_title"), tr("panel.expense.msg_invalid_amount"))
             return
         category = self._cat_combo.currentData()
         note = self._note_input.text().strip()
@@ -353,7 +364,7 @@ class ExpensePanel(QWidget):
         try:
             amount = float(text)
         except ValueError:
-            QMessageBox.warning(self, "错误", "请输入有效金额。")
+            QMessageBox.warning(self, tr("panel.expense.error_title"), tr("panel.expense.msg_invalid_amount"))
             return
         note = self._sav_note.text().strip()
         self._dm.daily_logs.add_saving(amount, note)
@@ -365,7 +376,8 @@ class ExpensePanel(QWidget):
 
     def _show_cat_filter(self) -> None:
         menu = new_menu(self)
-        add_action(menu, "全部分类", lambda checked=False: self._apply_cat_filter(""))
+        add_action(menu, tr("panel.expense.filter_all_categories"),
+                   lambda checked=False: self._apply_cat_filter(""))
         add_separator(menu)
         for cat in self._dm.expenses.categories:
             add_action(menu, cat["name"],
@@ -375,16 +387,21 @@ class ExpensePanel(QWidget):
     def _apply_cat_filter(self, cat_id: str) -> None:
         self._filter_category = cat_id
         if cat_id:
-            self._cat_btn.setText(f"分类: {cat_id} ▼")
+            self._cat_btn.setText(tr("panel.expense.filter_category_active", cat=cat_id))
         else:
-            self._cat_btn.setText("按分类筛选 ▼")
+            self._cat_btn.setText(tr("panel.expense.filter_category"))
         self._refresh()
 
     def _show_time_filter(self) -> None:
         menu = new_menu(self)
-        add_action(menu, "全部时间", lambda checked=False: self._apply_time_filter("", ""))
+        add_action(menu, tr("panel.expense.filter_all_time"), lambda checked=False: self._apply_time_filter("", ""))
         add_separator(menu)
-        for label, start, end in [("今天", "today", "today"), ("本周", "week", "week"), ("本月", "month", "month")]:
+        presets = [
+            (tr("panel.expense.preset_today"), "today", "today"),
+            (tr("panel.expense.preset_week"), "week", "week"),
+            (tr("panel.expense.preset_month"), "month", "month"),
+        ]
+        for label, start, end in presets:
             add_action(menu, label,
                        lambda checked=False, s=start, e=end: self._apply_time_preset(s, e))
         show_below(menu, self._time_btn)
@@ -400,16 +417,16 @@ class ExpensePanel(QWidget):
         elif start == "month":
             self._filter_start = today.replace(day=1).isoformat()
             self._filter_end = today.isoformat()
-        self._time_btn.setText("时间: 已筛选 ▼")
+        self._time_btn.setText(tr("panel.expense.filter_time_active"))
         self._refresh()
 
     def _apply_time_filter(self, start: str, end: str) -> None:
         self._filter_start = start
         self._filter_end = end
         if start or end:
-            self._time_btn.setText("时间: 已筛选 ▼")
+            self._time_btn.setText(tr("panel.expense.filter_time_active"))
         else:
-            self._time_btn.setText("时间筛选 ▼")
+            self._time_btn.setText(tr("panel.expense.filter_time"))
         self._refresh()
 
     def _restyle_chrome(self) -> None:
@@ -427,7 +444,7 @@ class ExpensePanel(QWidget):
         for btn in self.findChildren(QPushButton):
             try:
                 txt = (btn.text() or "").strip()
-                if txt in ("添加", "记一笔", "保存") or txt == "+":
+                if txt in (tr("panel.expense.btn_add"), tr("panel.expense.btn_record_saving")) or txt == "+":
                     btn.setStyleSheet(f"QPushButton {{ background-color: {c['accent']}; color: {c['fg_on_fill']}; border: none; border-radius: 8px; padding:5px 12px; font-weight:600; }}")
                 else:
                     btn.setStyleSheet(btn_qss)

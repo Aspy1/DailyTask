@@ -1,0 +1,32 @@
+{
+  "dialog.api_test.title": "API 测试窗口",
+  "dialog.api_test.heading": "外部 API 测试",
+
+  "dialog.api_test.group_weather": "天气预报 API (Open-Meteo)",
+  "dialog.api_test.label_lat": "纬度:",
+  "dialog.api_test.placeholder_lat": "如: 31.23",
+  "dialog.api_test.label_lon": "经度:",
+  "dialog.api_test.placeholder_lon": "如: 121.47",
+  "dialog.api_test.btn_weather": "测试天气预报",
+
+  "dialog.api_test.group_balance": "DeepSeek 余额 API",
+  "dialog.api_test.label_api_key": "API Key:",
+  "dialog.api_test.btn_balance": "查询余额",
+
+  "dialog.api_test.label_result": "测试结果:",
+
+  "dialog.api_test.msg_invalid_coords": "[错误] 请输入有效的经纬度数字",
+  "dialog.api_test.msg_api_key_required": "[错误] 请输入 API Key",
+  "dialog.api_test.status_weather_request": "[{time}] 请求天气数据 ({lat}°N, {lon}°E)...",
+  "dialog.api_test.status_balance_request": "[{time}] 请求 DeepSeek 余额...",
+
+  "dialog.api_test.result_weather_error": "[天气 API 错误] {error}",
+  "dialog.api_test.result_weather_success": "[天气 API 成功]\n  天气: {weather}\n  温度: {temperature}°C\n  湿度: {humidity}%\n  风速: {wind} km/h\n  更新时间: {time}",
+  "dialog.api_test.result_balance_error": "[余额 API 错误] {error}",
+  "dialog.api_test.result_balance_success": "[余额 API 成功]\n  总额: {total} {currency}\n  可用: {available}\n  更新时间: {time}",
+  "dialog.api_test.result_network_error": "[网络错误] {error}",
+
+  "dialog.api_test.value_unknown": "未知",
+  "dialog.api_test.value_yes": "是",
+  "dialog.api_test.value_no": "否"
+}

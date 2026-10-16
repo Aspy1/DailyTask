@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from src.i18n.loader import tr
 from src.models.course import PERIOD_TIMES, schedule_date
 from src.services.data_manager import DataManager
 from src.ui.components.click_label import ClickLabel
@@ -57,13 +58,13 @@ class ScheduleView(QWidget):
         bl.setContentsMargins(16, 8, 16, 8)
         bl.setSpacing(6)
 
-        title = QLabel("日程")
+        title = QLabel(tr("widget.schedule.title"))
         title.setFont(QFont(FONT_CN, SIZE_SUBTITLE))
         title.setStyleSheet("font-weight: 600; border: none;")
         bl.addWidget(title)
 
         # Course table button
-        ct_btn = RoundedButton("课程表")
+        ct_btn = RoundedButton(tr("widget.schedule.btn_course_table"))
         ct_btn.setStyleSheet(f"""
             QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
                 border-radius: 8px; padding: 3px 10px; font-size: 13px; }}
@@ -75,7 +76,7 @@ class ScheduleView(QWidget):
         bl.addStretch()
 
         # Undo + Save buttons (hidden until arrange done)
-        self._undo_btn = RoundedButton("撤销")
+        self._undo_btn = RoundedButton(tr("widget.schedule.btn_undo"))
         self._undo_btn.setStyleSheet(f"""
             QPushButton {{ background-color: {c['red']}30; color: {c['red']};
                 border: 1px solid {c['red']}60; border-radius: 8px;
@@ -86,7 +87,7 @@ class ScheduleView(QWidget):
         self._undo_btn.hide()
         bl.addWidget(self._undo_btn)
 
-        self._save_btn = RoundedButton("保存")
+        self._save_btn = RoundedButton(tr("widget.schedule.btn_save"))
         self._save_btn.setStyleSheet(f"""
             QPushButton {{ background-color: {c['green']}30; color: {c['green']};
                 border: 1px solid {c['green']}60; border-radius: 8px;
@@ -97,7 +98,7 @@ class ScheduleView(QWidget):
         self._save_btn.hide()
         bl.addWidget(self._save_btn)
 
-        refresh_btn = RoundedButton("刷新")
+        refresh_btn = RoundedButton(tr("widget.schedule.btn_refresh"))
         refresh_btn.setStyleSheet(f"""
             QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
                 border-radius: 8px; padding: 3px 10px; font-size: 13px; }}
@@ -107,7 +108,7 @@ class ScheduleView(QWidget):
         bl.addWidget(refresh_btn)
 
         # Quick arrange button
-        self._arrange_btn = RoundedButton("调整")
+        self._arrange_btn = RoundedButton(tr("widget.schedule.btn_quick_arrange"))
         self._arrange_btn.setStyleSheet(f"""
             QPushButton {{ background-color: {c['accent']}; color: {c['fg_on_fill']};
                 border-radius: 8px; padding: 3px 14px; font-size: 13px; font-weight: 600; }}
@@ -116,7 +117,9 @@ class ScheduleView(QWidget):
         self._arrange_btn.clicked.connect(self._quick_arrange)
         bl.addWidget(self._arrange_btn)
 
-        for text, slot in [("< 前一天", self._prev_day), ("今天", self._go_today), ("后一天 >", self._next_day)]:
+        for text, slot in [(tr("widget.schedule.btn_prev_day"), self._prev_day),
+                           (tr("widget.schedule.btn_today"), self._go_today),
+                           (tr("widget.schedule.btn_next_day"), self._next_day)]:
             btn = RoundedButton(text)
             btn.setStyleSheet(f"""
                 QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
@@ -336,20 +339,22 @@ class ScheduleView(QWidget):
             self._arrange_btn.setEnabled(False)
             self.arrange_requested.emit(prompt)
         except Exception as e:
-            QMessageBox.warning(self, "错误", f"快速安排失败: {e}")
-            self._arrange_btn.setText("调整")
+            QMessageBox.warning(self, tr("widget.schedule.msg_error_title"),
+                                tr("widget.schedule.msg_quick_arrange_failed", e=e))
+            self._arrange_btn.setText(tr("widget.schedule.btn_quick_arrange"))
             self._arrange_btn.setEnabled(True)
 
     def on_arrange_done(self, success: bool, msg: str = "") -> None:
         """Called by main_window when AI response is processed."""
-        self._arrange_btn.setText("调整")
+        self._arrange_btn.setText(tr("widget.schedule.btn_quick_arrange"))
         self._arrange_btn.setEnabled(True)
         if success:
             self._undo_btn.show()
             self._save_btn.show()
             self._refresh()
         else:
-            QMessageBox.warning(self, "安排失败", msg or "AI未能生成有效的安排方案。")
+            QMessageBox.warning(self, tr("widget.schedule.msg_arrange_failed_title"),
+                                msg or tr("widget.schedule.msg_ai_error"))
 
     def _save_arrange(self) -> None:
         """Accept the arrangement, dismiss undo/save buttons."""
@@ -363,7 +368,8 @@ class ScheduleView(QWidget):
     def _undo_arrange(self) -> None:
         """Restore daily_logs.json from backup."""
         if not self._arrange_backup_path or not _os.path.exists(self._arrange_backup_path):
-            QMessageBox.information(self, "撤销", "没有可撤销的备份。")
+            QMessageBox.information(self, tr("widget.schedule.msg_undo_title"),
+                                    tr("widget.schedule.msg_no_backup"))
             return
         shutil.copy2(self._arrange_backup_path, str(self._dm.daily_logs.file_path))
         _os.remove(self._arrange_backup_path)
@@ -498,7 +504,7 @@ class ScheduleView(QWidget):
             start_t, end_t = PERIOD_TIMES[period - 1]
             time_str = f"{start_t} - {end_t}"
         else:
-            time_str = f"时段{period}"
+            time_str = tr("widget.schedule.slot_fallback", n=period)
 
         card = QWidget()
         card.setStyleSheet(f"""
@@ -523,7 +529,7 @@ class ScheduleView(QWidget):
         cl.addLayout(hdr)
 
         if not items:
-            empty = QLabel("空闲")
+            empty = QLabel(tr("widget.schedule.slot_empty"))
             # 空态也是正文：fg_disabled 在浅色下只有 1.78:1（几乎看不见）
             empty.setStyleSheet(f"color: {c['fg_hint']}; font-size: 13px; padding: 4px 0;")
             cl.addWidget(empty)
@@ -612,7 +618,7 @@ class ScheduleView(QWidget):
         dur = item.get("duration", 30)
         rt = item.get("reminder_time", "")
         rt_str = f" {rt}" if rt else ""
-        name_lbl = QLabel(f"{status} {item['name']}{rt_str}  ({dur}分钟)")
+        name_lbl = QLabel(f"{status} {item['name']}{rt_str}  ({tr('widget.schedule.habit_minutes', dur=dur)})")
         name_lbl.setStyleSheet(
             f"color: {c['fg_hint'] if done else c['fg_primary']}; font-size: 13px;")
         hcl.addWidget(name_lbl)
@@ -628,7 +634,7 @@ class ScheduleView(QWidget):
         ddl_label = ClickLabel()
         ddl_label.setWordWrap(False)
         ddl_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        suffix = f" 截止 {due_time}" if due_time else ""
+        suffix = tr("widget.schedule.ddl_due", time=due_time) if due_time else ""
         ddl_label.setText(f"—— {t.get('title', '')}{suffix} ——")
         ddl_label.setStyleSheet(
             f"color: {c['red']}; font-size: 15px; font-weight: 600; border: none; background: transparent; padding: 6px 0;")
@@ -649,7 +655,8 @@ class ScheduleView(QWidget):
         c = get_colors()
         target = self._target_date
         target_str = target.isoformat()
-        day_names = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
+        day_names = [tr("day.monday"), tr("day.tuesday"), tr("day.wednesday"), tr("day.thursday"),
+                     tr("day.friday"), tr("day.saturday"), tr("day.sunday")]
         self._date_label.setText(f"{target_str} {day_names[target.weekday()]}")
 
         courses = self._dm.courses.get_courses_for_date(target)
@@ -701,7 +708,7 @@ class ScheduleView(QWidget):
         from PySide6.QtWidgets import QDateTimeEdit, QDialog, QHBoxLayout, QLabel, QVBoxLayout
         c = get_colors()
         dlg = QDialog(self)
-        dlg.setWindowTitle("添加邮件提醒")
+        dlg.setWindowTitle(tr("widget.schedule.dlg_add_email_reminder"))
         dlg.setMinimumWidth(320)
         dlg.setStyleSheet(f"""
             QDialog {{ background-color: {c['card_bg']}; }}
@@ -715,8 +722,8 @@ class ScheduleView(QWidget):
         layout = QVBoxLayout(dlg)
         layout.setSpacing(12)
 
-        layout.addWidget(QLabel(f"为「{item_name}」添加邮件提醒"))
-        layout.addWidget(QLabel(f"日期: {item_date}"))
+        layout.addWidget(QLabel(tr("widget.schedule.dlg_email_for_item", name=item_name)))
+        layout.addWidget(QLabel(tr("widget.schedule.dlg_email_date", date=item_date)))
 
         dt = QDateTimeEdit()
         from PySide6.QtCore import QLocale
@@ -737,14 +744,14 @@ class ScheduleView(QWidget):
 
         btn_row = QHBoxLayout()
         btn_row.addStretch()
-        cancel = RoundedButton("取消")
+        cancel = RoundedButton(tr("widget.schedule.btn_cancel"))
         cancel.setStyleSheet(f"""
             QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
                 border-radius: 8px; padding: 6px 18px; font-size: 13px; }}
         """)
         cancel.clicked.connect(dlg.reject)
         btn_row.addWidget(cancel)
-        confirm = RoundedButton("确认")
+        confirm = RoundedButton(tr("widget.schedule.btn_confirm"))
         confirm.clicked.connect(dlg.accept)
         btn_row.addWidget(confirm)
         layout.addLayout(btn_row)
@@ -753,7 +760,8 @@ class ScheduleView(QWidget):
             from PySide6.QtWidgets import QMessageBox
             selected = dt.dateTime().toPython()
             if selected <= datetime.now():
-                QMessageBox.warning(self, "时间无效", "提醒时间不能是过去的时间。")
+                QMessageBox.warning(self, tr("widget.schedule.msg_invalid_time_title"),
+                                    tr("widget.schedule.msg_invalid_time_body"))
                 return
             notify_time = selected.isoformat()
             self._dm.daily_logs.add_reminder(item_type, item_name, item_date, notify_time)
@@ -775,16 +783,16 @@ class ScheduleView(QWidget):
         course_name = item["course"].get("name", "")
         item_date = self._target_date.isoformat()
         if self._has_email_reminder("course", course_name, item_date):
-            add_action(menu, "📧 取消邮件提醒")
+            add_action(menu, tr("widget.schedule.menu_email_remove"))
         else:
-            add_action(menu, "📧 添加邮件提醒")
+            add_action(menu, tr("widget.schedule.menu_email_add"))
         chosen = show_at_cursor(menu)
         if chosen is None:
             return
-        if chosen.text() == "📧 添加邮件提醒":
+        if chosen.text() == tr("widget.schedule.menu_email_add"):
             self._add_email_reminder_dialog("course", course_name, item_date)
             return
-        if chosen.text() == "📧 取消邮件提醒":
+        if chosen.text() == tr("widget.schedule.menu_email_remove"):
             self._remove_email_reminder("course", course_name, item_date)
             return
         if chosen.data() is None:
@@ -799,7 +807,8 @@ class ScheduleView(QWidget):
             # Simple rename dialog
             from PySide6.QtWidgets import QInputDialog
 
-            name, ok = QInputDialog.getText(self, "重命名课程", "新名称:")
+            name, ok = QInputDialog.getText(self, tr("widget.schedule.dlg_rename_course"),
+                                            tr("widget.schedule.dlg_rename_new_name"))
             if ok and name.strip():
                 self._dm.courses.update_course(course_id, {"name": name.strip()})
                 self._dm.courses.save()
@@ -824,14 +833,14 @@ class ScheduleView(QWidget):
         plan_name = item.get("title", "")
         plan_date = self._target_date.isoformat()
         # 「移除」与「标记完成」都按内容匹配删除该计划（保持原行为）
-        add_action(menu, "✓ 标记完成", lambda checked=False: self._delete_plan_at(item))
-        add_action(menu, "✕ 移除", lambda checked=False: self._delete_plan_at(item))
+        add_action(menu, tr("widget.schedule.menu_mark_done"), lambda checked=False: self._delete_plan_at(item))
+        add_action(menu, tr("widget.schedule.menu_remove"), lambda checked=False: self._delete_plan_at(item))
         add_separator(menu)
         if self._has_email_reminder("plan", plan_name, plan_date):
-            add_action(menu, "📧 取消邮件提醒",
+            add_action(menu, tr("widget.schedule.menu_email_remove"),
                        lambda checked=False: self._remove_email_reminder("plan", plan_name, plan_date))
         else:
-            add_action(menu, "📧 添加邮件提醒",
+            add_action(menu, tr("widget.schedule.menu_email_add"),
                        lambda checked=False: self._add_email_reminder_dialog("plan", plan_name, plan_date))
         show_at_cursor(menu)
 
@@ -860,18 +869,18 @@ class ScheduleView(QWidget):
             self._dm.data_changed.emit("habit")
             self._refresh()
 
-        add_action(menu, "○ 标记未完成" if done else "✓ 标记完成",
+        add_action(menu, tr("widget.schedule.menu_mark_undone") if done else tr("widget.schedule.menu_mark_done"),
                    lambda checked=False: _apply(lambda: self._dm.habits.log(hid, not done)))
-        add_action(menu, "→ 推迟到明天",
+        add_action(menu, tr("widget.schedule.menu_postpone"),
                    lambda checked=False: _apply(lambda: self._dm.habits.postpone(
                        hid, (self._target_date + timedelta(days=1)).isoformat())))
-        add_action(menu, "✕ 取消今天",
+        add_action(menu, tr("widget.schedule.menu_cancel_today"),
                    lambda checked=False: _apply(lambda: self._dm.habits.cancel_today(hid)))
         add_separator(menu)
         if self._has_email_reminder("habit", habit_name, habit_date):
-            add_action(menu, "📧 取消邮件提醒",
+            add_action(menu, tr("widget.schedule.menu_email_remove"),
                        lambda checked=False: self._remove_email_reminder("habit", habit_name, habit_date))
         else:
-            add_action(menu, "📧 添加邮件提醒",
+            add_action(menu, tr("widget.schedule.menu_email_add"),
                        lambda checked=False: self._add_email_reminder_dialog("habit", habit_name, habit_date))
         show_at_cursor(menu)

@@ -1,0 +1,31 @@
+{
+  "panel.exam.title": "考试",
+  "panel.exam.btn_add": "添加",
+  "panel.exam.btn_refresh": "刷新",
+  "panel.exam.menu_edit": "编辑",
+  "panel.exam.menu_delete": "删除",
+
+  "panel.exam.badge_past": "已过",
+  "panel.exam.badge_today": "今天",
+  "panel.exam.badge_days_left": "{days}天",
+  "panel.exam.detail_scope": "范围: {scope}",
+
+  "panel.exam.msg_confirm_delete_title": "确认",
+  "panel.exam.msg_confirm_delete": "删除考试「{name}」？",
+
+  "panel.exam.dialog_title_edit": "编辑考试",
+  "panel.exam.dialog_title_add": "添加考试",
+  "panel.exam.label_course": "课程:",
+  "panel.exam.label_date": "考试日期:",
+  "panel.exam.label_scope": "范围:",
+  "panel.exam.label_location": "地点:",
+  "panel.exam.label_notes": "备注:",
+  "panel.exam.placeholder_course": "如：高等数学",
+  "panel.exam.placeholder_scope": "如：第1-8章",
+  "panel.exam.placeholder_location": "如：教学楼A201",
+  "panel.exam.placeholder_notes": "其他备注...",
+
+  "panel.exam.msg_title_error": "错误",
+  "panel.exam.msg_need_course": "请输入课程名称。",
+  "panel.exam.msg_need_date": "请输入考试日期。"
+}

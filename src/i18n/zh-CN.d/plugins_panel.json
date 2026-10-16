@@ -1,0 +1,8 @@
+{
+  "panel.plugins.title": "插件",
+  "panel.plugins.label_enabled": "启用",
+  "panel.plugins.btn_open": "打开",
+  "panel.plugins.msg_toggle_failed": "设置失败，检查文件权限。",
+  "panel.plugins.msg_no_panel": "插件没有提供面板。",
+  "panel.plugins.msg_open_failed": "打开失败。"
+}

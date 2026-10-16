@@ -1,0 +1,17 @@
+# 分层依赖方向（CODE_STANDARDS Q-A2 / R-001 的结构基础）。
+#
+# 契约：UI → Services → Models，禁止反向。
+# 用法：.venv\Scripts\lint-imports.exe
+# 说明：src.i18n / src.app 不参与分层（i18n 是横切工具，app 是组装入口）。
+
+[importlinter]
+root_packages =
+    src
+
+[importlinter:contract:layers]
+name = 分层：UI → Services → Models（禁止反向 import）
+type = layers
+layers =
+    src.ui
+    src.services
+    src.models

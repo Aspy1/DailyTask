@@ -1,0 +1,15 @@
+{
+  "dialog.course.window_title": "《{name}》的事项",
+  "dialog.course.title": "《{name}》",
+
+  "dialog.course.tab_schedule": "日程",
+  "dialog.course.tab_tasks": "作业",
+
+  "dialog.course.empty_plans": "暂无日程计划",
+  "dialog.course.empty_tasks": "暂无作业",
+
+  "dialog.course.plan_item": "📅 {day} 时段{slot} — {title}",
+  "dialog.course.task_due": "\n  截止: {due}",
+
+  "dialog.course.btn_close": "关闭"
+}

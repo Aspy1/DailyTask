@@ -34,14 +34,19 @@
 
 **Q-A2 依赖单向：UI → Service → Model，禁止反向 import**
 - 为什么：反向依赖使分层失效、难以测试。
-- 检查：`import-linter`（contract: layers）—— ⚠ **工具尚未安装**（`requirements-dev.txt` 无此项），
-  目前靠人工审查；接入前本条的 `✔` 属"一次人工核查"，不是守卫。
-- 现状：`✔` 2026-10-16：该 import 实为**未使用的死导入**，已删除 —— 服务层不再反向依赖 UI 层。
+- 检查：`import-linter`（`.importlinter` 的 layers 契约，已装进 `requirements-dev.txt` 并接入门禁）。
+- 现状：`✔` 2026-10-16：`lint-imports` 报 **1 contract kept / 0 broken**（50 文件 129 依赖）。
+  历史上唯一那处反向依赖（服务层 `import src.ui...`）已随代码演进移除；现已由门禁常驻守卫。
 
 **Q-A3 同一外部能力只保留一套适配**
 - 为什么：多套实现必然漂移，改一处漏一处。
 - 检查：人工/关键字扫描。
-- 现状：`✗` 天气有 3 套（`weather_service` / `api_service` / `ai_service` 内联），天气码映射两份。
+- 检查：`tests/test_openmeteo.py`（守卫"天气码映射只存在于一个模块"、"Open-Meteo URL 只出现一处"、
+  "ai_service 必须委托共享适配器"）；`import-linter`（`.importlinter`）守分层方向。
+- 现状：`✔` 2026-10-16：天气 3 套实现已收拢 —— 和风（`weather_service.py`）、
+  Open-Meteo（新 `services/openmeteo.py`）；`api_service.py`（整模块无人引用＝死代码，
+  含第二套天气 + 重复的余额逻辑）**已删除**；`ai_service` 内联的 Open-Meteo 请求与重复的
+  天气码映射也已移除，改为委托 `openmeteo.fetch_text_for_ai()`。
 
 **Q-A4 禁止死代码**
 - 为什么：误导读者、掩盖真实路径。
@@ -110,7 +115,7 @@
 **Q-C4 文件/线程/连接等资源必须显式释放**
 - 检查：`ruff --select SIM115` + QThread 人工核查。
 - 现状：`✔` 2026-10-16：`SIM115`（文件未用上下文管理器）**已清零**（ruff 0）；
-  `weather_service` / `api_service` / `ai_service` 的 QThread 均已 `deleteLater` 回收。
+  `weather_service` / `ai_service` 的 QThread 均已 `deleteLater` 回收。
 
 ## D. 日志与调试输出
 
@@ -123,16 +128,23 @@
 
 **Q-D3 日志语句必须**"可静态剥离"**：独立表达式语句、无副作用实参、不处于"删除后块为空"的位置
 - 为什么：为将来构建瘦身留路（否则 AST 剥离会改行为）。
-- 检查：自定义 AST 检查（见 PLAN E-2）。
-- 现状：`✗` 当前无此约束。
+- 检查：`scripts/check_quality.py` 的 `LOG-STRIP` 项（**必须 0**：日志嵌在表达式里）
+  + `LOG-ONLY` 项（baseline：日志是所在块唯一语句）。
+- 现状：`✔` 2026-10-16：`LOG-STRIP` **0 处**。`LOG-ONLY` 有 37 处存量（记入 baseline）。
+  **口径说明**：`LOG-ONLY` 被**收窄为可容忍** —— 剥离器遇到"块内只有一条日志"只需补 `pass`
+  即可保持语法与行为不变，不是剥离的阻断项；真正阻断的是 `x = logger.info(...)` 这类
+  **嵌在表达式里**的写法（本项已强制为 0）。
 
 **Q-D4 禁止把密钥、token、个人数据写入日志或异常信息**
 
 ## E. 安全与数据
 
 **Q-E1 密钥不进代码 / 日志 / git**（本机 `data/settings.ini` 为明文，已在 `.gitignore`）
-- 检查：`scripts/check_quality.py` 的 `SECRET` 项（断言 `data/settings.ini` 未被 git 跟踪，已接 CI）；
-  `gitleaks` / `detect-secrets` ⚠ **尚未安装**（需更强的全历史扫描时再补）。
+- 检查：`scripts/check_quality.py` 的两项 —— `SECRET`（断言 `data/settings.ini` 未被 git 跟踪）
+  + `SECRETS`（`detect-secrets scan --baseline .secrets.baseline`，已装进 `requirements-dev.txt`；
+  扫描排除 `data/`、`.venv/`、缓存目录，避免把真实密钥写进基线）
+- 现状：`✔` 2026-10-16：`detect-secrets` 首次扫描 **0 处可疑**；
+  全历史扫描（gitleaks 类工具）仍未引入——`SECRETS` 只覆盖**当前文件内容**。
 
 **Q-E2 数据写入必须原子（`os.replace`）且经 Model 或 `actions.py`**（= R-002）
 - 现状：`✔` `models/base.py` 已实现；`✗` 双写路径未统一。
@@ -152,11 +164,12 @@
 ## F. 测试与可验证性
 
 **Q-F1 新增/修改行为必须有测试**（见 `AGENTS.md` DoD）
-- 现状：`🔄` 2026-10-16：覆盖率 **54%**（8907 语句），**202 passed / 0 xfailed**，CI 加了
+- 现状：`🔄` 2026-10-16：覆盖率 **56%**（9269 语句），**225 passed / 0 xfailed**，CI 加了
   `--cov-fail-under=50` 下限（防"越改越少测"）。已有：actions 命令冒烟 + 日期解析、提示词↔实现**双向**
   一致性、令牌同步/合规、`send_digest`（含 exams.json）、考试提醒阈值、数据流（外部刷新 / save_all）、
   UI 接线（导航/主题/三态筛选）、AI 上下文非阻塞、数据 schema 守卫、习惯调度（4 种 schedule）、
-  ID 生成、工程门禁自身。UI 布局与部分服务仍无覆盖。
+  ID 生成、i18n（键存在/命名/去重/回退）、天气与余额"单一实现"守卫、工程门禁自身。
+  UI 布局与部分服务仍无覆盖。
 
 **Q-F2 契约必须可校验**：prompt ↔ `actions.py` ↔ TG skill 的命令集一致
 - 现状：`✔` `tests/test_prompt_consistency.py`（3 处已知缺口以 xfail 固化）。
@@ -332,12 +345,17 @@
 
 **Q-N4 文件与主类同名**（如 `habit_panel.py` ↔ `HabitPanel`）
 
-**Q-N5 i18n key 命名空间**：`<area>.<subarea>.<name>`（如 `panel.task.title`、`dialog.course.edit`、`tray.exit`）；
-UI 显示文本必须经 `tr()` 取得，禁止硬编码中文
-- 检查：`scripts/check_quality.py` 的 `I18N` 项（计数不得超过 baseline）。
-- 现状：`🔄` 2026-10-16 实测：`src/ui` 内 `tr()` 仅 **19 处**、含中文字面量 **692 处**、
-  `zh-CN.json` **92 个扁平键**（要求点号分层）。**已记入 baseline 防新增**；
-  是否全量迁移待裁决（`PLAN P6`），现状策略是"新文本必须走 `tr()`、存量改到即补"。
+**Q-N5 i18n**：UI 显示文本必须经 `tr()` 取得，禁止硬编码中文；键格式 `<area>.<subarea>.<name>`
+（如 `panel.task.title`、`dialog.course.btn_save`、`tray.exit`）——**文字只存在于语言包**，代码里只有键
+- 语言包分两层：`src/i18n/zh-CN.json`（主）+ `src/i18n/zh-CN.d/<模块>.json`（**分片**，按模块拆分，
+  便于定位"某处文字在哪"与并行维护）
+- 带变量用占位符：`tr("status.week", n=5)` ↔ `"第 {n} 周"`；缺语言包时**回退** zh-CN（不抛异常）
+- 检查：`tests/test_i18n.py` 四道（用到的键必须存在 / 键必须命名空间化 / 键不得重复定义 / 回退与占位符）
+  + `scripts/check_quality.py` 的 `I18N` 项（"未走 `tr()` 的中文字面量"计数，不得超过 baseline）
+- 现状：`🔄` 2026-10-16：**692 → 106**（`src/ui` 未国际化中文字面量）。
+  **不迁移**的对象（度量里已排除，不算遗漏）：日志实参、字典键、docstring、数据值/状态值、
+  给 AI 的 prompt/快照文本、样式表内容、内部哨兵值。
+  剩余 106 处的性质与后续见 `PLAN P7`。
 
 **Q-N6 资源与图形命名**：图标 `ic_<name>_<size>`（如 `ic_add_16`）；图片 `img_<name>`；统一放 `resources/`
 - 现状：`✔` 2026-10-15：已建 `resources/`，`image.png` 已归位（`app.py` 的 `_ICON_PATH` 同步更新）。

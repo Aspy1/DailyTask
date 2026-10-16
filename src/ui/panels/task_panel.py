@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from src.i18n.loader import tr
 from src.services.data_manager import DataManager
 from src.ui.styles.theme import FONT_CN, SIZE_SUBTITLE, get_colors
 from src.ui.widgets.menu import (
@@ -32,14 +33,14 @@ from src.ui.widgets.rounded_button import RoundedButton
 PAGE_SIZE = 10
 
 TIME_BUCKETS = [
-    ("全部", None),
-    ("今天", "today"),
-    ("明天", "tomorrow"),
-    ("本周", "this_week"),
-    ("下周", "next_week"),
-    ("本月", "this_month"),
-    ("已过期", "overdue"),
-    ("无截止日期", "no_date"),
+    (tr("panel.task.filter_all"), None),
+    (tr("panel.task.bucket_today"), "today"),
+    (tr("panel.task.bucket_tomorrow"), "tomorrow"),
+    (tr("panel.task.bucket_this_week"), "this_week"),
+    (tr("panel.task.bucket_next_week"), "next_week"),
+    (tr("panel.task.bucket_this_month"), "this_month"),
+    (tr("panel.task.bucket_overdue"), "overdue"),
+    (tr("panel.task.bucket_no_date"), "no_date"),
 ]
 
 
@@ -106,29 +107,29 @@ class TaskPanel(QWidget):
         bar_layout.setContentsMargins(16, 8, 16, 8)
         bar_layout.setSpacing(8)
 
-        title = QLabel("作业")
+        title = QLabel(tr("panel.task.heading"))
         title.setFont(QFont(FONT_CN, SIZE_SUBTITLE))
         title.setStyleSheet(f"color: {c['fg_primary']}; font-weight: 600; border: none;")
         bar_layout.addWidget(title)
 
         bar_layout.addStretch()
 
-        self._filter_btn = RoundedButton("课程筛选")
+        self._filter_btn = RoundedButton(tr("panel.task.btn_course_filter"))
         self._filter_btn.setStyleSheet(self._btn_qss())
         self._filter_btn.clicked.connect(self._show_course_filter)
         bar_layout.addWidget(self._filter_btn)
 
-        self._time_btn = RoundedButton("时间筛选")
+        self._time_btn = RoundedButton(tr("panel.task.btn_time_filter"))
         self._time_btn.setStyleSheet(self._btn_qss())
         self._time_btn.clicked.connect(self._show_time_filter)
         bar_layout.addWidget(self._time_btn)
 
-        self._status_btn = RoundedButton("未完成")
+        self._status_btn = RoundedButton(tr("panel.task.status_pending"))
         self._status_btn.setStyleSheet(self._btn_qss())
         self._status_btn.clicked.connect(self._toggle_status_filter)
         bar_layout.addWidget(self._status_btn)
 
-        refresh_btn = RoundedButton("刷新")
+        refresh_btn = RoundedButton(tr("panel.task.btn_refresh"))
         refresh_btn.setStyleSheet(self._btn_qss())
         refresh_btn.clicked.connect(self._refresh)
         bar_layout.addWidget(refresh_btn)
@@ -138,7 +139,10 @@ class TaskPanel(QWidget):
         # ── Table ────────────────────────────────────────────
         self._table = QTableWidget(0, 4)
         self._table.setObjectName("taskTable")
-        self._table.setHorizontalHeaderLabels(["课程", "截止时间", "事项", "完成"])
+        self._table.setHorizontalHeaderLabels([
+            tr("panel.task.col_course"), tr("panel.task.col_due"),
+            tr("panel.task.col_title"), tr("panel.task.col_done"),
+        ])
         self._table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive)
         self._table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Interactive)
         self._table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
@@ -177,7 +181,8 @@ class TaskPanel(QWidget):
         fl.addWidget(self._count_label)
         fl.addStretch()
 
-        for text, slot in [("< 上一页", self._prev_page), ("下一页 >", self._next_page)]:
+        for text, slot in [(tr("panel.task.btn_prev_page"), self._prev_page),
+                           (tr("panel.task.btn_next_page"), self._next_page)]:
             btn = RoundedButton(text)
             btn.setStyleSheet(self._btn_qss())
             btn.clicked.connect(slot)
@@ -227,7 +232,7 @@ class TaskPanel(QWidget):
         self._highlight_ddl = False
         menu = new_menu(self)
 
-        add_action(menu, "全部课程",
+        add_action(menu, tr("panel.task.filter_all_courses"),
                    lambda checked=False: self._apply_course_filter(set()),
                    checkable=True, checked=not self._selected_courses)
 
@@ -252,23 +257,23 @@ class TaskPanel(QWidget):
         self._highlight_ddl = True
         self._time_bucket = None
         self._selected_courses = set()
-        self._filter_btn.setText("课程筛选")
-        self._time_btn.setText("时间筛选")
+        self._filter_btn.setText(tr("panel.task.btn_course_filter"))
+        self._time_btn.setText(tr("panel.task.btn_time_filter"))
         self._page = 0
         self._refresh()
 
     def filter_by_course(self, course_name: str) -> None:
         self._selected_courses = {course_name}
         self._page = 0
-        self._filter_btn.setText(f"课程: {course_name}")
+        self._filter_btn.setText(tr("panel.task.filter_course_prefix", name=course_name))
 
     def _apply_course_filter(self, sel: set[str]) -> None:
         self._selected_courses = sel
         self._page = 0
         if sel:
-            self._filter_btn.setText(f"课程 ({len(sel)}) ")
+            self._filter_btn.setText(tr("panel.task.filter_course_count", n=len(sel)))
         else:
-            self._filter_btn.setText("课程筛选")
+            self._filter_btn.setText(tr("panel.task.btn_course_filter"))
         self._refresh()
 
     def _show_time_filter(self) -> None:
@@ -284,9 +289,9 @@ class TaskPanel(QWidget):
         self._page = 0
         if bucket:
             label = next((lbl for lbl, k in TIME_BUCKETS if k == bucket), bucket)
-            self._time_btn.setText(f"时间: {label} ")
+            self._time_btn.setText(tr("panel.task.filter_time_prefix", label=label))
         else:
-            self._time_btn.setText("时间筛选")
+            self._time_btn.setText(tr("panel.task.btn_time_filter"))
         self._refresh()
 
     def _refresh(self) -> None:
@@ -330,8 +335,9 @@ class TaskPanel(QWidget):
             self._set_check_cell(i, t)
 
         self._table.setSortingEnabled(True)
-        page_str = f"第{self._page + 1}/{max_page + 1}页" if total > PAGE_SIZE else ""
-        self._count_label.setText(f"{total} 个任务  {page_str}")
+        page_str = (tr("panel.task.page_info", page=self._page + 1, total=max_page + 1)
+                    if total > PAGE_SIZE else "")
+        self._count_label.setText(tr("panel.task.count", total=total, page=page_str))
 
     def _set_course_item(self, row: int, t: dict) -> None:
         """第 0 列：课程名。"""
@@ -364,7 +370,8 @@ class TaskPanel(QWidget):
         lbl.setWordWrap(False)
         lbl.setText(
             f'<span style="color:{c["red"]};font-size: 13px;">{due_display}</span>'
-            f' <span style="color:{c["fg_secondary"]};font-size: 13px;">({days_left}天后)</span>'
+            f' <span style="color:{c["fg_secondary"]};font-size: 13px;">'
+            f'{tr("panel.task.days_left", days=days_left)}</span>'
         )
         return lbl
 
@@ -425,7 +432,9 @@ class TaskPanel(QWidget):
 
     def _toggle_status_filter(self) -> None:
         cycle = {"pending": "completed", "completed": "all", "all": "pending"}
-        labels = {"pending": "未完成", "completed": "已完成", "all": "全部"}
+        labels = {"pending": tr("panel.task.status_pending"),
+                  "completed": tr("task.status.completed"),
+                  "all": tr("panel.task.filter_all")}
         self._status_filter = cycle[self._status_filter]
         self._status_btn.setText(labels[self._status_filter])
         self._page = 0
@@ -434,11 +443,14 @@ class TaskPanel(QWidget):
     def _show_archive(self) -> None:
         archived = self._dm.tasks.archived
         if not archived:
-            QMessageBox.information(self, "已归档", "暂无已归档任务。")
+            QMessageBox.information(self, tr("panel.task.dialog_archived_title"),
+                                    tr("panel.task.dialog_archived_empty"))
             return
         lines = []
         for t in archived[-20:]:
             name = t.get("title", "")
             due = (t.get("due_date", "") or "")[:10]
-            lines.append(f"  • {name}  (截止: {due})")
-        QMessageBox.information(self, "已归档（最近20条）", "\n".join(lines) if lines else "无")
+            lines.append(tr("panel.task.archive_line", name=name, due=due))
+        QMessageBox.information(
+            self, tr("panel.task.dialog_archived_recent_title"),
+            "\n".join(lines) if lines else tr("panel.task.dialog_archived_none"))

@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from src.i18n.loader import tr
 from src.services.data_manager import DataManager
 from src.ui.styles.theme import FONT_CN, RADIUS, SIZE_SUBTITLE, get_colors
 from src.ui.widgets.menu import (
@@ -96,24 +97,24 @@ class InventoryPanel(QWidget):
         bl.setContentsMargins(16, 8, 16, 8)
         bl.setSpacing(6)
 
-        title = QLabel("有什么")
+        title = QLabel(tr("panel.inventory.title"))
         title.setFont(QFont(FONT_CN, SIZE_SUBTITLE))
         title.setStyleSheet(f"color: {c['fg_primary']}; font-weight: 600; border: none;")
         bl.addWidget(title)
 
         bl.addStretch()
 
-        self._cat_btn = RoundedButton("全部分类")
+        self._cat_btn = RoundedButton(tr("panel.inventory.filter_all_categories"))
         self._cat_btn.setStyleSheet(self._btn_qss())
         self._cat_btn.clicked.connect(self._show_cat_filter)
         bl.addWidget(self._cat_btn)
 
-        self._tag_btn = RoundedButton("全部标签")
+        self._tag_btn = RoundedButton(tr("panel.inventory.filter_all_tags"))
         self._tag_btn.setStyleSheet(self._btn_qss())
         self._tag_btn.clicked.connect(self._show_tag_filter)
         bl.addWidget(self._tag_btn)
 
-        refresh_btn = RoundedButton("刷新")
+        refresh_btn = RoundedButton(tr("panel.inventory.btn_refresh"))
         refresh_btn.setStyleSheet(self._btn_qss())
         refresh_btn.clicked.connect(self._refresh)
         bl.addWidget(refresh_btn)
@@ -144,7 +145,8 @@ class InventoryPanel(QWidget):
         fl.addWidget(self._count_label)
         fl.addStretch()
 
-        for text, slot in [("< 上一页", self._prev_page), ("下一页 >", self._next_page)]:
+        for text, slot in [(tr("panel.inventory.btn_prev_page"), self._prev_page),
+                           (tr("panel.inventory.btn_next_page"), self._next_page)]:
             btn = RoundedButton(text)
             btn.setStyleSheet(f"QPushButton {{ background: transparent; color: {c['fg_hint']}; border: none; padding: 4px 8px; font-size: 13px; }} QPushButton:hover {{ color: {c['fg_primary']}; }}")
             btn.clicked.connect(slot)
@@ -159,7 +161,7 @@ class InventoryPanel(QWidget):
 
     def _show_cat_filter(self) -> None:
         menu = new_menu(self)
-        add_action(menu, "全部分类", lambda checked=False: self._apply_cat_filter("全部"))
+        add_action(menu, tr("panel.inventory.filter_all_categories"), lambda checked=False: self._apply_cat_filter("全部"))
         add_separator(menu)
         for cat in self._dm.inventory.categories:
             add_action(menu, cat,
@@ -168,7 +170,7 @@ class InventoryPanel(QWidget):
 
     def _show_tag_filter(self) -> None:
         menu = new_menu(self)
-        add_action(menu, "全部标签", lambda checked=False: self._apply_tag_filter(""))
+        add_action(menu, tr("panel.inventory.filter_all_tags"), lambda checked=False: self._apply_tag_filter(""))
         add_separator(menu)
         for tag in self._dm.inventory.all_tags:
             add_action(menu, tag,
@@ -177,13 +179,13 @@ class InventoryPanel(QWidget):
 
     def _apply_cat_filter(self, cat: str) -> None:
         self._cat_filter = cat
-        self._cat_btn.setText(cat if cat != "全部" else "全部分类")
+        self._cat_btn.setText(cat if cat != "全部" else tr("panel.inventory.filter_all_categories"))
         self._page = 0
         self._refresh()
 
     def _apply_tag_filter(self, tag: str) -> None:
         self._tag_filter = tag
-        self._tag_btn.setText(tag if tag else "全部标签")
+        self._tag_btn.setText(tag if tag else tr("panel.inventory.filter_all_tags"))
         self._page = 0
         self._refresh()
 
@@ -309,7 +311,7 @@ class InventoryPanel(QWidget):
             cl.addWidget(name)
             cl.addStretch()
 
-            cnt = QLabel(f"{count} 件")
+            cnt = QLabel(tr("panel.inventory.count_pieces", n=count))
             cnt.setStyleSheet(f"color: {c['fg_hint']}; font-size: 13px; border: none; background: transparent;")
             cl.addWidget(cnt)
 
@@ -319,7 +321,7 @@ class InventoryPanel(QWidget):
 
             self._card_layout.insertWidget(self._card_layout.count() - 1, card)
 
-        self._count_label.setText(f"共 {total_items} 件物品")
+        self._count_label.setText(tr("panel.inventory.count_total_items", n=total_items))
 
     def _refresh_items(self, c: dict) -> None:
         self._update_breadcrumb()
@@ -360,8 +362,9 @@ class InventoryPanel(QWidget):
             else:
                 self._render_item_card(c, d)
 
-        page_str = f"第{self._page + 1}/{max_page + 1}页" if total > PAGE_SIZE else ""
-        self._count_label.setText(f"{total} 项  {page_str}")
+        page_str = tr("panel.inventory.page_indicator", cur=self._page + 1,
+                      total=max_page + 1) if total > PAGE_SIZE else ""
+        self._count_label.setText(tr("panel.inventory.count_summary", n=total, page=page_str))
 
     def _render_group_card(self, c: dict, d: dict) -> None:
         """Render a clickable group card at Level 1."""
@@ -388,7 +391,7 @@ class InventoryPanel(QWidget):
         cl.addWidget(name)
         cl.addStretch()
 
-        cnt = QLabel(f"{d['count']} 件")
+        cnt = QLabel(tr("panel.inventory.count_pieces", n=d['count']))
         cnt.setStyleSheet(f"color: {c['fg_hint']}; font-size: 13px; border: none; background: transparent;")
         cl.addWidget(cnt)
 
@@ -427,7 +430,7 @@ class InventoryPanel(QWidget):
         qty_text = self._format_quantity(it)
         dpu = it.get('doses_per_unit', 1)
         if dpu > 1:
-            qty_text = f"x{it['quantity']} ({it['quantity'] * dpu}次)"
+            qty_text = tr("panel.inventory.qty_with_doses", n=it['quantity'], doses=it['quantity'] * dpu)
         qty = QLabel(qty_text)
         qty.setStyleSheet(f"color: {c['fg_secondary']}; font-size: 14px; font-weight: 700; border: none; background: transparent;")
         hdr.addWidget(qty)
@@ -453,14 +456,14 @@ class InventoryPanel(QWidget):
 
         tags = it.get("tags", [])
         if tags:
-            tr = QHBoxLayout()
-            tr.setSpacing(4)
+            tag_row = QHBoxLayout()
+            tag_row.setSpacing(4)
             for tag in tags:
                 t = QLabel(tag)
                 t.setStyleSheet(f"color: {c['accent_text']}; font-size: 10px; font-weight: 500; background: {c['accent']}18; border-radius: 8px; padding: 1px 8px; border: none;")
-                tr.addWidget(t)
-            tr.addStretch()
-            cl.addLayout(tr)
+                tag_row.addWidget(t)
+            tag_row.addStretch()
+            cl.addLayout(tag_row)
 
         card.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         card.customContextMenuRequested.connect(lambda _, i=it: self._context_menu(i))
@@ -480,7 +483,7 @@ class InventoryPanel(QWidget):
         for it in items:
             self._render_expandable_card(c, it)
 
-        self._count_label.setText(f"{total} 类物品")
+        self._count_label.setText(tr("panel.inventory.count_types", n=total))
 
     def _render_expandable_card(self, c: dict, it: dict) -> None:
         """Render a type card that expands to show instances."""
@@ -576,8 +579,8 @@ class InventoryPanel(QWidget):
         cat = it.get("category", "")
         qty = it.get("quantity", 0)
         if cat == "虚拟品类":
-            return f"×{qty}项"
-        return f"×{qty}件"
+            return tr("panel.inventory.qty_virtual_items", n=qty)
+        return tr("panel.inventory.qty_pieces", n=qty)
 
     def _toggle_expand(self, iid: str) -> None:
         if iid in self._expanded_items:
@@ -588,10 +591,18 @@ class InventoryPanel(QWidget):
 
     # Per-category status labels（常量：ClassVar 明确非实例状态，见 Q-B2/RUF012）
     CATEGORY_LABELS: ClassVar[dict[str, dict[str, str]]] = {
-        "衣物":       {"需购": "要买了", "不足": "要洗了", "充足": "可穿"},
-        "虚拟品类":   {"需购": "要续费", "不足": "要到期了", "充足": "有效"},
-        "数码电子":   {"需购": "需维修", "不足": "待更换", "充足": "正常"},
-        "日常消耗品": {"需购": "需补货", "不足": "快用完", "充足": "充足"},
+        "衣物":       {"需购": tr("panel.inventory.label_clothing_need_buy"),
+                       "不足": tr("panel.inventory.label_clothing_need_wash"),
+                       "充足": tr("panel.inventory.label_clothing_wearable")},
+        "虚拟品类":   {"需购": tr("panel.inventory.label_virtual_need_renew"),
+                       "不足": tr("panel.inventory.label_virtual_expiring"),
+                       "充足": tr("panel.inventory.label_virtual_valid")},
+        "数码电子":   {"需购": tr("panel.inventory.label_digital_need_repair"),
+                       "不足": tr("panel.inventory.label_digital_to_replace"),
+                       "充足": tr("panel.inventory.label_digital_normal")},
+        "日常消耗品": {"需购": tr("panel.inventory.label_consumable_need_restock"),
+                       "不足": tr("panel.inventory.label_consumable_running_low"),
+                       "充足": tr("panel.inventory.label_consumable_ample")},
     }
 
     def _context_menu(self, item: dict) -> None:
@@ -608,13 +619,18 @@ class InventoryPanel(QWidget):
                            self._quick_update(item["id"], {"status": s}))
 
         ig = item.get("ignore_low_stock", False)
-        add_action(menu, "恢复库存提醒" if ig else "忽略库存不足提醒",
+        add_action(menu,
+                   tr("panel.inventory.action_restore_stock_reminder") if ig
+                   else tr("panel.inventory.action_ignore_low_stock"),
                    lambda checked=False: self._quick_update(item["id"], {"ignore_low_stock": not ig}))
         add_separator(menu)
-        add_action(menu, "设置邮件提醒", lambda checked=False: self._email_reminder(item))
-        add_action(menu, "修改标签", lambda checked=False: self._edit_tags(item))
+        add_action(menu, tr("panel.inventory.action_set_email_reminder"),
+                   lambda checked=False: self._email_reminder(item))
+        add_action(menu, tr("panel.inventory.action_edit_tags"),
+                   lambda checked=False: self._edit_tags(item))
         if cat != "虚拟品类":
-            add_action(menu, "删除", lambda checked=False: self._delete_item(item["id"]))
+            add_action(menu, tr("panel.inventory.action_delete"),
+                       lambda checked=False: self._delete_item(item["id"]))
         show_at_cursor(menu)
 
     def _quick_update(self, iid, data) -> None:
@@ -625,7 +641,8 @@ class InventoryPanel(QWidget):
 
     def _delete_item(self, iid) -> None:
         name = next((it.get("name", iid) for it in self._dm.inventory.items if it["id"] == iid), iid)
-        if QMessageBox.question(self, "确认", f"删除「{name}」？") == QMessageBox.StandardButton.Yes:
+        if QMessageBox.question(self, tr("panel.inventory.msg_confirm_delete_title"),
+                                tr("panel.inventory.msg_confirm_delete", name=name)) == QMessageBox.StandardButton.Yes:
             self._dm.inventory.delete_item(iid)
             self._dm.inventory.save()
             self._dm.data_changed.emit("inventory")
@@ -635,7 +652,7 @@ class InventoryPanel(QWidget):
         """Open dialog to add/remove/edit tags on an item."""
         c = get_colors()
         dlg = QDialog(self)
-        dlg.setWindowTitle(f"修改标签 - {item.get('name', '')}")
+        dlg.setWindowTitle(tr("panel.inventory.dialog_edit_tags_title", name=item.get('name', '')))
         dlg.setMinimumWidth(360)
         dlg.setStyleSheet(f"QDialog {{ background-color: {c['card_bg']}; }} QLabel {{ color: {c['fg_primary']}; font-size: 13px; background: transparent; border: none; }} QLineEdit {{ background-color: {c['bg_input']}; color: {c['fg_primary']}; border: 1px solid {c['border']}; padding: 6px 10px; font-size: 13px; }} QPushButton {{ background-color: {c['accent_bg']}; color: {c['fg_primary']}; border: none; border-radius: 4px; padding: 4px 12px; font-size: 12px; }} QPushButton:hover {{ background-color: {c['accent']}; color: {c['fg_on_fill']}; }}")
         layout = QVBoxLayout(dlg)
@@ -647,7 +664,7 @@ class InventoryPanel(QWidget):
         tags = list(item.get("tags", []))
         for t in tags:
             tag_list.addItem(t)
-        layout.addWidget(QLabel("当前标签 (双击编辑):"))
+        layout.addWidget(QLabel(tr("panel.inventory.label_current_tags")))
         layout.addWidget(tag_list)
 
         # Double-click to edit
@@ -655,7 +672,9 @@ class InventoryPanel(QWidget):
             row = tag_list.currentRow()
             if row >= 0:
                 old = tag_list.item(row).text()
-                new, ok = __import__('PySide6.QtWidgets').QInputDialog.getText(dlg, "编辑标签", "标签文本:", text=old)
+                new, ok = __import__('PySide6.QtWidgets').QInputDialog.getText(
+                    dlg, tr("panel.inventory.dialog_edit_tag_title"),
+                    tr("panel.inventory.label_tag_text"), text=old)
                 if ok and new.strip():
                     tag_list.item(row).setText(new.strip())
 
@@ -664,9 +683,9 @@ class InventoryPanel(QWidget):
         # Add new tag
         add_row = QHBoxLayout()
         self._tag_input = RoundedLineEdit()
-        self._tag_input.setPlaceholderText("新标签...")
+        self._tag_input.setPlaceholderText(tr("panel.inventory.placeholder_new_tag"))
         add_row.addWidget(self._tag_input)
-        add_btn = RoundedButton("添加")
+        add_btn = RoundedButton(tr("panel.inventory.btn_add"))
         add_row.addWidget(add_btn)
         layout.addLayout(add_row)
 
@@ -680,7 +699,7 @@ class InventoryPanel(QWidget):
         self._tag_input.returnPressed.connect(add_tag)
 
         # Remove selected
-        del_btn = RoundedButton("删除选中")
+        del_btn = RoundedButton(tr("panel.inventory.btn_delete_selected"))
         del_btn.clicked.connect(lambda: tag_list.takeItem(tag_list.currentRow()) if tag_list.currentRow() >= 0 else None)
         layout.addWidget(del_btn)
 
@@ -704,12 +723,12 @@ class InventoryPanel(QWidget):
         from PySide6.QtWidgets import QDateTimeEdit
         c = get_colors()
         dlg = QDialog(self)
-        dlg.setWindowTitle(f"邮件提醒 - {item.get('name','')}")
+        dlg.setWindowTitle(tr("panel.inventory.dialog_email_title", name=item.get('name', '')))
         dlg.setMinimumWidth(320)
         dlg.setStyleSheet(f"QDialog {{ background-color: {c['card_bg']}; }} QLabel {{ color: {c['fg_primary']}; font-size: 13px; }}")
         layout = QVBoxLayout(dlg)
         layout.setSpacing(12)
-        layout.addWidget(QLabel(f"为「{item.get('name','')}」设置补货提醒"))
+        layout.addWidget(QLabel(tr("panel.inventory.label_email_prompt", name=item.get('name', ''))))
         dt = QDateTimeEdit()
         dt.setLocale(QLocale(QLocale.Language.English, QLocale.Country.UnitedStates))
         dt.setCalendarPopup(True)
@@ -723,7 +742,8 @@ class InventoryPanel(QWidget):
         if dlg.exec():
             self._dm.daily_logs.add_reminder("inventory", item.get("name", ""), datetime.now().strftime("%Y-%m-%d"), dt.dateTime().toPython().isoformat())
         self._dm.daily_logs.save()
-        QMessageBox.information(self, "已设置", "已设置补货提醒")
+        QMessageBox.information(self, tr("panel.inventory.msg_reminder_set_title"),
+                                tr("panel.inventory.msg_reminder_set"))
 
     def _restyle_chrome(self) -> None:
         """重刷面包屑/返回按钮（颜色在 __init__ 里写死）。"""

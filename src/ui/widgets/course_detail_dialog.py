@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from src.i18n.loader import tr
 from src.services.data_manager import DataManager
 from src.ui.styles.theme import FONT_CN, SIZE_TITLE, get_colors
 from src.ui.widgets.rounded_button import RoundedButton
@@ -31,7 +32,7 @@ class CourseDetailDialog(QDialog):
         self._today = date.today().isoformat()
 
         c = get_colors()
-        self.setWindowTitle(f"《{course_name}》的事项")
+        self.setWindowTitle(tr("dialog.course.window_title", name=course_name))
         self.setMinimumSize(420, 400)
         self.resize(480, 500)
         self.setStyleSheet(f"""
@@ -45,7 +46,7 @@ class CourseDetailDialog(QDialog):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(16, 12, 16, 16)
 
-        title = QLabel(f"《{course_name}》")
+        title = QLabel(tr("dialog.course.title", name=course_name))
         title.setFont(QFont(FONT_CN, SIZE_TITLE))
         title.setStyleSheet(f"font-weight: 700; color: {c['fg_primary']};")
         layout.addWidget(title)
@@ -63,7 +64,7 @@ class CourseDetailDialog(QDialog):
         sl.setContentsMargins(0, 8, 0, 0)
         self._sched_list = QListWidget()
         sl.addWidget(self._sched_list)
-        tabs.addTab(sched, "日程")
+        tabs.addTab(sched, tr("dialog.course.tab_schedule"))
 
         # 作业 tab
         tasks_w = QWidget()
@@ -71,13 +72,13 @@ class CourseDetailDialog(QDialog):
         tl.setContentsMargins(0, 8, 0, 0)
         self._task_list = QListWidget()
         tl.addWidget(self._task_list)
-        tabs.addTab(tasks_w, "作业")
+        tabs.addTab(tasks_w, tr("dialog.course.tab_tasks"))
 
         layout.addWidget(tabs)
 
         btn_row = QHBoxLayout()
         btn_row.addStretch()
-        close_btn = RoundedButton("关闭")
+        close_btn = RoundedButton(tr("dialog.course.btn_close"))
         close_btn.setStyleSheet(f"""
             QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['fg_primary']};
                 border-radius: 8px; padding: 6px 20px; font-size: 13px; }}
@@ -104,14 +105,14 @@ class CourseDetailDialog(QDialog):
                     all_plans.append((day, p))
         all_plans.sort(key=lambda x: x[0])
         if not all_plans:
-            item = QListWidgetItem("暂无日程计划")
+            item = QListWidgetItem(tr("dialog.course.empty_plans"))
             item.setForeground(Qt.GlobalColor.gray)
             self._sched_list.addItem(item)
             return
         for day, p in all_plans:
             ts = p.get("time_slot", "?")
             title = p.get("title", "")
-            item = QListWidgetItem(f"📅 {day} 时段{ts} — {title}")
+            item = QListWidgetItem(tr("dialog.course.plan_item", day=day, slot=ts, title=title))
             if day < self._today:
                 item.setForeground(Qt.GlobalColor.gray)
             self._sched_list.addItem(item)
@@ -123,7 +124,7 @@ class CourseDetailDialog(QDialog):
         tasks = [t for t in self._dm.tasks.active
                  if (t.get("course_name", "") or "") == cn]
         if not tasks:
-            item = QListWidgetItem("暂无作业")
+            item = QListWidgetItem(tr("dialog.course.empty_tasks"))
             item.setForeground(Qt.GlobalColor.gray)
             self._task_list.addItem(item)
             return
@@ -139,7 +140,7 @@ class CourseDetailDialog(QDialog):
         prefix = "✓" if status == "completed" else "○"
         label = f"{prefix} {title}"
         if due and due != "None":
-            label += f"\n  截止: {due}"
+            label += tr("dialog.course.task_due", due=due)
         item = QListWidgetItem(label)
         if status == "completed":
             item.setForeground(Qt.GlobalColor.gray)

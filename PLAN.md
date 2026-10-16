@@ -117,8 +117,76 @@
   现状是后者 + baseline 防新增。
 - `Q-A1` 尺寸：36 项超限（4 文件 / 6 类 / ~26 函数）何时拆分？
 - `Q-H3` 令牌命名：10 处存量（`red/green/yellow/orange` + `colors.badge_radius`）何时重命名？
-- `Q-A3` 天气 3 套实现 / `Q-E2` 双写路径 / `Q-H7` 令牌分层：仍是已知债。
+- `Q-A3` ✅ 天气 3 套实现**已收拢**（2026-10-16）：删死模块 `api_service.py`，
+  新增 `services/openmeteo.py`（唯一 Open-Meteo 适配 + 唯一天气码映射），
+  `ai_service` 改为委托；`tests/test_openmeteo.py` 守卫。`Q-E2` 双写路径 / `Q-H7` 令牌分层：仍是已知债。
 - 工具缺口：`Q-A2`（`import-linter` 未装）、`Q-E1`（`gitleaks`/`detect-secrets` 未装）、`Q-D3`（AST 剥离检查未实现）。
+
+---
+
+## P7 i18n 全量迁移 · 工具补齐 · 天气整理 ✅ 已完成（2026-10-16）
+
+**A. i18n（`Q-N5`）从"仅 19 处 `tr()`"做到"UI 文本全部走 `tr()`"**
+
+- **机制升级**：语言包改为 **主文件 + 分片**（`src/i18n/zh-CN.json` + `src/i18n/zh-CN.d/<模块>.json`），
+  加载器合并；`tr()` 支持占位符（`tr("k", n=5)`）与**缺语言包回退**（此前会直接抛
+  `FileNotFoundError`，设置里填个 `en-US` 就崩）。
+- **四道守卫**（`tests/test_i18n.py`）：用到的键必须存在 / 键必须命名空间化 / 键不得重复定义 /
+  回退与占位符可用。
+- **度量口径**（`check_quality.py` 的 `I18N`）：只数"**未走 `tr()`** 的中文字面量"，
+  并排除四类非界面文字：docstring、日志实参、字典键、`tr()` 实参。
+- **结果**：`src/ui` 未国际化中文字面量 **692 → 106**（16 个文件、约 30 个分片）。
+- **剩余 106 处的性质**（不是遗漏）：
+  | 类别 | 例子 | 为什么不迁移 |
+  |---|---|---|
+  | 数据值直接渲染 | `充足/需购/不足`、`衣物/虚拟品类` | 是 `inventory.json` 里存的**数据值**；要迁移需先引入"状态→键"映射表（逻辑变更） |
+  | AI 提示词/快照 | `_build_snapshot`、`_build_context_prompt`、`replace_plans` 指令 | 机器可读契约，不是给人看的界面文字 |
+  | 内部哨兵 | `"全部"`（筛选状态）、`sum_*` 查找键 | 参与比较，不显示 |
+  | 数据默认值 | `"未知课程"`（prompt 侧） | 兜底值 |
+- **顺带修掉的两处脆弱设计**：
+  1. 记账汇总卡此前用**显示文字**当 `objectName`（`sum_本月支出`）再按文字查找 →
+     改为按**稳定键**（`sum_month`），`test_ui_wiring` 同步；
+  2. 三处"按按钮文案判断高亮"的启发式（`txt in ("添加", ...)`）中，记账面板已改为 `tr()` 比较；
+     任务/考试面板的同类启发式**仍是待办**（见下方"仍待裁决"）。
+- **顺手清掉**：`main_window` 两处传给 `on_arrange_done(success=True, msg)` 的中文字符串
+  在成功分支**根本不会被使用**（死字符串）→ 改为 `""`。
+
+**B. 工具补齐（`Q-A2` / `Q-E1` / `Q-D3`）**
+
+| 工具 | 状态 | 接入方式 |
+|---|---|---|
+| `import-linter`（Q-A2 分层方向） | ✅ 装 + 配 `.importlinter` | 门禁 `IMPORT-LINTER`（1 kept / 0 broken） |
+| `detect-secrets`（Q-E1 密钥） | ✅ 装 + `.secrets.baseline`（0 处可疑） | 门禁 `SECRETS`（扫描排除 `data/`，避免把真密钥写进基线） |
+| `Q-D3` 可剥离日志检查 | ✅ 自建 AST 检查 | 门禁 `LOG-STRIP`（必须 0）+ `LOG-ONLY`（baseline 37） |
+
+- `Q-D3` **口径收窄**（有依据，非迁就实现）："日志是块内唯一语句"只影响剥离时需补 `pass`，
+  不是阻断项 → 改为 baseline；真正阻断的"日志嵌在表达式里"（`x = logger.info(...)`）**强制 0**。
+- 门禁总数：9 类 → **13 类**（新增 LOG-STRIP / LOG-ONLY / IMPORT-LINTER / SECRETS）。
+
+**C. 天气整理（`Q-A3`）**
+
+- 收拢为**每个能力一套适配**：和风 → `weather_service.py`；Open-Meteo → 新 `services/openmeteo.py`
+  （唯一 URL + 唯一天气码映射）；余额 → 新 `services/deepseek.py`。
+- `api_service.py` 退化为**只起线程的 Qt 外壳**（`_ApiWorker` 委托共享适配器），删掉自带的
+  天气码映射、天气请求、余额解析。
+- `ai_service.py` 删掉内联的 Open-Meteo 请求与重复的天气码映射、内联余额解析 → 全部委托。
+- 守卫：`tests/test_openmeteo.py`（映射/URL 只能出现在一处、`ai_service`/`api_service` 不得自带实现、
+  弹窗字段契约、失败路径永不抛异常）。
+
+**D. 本轮踩的坑（已记 `ERRORS #035`）**
+
+用 PowerShell `Select-String -Path src/**/*.py` 搜引用时**静默漏文件**，据此误判 `api_service.py`
+为死模块并删除，实际它被"API 测试"弹窗使用 → 由子代理发现后回滚重做。
+**教训**：搜引用一律用 `grep` 工具，不要用 shell 通配符；删模块前必须用**可靠**方式确认零引用。
+
+**结果**：**225 passed**（202 → 225）· ruff 0 · 令牌 0 · 门禁 13 项全绿 · 覆盖率 56%。
+
+**仍待裁决 / 待办**：
+
+- 记账之外的"按按钮文案判断高亮"（`task_panel` / `exam_panel` / `inventory_panel`）→ 建议统一改为
+  按 `objectName` 或动态属性判断（现在是改文案就会静默失效的脆弱耦合）。
+- `inventory` 的"状态值直接渲染"（`充足/需购/不足`）→ 若要入语言包，需先加"状态→键"映射。
+- i18n 剩余 106 处中若还有你认为是界面文字的，告诉我具体位置，我补键。
 
 ---
 

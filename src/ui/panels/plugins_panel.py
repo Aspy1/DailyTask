@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from src.i18n.loader import tr
 from src.ui.styles.theme import get_colors
 from src.ui.widgets.rounded_button import RoundedButton
 
@@ -80,13 +81,13 @@ class PluginsPanel(QWidget):
             desc.setWordWrap(True)
             rl.addWidget(desc, stretch=1)
 
-            enabled_cb = QCheckBox("启用")
+            enabled_cb = QCheckBox(tr("panel.plugins.label_enabled"))
             enabled_cb.setChecked(bool(pinfo.enabled))
             enabled_cb.stateChanged.connect(lambda s, n=pinfo.name: self._toggle(n, s == 2))
             rl.addWidget(enabled_cb)
 
             panels = self._pm.get_panels(pinfo.name)
-            open_btn = RoundedButton("打开")
+            open_btn = RoundedButton(tr("panel.plugins.btn_open"))
             open_btn.setEnabled(bool(panels) and pinfo.enabled)
             open_btn.setStyleSheet(f"background-color: {c['accent']}; color:{c['fg_on_fill']}; border-radius: 8px; padding:6px 10px;")
             open_btn.clicked.connect(lambda _=None, n=pinfo.name: self._open(n))
@@ -101,7 +102,7 @@ class PluginsPanel(QWidget):
             return
         ok = self._pm.enable(name) if enable else self._pm.disable(name)
         if not ok:
-            QMessageBox.warning(self, "插件", "设置失败，检查文件权限。")
+            QMessageBox.warning(self, tr("panel.plugins.title"), tr("panel.plugins.msg_toggle_failed"))
         self.refresh()
 
     def _open(self, name: str) -> None:
@@ -109,12 +110,12 @@ class PluginsPanel(QWidget):
             return
         panels = self._pm.get_panels(name)
         if not panels:
-            QMessageBox.information(self, "插件", "插件没有提供面板。")
+            QMessageBox.information(self, tr("panel.plugins.title"), tr("panel.plugins.msg_no_panel"))
             return
         display_name, _ = panels[0]
         widget = self._pm.create_panel(name, display_name, self._settings, self._ai_service, self._data_manager, None)
         if widget is None:
-            QMessageBox.warning(self, "插件", "打开失败。")
+            QMessageBox.warning(self, tr("panel.plugins.title"), tr("panel.plugins.msg_open_failed"))
             return
         widget.setWindowTitle(display_name)
         widget.setAttribute(Qt.WA_DeleteOnClose, True)

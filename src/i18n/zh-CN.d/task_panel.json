@@ -1,0 +1,39 @@
+{
+  "panel.task.heading": "作业",
+
+  "panel.task.btn_course_filter": "课程筛选",
+  "panel.task.btn_time_filter": "时间筛选",
+  "panel.task.btn_refresh": "刷新",
+  "panel.task.btn_prev_page": "< 上一页",
+  "panel.task.btn_next_page": "下一页 >",
+
+  "panel.task.status_pending": "未完成",
+  "panel.task.filter_all": "全部",
+  "panel.task.filter_all_courses": "全部课程",
+  "panel.task.filter_course_prefix": "课程: {name}",
+  "panel.task.filter_course_count": "课程 ({n}) ",
+  "panel.task.filter_time_prefix": "时间: {label} ",
+
+  "panel.task.bucket_today": "今天",
+  "panel.task.bucket_tomorrow": "明天",
+  "panel.task.bucket_this_week": "本周",
+  "panel.task.bucket_next_week": "下周",
+  "panel.task.bucket_this_month": "本月",
+  "panel.task.bucket_overdue": "已过期",
+  "panel.task.bucket_no_date": "无截止日期",
+
+  "panel.task.col_course": "课程",
+  "panel.task.col_due": "截止时间",
+  "panel.task.col_title": "事项",
+  "panel.task.col_done": "完成",
+
+  "panel.task.page_info": "第{page}/{total}页",
+  "panel.task.count": "{total} 个任务  {page}",
+  "panel.task.days_left": "({days}天后)",
+
+  "panel.task.archive_line": "  • {name}  (截止: {due})",
+  "panel.task.dialog_archived_title": "已归档",
+  "panel.task.dialog_archived_empty": "暂无已归档任务。",
+  "panel.task.dialog_archived_recent_title": "已归档（最近20条）",
+  "panel.task.dialog_archived_none": "无"
+}

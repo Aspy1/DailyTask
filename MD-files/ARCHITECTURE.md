@@ -35,7 +35,8 @@ ui ──→ services ──→ models ──→ base(BaseJsonModel)
 ```
 
 **规则**：依赖单向 `ui → services → models`；`scripts/` 独立可执行。
-**已知违规**：`src/services/api_service.py:10` `import src.ui.styles.theme`（服务层反向依赖 UI 层）→ `CODE_STANDARDS Q-A2`。
+**现状**：`✔` 2026-10-16 —— 曾记录的反向依赖（服务层 `import src.ui.styles.theme`）已随代码演进移除；
+现由 `.importlinter` 的 layers 契约常驻守卫（`lint-imports`：1 kept / 0 broken）。
 
 ## 3. 启动顺序（实际，`src/app.py:App.__init__`）
 
@@ -46,7 +47,8 @@ ui ──→ services ──→ models ──→ base(BaseJsonModel)
 3. Windows：`SetCurrentProcessExplicitAppUserModelID`（任务栏图标归属）
 4. 构建图标（`_make_icon`，可选 `resources/image.png`）
 5. `SettingsManager(DATA_DIR/"settings.ini").load()`
-6. `i18n.load(language)`
+6. `i18n.load(language)` —— 语言包 = `src/i18n/zh-CN.json` + `src/i18n/zh-CN.d/*.json`（按模块分片，
+   合并加载）；语言包缺失时**回退 zh-CN**（不抛异常）。UI 文本一律 `tr("键")`，见 `CODE_STANDARDS Q-N5`
 7. `init_theme(app, theme_mode)` + `setStyleSheet`
 8. `set_autostart(auto_start)`（写注册表 Run 项）
 9. **`DataManager(DATA_DIR)`** —— 创建 7 个 Model，并启动 **3s 轮询 QTimer**
@@ -112,7 +114,10 @@ ui ──→ services ──→ models ──→ base(BaseJsonModel)
 | `QThread` + `AIWorker` | `services/ai_service.py` | AI 请求 + Agent Loop（最多 5 轮）+ 执行指令 |
 | `QThread`(`WeatherWorker`) | `services/weather_service.py` | 和风天气 HTTP |
 | `QThread`(`_GitWorker`) | `services/git_sync.py` | `git add/commit/push` 子进程 |
-| `QThread`(`_ApiWorker`) | `services/api_service.py` | Open-Meteo / DeepSeek 余额 |
+| `QThread`(`_ApiWorker`) | `services/api_service.py` | "API 测试"弹窗：委托 `openmeteo` / `deepseek` |
+
+> Open-Meteo / DeepSeek 余额的**同步**实现分别在 `services/openmeteo.py` 与 `services/deepseek.py`
+> （每能力一套适配，`Q-A3`）；`api_service` 只负责起线程 + 发信号。
 
 **主线程定时器**：`DataManager._auto_reload`（3s，比对 7 个文件 mtime）、`ReminderService._check`（60s）、
 `MainWindow._status_timer`（30s）、`WeatherService` 自动更新（10min / 1min 轮询）。
@@ -121,7 +126,7 @@ ui ──→ services ──→ models ──→ base(BaseJsonModel)
 - ✅ AI worker 不再触碰 Model：`InstructionParser.execute` 只跑命令，重载/通知由主线程 `_on_response_with_instructions` 负责
 - ✅ 余额/天气缓存由类属性改为实例属性；`RUF012` 清零
 - ✅ `QThread.terminate()` 已移除（改按 `sender()` 丢弃过期结果）
-- ✅ `weather_service` 按接口类型管理 worker；`git_sync`/`api_service` 均 `deleteLater`
+- ✅ `weather_service` 按接口类型管理 worker；`git_sync` 等均 `deleteLater`
 - ✅ **系统提示词构建不再同步发网络请求**：余额/天气缓存改由一次性守护线程预热
   （`AIService._warm_context_cache`），`_build_system_prompt` 只读缓存；预热不触碰主线程属主的 `WeatherService`
 - 🔄 `actions.run_in_process` 仍用 `contextlib.redirect_stdout`（已加锁串行化；彻底修复需 handler 返回字符串）

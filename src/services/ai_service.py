@@ -8,24 +8,9 @@ from typing import Any, Protocol
 
 from PySide6.QtCore import QObject, QThread, Signal
 
+from src.services import deepseek, openmeteo
+
 logger = logging.getLogger("ai_service")
-
-
-def _weather_code_to_text(code: int) -> str:
-    """天气代码转中文描述"""
-    mapping = {
-        0: "晴", 1: "晴间多云", 2: "多云", 3: "阴",
-        45: "雾", 48: "霜雾",
-        51: "小毛毛雨", 53: "中毛毛雨", 55: "大毛毛雨",
-        56: "冻毛毛雨", 57: "强冻毛毛雨",
-        61: "小雨", 63: "中雨", 65: "大雨",
-        66: "冻雨", 67: "强冻雨",
-        71: "小雪", 73: "中雪", 75: "大雪", 77: "雪粒",
-        80: "小阵雨", 81: "中阵雨", 82: "大阵雨",
-        85: "小阵雪", 86: "大阵雪",
-        95: "雷暴", 96: "雷暴伴冰雹", 99: "强雷暴伴冰雹",
-    }
-    return mapping.get(code, "未知")
 
 
 # ── System prompt ──────────────────────────────────────────────
@@ -314,10 +299,12 @@ class AIService(QObject):
         self._thread.start()
 
     def _fetch_deepseek_balance(self) -> str:
-        """Fetch DeepSeek API balance. Returns cached value if < 5 min old."""
+        """Fetch DeepSeek API balance. Returns cached value if < 5 min old.
+
+        实际请求经共享适配器 `services/deepseek.fetch_balance()`（Q-A3）。
+        """
         import time
 
-        import requests
         now = time.time()
         cached = self._ds_balance_cache
         if cached and (now - cached.get("fetched_at", 0)) < 300:
@@ -326,24 +313,17 @@ class AIService(QObject):
         api_key = self._settings.api_key
         if not api_key:
             return ""
-        try:
-            resp = requests.get(
-                "https://api.deepseek.com/user/balance",
-                headers={"Accept": "application/json", "Authorization": f"Bearer {api_key}"},
-                timeout=5,
-            )
-            if resp.status_code == 200:
-                data = resp.json()
-                infos = data.get("balance_infos", [])
-                if infos:
-                    total = float(infos[0].get("total_balance", 0))
-                    val = f"¥{total:.2f}"
-                else:
-                    val = "未知"
-            else:
-                val = "查询失败"
-        except (OSError, ValueError, KeyError, TypeError):
-            val = ""
+
+        result = deepseek.fetch_balance(api_key)
+        kind = result.get("error_kind")
+        if kind == "network":
+            val = ""                    # 与旧行为一致：网络异常给空串
+        elif "error" in result:
+            val = "查询失败"
+        elif result.get("balance_infos"):
+            val = f"¥{float(result['balance_infos'][0].get('total_balance', 0)):.2f}"
+        else:
+            val = "未知"
         self._ds_balance_cache = {"value": val, "fetched_at": now}
         return val
 
@@ -379,64 +359,17 @@ class AIService(QObject):
             return None
 
     def _weather_from_open_meteo(self) -> str:
-        """回退方案：直接请求 Open-Meteo 并整理成天气文本。"""
+        """回退方案：经**共享**的 Open-Meteo 适配器取天气文本。
+
+        Q-A3：此前这里是内联的 `requests.get` + 自带一份天气码映射（第三套实现），
+        现已收拢到 `src/services/openmeteo.py`（唯一实现）。
+        """
         try:
-            import requests
-
-            try:
-                lat = float(self._settings.get("Weather", "lat", "31.23"))
-                lon = float(self._settings.get("Weather", "lon", "121.47"))
-            except ValueError:
-                lat, lon = 31.23, 121.47
-
-            resp = requests.get(
-                "https://api.open-meteo.com/v1/forecast",
-                params={
-                    "latitude": lat,
-                    "longitude": lon,
-                    "current_weather": True,
-                    "hourly": "temperature_2m,relativehumidity_2m,weathercode,precipitation_probability",
-                    "timezone": "Asia/Shanghai",
-                    "forecast_days": 3,
-                },
-                timeout=5,
-            )
-            if resp.status_code == 200:
-                return self._format_open_meteo(resp.json())
-            return "  天气查询失败"
-        except (OSError, ValueError, KeyError, TypeError) as e:
-            return f"  天气信息暂不可用 ({e})"
-
-    @staticmethod
-    def _format_open_meteo(data: dict) -> str:
-        """把 Open-Meteo 响应整理为「当前 + 未来3天」天气文本。"""
-        current = data.get("current_weather", {})
-        hourly = data.get("hourly", {})
-
-        temp = current.get("temperature", "?")
-        wcode = current.get("weathercode", 0)
-        wtext = _weather_code_to_text(wcode)
-        wind = current.get("windspeed", "?")
-
-        lines = [f"  当前: {wtext}, {temp}°C, 风速{wind}km/h"]
-
-        # 未来3天预报
-        temps = hourly.get("temperature_2m", [])
-        codes = hourly.get("weathercode", [])
-        times = hourly.get("time", [])
-        if temps and codes and times:
-            from datetime import datetime as _dt
-            seen_days = set()
-            for i, t in enumerate(times):
-                if i >= len(temps) or i >= len(codes):
-                    break
-                dt = _dt.fromisoformat(t.replace("Z", "+00:00"))
-                day_key = dt.strftime("%m-%d")
-                if day_key not in seen_days and len(seen_days) < 3:
-                    seen_days.add(day_key)
-                    lines.append(f"  {dt.strftime('%m-%d')}: {_weather_code_to_text(codes[i])}, {temps[i]}°C")
-
-        return "\n".join(lines)
+            lat = float(self._settings.get("Weather", "lat", "31.23"))
+            lon = float(self._settings.get("Weather", "lon", "121.47"))
+        except (ValueError, TypeError):
+            lat, lon = openmeteo.DEFAULT_LAT, openmeteo.DEFAULT_LON
+        return openmeteo.fetch_text_for_ai(lat, lon)
 
     def _compute_prompt_cache_key(self, today: date) -> tuple:
         """提示词轻量缓存键：数据形状 + 天气缓存时间戳。"""

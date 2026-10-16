@@ -1,0 +1,13 @@
+{
+  "widget.course_table.menu_rename": "修改课程名称",
+  "widget.course_table.menu_delete": "删除这门课",
+  "widget.course_table.menu_view_tasks": "查看关于这门课的事项",
+
+  "widget.course_table.action_homework": "布置了作业",
+  "widget.course_table.action_exam_notice": "发布了考试通知",
+  "widget.course_table.action_review_notice": "发布了复习通知",
+  "widget.course_table.action_schedule_change": "调课 / 停课通知",
+  "widget.course_table.action_other": "其他事项",
+
+  "widget.course_table.period_nth": "第{n}节"
+}

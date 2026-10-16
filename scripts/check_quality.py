@@ -10,12 +10,15 @@
     SIZE        文件 >800 行 / 类 >400 行 / 函数 >60 行        Q-A1（存量走 baseline）
     SILENT      `except ...: pass`（含具名异常，ruff S110 抓不到）Q-I2（必须为 0）
     ID-GEN      `len()+1` 生成 ID                              R-008（必须为 0）
+    LOG-STRIP   日志必须可静态剥离（独立语句 / 非块内唯一语句）  Q-D3（必须为 0）
     TOKEN-NAME  色名当令牌名 / 尺寸混进颜色集                   Q-H3（存量走 baseline）
-    I18N        src/ui 中文字面量计数                           Q-N5（不得超过 baseline）
+    I18N        src/ui 中**未走 tr()** 的中文字面量计数          Q-N5（不得超过 baseline）
     TOP-DIR     顶层目录/根文件白名单（只查 git 跟踪项）        Q-P1
     SECRET      data/settings.ini 不得被 git 跟踪               Q-E1
     VULTURE     死代码（`vulture --min-confidence 80`）         Q-A4（必须为空）
     RADON       圈复杂度 C 级以上                                Q-C1（必须为空）
+    IMPORT-LINTER 分层依赖方向 UI → Services → Models            Q-A2（必须 0 broken）
+    SECRETS     detect-secrets 扫描（排除 data/，基线 .secrets.baseline）Q-E1
 
 baseline（`scripts/quality_baseline.json`）是**存量债台账**，只防"新增"。
 修好一项就 `--write-baseline` 把它划掉，债只会变少。
@@ -32,6 +35,7 @@ import argparse
 import ast
 import contextlib
 import json
+import os
 import re
 import subprocess
 import sys
@@ -46,6 +50,20 @@ UI_DIR = ROOT / "src" / "ui"
 CHECK_ROOTS = ("src", "scripts", "plugins")
 TOOLS = (("VULTURE", ["vulture", "src", "scripts", "plugins", "--min-confidence", "80"]),
          ("RADON", ["radon", "cc", "-n", "C", "-s", "src", "scripts", "plugins"]))
+# 控制台脚本类工具（不能 `-m` 运行）：(名称, 可执行名, 参数)
+CONSOLE_TOOLS = (
+    ("IMPORT-LINTER", "lint-imports", []),
+    ("SECRETS", "detect-secrets", ["scan", "--baseline", ".secrets.baseline",
+                                   *[a for pat in ("data/.*", r"\.venv/.*", r"\.git/.*",
+                                                   r".*__pycache__.*", r"\.pytest_cache/.*",
+                                                   r"\.ruff_cache/.*", r"\.secrets\.baseline")
+                                     for a in ("--exclude-files", pat)]]),
+)
+LOG_METHODS = {"debug", "info", "warning", "error", "exception", "critical", "log"}
+LOG_OWNERS = {"logger", "logging", "log"}
+
+# 子进程统一用 UTF-8：Windows 控制台默认 cp936，lint-imports 的横幅会直接崩
+_SUBPROC_ENV = {**os.environ, "PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8"}
 
 CN_RE = re.compile(r"[\u4e00-\u9fff]")
 ID_LEN1_RE = re.compile(r"""f["'][^"']*\{len\([^)]*\)\s*\+\s*1""")
@@ -157,6 +175,67 @@ def check_id_generation() -> list[str]:
     return hits
 
 
+def _is_logging_call(node: ast.AST) -> bool:
+    return (isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr in LOG_METHODS
+            and isinstance(node.func.value, ast.Name)
+            and node.func.value.id in LOG_OWNERS)
+
+
+def _child_blocks(node: ast.AST) -> list[list[ast.stmt]]:
+    blocks = []
+    for field in ("body", "orelse", "finalbody"):
+        value = getattr(node, field, None)
+        if isinstance(value, list) and value and isinstance(value[0], ast.stmt):
+            blocks.append(value)
+    return blocks
+
+
+def _parse(path: Path) -> ast.AST | None:
+    try:
+        return ast.parse(path.read_text(encoding="utf-8"))
+    except SyntaxError:
+        return None
+
+
+def check_log_embedded() -> list[str]:
+    """Q-D3（真阻断）：日志调用嵌在表达式里（`x = logger.info(...)`、`return logger...`）。
+
+    这类语句无法被 AST 剥离器整体删除（删了会改变返回值/赋值语义）。
+    """
+    hits = []
+    for f in iter_py():
+        tree = _parse(f)
+        if tree is None:
+            continue
+        standalone = {id(n.value) for n in ast.walk(tree)
+                      if isinstance(n, ast.Expr) and _is_logging_call(n.value)}
+        hits += [f"{rel(f)}:{n.lineno} 日志调用嵌在表达式里"
+                 for n in ast.walk(tree)
+                 if _is_logging_call(n) and id(n) not in standalone]
+    return hits
+
+
+def check_log_sole_statement() -> list[str]:
+    """Q-D3（可容忍，走 baseline）：日志是所在块的**唯一语句**。
+
+    剥离器遇到这种块只需补一个 `pass` 即可保持语法合法、行为不变，
+    所以它不是剥离的阻断项（2026-10-16 收窄口径，见 CODE_STANDARDS Q-D3）。
+    """
+    hits = []
+    for f in iter_py():
+        tree = _parse(f)
+        if tree is None:
+            continue
+        for node in ast.walk(tree):
+            hits += [f"{rel(f)}:{block[0].lineno}"
+                     for block in _child_blocks(node)
+                     if len(block) == 1 and isinstance(block[0], ast.Expr)
+                     and _is_logging_call(block[0].value)]
+    return hits
+
+
 def check_token_names() -> list[str]:
     tokens = json.loads((ROOT / "design" / "tokens.json").read_text(encoding="utf-8"))
     bad = []
@@ -180,18 +259,52 @@ def _docstring_ids(tree: ast.AST) -> set[int]:
     return ids
 
 
+def _tr_arg_ids(tree: ast.AST) -> set[int]:
+    """被 `tr(...)` 包住的字面量（这些已走 i18n，不算"未国际化"）。"""
+    ids = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call) and getattr(node.func, "id", None) == "tr":
+            ids.update(id(a) for a in node.args if isinstance(a, ast.Constant))
+    return ids
+
+
+def _const_ids(nodes: list[ast.expr]) -> set[int]:
+    return {id(n) for n in nodes if isinstance(n, ast.Constant)}
+
+
+def _log_arg_ids(tree: ast.AST) -> set[int]:
+    """日志调用的实参（日志永远不是界面文字）。"""
+    ids: set[int] = set()
+    for node in ast.walk(tree):
+        if _is_logging_call(node) and isinstance(node, ast.Call):
+            ids |= _const_ids([*node.args, *(kw.value for kw in node.keywords)])
+    return ids
+
+
+def _dict_key_ids(tree: ast.AST) -> set[int]:
+    """字典的**键**（数据标识符，不是界面文字；值可能是）。"""
+    ids: set[int] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Dict):
+            ids |= _const_ids(list(node.keys))
+    return ids
+
+
 def _count_cn_in_file(f: Path) -> int:
+    """未国际化的中文字面量：排除 docstring、`tr(...)` 实参、日志实参、字典键。"""
     try:
         tree = ast.parse(f.read_text(encoding="utf-8"))
     except SyntaxError:
         return 0
-    docs = _docstring_ids(tree)
+    skip = (_docstring_ids(tree) | _tr_arg_ids(tree)
+            | _log_arg_ids(tree) | _dict_key_ids(tree))
     return sum(1 for n in ast.walk(tree)
                if isinstance(n, ast.Constant) and isinstance(n.value, str)
-               and id(n) not in docs and CN_RE.search(n.value))
+               and id(n) not in skip and CN_RE.search(n.value))
 
 
 def count_ui_chinese_literals() -> int:
+    """src/ui 下**未走 tr()** 的中文字面量数量（Q-N5 的度量口径）。"""
     return sum(_count_cn_in_file(f) for f in UI_DIR.rglob("*.py")
                if "__pycache__" not in f.parts)
 
@@ -230,13 +343,35 @@ def run_tool(args: list[str]) -> tuple[str, str]:
     try:
         # 解释器与工具名都是本模块写死的常量，无外部输入（S603/S607 不适用）
         proc = subprocess.run([sys.executable, "-m", *args],  # noqa: S603
-                              cwd=ROOT, capture_output=True, text=True, encoding="utf-8")
+                              cwd=ROOT, capture_output=True, text=True,
+                              encoding="utf-8", errors="replace", env=_SUBPROC_ENV)
     except FileNotFoundError:
         return "skip", "未安装"
     err = (proc.stdout + proc.stderr).strip()
     if "No module named" in err:
         return "skip", "未安装"
     return ("ok", "") if not err else ("bad", err)
+
+
+def _console_script(name: str) -> Path | None:
+    scripts_dir = Path(sys.executable).parent
+    for candidate in (scripts_dir / f"{name}.exe", scripts_dir / name,
+                      scripts_dir / f"{name}.cmd"):
+        if candidate.exists():
+            return candidate
+    return None
+
+
+def run_console_tool(name: str, args: list[str]) -> tuple[str, str]:
+    """控制台脚本类工具（lint-imports / detect-secrets）：成功 = 退出码 0。"""
+    exe = _console_script(name)
+    if exe is None:
+        return "skip", "未安装"
+    # 可执行文件与参数都是本模块写死的常量，无外部输入（S603/S607 不适用）
+    proc = subprocess.run([str(exe), *args], cwd=ROOT, capture_output=True,  # noqa: S603
+                          text=True, encoding="utf-8", errors="replace", env=_SUBPROC_ENV)
+    out = (proc.stdout + proc.stderr).strip()
+    return ("ok", "") if proc.returncode == 0 else ("bad", out)
 
 
 def report_baseline_sizes(rep: Report, sizes: dict[str, int], base: dict[str, int]) -> None:
@@ -265,17 +400,35 @@ def report_i18n(rep: Report, count: int, base: int | None) -> None:
         rep.add(f"I18N       src/ui 中文字面量 {count} 处（baseline {base}，未增加）")
 
 
+def report_baseline_count(rep: Report, tag: str, title: str, count: int, base: int | None) -> None:
+    """按"计数不得超过 baseline"上报（适合行号会漂移的检查）。"""
+    if base is None:
+        rep.add(f"{tag:<10} {title} {count} 处（无 baseline，仅报告）")
+    elif count > base:
+        rep.add(f"{tag:<10} {title} {count} 处 > baseline {base} → 新增 {count - base} 处")
+        rep.fail(tag, f"{count}>{base}")
+    else:
+        rep.add(f"{tag:<10} {title} {count} 处（baseline {base}，未增加）")
+
+
 def report_tools(rep: Report) -> None:
     for name, args in TOOLS:
         status, output = run_tool(args)
-        if status == "skip":
-            rep.add(f"{name:<10} 跳过（{output}）")
-        elif status == "ok":
-            rep.add(f"{name:<10} 通过（无输出）")
-        else:
-            rep.add(f"{name:<10} 违规：")
-            rep.lines += [f"            {ln}" for ln in output.splitlines()[:20]]
-            rep.fail(name, output.splitlines()[0] if output else "")
+        _report_tool_result(rep, name, status, output)
+    for name, exe, args in CONSOLE_TOOLS:
+        status, output = run_console_tool(exe, args)
+        _report_tool_result(rep, name, status, output)
+
+
+def _report_tool_result(rep: Report, name: str, status: str, output: str) -> None:
+    if status == "skip":
+        rep.add(f"{name:<10} 跳过（{output}）")
+    elif status == "ok":
+        rep.add(f"{name:<10} 通过")
+    else:
+        rep.add(f"{name:<10} 违规：")
+        rep.lines += [f"            {ln}" for ln in output.splitlines()[:20]]
+        rep.fail(name, output.splitlines()[0] if output else "")
 
 
 def write_baseline() -> None:
@@ -287,12 +440,14 @@ def write_baseline() -> None:
         "sizes": sizes,
         "token_names": tokens_bad,
         "ui_chinese_literals": ui_cn,
+        "log_sole_statement": len(check_log_sole_statement()),
     }
     BASELINE_FILE.write_text(
         json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
         encoding="utf-8", newline="")
     print(f"已写入 {rel(BASELINE_FILE)}：尺寸 {len(sizes)} 项 / "
-          f"令牌命名 {len(tokens_bad)} 项 / i18n 中文字面量 {ui_cn} 处")
+          f"令牌命名 {len(tokens_bad)} 项 / i18n 中文字面量 {ui_cn} 处 / "
+          f"块内唯一日志 {payload['log_sole_statement']} 处")
 
 
 def report_items(rep: Report, tag: str, ok_text: str, items: list[str]) -> None:
@@ -314,6 +469,9 @@ def evaluate() -> Report:
     report_baseline_sizes(rep, check_sizes(), baseline.get("sizes", {}))
     rep.must_zero("SILENT", "`except: pass`", check_silent_swallow())
     rep.must_zero("ID-GEN", "`len()+1` 生成 ID", check_id_generation())
+    rep.must_zero("LOG-STRIP", "日志嵌在表达式里", check_log_embedded())
+    report_baseline_count(rep, "LOG-ONLY", "日志是块内唯一语句",
+                          len(check_log_sole_statement()), baseline.get("log_sole_statement"))
     report_baseline_tokens(rep, check_token_names(), baseline.get("token_names", []))
     report_i18n(rep, count_ui_chinese_literals(), baseline.get("ui_chinese_literals"))
     report_items(rep, "TOP-DIR", "通过", check_top_level())

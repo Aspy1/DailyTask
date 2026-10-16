@@ -25,6 +25,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
+from src.i18n.loader import tr
 from src.models.course import PERIOD_TIMES
 from src.ui.styles.theme import RADIUS, SIZE_BODY_S, SIZE_TINY, get_colors
 from src.ui.widgets.menu import (
@@ -34,15 +35,26 @@ from src.ui.widgets.menu import (
     show_at_cursor,
 )
 
-DAY_LABELS = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
+DAY_LABELS = [tr("day.monday"), tr("day.tuesday"), tr("day.wednesday"),
+              tr("day.thursday"), tr("day.friday"), tr("day.saturday"), tr("day.sunday")]
 
 # Right-click menu actions — extensible: just add a label
+# 这些中文是**内部动作标识**（`data=("fill", label)` 与 AI prompt 都依赖它），保持原文。
 COURSE_ACTIONS = [
     "布置了作业",
     "发布了考试通知",
     "发布了复习通知",
     "调课 / 停课通知",
     "其他事项",
+]
+
+# 与 COURSE_ACTIONS 一一对应的**显示文案**键（顺序必须保持一致）
+_COURSE_ACTION_KEYS = [
+    "widget.course_table.action_homework",
+    "widget.course_table.action_exam_notice",
+    "widget.course_table.action_review_notice",
+    "widget.course_table.action_schedule_change",
+    "widget.course_table.action_other",
 ]
 
 
@@ -128,14 +140,15 @@ def build_course_context_menu(course: dict, parent=None) -> QMenu:
     menu = new_menu(parent)
     course_id = course.get("id", "")
 
-    add_action(menu, "修改课程名称", data=("rename", course_id))
-    add_action(menu, "删除这门课", data=("delete", course_id))
-    add_action(menu, "查看关于这门课的事项", data=("view_tasks", course.get("name", "")))
+    add_action(menu, tr("widget.course_table.menu_rename"), data=("rename", course_id))
+    add_action(menu, tr("widget.course_table.menu_delete"), data=("delete", course_id))
+    add_action(menu, tr("widget.course_table.menu_view_tasks"),
+               data=("view_tasks", course.get("name", "")))
 
     add_separator(menu)
 
-    for action_label in COURSE_ACTIONS:
-        add_action(menu, action_label, data=("fill", action_label))
+    for action_label, key in zip(COURSE_ACTIONS, _COURSE_ACTION_KEYS, strict=True):
+        add_action(menu, tr(key), data=("fill", action_label))
 
     return menu
 
@@ -277,7 +290,7 @@ class CourseTable(QTableWidget):
                 start, end = PERIOD_TIMES[i]
                 labels.append(f"{start}\n{end}")
             else:
-                labels.append(f"第{i + 1}节")
+                labels.append(tr("widget.course_table.period_nth", n=i + 1))
         return labels
 
     @property

@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
+from src.i18n.loader import tr
 from src.services.api_service import ApiService
 from src.ui.styles.theme import FONT_CN, SIZE_BODY, SIZE_SUBTITLE, get_colors
 from src.ui.widgets.rounded_button import RoundedButton
@@ -27,7 +28,7 @@ class ApiTestDialog(QDialog):
         self._api = api_service
         c = get_colors()
 
-        self.setWindowTitle("API 测试窗口")
+        self.setWindowTitle(tr("dialog.api_test.title"))
         self.setMinimumSize(600, 500)
         self.setStyleSheet(f"""
             QDialog {{
@@ -77,48 +78,48 @@ class ApiTestDialog(QDialog):
         layout.setContentsMargins(24, 20, 24, 20)
 
         # 标题
-        title = QLabel("外部 API 测试")
+        title = QLabel(tr("dialog.api_test.heading"))
         title.setFont(QFont(FONT_CN, SIZE_SUBTITLE, 600))
         layout.addWidget(title)
 
         # 天气预报测试
-        weather_group = QGroupBox("天气预报 API (Open-Meteo)")
+        weather_group = QGroupBox(tr("dialog.api_test.group_weather"))
         weather_layout = QFormLayout()
         weather_group.setLayout(weather_layout)
 
         self._lat_input = RoundedLineEdit()
-        self._lat_input.setPlaceholderText("如: 31.23")
+        self._lat_input.setPlaceholderText(tr("dialog.api_test.placeholder_lat"))
         self._lat_input.setText("31")
-        weather_layout.addRow("纬度:", self._lat_input)
+        weather_layout.addRow(tr("dialog.api_test.label_lat"), self._lat_input)
 
         self._lon_input = RoundedLineEdit()
-        self._lon_input.setPlaceholderText("如: 121.47")
+        self._lon_input.setPlaceholderText(tr("dialog.api_test.placeholder_lon"))
         self._lon_input.setText("121")
-        weather_layout.addRow("经度:", self._lon_input)
+        weather_layout.addRow(tr("dialog.api_test.label_lon"), self._lon_input)
 
-        self._weather_btn = RoundedButton("测试天气预报")
+        self._weather_btn = RoundedButton(tr("dialog.api_test.btn_weather"))
         self._weather_btn.clicked.connect(self._test_weather)
         weather_layout.addRow("", self._weather_btn)
 
         layout.addWidget(weather_group)
 
         # DeepSeek 额度测试
-        balance_group = QGroupBox("DeepSeek 余额 API")
+        balance_group = QGroupBox(tr("dialog.api_test.group_balance"))
         balance_layout = QFormLayout()
         balance_group.setLayout(balance_layout)
 
         self._api_key_input = RoundedLineEdit()
         self._api_key_input.setPlaceholderText("sk-...")
-        balance_layout.addRow("API Key:", self._api_key_input)
+        balance_layout.addRow(tr("dialog.api_test.label_api_key"), self._api_key_input)
 
-        self._balance_btn = RoundedButton("查询余额")
+        self._balance_btn = RoundedButton(tr("dialog.api_test.btn_balance"))
         self._balance_btn.clicked.connect(self._test_balance)
         balance_layout.addRow("", self._balance_btn)
 
         layout.addWidget(balance_group)
 
         # 结果显示
-        result_label = QLabel("测试结果:")
+        result_label = QLabel(tr("dialog.api_test.label_result"))
         result_label.setFont(QFont(FONT_CN, SIZE_BODY, 600))
         layout.addWidget(result_label)
 
@@ -142,42 +143,48 @@ class ApiTestDialog(QDialog):
             lat = float(self._lat_input.text().strip())
             lon = float(self._lon_input.text().strip())
         except ValueError:
-            self._result_text.append("[错误] 请输入有效的经纬度数字")
+            self._result_text.append(tr("dialog.api_test.msg_invalid_coords"))
             return
-        self._result_text.append(f"[{datetime.now().strftime('%H:%M:%S')}] 请求天气数据 ({lat}°N, {lon}°E)...")
+        self._result_text.append(tr(
+            "dialog.api_test.status_weather_request",
+            time=datetime.now().strftime('%H:%M:%S'), lat=lat, lon=lon))
         self._api.fetch_weather(lat, lon)
 
     def _test_balance(self) -> None:
         api_key = self._api_key_input.text().strip()
         if not api_key:
-            self._result_text.append("[错误] 请输入 API Key")
+            self._result_text.append(tr("dialog.api_test.msg_api_key_required"))
             return
-        self._result_text.append(f"[{datetime.now().strftime('%H:%M:%S')}] 请求 DeepSeek 余额...")
+        self._result_text.append(tr(
+            "dialog.api_test.status_balance_request",
+            time=datetime.now().strftime('%H:%M:%S')))
         self._api.fetch_deepseek_balance(api_key)
 
     def _on_weather_result(self, result: dict) -> None:
         if "error" in result:
-            self._result_text.append(f"[天气 API 错误] {result['error']}")
-        else:
             self._result_text.append(
-                f"[天气 API 成功]\n"
-                f"  天气: {result.get('weather_text', '未知')}\n"
-                f"  温度: {result.get('temperature', '?')}°C\n"
-                f"  湿度: {result.get('humidity', '?')}%\n"
-                f"  风速: {result.get('wind_speed', '?')} km/h\n"
-                f"  更新时间: {result.get('timestamp', '?')}"
-            )
+                tr("dialog.api_test.result_weather_error", error=result['error']))
+        else:
+            self._result_text.append(tr(
+                "dialog.api_test.result_weather_success",
+                weather=result.get('weather_text', tr("dialog.api_test.value_unknown")),
+                temperature=result.get('temperature', '?'),
+                humidity=result.get('humidity', '?'),
+                wind=result.get('wind_speed', '?'),
+                time=result.get('timestamp', '?')))
 
     def _on_balance_result(self, result: dict) -> None:
         if "error" in result:
-            self._result_text.append(f"[余额 API 错误] {result['error']}")
-        else:
             self._result_text.append(
-                f"[余额 API 成功]\n"
-                f"  总额: {result.get('total_balance', 0):.4f} {result.get('currency', 'CNY')}\n"
-                f"  可用: {'是' if result.get('is_available') else '否'}\n"
-                f"  更新时间: {result.get('timestamp', '?')}"
-            )
+                tr("dialog.api_test.result_balance_error", error=result['error']))
+        else:
+            self._result_text.append(tr(
+                "dialog.api_test.result_balance_success",
+                total=f"{result.get('total_balance', 0):.4f}",
+                currency=result.get('currency', 'CNY'),
+                available=(tr("dialog.api_test.value_yes") if result.get('is_available')
+                           else tr("dialog.api_test.value_no")),
+                time=result.get('timestamp', '?')))
 
     def _on_error(self, error: str) -> None:
-        self._result_text.append(f"[网络错误] {error}")
+        self._result_text.append(tr("dialog.api_test.result_network_error", error=error))

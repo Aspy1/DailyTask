@@ -43,6 +43,29 @@ def test_token_name_regex_flags_raw_color_names() -> None:
     assert not cq.BAD_TOKEN_RE.match("state_danger")
 
 
+def test_log_helpers_detect_module_logger_calls() -> None:
+    assert cq._is_logging_call(ast.parse("logger.info('x')").body[0].value) is True
+    assert cq._is_logging_call(ast.parse("logging.warning('x')").body[0].value) is True
+    assert cq._is_logging_call(ast.parse("print('x')").body[0].value) is False
+    # 非模块级 logger（如 self.logger）不在契约内
+    assert cq._is_logging_call(ast.parse("self.logger.info('x')").body[0].value) is False
+
+
+def test_child_blocks_returns_if_branches() -> None:
+    node = ast.parse("if x:\n    a()\nelse:\n    b()\n").body[0]
+    assert len(cq._child_blocks(node)) == 2
+
+
+def test_unwrapped_chinese_ignores_tr_arguments() -> None:
+    """`tr("中文")` 的实参不算"未国际化"。"""
+    tree = ast.parse('a = tr("面板标题")\nb = "裸中文"')
+    assert cq._count_cn_in_file.__name__          # 存在性
+    wrapped = cq._tr_arg_ids(tree)
+    consts = [n for n in ast.walk(tree) if isinstance(n, ast.Constant) and isinstance(n.value, str)]
+    unwrapped = [c.value for c in consts if id(c) not in wrapped]
+    assert unwrapped == ["裸中文"]
+
+
 # ── 2. 当前仓库状态 ─────────────────────────────────────────
 def test_repository_passes_quality_gate() -> None:
     rep = cq.evaluate()
@@ -52,6 +75,7 @@ def test_repository_passes_quality_gate() -> None:
 def test_absolute_rules_are_clean() -> None:
     assert cq.check_silent_swallow() == []
     assert cq.check_id_generation() == []
+    assert cq.check_log_embedded() == []
     assert cq.check_top_level() == []
     assert cq.check_secret_not_tracked() == []
 

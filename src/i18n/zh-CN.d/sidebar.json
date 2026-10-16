@@ -1,0 +1,15 @@
+{
+  "sidebar.section.func": "功能",
+  "sidebar.section.life": "生活",
+
+  "sidebar.nav.schedule": "日程总览",
+  "sidebar.nav.courses": "课程表",
+  "sidebar.nav.tasks": "作业管理",
+  "sidebar.nav.exams": "考试",
+  "sidebar.nav.daily": "日常",
+  "sidebar.nav.expenses": "记账",
+  "sidebar.nav.inventory": "有什么",
+  "sidebar.nav.meals": "吃什么",
+  "sidebar.nav.settings": "设置",
+  "sidebar.nav.more": "更多…"
+}

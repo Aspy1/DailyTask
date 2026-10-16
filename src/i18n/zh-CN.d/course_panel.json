@@ -1,0 +1,16 @@
+{
+  "panel.course.btn_refresh": "刷新",
+  "panel.course.btn_prev_week": "< 上一周",
+  "panel.course.btn_today": "本周",
+  "panel.course.btn_next_week": "下一周 >",
+
+  "panel.course.week_label": "第 {week} / {total} 周",
+  "panel.course.course_count": "{n} 门课程",
+  "panel.course.unknown_name": "未知课程",
+
+  "panel.course.dlg_rename_title": "修改课程名称",
+  "panel.course.dlg_rename_label": "新名称:",
+
+  "panel.course.dlg_delete_title": "确认删除",
+  "panel.course.dlg_delete_body": "确定要删除「{name}」吗？"
+}

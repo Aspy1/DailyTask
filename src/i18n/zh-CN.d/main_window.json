@@ -1,0 +1,40 @@
+{
+  "window.theme.dark": "深色",
+  "window.theme.light": "浅色",
+
+  "window.about.description": "AI 驱动的学生时间管理与生活助手",
+  "window.about.github_link": "GitHub 仓库",
+
+  "window.arrange.progress": "AI 正在整理日程...",
+  "window.arrange.done": "日程调整完成",
+  "window.arrange.done_count": "日程调整完成，{n} 条指令",
+  "window.arrange.failed": "安排失败: {err}",
+
+  "window.ai.error": "错误: {err}",
+
+  "window.status.weather_placeholder": "天气: --",
+  "window.status.weather": "天气: {temp}°C {text}",
+  "window.status.week": "第{week}/{total}周 ",
+  "window.status.course_all_done": "共{total}节课，已上{finished}节，今日课已上完  ▸",
+  "window.status.course_next": "共{total}节课，已上{finished}节，下一节: {name} {start}  ▸",
+  "window.status.ddl_count": "  |  {n}项DDL",
+  "window.status.tomorrow_no_course": "⏎ 明日({day}): 无课  |  不用早起{ddl}  ▸",
+  "window.status.tomorrow_prefix": "⏎ 明日({day}): {n}节课  |  ",
+  "window.status.need_early": "需要早起",
+  "window.status.tomorrow_early": "  最早{first}  建议{wake}起床{ddl}  ▸",
+  "window.status.tomorrow_normal": "不用早起  最早{first}{ddl}  ▸",
+  "window.status.habit_count": "日常{done}/{total}",
+  "window.status.habit_none": "今日无事",
+  "window.status.exam_count": "备考{n}科",
+  "window.status.ddl_alert": "DDL {n}",
+  "window.status.ddl_none": "暂无DDL",
+
+  "window.weather.title": "天气详情",
+  "window.weather.refresh": "刷新",
+  "window.weather.forecast_title": "未来3天预报",
+  "window.weather.updated_at": "最后更新: {time}",
+  "window.weather.feels_like": "{text}  ·  体感 {feels}°C",
+  "window.weather.humidity": "湿度 {value}%",
+  "window.weather.wind": "{direction} {scale}级",
+  "window.weather.precip": "雨量{value}mm"
+}

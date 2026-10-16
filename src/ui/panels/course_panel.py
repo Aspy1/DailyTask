@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from src.i18n.loader import tr
 from src.services.data_manager import DataManager
 from src.ui.styles.theme import FONT_CN, SIZE_BODY_S, get_colors
 from src.ui.widgets.course_table import CourseTable
@@ -46,7 +47,7 @@ class CoursePanel(QWidget):
         self._week_label.setStyleSheet("font-weight: 600; border: none;")
         bar_layout.addWidget(self._week_label)
 
-        refresh_btn = RoundedButton("刷新")
+        refresh_btn = RoundedButton(tr("panel.course.btn_refresh"))
         refresh_btn.setStyleSheet(f"""
             QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
                 border-radius: 8px; padding: 4px 12px; font-size: 13px; }}
@@ -58,7 +59,9 @@ class CoursePanel(QWidget):
 
         bar_layout.addStretch()
 
-        for text, slot in [("< 上一周", self._prev_week), ("本周", self._go_today), ("下一周 >", self._next_week)]:
+        for text, slot in [(tr("panel.course.btn_prev_week"), self._prev_week),
+                           (tr("panel.course.btn_today"), self._go_today),
+                           (tr("panel.course.btn_next_week"), self._next_week)]:
             btn = RoundedButton(text)
             btn.setStyleSheet(f"""
                 QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
@@ -110,14 +113,14 @@ class CoursePanel(QWidget):
         week = self._week_number
         semester = self._dm.courses.get_semester(self._dm.courses.current_semester)
         total = semester.get("total_weeks", 20) if semester else "?"
-        self._week_label.setText(f"第 {week} / {total} 周")
+        self._week_label.setText(tr("panel.course.week_label", week=week, total=total))
 
         courses = []
         for day in range(1, 8):
             courses.extend(self._dm.courses.get_courses_for_day(day, week))
 
         self._table.set_courses(courses, week)
-        self._count_label.setText(f"{len(courses)} 门课程")
+        self._count_label.setText(tr("panel.course.course_count", n=len(courses)))
 
     def _prev_week(self) -> None:
         self._current_week_offset -= 1
@@ -141,7 +144,7 @@ class CoursePanel(QWidget):
             return
         old_name = course.get("name", "")
         new_name, ok = QInputDialog.getText(
-            self, "修改课程名称", "新名称:", text=old_name
+            self, tr("panel.course.dlg_rename_title"), tr("panel.course.dlg_rename_label"), text=old_name
         )
         if ok and new_name.strip():
             self._dm.courses.update_course(course_id, {"name": new_name.strip()})
@@ -157,9 +160,10 @@ class CoursePanel(QWidget):
                 break
         if course is None:
             return
-        name = course.get("name", "未知课程")
+        name = course.get("name", tr("panel.course.unknown_name"))
         reply = QMessageBox.question(
-            self, "确认删除", f"确定要删除「{name}」吗？",
+            self, tr("panel.course.dlg_delete_title"),
+            tr("panel.course.dlg_delete_body", name=name),
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
         if reply == QMessageBox.StandardButton.Yes:

@@ -1,10 +1,20 @@
-"""外部 API 服务 - 天气预报、DeepSeek 额度查询"""
+"""外部 API 服务 —— Qt 异步外壳（天气 / DeepSeek 余额）。
+
+**职责边界（CODE_STANDARDS Q-A3）**：本模块只负责"起线程 + 发信号"，
+真正的 HTTP 与解析在**共享适配器**里，各只有一份实现：
+
+- 天气 → `src/services/openmeteo.py`（`fetch_current`）
+- 余额 → `src/services/deepseek.py`（`fetch_balance`）
+
+此前本模块自带一份天气码映射与一份余额解析，和 `ai_service` 内的实现重复。
+"""
 
 from datetime import datetime
 from typing import Any
 
-import requests
 from PySide6.QtCore import QObject, QThread, Signal
+
+from src.services import deepseek, openmeteo
 
 
 class _ApiWorker(QThread):
@@ -20,9 +30,9 @@ class _ApiWorker(QThread):
     def run(self) -> None:
         try:
             if self._api_type == "weather":
-                result = _fetch_weather_sync(**self._kwargs)
+                result = openmeteo.fetch_current(**self._kwargs)
             elif self._api_type == "deepseek_balance":
-                result = _fetch_deepseek_balance_sync(**self._kwargs)
+                result = deepseek.fetch_balance(**self._kwargs)
             else:
                 result = {"error": f"Unknown API type: {self._api_type}"}
             self.finished.emit(result)
@@ -31,106 +41,8 @@ class _ApiWorker(QThread):
             self.error.emit(str(e))
 
 
-def _fetch_weather_sync(lat: float = 31.23, lon: float = 121.47) -> dict[str, Any]:
-    """同步获取天气预报（使用 Open-Meteo API，无需 API key）"""
-    url = "https://api.open-meteo.com/v1/forecast"
-    params = {
-        "latitude": lat,
-        "longitude": lon,
-        "current_weather": True,
-        "hourly": "temperature_2m,relativehumidity_2m,weathercode",
-        "timezone": "Asia/Shanghai",
-        "forecast_days": 1,
-    }
-    resp = requests.get(url, params=params, timeout=5)
-    resp.raise_for_status()
-    data = resp.json()
-
-    current = data.get("current_weather", {})
-    hourly = data.get("hourly", {})
-
-    # 获取当前小时数据
-    time_idx = 0
-    temp = hourly.get("temperature_2m", [0])[time_idx]
-    humidity = hourly.get("relativehumidity_2m", [0])[time_idx]
-    weather_code = hourly.get("weathercode", [0])[time_idx]
-
-    return {
-        "temperature": temp,
-        "humidity": humidity,
-        "weather_code": weather_code,
-        "wind_speed": current.get("windspeed", 0),
-        "weather_text": _weather_code_to_text(weather_code),
-        "location": f"{lat:.2f}°N, {lon:.2f}°E",
-        "timestamp": datetime.now().isoformat(),
-    }
-
-
-def _fetch_deepseek_balance_sync(api_key: str) -> dict[str, Any]:
-    """同步获取 DeepSeek 余额"""
-    if not api_key or api_key.startswith("sk-..."):
-        return {"error": "请先配置有效的 API Key"}
-
-    url = "https://api.deepseek.com/user/balance"
-    headers = {
-        "Accept": "application/json",
-        "Authorization": f"Bearer {api_key}",
-    }
-    resp = requests.get(url, headers=headers, timeout=5)
-    resp.raise_for_status()
-    data = resp.json()
-
-    balance_infos = data.get("balance_infos", [])
-    total_balance = 0.0
-    for info in balance_infos:
-        total_balance += float(info.get("total_balance", 0))
-
-    return {
-        "total_balance": total_balance,
-        "currency": "CNY",
-        "balance_infos": balance_infos,
-        "is_available": total_balance > 0,
-        "timestamp": datetime.now().isoformat(),
-    }
-
-
-def _weather_code_to_text(code: int) -> str:
-    """天气代码转中文描述"""
-    mapping = {
-        0: "晴",
-        1: "晴间多云",
-        2: "多云",
-        3: "阴",
-        45: "雾",
-        48: "霜雾",
-        51: "小毛毛雨",
-        53: "中毛毛雨",
-        55: "大毛毛雨",
-        56: "冻毛毛雨",
-        57: "强冻毛毛雨",
-        61: "小雨",
-        63: "中雨",
-        65: "大雨",
-        66: "冻雨",
-        67: "强冻雨",
-        71: "小雪",
-        73: "中雪",
-        75: "大雪",
-        77: "雪粒",
-        80: "小阵雨",
-        81: "中阵雨",
-        82: "大阵雨",
-        85: "小阵雪",
-        86: "大阵雪",
-        95: "雷暴",
-        96: "雷暴伴冰雹",
-        99: "强雷暴伴冰雹",
-    }
-    return mapping.get(code, "未知")
-
-
 class ApiService(QObject):
-    """外部 API 服务封装"""
+    """外部 API 服务封装（异步）。"""
 
     weather_ready = Signal(dict)
     balance_ready = Signal(dict)
@@ -144,7 +56,8 @@ class ApiService(QObject):
         self._balance_cache_time: datetime | None = None
         self._current_worker: _ApiWorker | None = None
 
-    def fetch_weather(self, lat: float = 31.23, lon: float = 121.47) -> None:
+    def fetch_weather(self, lat: float = openmeteo.DEFAULT_LAT,
+                      lon: float = openmeteo.DEFAULT_LON) -> None:
         """异步获取天气预报（30分钟缓存）"""
         # 检查缓存（30分钟有效）
         if self._weather_cache and self._weather_cache_time:
@@ -190,17 +103,3 @@ class ApiService(QObject):
     def _on_worker_error(self, error: str) -> None:
         """Worker 错误回调"""
         self.error_occurred.emit(error)
-
-    def get_weather_sync(self, lat: float = 31.23, lon: float = 121.47) -> dict[str, Any]:
-        """同步获取天气（用于测试）"""
-        try:
-            return _fetch_weather_sync(lat, lon)
-        except (OSError, ValueError, KeyError, TypeError) as e:
-            return {"error": str(e)}
-
-    def get_balance_sync(self, api_key: str) -> dict[str, Any]:
-        """同步获取余额（用于测试）"""
-        try:
-            return _fetch_deepseek_balance_sync(api_key)
-        except (OSError, ValueError, KeyError, TypeError) as e:
-            return {"error": str(e)}

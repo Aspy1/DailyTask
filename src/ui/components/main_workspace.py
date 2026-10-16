@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from src.i18n.loader import tr
 from src.services.ai_service import AIService
 from src.services.data_manager import DataManager
 from src.services.settings_manager import SettingsManager
@@ -61,7 +62,8 @@ class MainWorkspace(QWidget):
 
         # Placeholder panels (will be replaced with real ones later)
         self._inventory_panel = InventoryPanel(dm)
-        self._meal_panel = self._placeholder("吃什么", "菜品记录与智能推荐")
+        self._meal_panel = self._placeholder(
+            tr("workspace.meal.title"), tr("workspace.meal.desc"))
 
         self._settings_panel = SettingsPanel(settings, ai_service, plugin_manager, dm)
 
@@ -107,7 +109,7 @@ class MainWorkspace(QWidget):
         desc_lbl = QLabel(desc)
         desc_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         desc_lbl.setStyleSheet(f"color: {c['fg_hint']}; font-size: 13px;")
-        hint = QLabel("即将上线")
+        hint = QLabel(tr("workspace.placeholder.coming_soon"))
         hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
         hint.setStyleSheet(
             f"color: {c['accent_text']}; font-size: 12px; margin-top: 8px;"

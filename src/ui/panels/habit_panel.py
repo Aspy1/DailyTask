@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from src.i18n.loader import tr
 from src.services.data_manager import DataManager
 from src.ui.styles.theme import FONT_CN, SIZE_BODY, SIZE_SUBTITLE, get_colors
 from src.ui.widgets.menu import (
@@ -129,15 +130,15 @@ class _HabitCard(QWidget):
                          c: dict) -> tuple[str, str, str]:
         """返回标签 (文本, 背景色, 前景色)。"""
         if done:
-            return "已完成", c["green"] + "20", c["green"]
+            return tr("task.status.completed"), c["green"] + "20", c["green"]
         if not active:
             text = self._weekly_tag_text(sched) if is_weekly else _describe_schedule(sched)
             return text, "transparent", c["fg_hint"]
         if is_daily:
             streak = habit.get("streak", 0)
             if streak > 0:
-                return f"连续{streak}天", c["green"] + "20", c["green"]
-            return "今日未打卡", c["red"] + "18", c["red"]
+                return tr("panel.habit.tag_streak", n=streak), c["green"] + "20", c["green"]
+            return tr("panel.habit.tag_not_checked_in"), c["red"] + "18", c["red"]
         if is_weekly:
             return self._weekly_tag_text(sched), c["accent_bg"], c["accent"]
         return _describe_schedule(sched), c["accent_bg"], c["accent"]
@@ -146,15 +147,20 @@ class _HabitCard(QWidget):
     def _weekly_tag_text(sched: dict) -> str:
         """「每周一二三」形式的标签文本。"""
         days = sched.get("days", [])
-        dn = ["一", "二", "三", "四", "五", "六", "日"]
-        return "每周" + "".join(dn[d - 1] for d in sorted(days))
+        dn = [
+            tr("panel.habit.day_mon"), tr("panel.habit.day_tue"),
+            tr("panel.habit.day_wed"), tr("panel.habit.day_thu"),
+            tr("panel.habit.day_fri"), tr("panel.habit.day_sat"),
+            tr("panel.habit.day_sun"),
+        ]
+        return tr("panel.habit.weekly_prefix") + "".join(dn[d - 1] for d in sorted(days))
 
     def _build_action_row(self, c: dict) -> QHBoxLayout:
         """活跃且未完成时的「完成打卡 / 推迟 / 跳过」按钮行。"""
         btn_row = QHBoxLayout()
         btn_row.setSpacing(8)
 
-        done_btn = RoundedButton("完成打卡")
+        done_btn = RoundedButton(tr("panel.habit.btn_check_in"))
         done_btn.setStyleSheet(f"""
                 QPushButton {{
                     background-color: {c['accent']}; color: {c['fg_on_fill']}; border: none;
@@ -166,7 +172,7 @@ class _HabitCard(QWidget):
         done_btn.clicked.connect(lambda: self.toggled.emit(self._hid))
         btn_row.addWidget(done_btn)
 
-        postpone_btn = RoundedButton("推迟")
+        postpone_btn = RoundedButton(tr("panel.habit.btn_postpone"))
         postpone_btn.setStyleSheet(f"""
                 QPushButton {{
                     background: transparent; color: {c['fg_secondary']};
@@ -180,7 +186,7 @@ class _HabitCard(QWidget):
             lambda: self.postpone_clicked.emit(self._hid))
         btn_row.addWidget(postpone_btn)
 
-        skip_btn = RoundedButton("跳过")
+        skip_btn = RoundedButton(tr("panel.habit.btn_skip"))
         skip_btn.setStyleSheet(f"""
                 QPushButton {{
                     background: transparent; color: {c['fg_hint']}; border: none;
@@ -202,7 +208,7 @@ class _HabitCard(QWidget):
     def contextMenuEvent(self, ev) -> None:
         
         menu = new_menu(self)
-        add_action(menu, "编辑", lambda checked=False: self.edit_requested.emit(self._hid))
+        add_action(menu, tr("panel.habit.menu_edit"), lambda checked=False: self.edit_requested.emit(self._hid))
         show_at_cursor(menu)
 
 
@@ -210,23 +216,28 @@ def _describe_schedule(sched: dict) -> str:
     st = sched.get("type", "daily")
     if st == "weekly":
         days = sched.get("days", [])
-        dn = ["一", "二", "三", "四", "五", "六", "日"]
-        return "每周" + "".join(dn[d - 1] for d in sorted(days))
+        dn = [
+            tr("panel.habit.day_mon"), tr("panel.habit.day_tue"),
+            tr("panel.habit.day_wed"), tr("panel.habit.day_thu"),
+            tr("panel.habit.day_fri"), tr("panel.habit.day_sat"),
+            tr("panel.habit.day_sun"),
+        ]
+        return tr("panel.habit.weekly_prefix") + "".join(dn[d - 1] for d in sorted(days))
     elif st == "monthly":
-        return f"每月{sched.get('value', 4)}次"
+        return tr("panel.habit.freq_monthly", n=sched.get('value', 4))
     elif st == "interval":
         val = sched.get("value", 1)
-        return "每日" if val == 1 else f"每{val}天"
+        return tr("panel.habit.freq_daily") if val == 1 else tr("panel.habit.freq_every_n_days", n=val)
     else:  # daily
         tpd = sched.get("times_per_day", 1)
-        return "每日" if tpd == 1 else f"每日{tpd}次"
+        return tr("panel.habit.freq_daily") if tpd == 1 else tr("panel.habit.freq_daily_n", n=tpd)
 
 
 def _build_description(habit: dict, is_daily: bool, is_weekly: bool) -> str:
     parts = []
     dur = habit.get("duration_minutes", 30)
     if dur:
-        parts.append(f"预计{dur}分钟")
+        parts.append(tr("panel.habit.desc_duration", n=dur))
     ats = habit.get("attached_tasks", [])
     if ats:
         names = [at.get("name", "") for at in ats[:2]]
@@ -292,13 +303,13 @@ class HabitPanel(QWidget):
         bar.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         bar_layout = QHBoxLayout(bar)
         bar_layout.setContentsMargins(16, 8, 16, 8)
-        title = QLabel("日常")
+        title = QLabel(tr("panel.habit.title"))
         title.setFont(QFont(FONT_CN, SIZE_SUBTITLE))
         title.setStyleSheet("font-weight: 600; border: none;")
         bar_layout.addWidget(title)
         bar_layout.addStretch()
 
-        refresh_btn = RoundedButton("刷新")
+        refresh_btn = RoundedButton(tr("panel.habit.btn_refresh"))
         refresh_btn.setStyleSheet(self._btn_qss())
         refresh_btn.clicked.connect(self._refresh)
         bar_layout.addWidget(refresh_btn)
@@ -460,7 +471,8 @@ class HabitDialog(QDialog):
 
         c = get_colors()
         editing = habit is not None
-        self.setWindowTitle("编辑日常事项" if editing else "新增日常事项")
+        self.setWindowTitle(tr("panel.habit.dialog_title_edit") if editing
+                            else tr("panel.habit.dialog_title_add"))
         self.setMinimumWidth(440)
         self.setStyleSheet(f"""
             QDialog {{ background-color: {c['bg_card']}; color: {c['fg_primary']}; }}
@@ -480,15 +492,19 @@ class HabitDialog(QDialog):
         form.setSpacing(10)
 
         self._name_input = QLineEdit(habit.get("name", "") if habit else "")
-        self._name_input.setPlaceholderText("如：刷牙、跑步")
-        form.addRow("名称:", self._name_input)
+        self._name_input.setPlaceholderText(tr("panel.habit.placeholder_name"))
+        form.addRow(tr("panel.habit.label_name"), self._name_input)
 
         # ── Schedule type ──
         sched = habit.get("schedule", {}) if habit else {}
         sched_type = sched.get("type", "daily")
 
         self._sched_type_combo = RoundedComboBox()
-        self._sched_type_combo.addItems(["每日", "每周几", "每月N次"])
+        self._sched_type_combo.addItems([
+            tr("panel.habit.freq_daily"),
+            tr("panel.habit.freq_type_weekly"),
+            tr("panel.habit.freq_type_monthly"),
+        ])
         type_map = {"daily": 0, "weekly": 1, "monthly": 2, "interval": 0}
         self._sched_type_combo.setCurrentIndex(type_map.get(sched_type, 0))
         self._sched_type_combo.currentIndexChanged.connect(self._on_sched_type_changed)
@@ -509,7 +525,7 @@ class HabitDialog(QDialog):
         sched_row.addWidget(self._monthly_widget)
         sched_row.addStretch()
         self._on_sched_type_changed()
-        form.addRow("周期:", sched_row)
+        form.addRow(tr("panel.habit.label_schedule"), sched_row)
 
         # Duration
         self._duration = RoundedComboBox()
@@ -519,20 +535,20 @@ class HabitDialog(QDialog):
         self._duration.setCurrentText(str(habit.get("duration_minutes", 30) if habit else "30"))
         dur_layout = QHBoxLayout()
         dur_layout.addWidget(self._duration)
-        dur_layout.addWidget(QLabel("分钟"))
+        dur_layout.addWidget(QLabel(tr("panel.habit.unit_minutes")))
         dur_layout.addStretch()
-        form.addRow("用时:", dur_layout)
+        form.addRow(tr("panel.habit.label_duration"), dur_layout)
 
         # Reminder
         self._reminder_time = RoundedLineEdit()
-        self._reminder_time.setPlaceholderText("如 22:30（可选）")
+        self._reminder_time.setPlaceholderText(tr("panel.habit.placeholder_reminder"))
         self._reminder_time.setText(habit.get("reminder_time", "") if habit else "")
-        form.addRow("提醒:", self._reminder_time)
+        form.addRow(tr("panel.habit.label_reminder"), self._reminder_time)
 
         layout.addLayout(form)
 
         # Attached tasks section
-        sep = QLabel("附加事项（完成后自动添加为待办）")
+        sep = QLabel(tr("panel.habit.section_attached"))
         sep.setStyleSheet(f"color: {c['section_heading']}; font-weight: 600; font-size: 13px;")
         layout.addWidget(sep)
 
@@ -547,7 +563,9 @@ class HabitDialog(QDialog):
         layout.addWidget(at_list)
 
         at_btns = QHBoxLayout()
-        for text, slot in [("+ 添加", self._add_attached), ("引用已有", self._use_existing), ("移除", self._remove_attached)]:
+        for text, slot in [(tr("panel.habit.btn_add_attached"), self._add_attached),
+                           (tr("panel.habit.btn_use_existing"), self._use_existing),
+                           (tr("panel.habit.btn_remove"), self._remove_attached)]:
             btn = RoundedButton(text)
             btn.setStyleSheet(f"""
                 QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
@@ -560,7 +578,7 @@ class HabitDialog(QDialog):
         layout.addLayout(at_btns)
 
         # ── Linked items ──
-        sep2 = QLabel("消耗物品（完成后自动扣除库存）")
+        sep2 = QLabel(tr("panel.habit.section_linked"))
         sep2.setStyleSheet(f"color: {c['section_heading']}; font-weight: 600; font-size: 13px;")
         layout.addWidget(sep2)
         self._linked_list = QListWidget()
@@ -569,7 +587,7 @@ class HabitDialog(QDialog):
         self._refresh_linked()
         layout.addWidget(self._linked_list)
         lk_btns = QHBoxLayout()
-        for text, slot in [("+ 关联物品", self._add_linked), ("移除", self._remove_linked)]:
+        for text, slot in [(tr("panel.habit.btn_add_linked"), self._add_linked), (tr("panel.habit.btn_remove"), self._remove_linked)]:
             btn = RoundedButton(text)
             btn.setStyleSheet(self._btn_secondary_qss())
             btn.clicked.connect(slot)
@@ -588,7 +606,7 @@ class HabitDialog(QDialog):
         dl = QHBoxLayout(w)
         dl.setContentsMargins(0, 0, 0, 0)
         dl.setSpacing(4)
-        dl.addWidget(QLabel("每天"))
+        dl.addWidget(QLabel(tr("panel.habit.label_per_day")))
         self._times_per_day = RoundedComboBox()
         self._times_per_day.setEditable(True)
         self._times_per_day.setFixedWidth(60)
@@ -597,7 +615,7 @@ class HabitDialog(QDialog):
             val = sched.get("times_per_day") or sched.get("value", 1)
             self._times_per_day.setCurrentText(str(val))
         dl.addWidget(self._times_per_day)
-        dl.addWidget(QLabel("次"))
+        dl.addWidget(QLabel(tr("panel.habit.unit_times")))
         dl.addStretch()
         return w
 
@@ -608,7 +626,12 @@ class HabitDialog(QDialog):
         wl.setContentsMargins(0, 0, 0, 0)
         wl.setSpacing(2)
         self._day_checks: list[QCheckBox] = []
-        day_names = ["一", "二", "三", "四", "五", "六", "日"]
+        day_names = [
+            tr("panel.habit.day_mon"), tr("panel.habit.day_tue"),
+            tr("panel.habit.day_wed"), tr("panel.habit.day_thu"),
+            tr("panel.habit.day_fri"), tr("panel.habit.day_sat"),
+            tr("panel.habit.day_sun"),
+        ]
         weekly_days = sched.get("days", []) if sched_type == "weekly" else []
         for i, dn in enumerate(day_names):
             cb = QCheckBox(dn)
@@ -624,7 +647,7 @@ class HabitDialog(QDialog):
         ml = QHBoxLayout(w)
         ml.setContentsMargins(0, 0, 0, 0)
         ml.setSpacing(4)
-        ml.addWidget(QLabel("每月完成"))
+        ml.addWidget(QLabel(tr("panel.habit.label_monthly")))
         self._monthly_times = RoundedComboBox()
         self._monthly_times.setEditable(True)
         self._monthly_times.setFixedWidth(60)
@@ -632,7 +655,7 @@ class HabitDialog(QDialog):
         if sched_type == "monthly":
             self._monthly_times.setCurrentText(str(sched.get("value", 4)))
         ml.addWidget(self._monthly_times)
-        ml.addWidget(QLabel("次"))
+        ml.addWidget(QLabel(tr("panel.habit.unit_times")))
         ml.addStretch()
         return w
 
@@ -662,7 +685,10 @@ class HabitDialog(QDialog):
     def _refresh_at_list(self) -> None:
         self._at_list.clear()
         for at in self._attached:
-            text = f"{at.get('name','')}  (延迟{at.get('delay_hours',24)}h, 用时{at.get('duration_minutes',15)}min)"
+            text = tr("panel.habit.item_attached",
+                      name=at.get('name', ''),
+                      delay=at.get('delay_hours', 24),
+                      duration=at.get('duration_minutes', 15))
             self._at_list.addItem(text)
 
     def _add_attached(self) -> None:
@@ -674,11 +700,12 @@ class HabitDialog(QDialog):
     def _use_existing(self) -> None:
         templates = self._dm.habits.attached_task_templates
         if not templates:
-            QMessageBox.information(self, "提示", "暂无可用模板。")
+            QMessageBox.information(self, tr("panel.habit.msg_title_tip"),
+                                    tr("panel.habit.msg_no_templates"))
             return
         c = get_colors()
         dialog = QDialog(self)
-        dialog.setWindowTitle("选择附加事项")
+        dialog.setWindowTitle(tr("panel.habit.dialog_title_select_attached"))
         dialog.setMinimumWidth(300)
         dialog.setStyleSheet(f"background-color: {c['bg_card']}; color: {c['fg_primary']};")
         dl = QVBoxLayout(dialog)
@@ -688,7 +715,8 @@ class HabitDialog(QDialog):
             QListWidget::item {{ padding: 6px 10px; }}
         """)
         for t in templates:
-            lst.addItem(f"{t['name']}  (延迟{t.get('delay_hours',24)}h)")
+            lst.addItem(tr("panel.habit.item_template", name=t['name'],
+                           delay=t.get('delay_hours', 24)))
         lst.itemDoubleClicked.connect(lambda: dialog.accept())
         dl.addWidget(lst)
         btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
@@ -722,30 +750,32 @@ class HabitDialog(QDialog):
                     name = it["name"]
                     break
             consume = li.get("consume_per_use", 1)
-            self._linked_list.addItem(f"{name}  -{consume}次/回")
+            self._linked_list.addItem(tr("panel.habit.item_linked", name=name, consume=consume))
 
     def _add_linked(self) -> None:
         items = self._dm.inventory.items
         if not items:
-            QMessageBox.information(self, "提示", "还没有物品记录。")
+            QMessageBox.information(self, tr("panel.habit.msg_title_tip"),
+                                    tr("panel.habit.msg_no_items"))
             return
         c = get_colors()
         dlg = QDialog(self)
-        dlg.setWindowTitle("选择消耗物品")
+        dlg.setWindowTitle(tr("panel.habit.dialog_title_select_linked"))
         dlg.setMinimumWidth(350)
         dlg.setStyleSheet(f"QDialog {{ background-color: {c['bg_card']}; color: {c['fg_primary']}; }}")
         layout = QVBoxLayout(dlg)
         lst = QListWidget()
         lst.setStyleSheet(f"QListWidget {{ background-color: {c['bg_input']}; border: 1px solid {c['border']}; }} QListWidget::item {{ padding: 6px 10px; }}")
         for it in items:
-            lst.addItem(f"[{it['id']}] {it['name']} ({it['quantity']}件)")
+            lst.addItem(tr("panel.habit.item_inventory", id=it['id'], name=it['name'],
+                           qty=it['quantity']))
         lst.itemDoubleClicked.connect(dlg.accept)
         layout.addWidget(lst)
         form = QFormLayout()
         self._consume_spin = QSpinBox()
         self._consume_spin.setRange(1,99)
         self._consume_spin.setValue(1)
-        form.addRow("每次消耗:", self._consume_spin)
+        form.addRow(tr("panel.habit.label_consume"), self._consume_spin)
         layout.addLayout(form)
         btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         btns.accepted.connect(dlg.accept)
@@ -765,7 +795,8 @@ class HabitDialog(QDialog):
 
     def _validate_and_accept(self) -> None:
         if not self._name_input.text().strip():
-            QMessageBox.warning(self, "错误", "请输入事项名称。")
+            QMessageBox.warning(self, tr("panel.habit.msg_title_error"),
+                                tr("panel.habit.msg_need_name"))
             return
 
         try:
@@ -783,7 +814,8 @@ class HabitDialog(QDialog):
         elif idx == 1:  # weekly
             days = [i + 1 for i, cb in enumerate(self._day_checks) if cb.isChecked()]
             if not days:
-                QMessageBox.warning(self, "错误", "请至少选择一个工作日。")
+                QMessageBox.warning(self, tr("panel.habit.msg_title_error"),
+                                    tr("panel.habit.msg_need_weekday"))
                 return
             schedule = {"type": "weekly", "days": days}
         else:  # monthly
@@ -815,7 +847,7 @@ class _AttachedTaskDialog(QDialog):
                 padding: 3px 4px; font-size: 13px; text-align: center; }}
             QComboBox::drop-down {{ border: none; width: 16px; }}
         """
-        self.setWindowTitle("定义附加事项")
+        self.setWindowTitle(tr("panel.habit.dialog_title_define_attached"))
         self.setMinimumWidth(320)
         self.setStyleSheet(f"""
             QDialog {{ background-color: {c['bg_surface']}; color: {c['fg_primary']}; }}
@@ -828,8 +860,8 @@ class _AttachedTaskDialog(QDialog):
         layout = QVBoxLayout(self)
         form = QFormLayout()
         self._name = RoundedLineEdit()
-        self._name.setPlaceholderText("如：收晾好的衣服")
-        form.addRow("名称:", self._name)
+        self._name.setPlaceholderText(tr("panel.habit.placeholder_attached_name"))
+        form.addRow(tr("panel.habit.label_name"), self._name)
 
         self._delay = RoundedComboBox()
         self._delay.setEditable(True)
@@ -839,9 +871,9 @@ class _AttachedTaskDialog(QDialog):
         self._delay.setCurrentText("24")
         delay_row = QHBoxLayout()
         delay_row.addWidget(self._delay)
-        delay_row.addWidget(QLabel("小时"))
+        delay_row.addWidget(QLabel(tr("panel.habit.unit_hours")))
         delay_row.addStretch()
-        form.addRow("延迟:", delay_row)
+        form.addRow(tr("panel.habit.label_delay"), delay_row)
 
         self._duration = RoundedComboBox()
         self._duration.setEditable(True)
@@ -851,11 +883,11 @@ class _AttachedTaskDialog(QDialog):
         self._duration.setCurrentText("15")
         dur_row = QHBoxLayout()
         dur_row.addWidget(self._duration)
-        dur_row.addWidget(QLabel("分钟"))
+        dur_row.addWidget(QLabel(tr("panel.habit.unit_minutes")))
         dur_row.addStretch()
-        form.addRow("用时:", dur_row)
+        form.addRow(tr("panel.habit.label_duration"), dur_row)
 
-        save_tpl = RoundedButton("同时保存为模板（方便下次引用）")
+        save_tpl = RoundedButton(tr("panel.habit.btn_save_template"))
         save_tpl.setStyleSheet(f"""
             QPushButton {{ background-color: transparent; color: {c['accent_text']}; border: none; font-size: 13px; text-align: left; }}
         """)
@@ -865,7 +897,7 @@ class _AttachedTaskDialog(QDialog):
         layout.addLayout(form)
 
         # ── Linked items ──
-        sep2 = QLabel("消耗物品（完成后自动扣除库存）")
+        sep2 = QLabel(tr("panel.habit.section_linked"))
         sep2.setStyleSheet(f"color: {c['section_heading']}; font-weight: 600; font-size: 13px;")
         layout.addWidget(sep2)
         self._linked_list = QListWidget()
@@ -874,7 +906,7 @@ class _AttachedTaskDialog(QDialog):
         self._refresh_linked()
         layout.addWidget(self._linked_list)
         lk_btns = QHBoxLayout()
-        for text, slot in [("+ 关联物品", self._add_linked), ("移除", self._remove_linked)]:
+        for text, slot in [(tr("panel.habit.btn_add_linked"), self._add_linked), (tr("panel.habit.btn_remove"), self._remove_linked)]:
             btn = RoundedButton(text)
             btn.setStyleSheet(f"QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']}; border: none; border-radius: 8px; padding: 8px 12px; font-size: 13px; }} QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; }} QPushButton:pressed {{ background-color: {c['accent_bg']}; }}")
             btn.clicked.connect(slot)
@@ -889,7 +921,8 @@ class _AttachedTaskDialog(QDialog):
 
     def _ok(self) -> None:
         if not self._name.text().strip():
-            QMessageBox.warning(self, "错误", "请输入附加事项名称。")
+            QMessageBox.warning(self, tr("panel.habit.msg_title_error"),
+                                tr("panel.habit.msg_need_attached_name"))
             return
         try:
             delay = int(self._delay.currentText())

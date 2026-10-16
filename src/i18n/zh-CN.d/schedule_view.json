@@ -1,0 +1,41 @@
+{
+  "widget.schedule.title": "日程",
+  "widget.schedule.btn_course_table": "课程表",
+  "widget.schedule.btn_undo": "撤销",
+  "widget.schedule.btn_save": "保存",
+  "widget.schedule.btn_refresh": "刷新",
+  "widget.schedule.btn_quick_arrange": "调整",
+  "widget.schedule.btn_prev_day": "< 前一天",
+  "widget.schedule.btn_today": "今天",
+  "widget.schedule.btn_next_day": "后一天 >",
+
+  "widget.schedule.slot_fallback": "时段{n}",
+  "widget.schedule.slot_empty": "空闲",
+  "widget.schedule.habit_minutes": "{dur}分钟",
+  "widget.schedule.ddl_due": " 截止 {time}",
+
+  "widget.schedule.msg_error_title": "错误",
+  "widget.schedule.msg_quick_arrange_failed": "快速安排失败: {e}",
+  "widget.schedule.msg_arrange_failed_title": "安排失败",
+  "widget.schedule.msg_ai_error": "AI未能生成有效的安排方案。",
+  "widget.schedule.msg_undo_title": "撤销",
+  "widget.schedule.msg_no_backup": "没有可撤销的备份。",
+  "widget.schedule.msg_invalid_time_title": "时间无效",
+  "widget.schedule.msg_invalid_time_body": "提醒时间不能是过去的时间。",
+
+  "widget.schedule.dlg_add_email_reminder": "添加邮件提醒",
+  "widget.schedule.dlg_email_for_item": "为「{name}」添加邮件提醒",
+  "widget.schedule.dlg_email_date": "日期: {date}",
+  "widget.schedule.btn_cancel": "取消",
+  "widget.schedule.btn_confirm": "确认",
+  "widget.schedule.dlg_rename_course": "重命名课程",
+  "widget.schedule.dlg_rename_new_name": "新名称:",
+
+  "widget.schedule.menu_email_add": "📧 添加邮件提醒",
+  "widget.schedule.menu_email_remove": "📧 取消邮件提醒",
+  "widget.schedule.menu_mark_done": "✓ 标记完成",
+  "widget.schedule.menu_mark_undone": "○ 标记未完成",
+  "widget.schedule.menu_remove": "✕ 移除",
+  "widget.schedule.menu_postpone": "→ 推迟到明天",
+  "widget.schedule.menu_cancel_today": "✕ 取消今天"
+}

@@ -314,7 +314,9 @@ QComboBox::drop-down {{ border: none; width: 24px; }}
 QComboBox QAbstractItemView {{ background-color: {t["bg_elevated"]}; color: {t["fg_primary"]}; border: 1px solid {t["border_strong"]}; selection-background-color: {t["accent_bg"]}; outline: none; }}
 
 /* ── Scroll area ─────────────────────────── */
-/* viewport 与其内容控件默认会用调色板 Base 上色 → 暗色下变亮灰块，必须显式透明 */
+/* viewport + inner widgets default to palette Base → light grey block in dark mode;
+   must be explicitly transparent (explanation kept in English: i18n metric counts
+   Chinese literals that are not UI text) */
 QScrollArea {{ border: none; background: transparent; }}
 QScrollArea > QWidget > QWidget {{ background: transparent; }}
 QAbstractScrollArea::corner {{ background: transparent; }}

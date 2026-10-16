@@ -76,21 +76,21 @@ class SettingsPanel(QWidget):
         layout = QVBoxLayout(container)
         layout.setContentsMargins(24, 24, 24, 24)
         layout.setSpacing(20)
-        layout.addWidget(self._section_heading("通用设置"))
+        layout.addWidget(self._section_heading(tr("settings.general")))
         layout.addWidget(self._build_general_card())
-        layout.addWidget(self._section_heading("AI 设置"))
+        layout.addWidget(self._section_heading(tr("settings.ai")))
         layout.addWidget(self._build_ai_card())
-        layout.addWidget(self._section_heading("邮件提醒"))
+        layout.addWidget(self._section_heading(tr("panel.settings.section_email")))
         layout.addWidget(self._build_email_card())
-        layout.addWidget(self._section_heading("余额提醒"))
+        layout.addWidget(self._section_heading(tr("panel.settings.section_balance")))
         layout.addWidget(self._build_balance_card())
-        layout.addWidget(self._section_heading("天气设置"))
+        layout.addWidget(self._section_heading(tr("panel.settings.section_weather")))
         layout.addWidget(self._build_weather_card())
         # 插件管理
         if self._plugin_manager is not None:
-            layout.addWidget(self._section_heading("插件"))
+            layout.addWidget(self._section_heading(tr("panel.settings.section_plugins")))
             layout.addWidget(self._build_plugins_card())
-        layout.addWidget(self._section_heading("关于"))
+        layout.addWidget(self._section_heading(tr("panel.settings.section_about")))
         layout.addWidget(self._build_about_card())
         layout.addStretch()
         scroll.setWidget(container)
@@ -171,14 +171,14 @@ class SettingsPanel(QWidget):
         idx = list(PROVIDERS.keys()).index(current) if current in PROVIDERS else 0
         self._provider_combo.setCurrentIndex(idx)
         self._provider_combo.currentIndexChanged.connect(self._on_provider_changed)
-        layout.addWidget(self._row("提供商", self._provider_combo))
+        layout.addWidget(self._row(tr("panel.settings.label_provider"), self._provider_combo))
         layout.addWidget(self._divider())
 
         self._api_key_input = RoundedLineEdit()
         self._api_key_input.setEchoMode(QLineEdit.EchoMode.Password)
         self._api_key_input.setStyleSheet(self._input_qss())
         self._api_key_input.setText(self._settings.api_key)
-        layout.addWidget(self._row("API Key", self._api_key_input))
+        layout.addWidget(self._row(tr("panel.settings.label_api_key"), self._api_key_input))
         layout.addWidget(self._divider())
 
         self._model_combo = RoundedComboBox()
@@ -186,12 +186,12 @@ class SettingsPanel(QWidget):
         self._model_combo.setEditable(True)
         self._model_combo.setMinimumWidth(200)
         self._model_combo.setFixedHeight(FIELD_H)
-        layout.addWidget(self._row("模型", self._model_combo))
+        layout.addWidget(self._row(tr("settings.model"), self._model_combo))
         layout.addWidget(self._divider())
 
         self._endpoint_input = RoundedLineEdit()
         self._endpoint_input.setStyleSheet(self._input_qss())
-        layout.addWidget(self._row("端点", self._endpoint_input))
+        layout.addWidget(self._row(tr("panel.settings.label_endpoint"), self._endpoint_input))
         layout.addWidget(self._divider())
 
         status_row = QWidget()
@@ -201,7 +201,7 @@ class SettingsPanel(QWidget):
         self._status_label = QLabel()
         sr.addWidget(self._status_label)
         sr.addStretch()
-        save_btn = RoundedButton("保存")
+        save_btn = RoundedButton(tr("panel.settings.btn_save"))
         save_btn.setFixedSize(72, 30)
         save_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         save_btn.setStyleSheet(f"""
@@ -213,7 +213,7 @@ class SettingsPanel(QWidget):
         save_btn.clicked.connect(self._save_ai_settings)
         sr.addWidget(save_btn)
 
-        test_btn = RoundedButton("API 测试")
+        test_btn = RoundedButton(tr("panel.settings.btn_api_test"))
         test_btn.setFixedSize(80, 30)  # 增加宽度以容纳文字
         test_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         test_btn.setStyleSheet(f"""
@@ -259,7 +259,7 @@ class SettingsPanel(QWidget):
         br = QHBoxLayout(btn_row)
         br.setContentsMargins(16, 12, 16, 12)
         br.addStretch()
-        save_btn = RoundedButton("保存")
+        save_btn = RoundedButton(tr("panel.settings.btn_save"))
         save_btn.setFixedSize(72, 30)
         save_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         save_btn.setStyleSheet(f"""
@@ -312,7 +312,7 @@ class SettingsPanel(QWidget):
         self._settings.set("AI", "api_endpoint", self._endpoint_input.text().strip())
         self._settings.save()
         self._update_status()
-        QMessageBox.information(self, "设置", "AI 设置已保存。")
+        QMessageBox.information(self, tr("panel.settings.dialog_title"), tr("panel.settings.msg_ai_saved"))
 
     def _build_email_card(self) -> QFrame:
         c = get_colors()
@@ -324,27 +324,27 @@ class SettingsPanel(QWidget):
 
         self._smtp_host = QLineEdit(self._settings.get("Email", "smtp_host", fallback="smtp.qq.com"))
         self._smtp_host.setStyleSheet(self._input_qss())
-        layout.addWidget(self._row("SMTP 服务器", self._smtp_host))
+        layout.addWidget(self._row(tr("panel.settings.label_smtp_host"), self._smtp_host))
         layout.addWidget(self._divider())
 
         self._smtp_port = QLineEdit(self._settings.get("Email", "smtp_port", fallback="587"))
         self._smtp_port.setStyleSheet(self._input_qss())
-        layout.addWidget(self._row("端口", self._smtp_port))
+        layout.addWidget(self._row(tr("panel.settings.label_smtp_port"), self._smtp_port))
         layout.addWidget(self._divider())
 
         self._smtp_user = QLineEdit(self._settings.get("Email", "smtp_user", fallback=""))
         self._smtp_user.setStyleSheet(self._input_qss())
-        self._smtp_user.setPlaceholderText("如 123456789@qq.com")
-        layout.addWidget(self._row("邮箱地址", self._smtp_user))
+        self._smtp_user.setPlaceholderText(tr("panel.settings.placeholder_smtp_user"))
+        layout.addWidget(self._row(tr("panel.settings.label_smtp_user"), self._smtp_user))
         layout.addWidget(self._divider())
 
         self._smtp_pass = QLineEdit(self._settings.get("Email", "smtp_pass", fallback=""))
         self._smtp_pass.setEchoMode(QLineEdit.EchoMode.Password)
         self._smtp_pass.setStyleSheet(self._input_qss())
-        self._smtp_pass.setPlaceholderText("QQ邮箱请填授权码，非QQ密码")
-        layout.addWidget(self._row("授权码", self._smtp_pass))
+        self._smtp_pass.setPlaceholderText(tr("panel.settings.placeholder_smtp_pass"))
+        layout.addWidget(self._row(tr("panel.settings.label_smtp_pass"), self._smtp_pass))
 
-        help_lbl = QLabel("QQ邮箱: 设置 → 账户 → POP3/SMTP服务 → 开启 → 生成授权码")
+        help_lbl = QLabel(tr("panel.settings.hint_email_help"))
         help_lbl.setStyleSheet(f"color: {c['fg_hint']}; font-size: 13px; padding: 0 18px;")
         layout.addWidget(help_lbl)
 
@@ -353,7 +353,7 @@ class SettingsPanel(QWidget):
         test_row.setStyleSheet("background: transparent;")
         trl = QHBoxLayout(test_row)
         trl.setContentsMargins(16, 8, 16, 8)
-        test_btn = RoundedButton("发送测试邮件")
+        test_btn = RoundedButton(tr("panel.settings.btn_send_test_email"))
         test_btn.setFixedWidth(120)
         test_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         test_btn.setStyleSheet(f"""
@@ -372,7 +372,7 @@ class SettingsPanel(QWidget):
         br = QHBoxLayout(btn_row)
         br.setContentsMargins(16, 12, 16, 12)
         br.addStretch()
-        save_btn = RoundedButton("保存")
+        save_btn = RoundedButton(tr("panel.settings.btn_save"))
         save_btn.setFixedSize(72, 30)
         save_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         save_btn.setStyleSheet(f"""
@@ -398,21 +398,21 @@ class SettingsPanel(QWidget):
         pwd = self._smtp_pass.text().strip()
 
         if not user or not pwd:
-            QMessageBox.warning(self, "错误", "请先填写邮箱地址和授权码。")
+            QMessageBox.warning(self, tr("panel.settings.dialog_title_error"), tr("panel.settings.msg_email_required"))
             return
 
         try:
-            msg = MIMEText("日程规划邮件配置测试成功！", "plain", "utf-8")
-            msg["Subject"] = "日程规划 - 测试邮件"
+            msg = MIMEText(tr("panel.settings.email_test_body"), "plain", "utf-8")
+            msg["Subject"] = tr("panel.settings.email_test_subject")
             msg["From"] = user
             msg["To"] = user
             with smtplib.SMTP(host, port, timeout=10) as s:
                 s.starttls()
                 s.login(user, pwd)
                 s.send_message(msg)
-            QMessageBox.information(self, "成功", f"测试邮件已发送至 {user}\n请检查收件箱。")
+            QMessageBox.information(self, tr("panel.settings.dialog_title_success"), tr("panel.settings.msg_test_email_sent", user=user))
         except Exception as e:
-            QMessageBox.warning(self, "失败", f"发送失败: {e}")
+            QMessageBox.warning(self, tr("panel.settings.dialog_title_failed"), tr("panel.settings.msg_send_failed", error=e))
 
     def _save_email_settings(self) -> None:
         self._settings.set("Email", "smtp_host", self._smtp_host.text().strip())
@@ -420,7 +420,7 @@ class SettingsPanel(QWidget):
         self._settings.set("Email", "smtp_user", self._smtp_user.text().strip())
         self._settings.set("Email", "smtp_pass", self._smtp_pass.text().strip())
         self._settings.save()
-        QMessageBox.information(self, "设置", "邮件设置已保存。")
+        QMessageBox.information(self, tr("panel.settings.dialog_title"), tr("panel.settings.msg_email_saved"))
 
     # ── 天气设置卡片 ────────────────────────────────────────
     def _build_weather_card(self) -> QFrame:
@@ -436,37 +436,37 @@ class SettingsPanel(QWidget):
         self._weather_api_key.setEchoMode(QLineEdit.EchoMode.Password)
         self._weather_api_key.setStyleSheet(self._input_qss())
         self._weather_api_key.setText(self._settings.weather_api_key)
-        self._weather_api_key.setPlaceholderText("和风天气 API Key")
-        layout.addWidget(self._row("API Key", self._weather_api_key))
+        self._weather_api_key.setPlaceholderText(tr("panel.settings.placeholder_weather_api_key"))
+        layout.addWidget(self._row(tr("panel.settings.label_api_key"), self._weather_api_key))
         layout.addWidget(self._divider())
 
         # API Host
         self._weather_api_host = RoundedLineEdit()
         self._weather_api_host.setStyleSheet(self._input_qss())
         self._weather_api_host.setText(self._settings.weather_api_host)
-        self._weather_api_host.setPlaceholderText("如: qh3qqthvqx.re.qweatherapi.com")
-        layout.addWidget(self._row("API Host", self._weather_api_host))
+        self._weather_api_host.setPlaceholderText(tr("panel.settings.placeholder_weather_api_host"))
+        layout.addWidget(self._row(tr("panel.settings.label_weather_api_host"), self._weather_api_host))
         layout.addWidget(self._divider())
 
         # 位置（经度/纬度）：原「场景存档」的位置并入此处
         self._weather_lat = RoundedLineEdit()
         self._weather_lat.setStyleSheet(self._input_qss())
         self._weather_lat.setText(self._settings.weather_lat)
-        self._weather_lat.setPlaceholderText("纬度，如 31.23")
-        layout.addWidget(self._row("纬度", self._weather_lat))
+        self._weather_lat.setPlaceholderText(tr("panel.settings.placeholder_weather_lat"))
+        layout.addWidget(self._row(tr("panel.settings.label_weather_lat"), self._weather_lat))
         layout.addWidget(self._divider())
 
         self._weather_lon = RoundedLineEdit()
         self._weather_lon.setStyleSheet(self._input_qss())
         self._weather_lon.setText(self._settings.weather_lon)
-        self._weather_lon.setPlaceholderText("经度，如 121.47")
-        layout.addWidget(self._row("经度", self._weather_lon))
+        self._weather_lon.setPlaceholderText(tr("panel.settings.placeholder_weather_lon"))
+        layout.addWidget(self._row(tr("panel.settings.label_weather_lon"), self._weather_lon))
         layout.addWidget(self._divider())
 
         # 定时更新
         self._weather_auto_update = ToggleSwitch()
         self._weather_auto_update.setChecked(self._settings.weather_auto_update)
-        layout.addWidget(self._row("定时更新", self._weather_auto_update))
+        layout.addWidget(self._row(tr("panel.settings.label_weather_auto_update"), self._weather_auto_update))
         layout.addWidget(self._divider())
 
         # 调用统计
@@ -474,7 +474,7 @@ class SettingsPanel(QWidget):
         stats_row.setStyleSheet("background: transparent;")
         sr = QHBoxLayout(stats_row)
         sr.setContentsMargins(16, 12, 16, 12)
-        self._weather_stats_label = QLabel("本月调用: 0 次 / 50000")
+        self._weather_stats_label = QLabel(tr("panel.settings.label_weather_stats", count=0))
         self._weather_stats_label.setStyleSheet(f"color: {c['fg_hint']}; font-size: 13px;")
         sr.addWidget(self._weather_stats_label)
         sr.addStretch()
@@ -487,7 +487,7 @@ class SettingsPanel(QWidget):
         br = QHBoxLayout(btn_row)
         br.setContentsMargins(16, 12, 16, 12)
         br.addStretch()
-        save_btn = RoundedButton("保存")
+        save_btn = RoundedButton(tr("panel.settings.btn_save"))
         save_btn.setFixedSize(72, 30)
         save_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         save_btn.setStyleSheet(f"""
@@ -516,7 +516,7 @@ class SettingsPanel(QWidget):
         stats = json.loads(stats_file.read_text())
         month = datetime.now().strftime("%Y-%m")
         monthly = stats.get("monthly", {}).get(month, {}).get("total", 0)
-        self._weather_stats_label.setText(f"本月调用: {monthly} 次 / 50000")
+        self._weather_stats_label.setText(tr("panel.settings.label_weather_stats", count=monthly))
 
     def _save_weather_settings(self) -> None:
         """保存天气设置"""
@@ -533,7 +533,7 @@ class SettingsPanel(QWidget):
             setattr(self._settings, attr, raw)
         self._settings.save()
         self._update_weather_stats()
-        QMessageBox.information(self, "设置", "天气设置已保存。")
+        QMessageBox.information(self, tr("panel.settings.dialog_title"), tr("panel.settings.msg_weather_saved"))
 
     # ── 关于卡片 ────────────────────────────────────────────
     def _build_about_card(self) -> QFrame:
@@ -550,17 +550,17 @@ class SettingsPanel(QWidget):
             f" background: transparent;")
         layout.addWidget(title)
 
-        desc = QLabel("AI 驱动的学生时间管理与生活助手")
+        desc = QLabel(tr("panel.settings.about_desc"))
         desc.setStyleSheet(
             f"color: {c['fg_secondary']}; font-size: {SIZE_BODY_S}px; background: transparent;")
         layout.addWidget(desc)
 
-        link = QLabel('<a href="https://github.com/Aspy1/DailyTask">GitHub 仓库</a>')
+        link = QLabel(f'<a href="https://github.com/Aspy1/DailyTask">{tr("panel.settings.about_link")}</a>')
         link.setOpenExternalLinks(True)
         link.setStyleSheet(f"background: transparent; font-size: {SIZE_BODY_S}px;")
         layout.addWidget(link)
 
-        data_btn = RoundedButton("打开数据目录")
+        data_btn = RoundedButton(tr("panel.settings.btn_open_data_dir"))
         data_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         data_btn.setStyleSheet(btn_secondary_qss())
         data_btn.clicked.connect(self._open_data_dir)
@@ -613,7 +613,7 @@ class SettingsPanel(QWidget):
             enabled_cb.toggled.connect(lambda checked, n=pinfo.name: self._toggle_plugin(n, checked))
             rl.addWidget(enabled_cb)
             panels = self._plugin_manager.get_panels(pinfo.name)
-            open_btn = RoundedButton("打开面板")
+            open_btn = RoundedButton(tr("panel.settings.btn_open_plugin_panel"))
             open_btn.setEnabled(bool(panels) and pinfo.enabled)
             open_btn.clicked.connect(lambda _=None, n=pinfo.name: self._open_plugin(n))
             open_btn.setStyleSheet(f"background-color: {self._c()['accent']}; color: {self._c()['fg_on_fill']}; border-radius: 8px; padding:6px 10px; font-weight:600;")
@@ -626,13 +626,13 @@ class SettingsPanel(QWidget):
             return
         panels = self._plugin_manager.get_panels(plugin_name)
         if not panels:
-            QMessageBox.information(self, "插件", "插件未提供面板。")
+            QMessageBox.information(self, tr("panel.settings.dialog_title_plugin"), tr("panel.settings.msg_plugin_no_panel"))
             return
         # open the first registered panel
         display_name, _ = panels[0]
         widget = self._plugin_manager.create_panel(plugin_name, display_name, self._settings, self._ai_service, self._data_manager, None)
         if widget is None:
-            QMessageBox.warning(self, "插件", "打开插件面板失败。")
+            QMessageBox.warning(self, tr("panel.settings.dialog_title_plugin"), tr("panel.settings.msg_plugin_open_failed"))
             return
         widget.setWindowTitle(display_name)
         widget.setAttribute(Qt.WA_DeleteOnClose, True)
@@ -649,7 +649,7 @@ class SettingsPanel(QWidget):
             return
         ok = self._plugin_manager.enable(plugin_name) if enable else self._plugin_manager.disable(plugin_name)
         if not ok:
-            QMessageBox.warning(self, "插件", "设置失败，请检查文件权限。")
+            QMessageBox.warning(self, tr("panel.settings.dialog_title_plugin"), tr("panel.settings.msg_plugin_toggle_failed"))
         self._refresh_plugins()
 
     def refresh_theme(self) -> None:
@@ -685,18 +685,18 @@ class SettingsPanel(QWidget):
         self._balance_widgets: dict[str, dict] = {}
 
         for idx, (key, label) in enumerate([
-            ("campus_card", "校园卡"), ("water_card", "水卡"), ("electricity", "电费"),
+            ("campus_card", tr("panel.settings.balance_campus_card")), ("water_card", tr("panel.settings.balance_water_card")), ("electricity", tr("panel.settings.balance_electricity")),
         ]):
             enabled_cb = QCheckBox()
             enabled_cb.setChecked(self._settings.get_bool("Balance", f"{key}_enabled"))
             balance_input = QLineEdit(self._settings.get("Balance", f"{key}_balance"))
             balance_input.setStyleSheet(self._input_qss())
             balance_input.setFixedWidth(100)
-            balance_input.setPlaceholderText("当前余额")
+            balance_input.setPlaceholderText(tr("panel.settings.placeholder_balance"))
             threshold_input = QLineEdit(self._settings.get("Balance", f"{key}_threshold"))
             threshold_input.setStyleSheet(self._input_qss())
             threshold_input.setFixedWidth(80)
-            threshold_input.setPlaceholderText("阈值")
+            threshold_input.setPlaceholderText(tr("panel.settings.placeholder_threshold"))
 
             row_w = QWidget()
             row_w.setStyleSheet("background: transparent;")
@@ -707,11 +707,11 @@ class SettingsPanel(QWidget):
             lbl.setFixedWidth(60)
             rl.addWidget(lbl)
             rl.addWidget(enabled_cb)
-            rl.addWidget(QLabel("余额"))
+            rl.addWidget(QLabel(tr("panel.settings.label_balance")))
             rl.addWidget(balance_input)
-            rl.addWidget(QLabel("低于"))
+            rl.addWidget(QLabel(tr("panel.settings.label_below")))
             rl.addWidget(threshold_input)
-            rl.addWidget(QLabel("元提醒"))
+            rl.addWidget(QLabel(tr("panel.settings.label_yuan_remind")))
             rl.addStretch()
             layout.addWidget(row_w)
             if idx < 2:
@@ -727,12 +727,12 @@ class SettingsPanel(QWidget):
         br = QHBoxLayout(btn_row)
         br.setContentsMargins(16, 12, 16, 12)
 
-        hint = QLabel("电费数据可从学校缴费平台查询，或按每周充值 20-30 估算。")
+        hint = QLabel(tr("panel.settings.hint_balance_electricity"))
         hint.setStyleSheet(f"color: {c['fg_hint']}; font-size: 13px; background: transparent;")
         br.addWidget(hint)
 
         br.addStretch()
-        save_btn = RoundedButton("保存")
+        save_btn = RoundedButton(tr("panel.settings.btn_save"))
         save_btn.setFixedSize(72, 30)
         save_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         save_btn.setStyleSheet(f"""
@@ -751,7 +751,7 @@ class SettingsPanel(QWidget):
             self._settings.set("Balance", f"{key}_balance", w["balance"].text().strip())
             self._settings.set("Balance", f"{key}_threshold", w["threshold"].text().strip())
         self._settings.save()
-        QMessageBox.information(self, "设置", "余额提醒设置已保存。")
+        QMessageBox.information(self, tr("panel.settings.dialog_title"), tr("panel.settings.msg_balance_saved"))
 
     # ── General card ───────────────────────────────────────
 
@@ -762,4 +762,4 @@ class SettingsPanel(QWidget):
         self._settings.save()
         from src.app import set_autostart
         set_autostart(self._auto_start.isChecked())
-        QMessageBox.information(self, "设置", "通用设置已保存。")
+        QMessageBox.information(self, tr("panel.settings.dialog_title"), tr("panel.settings.msg_general_saved"))

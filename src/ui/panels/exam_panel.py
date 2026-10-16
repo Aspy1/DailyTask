@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from src.i18n.loader import tr
 from src.services.data_manager import DataManager
 from src.ui.styles.theme import FONT_CN, RADIUS, SIZE_SUBTITLE, get_colors
 from src.ui.widgets.menu import (
@@ -100,19 +101,19 @@ class _ExamCard(QWidget):
         badge.setFixedSize(52, 52)
         badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
         if days_left < 0:
-            badge.setText("已过")
+            badge.setText(tr("panel.exam.badge_past"))
             badge.setStyleSheet(f"color: {c['fg_hint']}; font-size: 11px; font-weight: 600; background: {c['bg_input']}; border-radius: {RADIUS['radius_pill']}px;")
         elif days_left == 0:
-            badge.setText("今天")
+            badge.setText(tr("panel.exam.badge_today"))
             badge.setStyleSheet(f"color: {c['fg_on_fill']}; font-size: 13px; font-weight: 700; background: {c['red_fill']}; border-radius: {RADIUS['radius_pill']}px;")
         elif days_left <= 7:
-            badge.setText(f"{days_left}天")
+            badge.setText(tr("panel.exam.badge_days_left", days=days_left))
             badge.setStyleSheet(f"color: {c['fg_on_fill']}; font-size: 13px; font-weight: 700; background: {c['red_fill']}; border-radius: {RADIUS['radius_pill']}px;")
         elif days_left <= 15:
-            badge.setText(f"{days_left}天")
+            badge.setText(tr("panel.exam.badge_days_left", days=days_left))
             badge.setStyleSheet(f"color: {c['fg_on_fill']}; font-size: 13px; font-weight: 700; background: {c['orange_fill']}; border-radius: {RADIUS['radius_pill']}px;")
         else:
-            badge.setText(f"{days_left}天")
+            badge.setText(tr("panel.exam.badge_days_left", days=days_left))
             badge.setStyleSheet(f"color: {c['fg_secondary']}; font-size: 13px; font-weight: 600; background: {c['bg_input']}; border-radius: 26px;")
         return badge
 
@@ -121,7 +122,7 @@ class _ExamCard(QWidget):
         """范围 / 地点 / 备注 合并行（均无时返回 None）。"""
         extras = []
         if exam.get("scope"):
-            extras.append(f"范围: {exam['scope']}")
+            extras.append(tr("panel.exam.detail_scope", scope=exam["scope"]))
         if exam.get("location"):
             extras.append(exam["location"])
         if exam.get("notes"):
@@ -156,13 +157,13 @@ class ExamPanel(QWidget):
         bl.setContentsMargins(16, 8, 16, 8)
         bl.setSpacing(8)
 
-        title = QLabel("考试")
+        title = QLabel(tr("panel.exam.title"))
         title.setFont(QFont(FONT_CN, SIZE_SUBTITLE))
         title.setStyleSheet(f"color: {c['fg_primary']}; font-weight: 600; border: none;")
         bl.addWidget(title)
         bl.addStretch()
 
-        add_btn = RoundedButton("添加")
+        add_btn = RoundedButton(tr("panel.exam.btn_add"))
         add_btn.setStyleSheet(f"""
             QPushButton {{ background-color: {c['accent']}; color: {c['fg_on_fill']}; border: none;
                 border-radius: 8px; padding: 4px 14px; font-size: 13px; font-weight: 600; }}
@@ -171,7 +172,7 @@ class ExamPanel(QWidget):
         add_btn.clicked.connect(lambda: self._add_exam())
         bl.addWidget(add_btn)
 
-        refresh_btn = RoundedButton("刷新")
+        refresh_btn = RoundedButton(tr("panel.exam.btn_refresh"))
         refresh_btn.setStyleSheet(f"""
             QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
                 border-radius: 8px; padding: 4px 12px; font-size: 13px; }}
@@ -235,8 +236,8 @@ class ExamPanel(QWidget):
 
     def _context_menu(self, pos, exam: dict, anchor=None) -> None:
         menu = new_menu(self)
-        add_action(menu, "编辑", lambda checked=False: self._add_exam(exam))
-        add_action(menu, "删除", lambda checked=False: self._delete_exam(exam["id"]))
+        add_action(menu, tr("panel.exam.menu_edit"), lambda checked=False: self._add_exam(exam))
+        add_action(menu, tr("panel.exam.menu_delete"), lambda checked=False: self._delete_exam(exam["id"]))
         show_at(menu, anchor or self, pos)
 
     def _delete_exam(self, eid: str) -> None:
@@ -245,7 +246,9 @@ class ExamPanel(QWidget):
             if e["id"] == eid:
                 name = e.get("course_name", eid)
                 break
-        if QMessageBox.question(self, "确认", f"删除考试「{name}」？") == QMessageBox.StandardButton.Yes:
+        if QMessageBox.question(
+                self, tr("panel.exam.msg_confirm_delete_title"),
+                tr("panel.exam.msg_confirm_delete", name=name)) == QMessageBox.StandardButton.Yes:
             self._dm.exams.delete_exam(eid)
             self._dm.exams.save()
             self._dm.data_changed.emit("exam")
@@ -260,7 +263,8 @@ class ExamDialog(QDialog):
         super().__init__(parent)
         c = get_colors()
         editing = exam is not None
-        self.setWindowTitle("编辑考试" if editing else "添加考试")
+        self.setWindowTitle(tr("panel.exam.dialog_title_edit") if editing
+                            else tr("panel.exam.dialog_title_add"))
         self.setMinimumWidth(420)
         self.setStyleSheet(f"""
             QDialog {{ background-color: {c['bg_card']}; color: {c['fg_primary']}; }}
@@ -279,24 +283,24 @@ class ExamDialog(QDialog):
         form.setSpacing(10)
 
         self._course = QLineEdit(exam.get("course_name", "") if exam else "")
-        self._course.setPlaceholderText("如：高等数学")
-        form.addRow("课程:", self._course)
+        self._course.setPlaceholderText(tr("panel.exam.placeholder_course"))
+        form.addRow(tr("panel.exam.label_course"), self._course)
 
         self._date = QLineEdit(exam.get("exam_date", "") if exam else "")
         self._date.setPlaceholderText("YYYY-MM-DD")
-        form.addRow("考试日期:", self._date)
+        form.addRow(tr("panel.exam.label_date"), self._date)
 
         self._scope = QLineEdit(exam.get("scope", "") if exam else "")
-        self._scope.setPlaceholderText("如：第1-8章")
-        form.addRow("范围:", self._scope)
+        self._scope.setPlaceholderText(tr("panel.exam.placeholder_scope"))
+        form.addRow(tr("panel.exam.label_scope"), self._scope)
 
         self._location = QLineEdit(exam.get("location", "") if exam else "")
-        self._location.setPlaceholderText("如：教学楼A201")
-        form.addRow("地点:", self._location)
+        self._location.setPlaceholderText(tr("panel.exam.placeholder_location"))
+        form.addRow(tr("panel.exam.label_location"), self._location)
 
         self._notes = QLineEdit(exam.get("notes", "") if exam else "")
-        self._notes.setPlaceholderText("其他备注...")
-        form.addRow("备注:", self._notes)
+        self._notes.setPlaceholderText(tr("panel.exam.placeholder_notes"))
+        form.addRow(tr("panel.exam.label_notes"), self._notes)
 
         layout.addLayout(form)
 
@@ -308,10 +312,12 @@ class ExamDialog(QDialog):
 
     def _ok(self) -> None:
         if not self._course.text().strip():
-            QMessageBox.warning(self, "错误", "请输入课程名称。")
+            QMessageBox.warning(self, tr("panel.exam.msg_title_error"),
+                                tr("panel.exam.msg_need_course"))
             return
         if not self._date.text().strip():
-            QMessageBox.warning(self, "错误", "请输入考试日期。")
+            QMessageBox.warning(self, tr("panel.exam.msg_title_error"),
+                                tr("panel.exam.msg_need_date"))
             return
         self.result_data = {
             "course_name": self._course.text().strip(),

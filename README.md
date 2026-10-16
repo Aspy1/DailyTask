@@ -60,7 +60,10 @@ python -m venv .venv
 │   │   ├── reminder_service.py     #   提醒 · 邮件 · DDL
 │   │   ├── settings_manager.py     #   配置读写
 │   │   ├── weather_service.py      #   和风天气 · 实时/7 天预报
-│   │   ├── api_service.py          #   Open-Meteo / 余额查询 worker
+│   │   ├── ai_service.py              #   AI 服务（提示词/Worker/指令执行）
+│   ├── api_service.py             #   Qt 异步外壳（API 测试弹窗用，委托下面两个）
+│   ├── openmeteo.py               #   Open-Meteo 天气适配（唯一实现）
+│   ├── deepseek.py                #   DeepSeek 余额适配（唯一实现）
 │   │   ├── git_sync.py             #   Git 自动同步
 │   │   └── plugin_manager.py       #   插件加载
 │   └── ui/                         # 用户界面

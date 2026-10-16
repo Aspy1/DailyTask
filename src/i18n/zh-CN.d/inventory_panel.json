@@ -1,0 +1,53 @@
+{
+  "panel.inventory.title": "有什么",
+
+  "panel.inventory.filter_all_categories": "全部分类",
+  "panel.inventory.filter_all_tags": "全部标签",
+  "panel.inventory.btn_refresh": "刷新",
+  "panel.inventory.btn_prev_page": "< 上一页",
+  "panel.inventory.btn_next_page": "下一页 >",
+
+  "panel.inventory.count_pieces": "{n} 件",
+  "panel.inventory.count_types": "{n} 类物品",
+  "panel.inventory.count_total_items": "共 {n} 件物品",
+  "panel.inventory.count_summary": "{n} 项  {page}",
+  "panel.inventory.page_indicator": "第{cur}/{total}页",
+  "panel.inventory.qty_with_doses": "x{n} ({doses}次)",
+  "panel.inventory.qty_pieces": "×{n}件",
+  "panel.inventory.qty_virtual_items": "×{n}项",
+
+  "panel.inventory.label_clothing_need_buy": "要买了",
+  "panel.inventory.label_clothing_need_wash": "要洗了",
+  "panel.inventory.label_clothing_wearable": "可穿",
+  "panel.inventory.label_virtual_need_renew": "要续费",
+  "panel.inventory.label_virtual_expiring": "要到期了",
+  "panel.inventory.label_virtual_valid": "有效",
+  "panel.inventory.label_digital_need_repair": "需维修",
+  "panel.inventory.label_digital_to_replace": "待更换",
+  "panel.inventory.label_digital_normal": "正常",
+  "panel.inventory.label_consumable_need_restock": "需补货",
+  "panel.inventory.label_consumable_running_low": "快用完",
+  "panel.inventory.label_consumable_ample": "充足",
+
+  "panel.inventory.action_restore_stock_reminder": "恢复库存提醒",
+  "panel.inventory.action_ignore_low_stock": "忽略库存不足提醒",
+  "panel.inventory.action_set_email_reminder": "设置邮件提醒",
+  "panel.inventory.action_edit_tags": "修改标签",
+  "panel.inventory.action_delete": "删除",
+
+  "panel.inventory.msg_confirm_delete_title": "确认",
+  "panel.inventory.msg_confirm_delete": "删除「{name}」？",
+
+  "panel.inventory.dialog_edit_tags_title": "修改标签 - {name}",
+  "panel.inventory.label_current_tags": "当前标签 (双击编辑):",
+  "panel.inventory.dialog_edit_tag_title": "编辑标签",
+  "panel.inventory.label_tag_text": "标签文本:",
+  "panel.inventory.placeholder_new_tag": "新标签...",
+  "panel.inventory.btn_add": "添加",
+  "panel.inventory.btn_delete_selected": "删除选中",
+
+  "panel.inventory.dialog_email_title": "邮件提醒 - {name}",
+  "panel.inventory.label_email_prompt": "为「{name}」设置补货提醒",
+  "panel.inventory.msg_reminder_set_title": "已设置",
+  "panel.inventory.msg_reminder_set": "已设置补货提醒"
+}

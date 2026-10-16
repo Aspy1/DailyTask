@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from src.i18n.loader import tr
 from src.ui.styles.theme import FONT_CN, SIZE_BODY_M, get_colors
 from src.ui.widgets.rounded_button import RoundedButton
 
@@ -160,16 +161,16 @@ class Sidebar(QWidget):
         layout.setContentsMargins(0, 20, 0, 0)
         layout.setSpacing(0)
 
-        self._title = QLabel("生活助手")
+        self._title = QLabel(tr("app.name"))
         self._title.setFont(QFont(FONT_CN, SIZE_BODY_M, QFont.Weight.Bold))
         layout.addWidget(self._title)
 
-        func_section = SidebarSection("func", "功能", [
-            ("schedule", "日程总览"), ("courses", "课程表"),
-            ("tasks", "作业管理"), ("exams", "考试")])
-        life_section = SidebarSection("life", "生活", [
-            ("daily", "日常"), ("expenses", "记账"),
-            ("inventory", "有什么"), ("meals", "吃什么")])
+        func_section = SidebarSection("func", tr("sidebar.section.func"), [
+            ("schedule", tr("sidebar.nav.schedule")), ("courses", tr("sidebar.nav.courses")),
+            ("tasks", tr("sidebar.nav.tasks")), ("exams", tr("sidebar.nav.exams"))])
+        life_section = SidebarSection("life", tr("sidebar.section.life"), [
+            ("daily", tr("sidebar.nav.daily")), ("expenses", tr("sidebar.nav.expenses")),
+            ("inventory", tr("sidebar.nav.inventory")), ("meals", tr("sidebar.nav.meals"))])
         self._sections["func"] = func_section
         self._sections["life"] = life_section
         layout.addWidget(func_section)
@@ -193,14 +194,14 @@ class Sidebar(QWidget):
         bl = QVBoxLayout(self._bottom)
         bl.setContentsMargins(0, 0, 0, 0)
         bl.setSpacing(0)
-        for key, label in [("settings", "设置"), ("more", "更多…")]:
+        for key, label in [("settings", tr("sidebar.nav.settings")), ("more", tr("sidebar.nav.more"))]:
             btn = NavItem(key, label, indent=False)
             btn.clicked_with_key.connect(self._on_nav_clicked)
             self._nav_items[key] = btn
             bl.addWidget(btn)
         layout.addWidget(self._bottom)
 
-        self._ai_btn = RoundedButton("AI 助手")
+        self._ai_btn = RoundedButton(tr("ai.title"))
         self._ai_btn.setFlat(True)
         self._ai_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._ai_btn.clicked.connect(self._toggle_ai)
