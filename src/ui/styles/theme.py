@@ -12,6 +12,7 @@ from pathlib import Path
 from PySide6.QtCore import QEvent, QObject, Qt
 from PySide6.QtGui import QFont, QFontDatabase
 from PySide6.QtWidgets import QApplication
+from shiboken6 import isValid
 
 # ── Tokens：从单一真值 design/tokens.json 加载（CODE_STANDARDS Q-H8）──
 # src/ui/styles/theme.py → 上溯 3 层是仓库根，令牌真值在 design/
@@ -151,14 +152,18 @@ class _RoundedFrameFixer(QObject):
     _TYPES = ("QLineEdit", "QComboBox", "QAbstractSpinBox", "QTextEdit", "QPlainTextEdit")
 
     def eventFilter(self, obj, event) -> bool:
-        if event.type() == QEvent.Type.Show and type(obj).__name__ in self._TYPES:
-            # 控件可能在 Show 事件期间已被销毁（C++ 对象已释放）或没有 setFrame，
-            # 两种情况都不需要处理 —— 显式忽略（Q-I2：不用 except-pass，改用 suppress）
-            with contextlib.suppress(RuntimeError, AttributeError):
-                # 不再要求控件自带 border-radius：全局 QSS 也会给它们圆角，
-                # 只查自带样式表会漏掉一半（角点残留的根因之一）
-                if hasattr(obj, "setFrame"):
-                    obj.setFrame(False)
+        if event.type() != QEvent.Type.Show or type(obj).__name__ not in self._TYPES:
+            return False
+        # ⚠ 必须先确认 C++ 对象还活着：长测试会话里会累积"Python 包装器还在、
+        # C++ 对象已销毁"的控件，直接碰它们可能**崩进程**（access violation，
+        # 不是 Python 异常，try/except 与 suppress 都拦不住）。
+        if not isValid(obj):
+            return False
+        # 不再要求控件自带 border-radius：全局 QSS 也会给它们圆角，
+        # 只查自带样式表会漏掉一半（角点残留的根因之一）
+        with contextlib.suppress(RuntimeError, AttributeError):
+            if hasattr(obj, "setFrame"):
+                obj.setFrame(False)
         return False
 
 

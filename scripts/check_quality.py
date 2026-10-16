@@ -516,8 +516,12 @@ def _configure_stdout() -> None:
             stream.reconfigure(encoding="utf-8", errors="replace")
 
 
-def evaluate() -> Report:
-    """跑全部检查，返回报告（供 CLI 与测试共用）。"""
+def evaluate(with_tools: bool = True) -> Report:
+    """跑全部检查，返回报告（供 CLI 与测试共用）。
+
+    `with_tools=False` 跳过外部工具（vulture / radon / lint-imports / detect-secrets）——
+    测试里没必要重复跑 CI 的"工程规范门禁"步骤（又慢又占内存），只验证轻量检查即可。
+    """
     baseline = json.loads(BASELINE_FILE.read_text(encoding="utf-8")) if BASELINE_FILE.exists() else {}
     rep = Report()
     report_baseline_sizes(rep, check_sizes(), baseline.get("sizes", {}))
@@ -530,6 +534,9 @@ def evaluate() -> Report:
     report_i18n(rep, count_ui_chinese_literals(), baseline.get("ui_chinese_literals"))
     report_items(rep, "TOP-DIR", "通过", check_top_level())
     report_items(rep, "SECRET", "通过（settings.ini 未入库）", check_secret_not_tracked())
+    if not with_tools:
+        rep.add("（外部工具已跳过：由 CI 的 check_quality 步骤负责）")
+        return rep
     new_secrets = check_new_secrets()
     if new_secrets is None:
         rep.add("SECRETS    跳过（detect-secrets 未安装）")

@@ -70,7 +70,7 @@ def test_unwrapped_chinese_ignores_tr_arguments() -> None:
 
 # ── 2. 当前仓库状态 ─────────────────────────────────────────
 def test_repository_passes_quality_gate() -> None:
-    rep = cq.evaluate()
+    rep = cq.evaluate(with_tools=False)
     assert rep.failures == [], "\n".join(rep.failures)
 
 
