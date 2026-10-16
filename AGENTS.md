@@ -175,6 +175,8 @@
   （现状：`WeatherService`/`ApiService` 尚有面板级实例化，属待整改。）
 - **R-002** 数据写入路径：只有两条合法写入路径——UI 走 `DataManager`/Model 的 `save()`（原子写入）；
   AI/TG 走 `scripts/actions.py`。**除这两处外**，禁止直接 `open()`/`json.dump()` 写 `data/*.json`。
+  AI 这条路径必须满足：**入口统一校验参数**（非法输入不写任何文件）、**写入前自动备份**、
+  用户可用 `restore --name X --yes` 手动回滚（详见 `ERRORS #042`）。
 - **R-003** 信号与槽类型匹配（如 `ddl_alert(int)` 不能连无参槽）。
 - **R-004** 主线程安全：`App.__init__` 与所有 UI 槽函数禁止阻塞（`time.sleep`、同步网络请求、大文件遍历），
   耗时操作放 `QThread`。（现状：`AIService` 取余额/天气有主线程同步请求，属待整改。）

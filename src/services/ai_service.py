@@ -3,6 +3,7 @@
 import logging
 import re
 import threading
+import uuid
 from datetime import date
 from typing import Any, Protocol
 
@@ -23,34 +24,55 @@ SYSTEM_PROMPT_BASE = """你是一个学生时间管理助手。理解用户意�
 3. 禁止在自然语言回复中重复脚本命令或执行结果
 4. 不编造数据，不删除数据（除非用户明确要求）
 5. 每次最多一个 ```sh 代码块，每条命令一行
+6. 改数据**只能**通过 `scripts/actions.py`；禁止自己拼 JSON、禁止直接写文件
+7. 命令被脚本拒绝时会返回 `ERROR ...`：把原因**如实**告诉用户并请他补充信息，
+   不要改写参数反复重试同一条命令（脚本拒绝就是没写任何数据）
 
 ## 参数标准化
 - 课程名: 提取核心词，脚本自动模糊匹配（"算法课"→匹配算法设计与分析）
 - 日期: 统一 YYYY-MM-DD 或 YYYY-MM-DDThh:mm。用户提到具体时间(中午/下午/几点/几点半)时必须保留为Thh:mm格式。"下周日""6月20日""明天"等→计算为实际日期
 - 时段: 1=08:30-10:05, 2=10:25-12:00, 3=13:30-15:05, 4=15:25-17:00, 5=18:30-20:05, 6=20:10-21:45
+- 金额: 纯数字（不要带 ¥、元、"块"）；分类用 id 或中文名（food=餐饮, transport=交通, study=学习, entertainment=娱乐, shopping=购物, other=其他）
+- 课程名/标题不超过 120 字；备注不超过 500 字
 
-## 可用命令
+## 可用命令（按领域分组，共 7 类：课程表 / 作业 / 考试 / 习惯 / 日程 / 有什么 / 记账）
+
+### 课程表
+```sh
+python scripts/actions.py add_course --name "课程" --day 1 --weeks "1-16" --slots "3-4" [--location "教学楼" --teacher "老师" --parity odd]
+python scripts/actions.py delete_course --id "c_001"
+```
+day: 1=周一...7=周日。weeks: 起-止（1-16）。slots: 起-止（1-6）。parity: all/odd/even（单双周）。
+
+### 作业
 ```sh
 python scripts/actions.py add_task --course "课程" --title "标题" --due "YYYY-MM-DD"  # 或 YYYY-MM-DDThh:mm
 python scripts/actions.py complete_task --id "t_001"
-python scripts/actions.py add_exam --course "课程" --date "YYYY-MM-DD" [--scope "范围"] [--notes "备注"]
-python scripts/actions.py add_habit --name "习惯" --schedule "daily/1" [--duration 30] [--reminder "20:00"]
+```
+
+### 考试
+```sh
+python scripts/actions.py add_exam --course "课程" --date "YYYY-MM-DD" [--scope "范围" --location "考场" --notes "备注"]
+```
+
+### 习惯
+```sh
+python scripts/actions.py add_habit --name "习惯" --schedule "daily/1" [--duration 30 --reminder "20:00"]
 python scripts/actions.py log_habit --id "h_001"
+```
+schedule格式: daily/N, weekly/1,3,5, monthly/N。
+
+### 日程（计划）
+```sh
 python scripts/actions.py add_plan --date "YYYY-MM-DD" --title "标题" --slot 3
 python scripts/actions.py replace_plans --date "YYYY-MM-DD" --plans '[{"title":"标题","time_slot":3}]'
 python scripts/actions.py delete_plan --date "YYYY-MM-DD" --index 0
-python scripts/actions.py add_course --name "课程" --day 1 --weeks "1-16" --slots "3-4"
-python scripts/actions.py delete_course --id "c_001"
-python scripts/actions.py status  # 今日概览（课/任务/习惯/支出）
 ```
 
-schedule格式: daily/N, weekly/1,3,5, monthly/N。day: 1=周一...7=周日。
-
-### 物品（有什么）
+### 有什么（物品/库存）
 添加物品分两步，第一步只查找不添加:
 ```sh
 python scripts/actions.py lookup_item --name "A"
-python scripts/actions.py lookup_item --name "B"
 ```
 系统会自动把查找结果发回，让你判断重复。然后你再回复确认并添加。
 ```sh
@@ -63,18 +85,43 @@ python scripts/actions.py need_restock
 分类: 日常消耗品/数码电子/衣物/虚拟品类/其他。数量单位统一用"件"。
 移动物品: "把X从A拿到B" → update_item --id "i_xxx" --location "B"
 
-## 判断优先级
-1. 物品/存货/库存/还有/用完了/放在 → add_item 或 update_item
-2. 考试/期中/期末 → add_exam
-3. 作业/布置/pre/论文 → add_task
-4. 习惯/打卡/每天 → add_habit/log_habit
-5. 完成/做完了 → complete_task/log_habit
-6. 提醒类 → add_plan
-7. 移动/拿到/放到/挪到 → update_item --location
-8. 删除/丢掉/扔掉/不要了 → delete_item
-9. 天气/气温/多少度/下雨/晴天 → 直接用下文「天气」段回答，**不要调用脚本**
-10. 余额/剩余/还剩/额度/多少钱 → 直接用下文「余额」段回答，**不要调用脚本**
+### 记账 / 存钱
+```sh
+python scripts/actions.py add_expense --amount 12.5 --category food [--note "午饭" --date "YYYY-MM-DD"]
+python scripts/actions.py add_saving --amount 30 [--note "自带午饭"]
+python scripts/actions.py delete_expense --id "e_001"
+python scripts/actions.py expense_summary [--month "2026-10"]
+```
+支出记 add_expense，存钱记 add_saving（两者是分开的两栏，不要混）。
+
+### 概览与备份
+```sh
+python scripts/actions.py status  # 今日概览（课/任务/习惯/支出）
+python scripts/actions.py list_backups --name "expenses.json"
+python scripts/actions.py restore --name "expenses.json" --yes  # 仅用户明确要求恢复时
+```
+
+## 关键词 → 命令（判断优先级）
+1. 课程表/上课/几点的课/在哪上/单双周/第几周/排课 → add_course（删除用 delete_course）
+2. 作业/布置/pre/论文/报告/实验/大作业/提交/DDL/截止 → add_task
+3. 做完了/写完了/交了/完成了 → complete_task
+4. 考试/期中/期末/小测/考查/补考 → add_exam
+5. 习惯/打卡/每天/每周/坚持/连续/签到 → add_habit、log_habit
+6. 计划/安排/日程/几点做/提醒我 → add_plan（整段重排用 replace_plans）
+7. 物品/存货/库存/还有多少/用完了/没货/该买/放在哪/在哪/挪到/拿到 → add_item、update_item、delete_item、lookup_item、need_restock
+8. 花了/买了/支出/记账/消费/多少钱/吃饭花了/打车/话费 → add_expense
+9. 存钱/省钱/攒钱/今天没花钱/自带饭/没消费 → add_saving
+10. 这个月花了多少/分类统计/预算还剩/超支了吗 → expense_summary
 11. 概览/统计/今天有什么/还有多少 → status
+12. 天气/气温/多少度/下雨/晴天 → 直接用下文「天气」段回答，**不要调用脚本**
+13. 余额/剩余/还剩/额度/多少钱（指卡余额）→ 直接用下文「余额」段回答，**不要调用脚本**
+
+## 数据安全
+- 脚本会**严格校验**每个参数：范围错（--day 9、--slots 3-99）、非法日期（2026-02-30）、
+  负数金额、拼错的参数名（--titel）都会被拒绝并返回 ERROR，**此时数据没有被修改**。
+- 收到 ERROR 时：把原因用自然语言告诉用户，请他补充/纠正信息；不要连续重试。
+- `restore` / `list_backups` 是**给用户的手动入口**：除非用户明确说"恢复/回滚"，否则不要调用。
+- `delete_*` 只在用户明确要求删除时使用；不确定就先问。
 
 ## 天气与日程规划
 - 规划日程时参考天气预报。若当天有雨（weathercode 51-67, 80-82, 95-99），在相关日程备注中提醒"记得带伞"
@@ -109,10 +156,36 @@ class AnthropicProvider:
         return response.content[0].text
 
 
+# 进程级稳定会话 ID：OpenCode Go 要求客户端带一个**稳定**的会话标识，
+# 用于路由与 prompt 缓存优化（docs/go「Where can I use it?」）。
+_SESSION_ID = uuid.uuid4().hex
+
+
+def provider_headers(base_url: str) -> dict | None:
+    """按端点补充请求头；不需要时返回 None。
+
+    OpenCode Go（`opencode.ai/inference/go/...`）明确要求客户端：
+
+    1. **自报身份**：用自定义 UA（`life-assistant/1.0`），而不是 SDK 默认的
+       HTTP 库名（openai-python/httpx 之类）；
+    2. 带 `x-opencode-session`：缺了它网关会返回
+       `400 MissingSessionID`（实测）。
+
+    DeepSeek 等其它端点不需要，返回 None 保持原样。
+    """
+    if "opencode.ai" not in base_url:
+        return None
+    return {"User-Agent": "life-assistant/1.0", "x-opencode-session": _SESSION_ID}
+
+
 class DeepSeekProvider:
-    def __init__(self, api_key: str, base_url: str = "https://api.deepseek.com") -> None:
+    """OpenAI 兼容端点客户端（DeepSeek / OpenCode Go / 其它兼容服务）。"""
+
+    def __init__(self, api_key: str, base_url: str = "https://api.deepseek.com",
+                 extra_headers: dict | None = None) -> None:
         from openai import OpenAI
-        self._client = OpenAI(api_key=api_key, base_url=base_url)
+        self._client = OpenAI(api_key=api_key, base_url=base_url,
+                              default_headers=extra_headers or None)
 
     def chat(self, system_prompt: str, messages: list[dict], model: str,
              max_tokens: int, temperature: float) -> str:
@@ -251,9 +324,8 @@ class AIService(QObject):
         api_key = self._settings.api_key
         if provider == "claude":
             return AnthropicProvider(api_key)
-        else:
-            base_url = self._settings.get("AI", "api_endpoint", "https://api.deepseek.com")
-            return DeepSeekProvider(api_key, base_url)
+        base_url = self._settings.get("AI", "api_endpoint", "https://api.deepseek.com")
+        return DeepSeekProvider(api_key, base_url, provider_headers(base_url))
 
     @property
     def is_configured(self) -> bool:
@@ -299,9 +371,9 @@ class AIService(QObject):
         self._thread.start()
 
     def _fetch_deepseek_balance(self) -> str:
-        """Fetch DeepSeek API balance. Returns cached value if < 5 min old.
+        """DeepSeek 余额文本（5 分钟缓存）。非 DeepSeek 端点直接返回空串。
 
-        实际请求经共享适配器 `services/deepseek.fetch_balance()`（Q-A3）。
+        格式化与请求都交给共享适配器 `services/deepseek.py`（Q-A3）。
         """
         import time
 
@@ -309,21 +381,10 @@ class AIService(QObject):
         cached = self._ds_balance_cache
         if cached and (now - cached.get("fetched_at", 0)) < 300:
             return cached.get("value", "")
-
-        api_key = self._settings.api_key
-        if not api_key:
-            return ""
-
-        result = deepseek.fetch_balance(api_key)
-        kind = result.get("error_kind")
-        if kind == "network":
-            val = ""                    # 与旧行为一致：网络异常给空串
-        elif "error" in result:
-            val = "查询失败"
-        elif result.get("balance_infos"):
-            val = f"¥{float(result['balance_infos'][0].get('total_balance', 0)):.2f}"
-        else:
-            val = "未知"
+        # 余额是 DeepSeek 专属接口：换到其它 OpenAI 兼容端点（如 OpenCode Go）时
+        # 不要拿别的 key 去查 DeepSeek 余额（提示词里也就不会出现「余额」段）。
+        val = (deepseek.balance_text(self._settings.api_key)
+               if self._settings.get("AI", "provider", "deepseek") == "deepseek" else "")
         self._ds_balance_cache = {"value": val, "fetched_at": now}
         return val
 

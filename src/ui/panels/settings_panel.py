@@ -51,6 +51,15 @@ PROVIDERS = {
         "model": "claude-sonnet-4-20250514", "key_placeholder": "sk-ant-...",
         "key_url": "https://console.anthropic.com",
     },
+    # OpenCode Go（订阅制）：OpenAI 兼容端点 + 订阅 key。
+    # ⚠ 必须用 /inference/go/... 这个地址；免费模型在**按量付费**端点会被
+    # 403 FreeTierError 拦下（"free tier can only be used from within OpenCode"）。
+    # 代码侧会自动补 x-opencode-session 与自定义 UA（见 ai_service.provider_headers）。
+    "opencode": {
+        "name": "OpenCode Go", "endpoint": "https://opencode.ai/inference/go/openai/v1",
+        "model": "longcat-2.5-preview-free", "key_placeholder": "sk-...",
+        "key_url": "https://opencode.ai/console",
+    },
 }
 
 
@@ -282,6 +291,11 @@ class SettingsPanel(QWidget):
         self._model_combo.clear()
         if key == "deepseek":
             self._model_combo.addItems(["deepseek-chat", "deepseek-reasoner"])
+        elif key == "opencode":
+            self._model_combo.addItems([
+                "longcat-2.5-preview-free",   # Go 订阅内不限量
+                "deepseek-v4.1-flash", "glm-5.3-flash", "mimo-v2.6-flash", "qwen3.8-flash",
+            ])
         else:
             self._model_combo.addItems([
                 "claude-sonnet-4-20250514", "claude-opus-4-20250514", "claude-haiku-4-5-20251001",

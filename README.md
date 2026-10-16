@@ -8,7 +8,7 @@ AI 驱动的 PySide6 桌面日程管理应用。自然语言交互管理课程�
 |----|------|
 | UI | PySide6，手风琴侧边栏 + 内容区，QSS 暖纸书房主题 |
 | 设计 | #F2EFE9 纸白、#B0823A 琥珀金、4px 间距网格 |
-| AI | DeepSeek API，sh 命令 → 内存调用 actions.py (无 subprocess 开销) |
+| AI | DeepSeek / Anthropic / OpenCode Go，sh 命令 → 内存调用 actions.py (无 subprocess 开销) |
 | 数据 | JSON 本地存储，原子写入，3s 增量 reload，hash 跳过未变 widget |
 | 提醒 | 托盘弹窗 + SMTP 邮件 + GitHub Actions 每日摘要 |
 | 插件 | 延迟加载，面板注册 API |
@@ -95,7 +95,9 @@ python -m venv .venv
 │       └── styles/
 │           └── theme.py            #     令牌加载 · QSS（真值见 design/tokens.json）
 ├── scripts/
-│   ├── actions.py                  # 统一数据操作 (16 命令 + 内存调用)
+│   ├── actions.py                  # 数据操作命令层（22 命令 + 内存调用）
+│   ├── actions_core.py             #   核心层：读写（原子+写前备份）/ 参数校验 / 日期与课程匹配
+│   ├── actions_cli.py              #   argparse 子命令定义
 │   ├── build_index.py              # 模糊搜索索引
 │   ├── send_digest.py              # GitHub Actions 邮件摘要
 │   ├── gen_design_tokens.py        # 从 tokens.json 生成 DESIGN_TOKENS.md

@@ -371,6 +371,36 @@
 
 ---
 
+## P13 AI 助手接入 OpenCode Go + 脚本硬化 ✅ 已完成（2026-10-16）
+
+**AI 助手**：用户给的 `https://opencode.ai/zen/go` + 空 key + `longcat-2.5-preview-free`
+实测不可行（`zen/go` 是客户端内部路由 → 400 `MissingSessionID`；按量付费端点上免费模型
+→ 403 `FreeTierError` "free tier can only be used from within OpenCode"）。已按用户确认
+改走 **OpenCode Go 订阅**：端点 `https://opencode.ai/inference/go/openai/v1`，代码侧自动补
+`x-opencode-session` 与自定义 UA（官方文档要求）；设置面板新增 `opencode` provider 预设。
+**待用户提供 Go 的 API key 后切换**（当前 DeepSeek 配置实测可用，没有动）。
+
+**脚本硬化**（`scripts/actions.py` —— AI 唯一的写数据入口，`ERRORS #042`）：
+- **入口统一校验**（规格表覆盖 22 条命令）：非法输入只回 `ERROR`、**不写任何文件**；
+  未知参数（拼错的 `--titel`）直接拒绝，不再静默忽略
+- **写入**：结构守卫 → 写前备份 → `.tmp` → 回读自检 → `os.replace`；`load()` 遇坏文件**明说**
+- **手动恢复**：`list_backups` / `restore --name X --yes`（备份在 `data/backup/actions/`，按份数轮转）
+- **新增记账 4 条命令**（`add_expense`/`add_saving`/`delete_expense`/`expense_summary`），
+  命令总数 16 → 22
+- 拆分为 `actions_core.py`（757 行）/ `actions_cli.py`（139）/ `actions.py`（711），
+  顺带修掉 `main()` 135 行、`_validate_args` 109 行的函数长度超限
+
+**提示词**：按 7 个领域重排（课程表/作业/考试/习惯/日程/有什么/记账；
+**「吃什么」跳过** —— 仍是占位面板、没有数据模型），新增 13 条关键词映射 + 数据安全段。
+
+**检查项**：天气（Open-Meteo + 和风天气均正常 ✓）、邮件（实发测试邮件成功 ✓）、
+GitHub Action（无失败 run；8/22 起因仓库约 8 周无活动被 GitHub 自动停用定时 workflow，
+用户已重新启用，下次触发为次日 04:55）。
+
+**结果**：**355 passed**（326 → 355）· ruff 0 · 门禁 14 项全绿 · 验收 80/80。
+
+---
+
 ## A. 文档体系
 
 ### A-1 `[已完成]` 废弃逐文件 `.py.md`，改用单一 `ARCHITECTURE.md`

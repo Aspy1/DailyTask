@@ -52,3 +52,22 @@ def fetch_balance(api_key: str, timeout: int = 5) -> dict[str, Any]:
         "is_available": total > 0,
         "timestamp": datetime.now().isoformat(),
     }
+
+
+def balance_text(api_key: str) -> str:
+    """余额 → 提示词里用的短文本（**永不抛**）。
+
+    呈现口径与原 `ai_service` 内联实现一致：未配置/网络异常 → 空串；
+    HTTP 或配置错误 → "查询失败"；查到余额 → "¥12.34"。
+    """
+    if not api_key:
+        return ""
+    result = fetch_balance(api_key)
+    if result.get("error_kind") == "network":
+        return ""
+    if "error" in result:
+        return "查询失败"
+    infos = result.get("balance_infos") or []
+    if not infos:
+        return "未知"
+    return f"¥{float(infos[0].get('total_balance', 0)):.2f}"

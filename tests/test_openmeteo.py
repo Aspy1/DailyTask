@@ -80,10 +80,18 @@ def test_ai_service_delegates_to_shared_adapter() -> None:
     """AI 侧不得再自带天气码映射 / 内联 Open-Meteo / 内联余额解析。"""
     src = (ROOT / "src/services/ai_service.py").read_text(encoding="utf-8")
     assert "openmeteo.fetch_text_for_ai" in src
-    assert "deepseek.fetch_balance" in src
+    # 余额的请求与格式化都在共享适配器里（2026-10-16 收拢成 deepseek.balance_text）
+    assert "deepseek.balance_text" in src
     assert "def _weather_code_to_text" not in src
     assert "api.open-meteo.com" not in src
     assert "api.deepseek.com/user/balance" not in src
+
+
+def test_balance_text_lives_in_shared_adapter() -> None:
+    """余额格式化只允许有一份实现（Q-A3）。"""
+    src = (ROOT / "src/services/deepseek.py").read_text(encoding="utf-8")
+    assert "def balance_text" in src
+    assert "total_balance" in src
 
 
 def test_api_service_is_only_a_qt_shell() -> None:

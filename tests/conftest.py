@@ -19,11 +19,18 @@ for _p in (ROOT, TESTS):
         sys.path.insert(0, str(_p))
 
 import scripts.actions as actions  # noqa: E402
+import scripts.actions_core as actions_core  # noqa: E402
 
 
 @pytest.fixture
 def sandbox(tmp_path, monkeypatch) -> Path:
-    """actions.py 的 DATA 指向 tmp_path，读写都发生在临时目录。"""
+    """actions 的数据目录指向 tmp_path，读写都发生在临时目录。
+
+    ⚠ 必须**同时**改 `actions_core.DATA`：真正决定写到哪里的是核心层里的那个
+    `DATA`（`_path`/`load`/`save` 都读它）。只改 `actions.DATA`（命令层的再导出）
+    等于没改，测试会直接写进用户真实 `data/` —— 这正是 helpers.run() 要拦的事故。
+    """
+    monkeypatch.setattr(actions_core, "DATA", tmp_path)
     monkeypatch.setattr(actions, "DATA", tmp_path)
     return tmp_path
 

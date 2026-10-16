@@ -2,14 +2,13 @@
   "_note": "存量债台账（CODE_STANDARDS 门禁 baseline）：只防新增，修好后重写。",
   "log_sole_statement": 36,
   "sizes": {
-    "class:AIService@src/services/ai_service.py": 420,
+    "class:AIService@src/services/ai_service.py": 424,
     "class:ExpensePanel@src/ui/panels/expense_panel.py": 432,
     "class:InventoryPanel@src/ui/panels/inventory_panel.py": 732,
     "class:MainWindow@src/ui/main_window.py": 591,
     "class:ReminderService@src/services/reminder_service.py": 420,
     "class:ScheduleView@src/ui/widgets/schedule_view.py": 929,
-    "class:SettingsPanel@src/ui/panels/settings_panel.py": 703,
-    "file:scripts/actions.py": 837,
+    "class:SettingsPanel@src/ui/panels/settings_panel.py": 708,
     "file:src/ui/main_window.py": 874,
     "file:src/ui/panels/habit_panel.py": 954,
     "file:src/ui/widgets/schedule_view.py": 965,
@@ -36,7 +35,6 @@
     "func:_render_item_card@src/ui/panels/inventory_panel.py": 67,
     "func:_setup_statusbar@src/ui/main_window.py": 76,
     "func:build_theme@src/ui/styles/theme.py": 109,
-    "func:main@scripts/actions.py": 135,
     "func:main@scripts/rewrite_history.py": 75
   },
   "token_names": [

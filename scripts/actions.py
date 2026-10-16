@@ -1,265 +1,66 @@
-"""
-统一数据操作脚本 — AI 通过 CLI 调用，不直接写 JSON。
+"""数据操作**命令层** — AI 通过 CLI 调用，不直接写 JSON。
 用法: python scripts/actions.py <action> [参数...]
 
-设计原则: AI 只管理解+标准化参数，脚本管验证+写文件。
+分工（2026-10-16 拆分；此前单文件 1391 行，超过「单文件 ≤800 行」的规范上限）：
+
+- `scripts/actions_core.py` —— 数据读写（**原子写入 + 写前备份**）、参数校验、
+  日期解析与课程名匹配（唯一实现，命令层与校验层共用）
+- **本文件** —— 命令实现 + 进程内执行器（`run_in_process`）+ CLI
+
+设计原则: AI 只负责理解意图 + 标准化参数，脚本负责**严格校验 + 安全写文件**。
 """
 
 import argparse
 import json
 import logging
+import os
 import re
 import threading
-from datetime import date, datetime, timedelta
-from pathlib import Path
+from datetime import date
 
-DATA = Path(__file__).parent.parent / "data"
+# DATA / _path 等一并导出：测试与外部调用点用的是 `actions.DATA`、`actions.run_in_process`
+from scripts.actions_cli import (
+    _add_backup_parsers,
+    _add_expense_parsers,
+    _add_item_parsers,
+    _add_routine_parsers,
+    _add_task_parsers,
+)
+from scripts.actions_core import (  # noqa: F401
+    ALLOWED_OPTIONS,
+    DATA,
+    MAX_NOTE,
+    ActionError,
+    _backup_dir,
+    _backup_file,
+    _fname,
+    _iso_date,
+    _max_backups,
+    _money,
+    _month,
+    _normalize_due,
+    _path,
+    _record_id,
+    _resolve_category,
+    _text,
+    _validate_args,
+    _validate_payload,
+    gen_id,
+    load,
+    match_course,
+    now_iso,
+    parse_date,
+    save,
+)
+
+logger = logging.getLogger(__name__)
 
 # run_in_process 用 redirect_stdout 捕获输出，而 sys.stdout 是进程级全局；
 # 加锁串行化，避免多个线程同时执行时互相污染（见 CODE_STANDARDS Q-B4）。
 _STDOUT_LOCK = threading.Lock()
 
 
-# ═══════════════════════════════════════════════════════════
-# Helpers
-# ═══════════════════════════════════════════════════════════
-
-logger = logging.getLogger(__name__)
-
-
-def _path(name: str) -> Path:
-    """按学期分文件的解析：课程/作业/考试进 `semesters/<当前学期>/`，其余在根下。
-
-    这样 `load("tasks.json")` 这类调用点（30+ 处）**不用改**，也不会误写错学期。
-    """
-    from src.models import semester_paths
-
-    return semester_paths.resolve(DATA, name)
-
-
-def load(name) -> dict:
-    p = _path(name)
-    if not p.exists():
-        return {}
-    with open(p, encoding='utf-8') as f:
-        return json.load(f)
-
-def save(name, obj) -> None:
-    p = _path(name)
-    p.parent.mkdir(parents=True, exist_ok=True)
-    with open(p, 'w', encoding='utf-8') as f:
-        json.dump(obj, f, ensure_ascii=False, indent=2)
-
-def gen_id(items, prefix) -> str:
-    existing = set()
-    for it in items:
-        try:
-            num = int(it["id"].split("_")[1])
-            existing.add(num)
-        except (KeyError, ValueError):
-            logger.debug("gen_id 中忽略异常", exc_info=True)
-    n = 1
-    while n in existing:
-        n += 1
-    return f"{prefix}_{n:03d}"
-
-def now_iso() -> str:
-    return datetime.now().isoformat()
-
-def _match_exact_course(courses: list, name_lower: str) -> str | None:
-    """课程名精确匹配（大小写不敏感）；未命中返回 None。"""
-    for c in courses:
-        if c.get("name", "").lower() == name_lower:
-            return c["name"]
-    return None
-
-
-def _find_contains_matches(courses: list, name_lower: str) -> list[str]:
-    """双向包含匹配（输入包含课程名 / 课程名包含输入）。"""
-    matches = []
-    for c in courses:
-        cn = c.get("name", "").lower()
-        if name_lower in cn or cn in name_lower:
-            matches.append(c["name"])
-    return matches
-
-
-def _find_abbr_matches(courses: list, name_lower: str) -> list[str]:
-    """缩写匹配: "算法课" matches "算法设计与分析" (remove 课/程)。"""
-    abbr = name_lower.replace("课", "").replace("程", "")
-    if abbr == name_lower:
-        return []
-    matches = []
-    for c in courses:
-        cn = c.get("name", "").lower()
-        if abbr in cn:
-            matches.append(c["name"])
-    return matches
-
-
-def _find_word_matches(courses: list, name_lower: str) -> list[str]:
-    """分词匹配：任一长度 ≥2 的词出现在课程名中即算命中。"""
-    words = set(name_lower.replace("课", "").split())
-    matches = []
-    for c in courses:
-        cn = c.get("name", "").lower()
-        if any(w in cn for w in words if len(w) >= 2):
-            matches.append(c["name"])
-    return matches
-
-
-def _find_course_matches(courses: list, name_lower: str) -> list[str]:
-    """依次尝试「包含 → 缩写 → 分词」，返回首个非空的候选列表。"""
-    for finder in (_find_contains_matches, _find_abbr_matches, _find_word_matches):
-        matches = finder(courses, name_lower)
-        if matches:
-            return matches
-    return []
-
-
-def match_course(name: str) -> str | None:
-    """Fuzzy match course name. Handles abbreviations like 算法课→算法设计与分析."""
-    if not name:
-        return None
-    data = load("courses.json")
-    courses = data.get("courses", [])
-    name_lower = name.strip().lower()
-
-    exact = _match_exact_course(courses, name_lower)
-    if exact:
-        return exact
-
-    matches = _find_course_matches(courses, name_lower)
-    if len(matches) == 1:
-        return matches[0]
-    # Return original if no match
-    if not matches:
-        return name.strip()
-    # Multiple matches — try exact word match first
-    return matches[0]
-
-def _parse_relative_date(s: str, today: date, day_names: dict) -> str | None:
-    """中文相对日期（下周X / 本周X / 明天 / N天后）→ ISO；不匹配返回 None。"""
-    # "下周日"
-    m = re.match(r'下周(.)', s)
-    if m:
-        wd = day_names.get(m.group(1))
-        if wd is not None:
-            # `7 - weekday + wd` 已经落在「下一个自然周」的同名星期：
-            # wd < 今天 时是本周已过、需跨到下周；wd >= 今天 时天然就是下周。
-            # ⚠ 不可再 `+= 7`（历史缺陷：会让周一到周五普遍晚一周，ERRORS #021）。
-            days_ahead = 7 - today.weekday() + wd
-            return (today + timedelta(days=days_ahead)).isoformat()
-    # "这周五" / "本周五" / "周五"
-    m = re.match(r'(?:这|本)?周(.)', s)
-    if m:
-        wd = day_names.get(m.group(1))
-        if wd is not None:
-            days_ahead = wd - today.weekday()
-            if days_ahead <= 0:
-                days_ahead += 7
-            return (today + timedelta(days=days_ahead)).isoformat()
-    # "明天" / "后天" / "今天"
-    offsets = {"明天": 1, "后天": 2, "今天": 0}
-    if s in offsets:
-        return (today + timedelta(days=offsets[s])).isoformat()
-    # "N天后"
-    m = re.match(r'(\d+)天后', s)
-    if m:
-        return (today + timedelta(days=int(m.group(1)))).isoformat()
-    return None
-
-
-def _parse_month_day(s: str, today: date) -> str:
-    """月日形式（6月20日 / 6.20 / 6/20）→ ISO；不匹配则原样返回。"""
-    for pattern in (r'(\d{1,2})月(\d{1,2})[日号]?', r'(\d{1,2})[./-](\d{1,2})'):
-        m = re.match(pattern, s)
-        if m:
-            month, day = int(m.group(1)), int(m.group(2))
-            year = today.year
-            if month < today.month:
-                year += 1
-            return f"{year}-{month:02d}-{day:02d}"
-    return s
-
-
-def parse_date(s: str) -> str:
-    """Parse date string to YYYY-MM-DD. Supports Chinese relative dates."""
-    s = s.strip()
-    # Already ISO format
-    if re.match(r'^\d{4}-\d{2}-\d{2}', s):
-        return s[:10]
-    today = date.today()
-    # Chinese relative
-    day_names = {"一": 0, "二": 1, "三": 2, "四": 3, "五": 4, "六": 5, "日": 6}
-    relative = _parse_relative_date(s, today, day_names)
-    if relative is not None:
-        return relative
-    return _parse_month_day(s, today)
-
-def _shift_hour(period: str, hour: int) -> int:
-    """中文时段 + 12 小时制小时 → 24 小时制。"""
-    if period in ('下午', '晚上'):
-        if hour != 12:
-            hour += 12
-    elif period in ('中午',) and hour < 12:  # 中午1点→13点
-        hour += 12
-    # 上午/早晨: keep as is (but 12→0 for midnight)
-    if period == '上午' and hour == 12:
-        hour = 0
-    return hour
-
-
-_ISO_TIME_TAIL = re.compile(r'[T ](\d{1,2}):(\d{2})')
-_CN_TIME = re.compile(r'(中午|下午|上午|晚上|早晨|早上)(\d{1,2})点(半|(\d{1,2})分?)?')
-
-
-def _cn_minute(tail: str, digits: str | None) -> str:
-    """中文时间的分钟部分：`半` → 30，`N分` → N，未写 → 00。"""
-    if tail == "半":
-        return "30"
-    if digits:
-        minute = int(digits)
-        if 0 <= minute < 60:
-            return f"{minute:02d}"
-    return "00"
-
-
-def _split_date_time_text(raw: str) -> tuple[str, str]:
-    """把 DDL 文本拆成 (日期文本, HH:MM:SS)；未给出时间时第二项为 ""。
-
-    识别 `2026-10-20T14:30` / `2026-10-20 14:30` / `6月20日下午3点` / `明天晚上8点半`。
-    """
-    s = raw.strip()
-    m = _ISO_TIME_TAIL.search(s)
-    if m:
-        hh, mm = int(m.group(1)), int(m.group(2))
-        if 0 <= hh < 24 and 0 <= mm < 60:
-            return (s[:m.start()].strip() or s), f"{hh:02d}:{mm:02d}:00"
-        return parse_date(s), ""
-    m = _CN_TIME.search(s)
-    if m:
-        hour = _shift_hour(m.group(1), int(m.group(2)))
-        minute = _cn_minute(m.group(3) or "", m.group(4))
-        return parse_date(_CN_TIME.sub("", s).strip()), f"{hour:02d}:{minute}:00"
-    return parse_date(s), ""
-
-
-def _normalize_due(raw: str) -> str | None:
-    """DDL 文本 → `YYYY-MM-DDThh:mm:ss`；日期非法返回 None。
-
-    ⚠ 必须**先取时间、后归一化日期**：`parse_date` 只保留年月日，
-    先调它会把 `2026-10-20T14:30` 截成 `2026-10-20`，具体时间被静默丢弃
-    （历史缺陷，见 ERRORS #020）。只给日期时补 23:00:00。
-    """
-    if not raw.strip():
-        return None
-    date_text, time_text = _split_date_time_text(raw)
-    try:
-        date.fromisoformat(date_text)
-    except ValueError:
-        return None
-    return f"{date_text}T{time_text or '23:00:00'}"
+    # need_restock / status 无参数
 
 
 # ═══════════════════════════════════════════════════════════
@@ -586,6 +387,169 @@ def cmd_status(args) -> None:
 
 
 # ═══════════════════════════════════════════════════════════
+# 记账 / 存钱（此前 AI 完全没有记账能力）
+# ═══════════════════════════════════════════════════════════
+
+def _expense_categories(data: dict) -> list[dict]:
+    return data.get("categories") or []
+
+
+def _category_name(data: dict, cat_id: str) -> str:
+    for c in _expense_categories(data):
+        if c.get("id") == cat_id:
+            return str(c.get("name") or cat_id)
+    return cat_id
+
+
+def cmd_add_expense(args) -> None:
+    amount = _money(args.amount, "amount")
+    day = _iso_date(args.date, "date", default=date.today().isoformat())
+    note = _text(args.note, "note", max_len=MAX_NOTE)
+
+    data = load("expenses.json")
+    if not data:
+        # 文件不存在时按**模型的默认结构**建（分类/预算与界面一致），
+        # 不要只写一个只有 records 的半截文件
+        import copy
+
+        from src.models.expense import DEFAULT_EXPENSES
+
+        data = copy.deepcopy(DEFAULT_EXPENSES)
+    data.setdefault("records", [])
+    cat_id = _resolve_category(args.category, _expense_categories(data))
+    rid = gen_id(data["records"], "e")
+
+    data["records"].append({
+        "id": rid, "amount": amount, "category": cat_id,
+        "date": day, "note": note, "created_at": now_iso(),
+    })
+    save("expenses.json", data)
+    print(f"OK add_expense {rid} | {_category_name(data, cat_id)} | ¥{amount:.2f} | {day}")
+
+
+def cmd_add_saving(args) -> None:
+    """存钱（与「记账」并列的另一栏，落在 daily_logs.savings）。"""
+    amount = _money(args.amount, "amount")
+    day = _iso_date(args.date, "date", default=date.today().isoformat())
+    note = _text(args.note, "note", max_len=MAX_NOTE)
+
+    data = load("daily_logs.json")
+    if not data:
+        import copy
+
+        from src.models.daily_log import DEFAULT_DAILY_LOGS
+
+        data = copy.deepcopy(DEFAULT_DAILY_LOGS)
+    day_sav = data.setdefault("savings", {}).setdefault(day, [])
+    sid = gen_id(day_sav, "s")
+    day_sav.append({"id": sid, "amount": amount, "note": note, "created_at": now_iso()})
+    save("daily_logs.json", data)
+    print(f"OK add_saving {sid} | ¥{amount:.2f} | {day}")
+
+
+def cmd_delete_expense(args) -> None:
+    rid = _record_id(args.id)
+    data = load("expenses.json")
+    for i, r in enumerate(data.get("records", [])):
+        if r.get("id") == rid:
+            removed = data["records"].pop(i)
+            save("expenses.json", data)
+            print(f"OK delete_expense {rid} | ¥{float(removed.get('amount', 0) or 0):.2f}")
+            return
+    print(f"ERROR expense not found: {rid}")
+
+
+def _month_totals(records: list[dict], month: str) -> tuple[float, dict[str, float], int]:
+    """某月：总额 + 按分类汇总 + 笔数（纯计算，便于单测）。"""
+    total = 0.0
+    count = 0
+    by_cat: dict[str, float] = {}
+    for r in records:
+        if not str(r.get("date", "")).startswith(month):
+            continue
+        amount = float(r.get("amount", 0) or 0)
+        total += amount
+        count += 1
+        cid = str(r.get("category", "other"))
+        by_cat[cid] = by_cat.get(cid, 0.0) + amount
+    return total, by_cat, count
+
+
+def cmd_expense_summary(args) -> None:
+    """某月支出汇总（按分类）+ 今日支出/存钱/月预算余额。"""
+    month = _month(getattr(args, "month", None))
+    data = load("expenses.json")
+    records = data.get("records", [])
+    total, by_cat, count = _month_totals(records, month)
+
+    print(f"{month} 合计 ¥{total:.2f}（{count} 笔）")
+    for cid, amt in sorted(by_cat.items(), key=lambda kv: -kv[1]):
+        print(f"  {_category_name(data, cid)}: ¥{amt:.2f}")
+
+    today = date.today().isoformat()
+    today_total = sum(float(r.get("amount", 0) or 0) for r in records if r.get("date") == today)
+    saved = sum(float(s.get("amount", 0) or 0)
+                for s in load("daily_logs.json").get("savings", {}).get(today, []))
+    budget = float((data.get("budget") or {}).get("monthly", 0) or 0)
+    tail = f" | 月预算 ¥{budget:.0f}（剩余 ¥{budget - total:.2f}）" if budget else ""
+    print(f"今日支出 ¥{today_total:.2f} | 今日存钱 ¥{saved:.2f}{tail}")
+
+
+# ═══════════════════════════════════════════════════════════
+# 备份 / 恢复（写入前已自动留存，这里是**手动回滚入口**）
+# ═══════════════════════════════════════════════════════════
+
+def cmd_list_backups(args) -> None:
+    name = _text(getattr(args, "name", None), "name")
+    files = sorted(_backup_dir().glob(f"{name}.*.json" if name else "*.json"))
+    if not files:
+        print("NO_BACKUP" + (f" for {name}" if name else ""))
+        return
+    for f in files[-20:]:
+        print(f"  {f.name}  ({f.stat().st_size} 字节)")
+    print(f"共 {len(files)} 份（每个文件保留上限 {_max_backups()} 份）")
+
+
+def cmd_restore(args) -> None:
+    """用备份覆盖当前文件。
+
+    ⚠ **这是给用户的手动恢复入口**：必须显式 `--yes`；AI 不得自行调用
+    （提示词里已写明）。恢复前会把"当前版本"再备份一次，避免恢复错方向。
+    """
+    name = _text(args.name, "name", required=True)
+    if not getattr(args, "yes", False):
+        print("ERROR restore 需要显式 --yes（手动恢复入口，避免误覆盖）")
+        return
+
+    candidates = sorted(_backup_dir().glob(f"{name}.*.json"))
+    stamp = _text(getattr(args, "stamp", None), "stamp")
+    if stamp:
+        candidates = [c for c in candidates if stamp in c.name]
+    if not candidates:
+        print(f"ERROR 没有 {name} 的备份（先用 list_backups 查看）")
+        return
+
+    src = candidates[-1]
+    try:
+        data = json.loads(src.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as e:
+        print(f"ERROR 备份本身损坏：{src.name}（{e}）")
+        return
+    _validate_payload(name, data)
+
+    dest = _path(name)
+    _backup_file(dest)
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    tmp = dest.with_name(dest.name + ".tmp")
+    try:
+        tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        os.replace(tmp, dest)
+    finally:
+        tmp.unlink(missing_ok=True)
+    print(f"OK restore {name} ← {src.name}")
+
+
+# ═══════════════════════════════════════════════════════════
 # In-process executor (avoids subprocess overhead for AI calls)
 # ═══════════════════════════════════════════════════════════
 
@@ -633,6 +597,16 @@ def _build_action_namespace(parts: list[str]) -> argparse.Namespace:
     while i < len(parts):
         i = _consume_option(ns, parts, i)
 
+    # 未知参数直接拒绝：AI 拼错 --titel 时，旧实现会**静默忽略**，
+    # 结果是"看起来执行成功、其实什么都没写"（或写进默认值）。
+    if ns.action in ALLOWED_OPTIONS:
+        allowed = ALLOWED_OPTIONS[ns.action]
+        unknown = set(vars(ns)) - {"action"} - allowed
+        if unknown:
+            raise ActionError(
+                f"未知参数 {'、'.join(sorted(_fname(u) for u in unknown))}"
+                f"（{ns.action} 只接受：{'、'.join(sorted(_fname(o) for o in allowed)) or '无'}）")
+
     # Apply argparse defaults for all optional args (not in CLI string)
     _defaults = {
         'priority': 'medium', 'schedule': 'daily/1', 'duration': 30,
@@ -651,10 +625,12 @@ def _build_action_namespace(parts: list[str]) -> argparse.Namespace:
 
 def run_in_process(cmd_str: str) -> str:
     """Execute an actions.py command string in-process.
-    
+
     Parses the shell command string, builds an argparse Namespace,
     and calls the handler directly — no subprocess overhead.
     Thread-safe: each call gets its own stdout buffer.
+
+    参数校验在 handler **之前**：非法输入只回 `ERROR ...`，**一个字节都不写**。
     """
     import io
     from contextlib import redirect_stdout
@@ -663,170 +639,78 @@ def run_in_process(cmd_str: str) -> str:
     if not parts:
         return "ERROR: empty command"
 
-    action = parts[0]
-    ns = _build_action_namespace(parts)
-
-    handlers = {
-        "add_task": cmd_add_task, "complete_task": cmd_complete_task,
-        "add_exam": cmd_add_exam, "add_habit": cmd_add_habit,
-        "log_habit": cmd_log_habit, "add_plan": cmd_add_plan,
-        "replace_plans": cmd_replace_plans, "delete_plan": cmd_delete_plan,
-        "add_course": cmd_add_course, "delete_course": cmd_delete_course,
-        "add_item": cmd_add_item, "update_item": cmd_update_item,
-        "delete_item": cmd_delete_item,
-        "need_restock": cmd_need_restock,
-        "lookup_item": cmd_lookup_item,
-        "status": cmd_status,
-    }
-
-    if action not in handlers:
-        return f"ERROR unknown action: {action}"
-
     buf = io.StringIO()
     with _STDOUT_LOCK, redirect_stdout(buf):
         try:
-            handlers[action](ns)
+            action = parts[0]
+            ns = _build_action_namespace(parts)
+            if action not in HANDLERS:
+                print(f"ERROR unknown action: {action}")
+            else:
+                _validate_args(action, ns)
+                HANDLERS[action](ns)
         # 边界捕获：本层已处理/记录，不允许异常向上逃逸（CODE_STANDARDS Q-I1）
+        except ActionError as e:
+            print(f"ERROR {e}")
         except Exception as e:  # noqa: BLE001
             print(f"ERROR {e}")
     return buf.getvalue().strip()
 
 
 # ═══════════════════════════════════════════════════════════
+# 命令表（**唯一处**）：进程内执行器与 CLI 共用，防止两处漂移
+# ═══════════════════════════════════════════════════════════
+
+HANDLERS = {
+    "add_task": cmd_add_task, "complete_task": cmd_complete_task,
+    "add_exam": cmd_add_exam, "add_habit": cmd_add_habit,
+    "log_habit": cmd_log_habit, "add_plan": cmd_add_plan,
+    "replace_plans": cmd_replace_plans, "delete_plan": cmd_delete_plan,
+    "add_course": cmd_add_course, "delete_course": cmd_delete_course,
+    "add_item": cmd_add_item, "update_item": cmd_update_item,
+    "delete_item": cmd_delete_item,
+    "need_restock": cmd_need_restock,
+    "lookup_item": cmd_lookup_item,
+    "status": cmd_status,
+    "add_expense": cmd_add_expense, "add_saving": cmd_add_saving,
+    "delete_expense": cmd_delete_expense, "expense_summary": cmd_expense_summary,
+    "list_backups": cmd_list_backups, "restore": cmd_restore,
+}
+
+
+# ═══════════════════════════════════════════════════════════
 # CLI
 # ═══════════════════════════════════════════════════════════
 
-def main() -> None:
+def build_parser() -> argparse.ArgumentParser:
+    """构建 CLI 解析器。
+
+    单独成函数（而不是塞在 `main()` 里）：`tests/test_actions_validation.py`
+    会拿它与 `ALLOWED_OPTIONS` 交叉校验，防止"参数白名单"与真实 CLI 漂移。
+    """
     parser = argparse.ArgumentParser(prog="actions", description="生活助手数据操作")
     sub = parser.add_subparsers(dest="action")
+    _add_task_parsers(sub)
+    _add_routine_parsers(sub)
+    _add_item_parsers(sub)
+    _add_expense_parsers(sub)
+    _add_backup_parsers(sub)
+    return parser
 
-    # add_task
-    p = sub.add_parser("add_task", help="添加作业")
-    p.add_argument("--course", help="课程名（支持模糊匹配）")
-    p.add_argument("--title", required=True, help="作业标题")
-    p.add_argument("--due", required=True, help="截止日期（YYYY-MM-DD / 下周日 / 6月20日）")
-    p.add_argument("--priority", default="medium", choices=["high","medium","low"])
-    p.add_argument("--tags")
-    p.add_argument("--notes")
 
-    # complete_task
-    p = sub.add_parser("complete_task", help="标记作业完成")
-    p.add_argument("--id", required=True, help="作业ID (t_001)")
-
-    # add_exam
-    p = sub.add_parser("add_exam", help="添加考试")
-    p.add_argument("--course", required=True)
-    p.add_argument("--date", required=True, help="考试日期")
-    p.add_argument("--scope")
-    p.add_argument("--location")
-    p.add_argument("--notes")
-    p.add_argument("--tags")
-
-    # add_habit
-    p = sub.add_parser("add_habit", help="添加习惯")
-    p.add_argument("--name", required=True)
-    p.add_argument("--schedule", default="daily/1", help="daily/1 weekly/1,3,5 monthly/4")
-    p.add_argument("--duration", type=int, default=30)
-    p.add_argument("--reminder")
-
-    # log_habit
-    p = sub.add_parser("log_habit", help="打卡习惯")
-    p.add_argument("--id", required=True)
-
-    # add_plan
-    p = sub.add_parser("add_plan", help="添加日程计划")
-    p.add_argument("--date", required=True)
-    p.add_argument("--title", required=True)
-    p.add_argument("--slot", type=int, default=1)
-    p.add_argument("--type", default="custom")
-    p.add_argument("--course")
-    p.add_argument("--note")
-
-    # replace_plans
-    p = sub.add_parser("replace_plans", help="替换某天全部计划")
-    p.add_argument("--date", required=True)
-    p.add_argument("--plans", required=True, help="JSON数组")
-
-    # delete_plan
-    p = sub.add_parser("delete_plan", help="删除某天某条计划")
-    p.add_argument("--date", required=True)
-    p.add_argument("--index", type=int, required=True)
-
-    # add_course
-    p = sub.add_parser("add_course", help="添加课程")
-    p.add_argument("--name", required=True)
-    p.add_argument("--day", type=int, required=True)
-    p.add_argument("--weeks", default="1-16")
-    p.add_argument("--slots", default="3-4")
-    p.add_argument("--location")
-    p.add_argument("--teacher")
-    p.add_argument("--parity", default="all", choices=["all","odd","even"])
-
-    # delete_course
-    p = sub.add_parser("delete_course", help="删除课程")
-    p.add_argument("--id", required=True)
-
-    # add_item
-    p = sub.add_parser("add_item", help="添加物品")
-    p.add_argument("--name", required=True)
-    p.add_argument("--category", default="其他")
-    # default=None：必须能区分「没传」与「--quantity 0（已用完）」，
-    # 否则 `or 1` 会把 0 当成缺省值记为 1 件（ERRORS #027）
-    p.add_argument("--quantity", type=int, default=None)
-    p.add_argument("--min_qty", type=int, default=1)
-    p.add_argument("--location")
-    p.add_argument("--notes")
-    p.add_argument("--group", default="")
-    p.add_argument("--tags")
-    p.add_argument("--status", default=None)  # accepted but ignored, auto-derived
-
-    # update_item
-    p = sub.add_parser("update_item", help="更新物品")
-    p.add_argument("--id", required=True)
-    p.add_argument("--name")
-    p.add_argument("--group")
-    p.add_argument("--category")
-    p.add_argument("--quantity", type=int)
-    p.add_argument("--status", choices=["充足","不足","需购"])
-    p.add_argument("--min_qty", type=int)
-    p.add_argument("--location")
-    p.add_argument("--tags")
-
-    # delete_item
-    p = sub.add_parser("delete_item", help="删除物品")
-    p.add_argument("--id", required=True)
-
-    # need_restock
-    sub.add_parser("need_restock", help="查看需购物品")
-
-    # lookup_item
-    p = sub.add_parser("lookup_item", help="查找物品")
-    p.add_argument("--name", required=True)
-
-    # status
-    sub.add_parser("status", help="概览")
-
+def main() -> None:
+    parser = build_parser()
     args = parser.parse_args()
     if not args.action:
         parser.print_help()
         return
 
-    handlers = {
-        "add_task": cmd_add_task, "complete_task": cmd_complete_task,
-        "add_exam": cmd_add_exam, "add_habit": cmd_add_habit,
-        "log_habit": cmd_log_habit, "add_plan": cmd_add_plan,
-        "replace_plans": cmd_replace_plans, "delete_plan": cmd_delete_plan,
-        "add_course": cmd_add_course, "delete_course": cmd_delete_course,
-        "add_item": cmd_add_item, "update_item": cmd_update_item,
-        "delete_item": cmd_delete_item,
-        "need_restock": cmd_need_restock,
-        "lookup_item": cmd_lookup_item,
-        "status": cmd_status,
-    }
-
     try:
-        handlers[args.action](args)
+        _validate_args(args.action, args)
+        HANDLERS[args.action](args)
     # 边界捕获：本层已处理/记录，不允许异常向上逃逸（CODE_STANDARDS Q-I1）
+    except ActionError as e:
+        print(f"ERROR {e}")
     except Exception as e:  # noqa: BLE001
         print(f"ERROR {e}")
         import traceback

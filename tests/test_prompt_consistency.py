@@ -23,12 +23,14 @@ from src.services.ai_service import SYSTEM_PROMPT_BASE
 
 ADVERTISED = sorted(set(re.findall(r"scripts/actions\.py\s+([a-z_]+)", SYSTEM_PROMPT_BASE)))
 
-# 16 条已实现的命令（README v0.9.0）。
+# 22 条已实现的命令（README v0.9.0 + 2026-10-16 记账/备份扩展）。
 IMPLEMENTED = [
     "add_task", "complete_task", "add_exam", "add_habit", "log_habit",
     "add_plan", "replace_plans", "delete_plan", "add_course", "delete_course",
     "add_item", "update_item", "delete_item", "need_restock", "lookup_item",
     "status",
+    "add_expense", "add_saving", "delete_expense", "expense_summary",
+    "list_backups", "restore",
 ]
 
 

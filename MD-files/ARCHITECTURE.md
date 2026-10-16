@@ -18,8 +18,8 @@ AI 驱动的 PySide6 桌面日程管理应用（学生向）。单进程、无�
 | 服务 | 纯 Python + QObject/QThread |
 | 模型 | 自研 `BaseJsonModel`（原子写入 + 版本号） |
 | 存储 | `data/*.json`（本地文件） |
-| AI | DeepSeek / Anthropic（可切换），Agent Loop 多轮 |
-| 数据操作 | `scripts/actions.py`（CLI + 内存调用） |
+| AI | DeepSeek / Anthropic / **OpenCode Go**（可切换），Agent Loop 多轮 |
+| 数据操作 | `scripts/actions.py`（命令）+ `actions_core.py`（读写/校验/备份）+ `actions_cli.py`（argparse） |
 | 移动端 | 外部 TG bot 直接读写同一个 `data/`（零同步） |
 
 入口：`main.py` → `src/app.py:App(QApplication)`。
@@ -198,7 +198,11 @@ data/
   `ui/components/sidebar.py` 加入条目 → 更新 `README.md`。
   （注意：**课程表不是独立面板**，它是 `ScheduleView` 内部的"周"页，见 `ScheduleView.course_panel`。）
 - **新增数据模型**：`src/models/xxx.py`（继承 `BaseJsonModel`）→ `DataManager.__init__` 实例化 → 若要 AI 可操作，补 `scripts/actions.py` 命令。
-- **新增 AI 命令**：`scripts/actions.py`（handler + argparse + `run_in_process` 的 handler/`_defaults`）→ `SYSTEM_PROMPT_BASE` → TG skill。**三处必须一致**，由 `tests/test_prompt_consistency.py` 把关。
+- **新增 AI 命令**：`scripts/actions.py`（handler）→ `scripts/actions_cli.py`（argparse）→
+  `actions_core.SPECS`（参数规格：必填/范围/枚举）→ `SYSTEM_PROMPT_BASE` → TG skill。
+  **五处必须一致**，由 `tests/test_prompt_consistency.py`（命令 ↔ 提示词双向）与
+  `tests/test_actions_validation.py`（`SPECS` ↔ CLI 参数白名单）把关。
+  **AI 传错参数是必然而非偶然**：校验统一在 `run_in_process` / CLI 入口做，handler 里不要再兜底。
 - **新增插件**：`plugins/<name>/plugin.py` + `IsOpen.able`（约定见 `Q-N`/`PLAN I-13`）。
 
 ## 10. 已知架构债（指向权威清单）
