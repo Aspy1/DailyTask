@@ -260,6 +260,15 @@
   改用自绘 `QPainter` + `Antialiasing` 画背景（QSS 里把背景设透明），见 `ERRORS #032`
 - 检查：`tests/test_ui_wiring.py::test_rounded_inputs_drop_native_frame`
 
+**Q-H18 输入框样式唯一化**
+- `QLineEdit` / `QComboBox` 的样式**只能**来自 `theme.input_qss()` / `theme.combo_qss()`；
+  面板不得再写自己的 `_input_qss` / `_combo_qss`（只能委托）
+- 统一参数：半径 `RADIUS["radius_md"]`、高度 `FIELD_H`、字号 `SIZE_BODY_S`、
+  `border: 1px solid border`、`:focus` 用强调色
+- 为什么：2026-10-16 实测同时存在 5 套副本（全局半径 4 / 面板半径 8、padding 与字号各不相同），
+  同一个界面上输入框外观不一致，也让"圆角角点"这类问题难以定位
+- 检查：`tests/test_ui_wiring.py` 断言各面板的 `_input_qss()` 与 `theme.input_qss()` 完全一致
+
 ## I. 异常与错误处理
 
 **Q-I1 禁止无理由盲捕获**：`except Exception` / 裸 `except:` 必须二选一——

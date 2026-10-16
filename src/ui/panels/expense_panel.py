@@ -21,7 +21,7 @@ from PySide6.QtWidgets import (
 )
 
 from src.services.data_manager import DataManager
-from src.ui.styles.theme import FONT_CN, RADIUS, SIZE_BODY_S, SIZE_SUBTITLE, get_colors
+from src.ui.styles.theme import FONT_CN, RADIUS, SIZE_BODY_S, SIZE_SUBTITLE, combo_qss, get_colors, input_qss
 from src.ui.widgets.menu import (
     add_action,
     add_separator,
@@ -208,22 +208,12 @@ class ExpensePanel(QWidget):
         """
 
     def _input_qss(self) -> str:
-        c = get_colors()
-        return f"""
-            QLineEdit {{ background-color: {c['input_bg']}; color: {c['fg_primary']};
-                border-radius: 8px; padding: 5px 8px; font-size: 13px; }}
-        """
+        """委托 theme 的统一样式（Q-H18）。"""
+        return input_qss()
 
     def _combo_qss(self) -> str:
-        c = get_colors()
-        return f"""
-            QComboBox {{ background-color: {c['input_bg']}; color: {c['fg_primary']};
-                border-radius: 8px; padding: 5px 8px; font-size: 13px; }}
-            QComboBox QAbstractItemView {{
-                background-color: {c['bg_elevated']}; color: {c['fg_primary']};
-                selection-background-color: {c['accent_bg']}; outline: none;
-            }}
-        """
+        """委托 theme 的统一样式（Q-H18）。"""
+        return combo_qss()
 
     @staticmethod
     def _sub_band_qss() -> str:

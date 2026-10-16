@@ -24,12 +24,14 @@ from src.services.ai_service import AIService
 from src.services.api_service import ApiService
 from src.services.settings_manager import SettingsManager
 from src.ui.styles.theme import (
+    FIELD_H,
     FONT_CN,
-    RADIUS,
     SIZE_BODY_L,
     SIZE_BODY_S,
     btn_secondary_qss,
+    combo_qss,
     get_colors,
+    input_qss,
 )
 from src.ui.widgets.api_test_dialog import ApiTestDialog
 from src.ui.widgets.toggle_switch import ToggleSwitch
@@ -53,8 +55,6 @@ PROVIDERS = {
 
 logger = logging.getLogger(__name__)
 
-# 输入类控件统一高度：一行一个字段，高度不一致会让文字被裁（见 2026-10-16 审查）
-FIELD_H = 34
 
 
 class SettingsPanel(QWidget):
@@ -147,33 +147,12 @@ class SettingsPanel(QWidget):
         return d
 
     def _input_qss(self) -> str:
-        c = self._c()
-        return f"""
-            QLineEdit {{ background-color: {c['input_bg']}; color: {c['fg_primary']};
-                border-radius: {RADIUS['radius_md']}px; padding: 0 10px;
-                font-size: {SIZE_BODY_S}px; min-height: {FIELD_H}px; }}
-            QLineEdit:focus {{ border-color: {c['accent']}; }}
-        """
+        """委托 theme 的统一样式（Q-H18）。"""
+        return input_qss()
 
     def _combo_qss(self) -> str:
-        c = self._c()
-        return f"""
-            QComboBox {{ background-color: {c['input_bg']}; color: {c['fg_primary']};
-                border-radius: {RADIUS['radius_md']}px; padding: 0 10px;
-                font-size: {SIZE_BODY_S}px; min-height: {FIELD_H}px; }}
-            /* 可编辑下拉里还有一个 QLineEdit：不能再叠一层 padding，否则文字被裁 */
-            QComboBox QLineEdit {{ background: transparent; border: none; padding: 0; }}
-            QComboBox:hover {{ border-color: {c['border_strong']}; }}
-            QComboBox:focus {{ border-color: {c['accent']}; }}
-            QComboBox::drop-down {{ border: none; width: 22px; }}
-            QComboBox QAbstractItemView {{
-                background-color: {c['bg_elevated']}; color: {c['fg_primary']};
-                border-radius: 8px;
-                selection-background-color: {c['accent_bg']}; outline: none;
-            }}
-        """
-
-    # ── AI card ────────────────────────────────────────────
+        """委托 theme 的统一样式（Q-H18）。"""
+        return combo_qss()
 
     def _build_ai_card(self) -> QFrame:
         c = get_colors()

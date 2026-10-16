@@ -34,6 +34,9 @@ SIZE_FAB = _TOKENS_DATA["sizes"]["SIZE_FAB"]
 # ── 圆角刻度（radius_sm/md/lg/pill）──────────────
 RADIUS: dict = _TOKENS_DATA["radius"]
 
+# 输入类控件统一高度（一行一个字段；高度不一致会让文字被裁）
+FIELD_H = 34
+
 # ── Design tokens（colors：light / dark）───────────────
 TOKENS: dict = _TOKENS_DATA["colors"]
 
@@ -147,8 +150,9 @@ class _RoundedFrameFixer(QObject):
     def eventFilter(self, obj, event) -> bool:
         if event.type() == QEvent.Type.Show and type(obj).__name__ in self._TYPES:
             try:
-                qss = obj.styleSheet() or ""
-                if "border-radius" in qss and hasattr(obj, "setFrame"):
+                # 不再要求控件自带 border-radius：全局 QSS 也会给它们圆角，
+                # 只查自带样式表会漏掉一半（角点残留的根因之一）
+                if hasattr(obj, "setFrame"):
                     obj.setFrame(False)
             except (RuntimeError, AttributeError):
                 pass
@@ -272,7 +276,7 @@ QListWidget::item:hover {{ background-color: {t["bg_hover"]}; }}
 /* ── Inputs ──────────────────────────────── */
 QTextEdit, QPlainTextEdit {{ background-color: {t["input_bg"]}; color: {t["fg_primary"]}; border: 1px solid {t["border"]}; border-radius: 4px; padding: 8px 12px; font-size: {SIZE_BODY}px; selection-background-color: {t["accent_bg"]}; }}
 QTextEdit:focus, QPlainTextEdit:focus {{ border-color: {t["accent"]}; }}
-QLineEdit {{ background-color: {t["input_bg"]}; color: {t["fg_primary"]}; border: 1px solid {t["border"]}; border-radius: 4px; padding: 8px 12px; font-size: {SIZE_BODY}px; }}
+QLineEdit {{ background-color: {t["input_bg"]}; color: {t["fg_primary"]}; border: 1px solid {t["border"]}; border-radius: {RADIUS["radius_md"]}px; padding: 0 10px; font-size: {SIZE_BODY_S}px; min-height: {FIELD_H}px; }}
 QLineEdit:focus {{ border-color: {t["accent"]}; }}
 
 /* ── Scroll bars ─────────────────────────── */
@@ -300,7 +304,7 @@ QCheckBox::indicator {{ width: 18px; height: 18px; border: 2px solid {t["fg_hint
 QCheckBox::indicator:checked {{ background-color: {t["accent"]}; border-color: {t["accent"]}; }}
 
 /* ── Combo box ───────────────────────────── */
-QComboBox {{ background-color: {t["input_bg"]}; color: {t["fg_primary"]}; border: 1px solid {t["border"]}; border-radius: 4px; padding: 8px 12px; font-size: {SIZE_BODY}px; }}
+QComboBox {{ background-color: {t["input_bg"]}; color: {t["fg_primary"]}; border: 1px solid {t["border"]}; border-radius: {RADIUS["radius_md"]}px; padding: 0 10px; font-size: {SIZE_BODY_S}px; min-height: {FIELD_H}px; }}
 QComboBox:hover {{ border-color: {t["border_strong"]}; }}
 QComboBox:focus {{ border-color: {t["accent"]}; }}
 QComboBox::drop-down {{ border: none; width: 24px; }}
@@ -373,6 +377,47 @@ def btn_ghost_qss() -> str:
         QPushButton:hover {{ color: {c['accent_hover']}; }}
         QPushButton:pressed {{ color: {c['accent_dim']}; }}
         QPushButton:disabled {{ color: {c['fg_disabled']}; }}
+    """
+
+
+def input_qss() -> str:
+    """**唯一**的输入框样式（Q-H18）。各面板不要自己再写一份。
+
+    统一半径 / 高度 / 字号 / 边框；`:focus` 用强调色。
+    """
+    c = get_colors()
+    return f"""
+        QLineEdit {{
+            background-color: {c['input_bg']}; color: {c['fg_primary']};
+            border: 1px solid {c['border']};
+            border-radius: {RADIUS['radius_md']}px;
+            padding: 0 10px; font-size: {SIZE_BODY_S}px;
+            min-height: {FIELD_H}px;
+        }}
+        QLineEdit:focus {{ border-color: {c['accent']}; }}
+    """
+
+
+def combo_qss() -> str:
+    """**唯一**的下拉框样式（Q-H18）。可编辑下拉的内嵌 QLineEdit 必须重置 padding。"""
+    c = get_colors()
+    return f"""
+        QComboBox {{
+            background-color: {c['input_bg']}; color: {c['fg_primary']};
+            border: 1px solid {c['border']};
+            border-radius: {RADIUS['radius_md']}px;
+            padding: 0 10px; font-size: {SIZE_BODY_S}px;
+            min-height: {FIELD_H}px;
+        }}
+        QComboBox:hover {{ border-color: {c['border_strong']}; }}
+        QComboBox:focus {{ border-color: {c['accent']}; }}
+        QComboBox::drop-down {{ border: none; width: 22px; }}
+        QComboBox QLineEdit {{ background: transparent; border: none; padding: 0; }}
+        QComboBox QAbstractItemView {{
+            background-color: {c['bg_elevated']}; color: {c['fg_primary']};
+            border: 1px solid {c['border_strong']};
+            selection-background-color: {c['accent_bg']}; outline: none;
+        }}
     """
 
 

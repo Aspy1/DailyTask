@@ -172,11 +172,40 @@ def test_rounded_inputs_drop_native_frame(qapp) -> None:
     combo.setStyleSheet(f"QComboBox {{ border-radius: {RADIUS['radius_md']}px; }}")
     edit = QLineEdit()
     edit.setStyleSheet(f"QLineEdit {{ border-radius: {RADIUS['radius_md']}px; }}")
-    plain = QLineEdit()                       # 没圆角 → 不该被动
+    plain = QLineEdit()                       # 自带样式表里没圆角
     for w in (combo, edit, plain):
         w.show()
     qapp.processEvents()
 
+    # 一律关掉：全局 QSS 也会给输入框圆角，只查自带样式表会漏掉一半（角点残留的根因）
     assert not combo.hasFrame()
     assert not edit.hasFrame()
-    assert plain.hasFrame()
+    assert not plain.hasFrame()
+
+
+def test_all_panels_share_one_input_style(qapp, tmp_path) -> None:
+    """回归（Q-H18）：输入框样式只有一个来源。
+
+    2026-10-16 实测同时存在 5 套副本：全局 QSS 半径 4px，而记账/设置面板各自写 8px，
+    padding 与字号也各不相同 → 同一界面里输入框长得不一样。
+    """
+    from src.services.ai_service import AIService
+    from src.services.data_manager import DataManager
+    from src.services.settings_manager import SettingsManager
+    from src.ui.panels.expense_panel import ExpensePanel
+    from src.ui.panels.settings_panel import SettingsPanel
+    from src.ui.styles.theme import combo_qss, init_theme, input_qss
+
+    init_theme(qapp, "light")
+    dm = DataManager(tmp_path)
+    settings = SettingsManager(tmp_path / "settings.ini")
+    settings.load()
+    ai = AIService(settings, dm)
+
+    expense = ExpensePanel(dm)
+    settings_panel = SettingsPanel(settings, ai, None, dm)
+
+    assert expense._input_qss() == input_qss()
+    assert expense._combo_qss() == combo_qss()
+    assert settings_panel._input_qss() == input_qss()
+    assert settings_panel._combo_qss() == combo_qss()
