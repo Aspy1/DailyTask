@@ -18,7 +18,7 @@ AI 驱动的 PySide6 桌面日程管理应用（学生向）。单进程、无�
 | 服务 | 纯 Python + QObject/QThread |
 | 模型 | 自研 `BaseJsonModel`（原子写入 + 版本号） |
 | 存储 | `data/*.json`（本地文件） |
-| AI | DeepSeek / Anthropic / **OpenCode Go**（可切换），Agent Loop 多轮 |
+| AI | DeepSeek / Anthropic / **OpenCode Go**（可切换），Agent Loop 多轮；单次请求 120s 超时，回复被截断自动分批续跑 |
 | 数据操作 | `scripts/actions.py`（命令）+ `actions_core.py`（读写/校验/备份）+ `actions_cli.py`（argparse） |
 | 移动端 | 外部 TG bot 直接读写同一个 `data/`（零同步） |
 

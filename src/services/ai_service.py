@@ -3,6 +3,7 @@
 import logging
 import re
 import threading
+import time
 import uuid
 from datetime import date
 from typing import Any, Protocol
@@ -27,6 +28,9 @@ SYSTEM_PROMPT_BASE = """你是一个学生时间管理助手。理解用户意�
 6. 改数据**只能**通过 `scripts/actions.py`；禁止自己拼 JSON、禁止直接写文件
 7. 命令被脚本拒绝时会返回 `ERROR ...`：把原因**如实**告诉用户并请他补充信息，
    不要改写参数反复重试同一条命令（脚本拒绝就是没写任何数据）
+8. **一次很多条**的任务（导入整学期课表、批量建作业等）：**分批**处理，
+   每轮最多 8 条命令，执行完这批再继续下一批 —— 一次输出太长会被输出上限截断，
+   截断后整段命令都作废
 
 ## 参数标准化
 - 课程名: 提取核心词，脚本自动模糊匹配（"算法课"→匹配算法设计与分析）
@@ -160,6 +164,16 @@ class AnthropicProvider:
 # 用于路由与 prompt 缓存优化（docs/go「Where can I use it?」）。
 _SESSION_ID = uuid.uuid4().hex
 
+# 单次模型请求的超时（秒）。SDK 默认是 10 分钟 —— 端点卡住时用户会干等十分钟
+# 且没有任何提示（2026-10-16 实测：用户以为应用卡死）。120s 足够覆盖
+# "导入 24 门课"这种长回复（实测 40–58s），超时则给出明确错误。
+AI_REQUEST_TIMEOUT = 120
+
+
+def _looks_truncated(text: str) -> bool:
+    """回复是否疑似被输出上限截断：代码围栏数量是奇数 = 有开场没收尾。"""
+    return text.count("```") % 2 == 1
+
 
 def provider_headers(base_url: str) -> dict | None:
     """按端点补充请求头；不需要时返回 None。
@@ -185,7 +199,8 @@ class DeepSeekProvider:
                  extra_headers: dict | None = None) -> None:
         from openai import OpenAI
         self._client = OpenAI(api_key=api_key, base_url=base_url,
-                              default_headers=extra_headers or None)
+                              default_headers=extra_headers or None,
+                              timeout=AI_REQUEST_TIMEOUT)
 
     def chat(self, system_prompt: str, messages: list[dict], model: str,
              max_tokens: int, temperature: float) -> str:
@@ -221,7 +236,8 @@ class AIWorker(QObject):
             msgs = list(self._messages)
             final_text = ""
             all_instructions = []  # collect across multi-turn agent loop
-            for _turn in range(5):  # max 5 turns
+            for turn in range(5):  # max 5 turns
+                started = time.monotonic()
                 text = self._provider.chat(
                     system_prompt=self._system_prompt,
                     messages=msgs,
@@ -229,8 +245,23 @@ class AIWorker(QObject):
                     max_tokens=4096,
                     temperature=0.3,
                 )
+                # 生命周期日志：用户会盯着日志等结果（"怎么没有 200 OK"），
+                # 这里把"第几轮 / 耗时 / 是否疑似截断 / 解析出几条命令"都写清楚。
+                truncated = _looks_truncated(text)
+                logger.info("AI turn %d: %.1fs | %d 字符 | 疑似截断=%s | 命令=%d",
+                            turn + 1, time.monotonic() - started, len(text), truncated,
+                            len(InstructionParser.parse(text)))
                 instructions = InstructionParser.parse(text)
                 if not instructions:
+                    if truncated:
+                        # 回复被输出上限截断 → 让模型**继续**（分批），而不是原地结束
+                        logger.warning("AI 回复疑似被截断且没有可执行命令，要求分批继续")
+                        msgs.append({"role": "assistant", "content": text})
+                        msgs.append({"role": "user", "content":
+                                     "[系统] 你的回复被输出上限截断了。请**分批**继续："
+                                     "每轮最多 8 条命令，先执行完这批再继续下一批。"})
+                        final_text = text
+                        continue
                     # No tool calls — done
                     if all_instructions:
                         # Instructions were executed in earlier turns
@@ -265,8 +296,15 @@ class InstructionParser:
 
     @staticmethod
     def parse(text: str) -> list[str]:
-        """Extract shell commands from ```sh blocks."""
-        blocks = re.findall(r'```sh\s*\n?(.*?)```', text, re.DOTALL)
+        """Extract shell commands from ```sh blocks.
+
+        **容忍被 `max_tokens` 截断的块**（没有收尾 ```）：此时仍把已经完整写出的
+        命令行交出去执行。理由：每行都要过 `actions.py` 的严格校验，非法行会被拒绝，
+        所以"执行完整行"比"整段丢弃"更安全也更有用。
+        （2026-10-16 实测：24 门课的导入回复被截断 → 旧实现一行都不执行，
+        也不告诉用户，用户看到的就是"AI 没反应"。）
+        """
+        blocks = re.findall(r'```sh\s*\n?(.*?)(?:```|\Z)', text, re.DOTALL)
         commands = []
         for block in blocks:
             for line in block.strip().split('\n'):
@@ -666,6 +704,11 @@ class AIService(QObject):
         self._history.append({"role": "assistant", "content": text})
         # Strip code blocks
         display = re.sub(r'```(?:sh|json)\s*.*?```', '', text, flags=re.DOTALL).strip()
+        if not display and not text.strip():
+            # 空回复（常见于推理吃满 token 或输出被截断）必须**说出来**，
+            # 否则界面是一片空白，用户只会以为"AI 没反应"（2026-10-16 实测）
+            logger.warning("AI 返回空内容")
+            display = "（模型这次没有返回内容，请重试；导入大量课程时请分批发给我）"
         self.response_received.emit(display or text)
 
     def _on_response_with_instructions(self, text: str, instructions: list) -> None:
