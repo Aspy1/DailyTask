@@ -94,7 +94,7 @@ def _service(tmp_path) -> tuple:
 
 
 def test_notify_respects_global_switch(qapp, tmp_path) -> None:
-    """`General/reminder_enabled=false` → 托盘与邮件都不发（默认开）。"""
+    """`General/reminder_enabled=false` → 普通提醒的托盘与邮件都不发（默认开）。"""
     settings, _dm, svc = _service(tmp_path)
     sent: list = []
     svc.reminder_notify.connect(lambda *a: sent.append(a))
@@ -106,6 +106,24 @@ def test_notify_respects_global_switch(qapp, tmp_path) -> None:
     settings.set("General", "reminder_enabled", "true")
     svc._notify("标题", "正文")
     assert sent == [("标题", "正文")]
+
+
+def test_mandatory_email_bypasses_global_switch(qapp, tmp_path, monkeypatch) -> None:
+    """紧急邮件（考试 / DDL 6 小时）永远发；托盘仍受开关控制。"""
+    settings, _dm, svc = _service(tmp_path)
+    sent: list = []
+    mails: list = []
+    svc.reminder_notify.connect(lambda *a: sent.append(a))
+    monkeypatch.setattr(svc, "_send_email", lambda s, b: mails.append((s, b)))
+
+    settings.set("General", "reminder_enabled", "false")
+
+    svc._notify("考试提醒", "还有 3 天", email=True, mandatory=True)
+    assert len(mails) == 1, "紧急邮件不受总开关影响"
+    assert sent == [], "托盘仍然不该弹"
+
+    svc._notify("点名提醒", "开课前 30 分钟", email=True)
+    assert len(mails) == 1, "非紧急提醒：开关关掉就什么都不发"
 
 
 def test_service_attendance_sends_once_per_day(qapp, tmp_path, monkeypatch) -> None:

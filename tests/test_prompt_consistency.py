@@ -70,3 +70,25 @@ def test_implemented_list_matches_handlers() -> None:
     handlers = set(re.findall(r'"([a-z_]+)": cmd_', source))
     assert handlers == set(IMPLEMENTED), handlers ^ set(IMPLEMENTED)
 
+
+def test_cli_runs_as_subprocess() -> None:
+    """提示词宣传的调用形式必须真的能跑：`python scripts/actions.py <命令>`。
+
+    2026-10-16 拆分 actions.py 时踩过：模块内改成 `from scripts.actions_cli import ...`
+    后，直接以脚本方式运行会 `ModuleNotFoundError: No module named 'scripts'`
+    —— 而 AI 收到的命令正是这个形式（进程内执行器另有路径，测不到这个坑）。
+    用只读的 `status`，不碰任何数据。
+    """
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    root = Path(actions.__file__).resolve().parent.parent
+    proc = subprocess.run(
+        [sys.executable, "scripts/actions.py", "status"],
+        cwd=str(root), capture_output=True, text=True, timeout=60,
+    )
+    assert proc.returncode == 0, proc.stderr[-400:]
+    assert "tasks=" in proc.stdout, proc.stdout
+    assert "ModuleNotFoundError" not in proc.stderr
+

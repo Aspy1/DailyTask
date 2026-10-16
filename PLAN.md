@@ -410,8 +410,9 @@ GitHub Action（无失败 run；8/22 起因仓库约 8 周无活动被 GitHub �
 | **点名提醒** | 开课前 **30 分钟**（`lead_minutes` 可覆盖；课已开始则不提醒） | `course["reminders"] = {"attendance": true, "lead_minutes": 30}`，由**课程右键菜单**开关 |
 | **作业截止** | 截止前 **3 天内**（与既有「6 小时内」邮件叠加，各发一次） | 现有 `tasks.json` 的 `due_date` |
 
-**总开关**：设置 → 通用 →「提醒」（`General/reminder_enabled`，**默认开**）——
-所有提醒（托盘 + 邮件）统一走 `ReminderService._notify()` 出口，关掉就都不发。
+**总开关**：设置 → 通用 →「提醒」（`General/reminder_enabled`，**默认开**）——所有提醒统一走
+`ReminderService._notify()` 出口。关掉后托盘与普通提醒（点名 / 3 天 / 习惯 / 余额 / 自定义）都停，
+**考试与 DDL 6 小时的紧急邮件例外**（`mandatory=True`，永远发 —— 用户明确要求）。
 
 **结构**：规则抽成**纯函数** `services/reminder_rules.py`（无 Qt、可单测），
 服务只留接线；`ReminderService` 类从 526 行降到 **378** 行（原来已超「单类 ≤400」的存量债，

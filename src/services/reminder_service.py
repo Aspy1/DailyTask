@@ -1,14 +1,17 @@
 """Reminder service — local notifications and email alerts.
 
-规则（**全部**受设置里 `General/reminder_enabled` 总开关控制，默认开）：
+规则：
 
-- **点名提醒**：`course["reminders"]["attendance"]` 为真的课，开课前 30 分钟
-  （`lead_minutes` 可覆盖）→ 邮件 + 托盘
-- **作业截止**：3 天内 → 邮件 + 托盘；6 小时内 → 邮件（两条规则叠加，各发一次）
-- **考试**：14/7/3 天 → 邮件 + 托盘
-- **习惯**：提前 5 分钟预告 + 到点 → 托盘
-- **余额不足**：邮件 + 托盘（每天一次）
-- **自定义提醒**（用户在日程里定的）→ 邮件 + 托盘
+- **紧急邮件（mandatory，永远发，不受总开关影响）**：
+  考试 14/7/3 天、作业 6 小时内截止
+- **受 `General/reminder_enabled` 总开关控制（默认开）**：
+  - **点名提醒**：`course["reminders"]["attendance"]` 为真的课，开课前 30 分钟
+    （`lead_minutes` 可覆盖）→ 邮件 + 托盘
+  - **作业截止前 3 天** → 邮件 + 托盘
+  - **习惯**：提前 5 分钟预告 + 到点 → 托盘
+  - **余额不足**：邮件 + 托盘（每天一次）
+  - **自定义提醒**（用户在日程里定的）→ 邮件 + 托盘
+- 托盘通知**始终**受总开关控制（关掉就不再弹窗，但上面的紧急邮件照发）
 
 Note: the full daily digest (courses, plans, habits, DDL 3d, exams 14/7/3d)
 runs via GitHub Actions at 7:55 AM. This service only handles time-sensitive
@@ -244,7 +247,9 @@ class ReminderService(QObject):
             return
         for t in matched:
             self._ddl_emailed.add(t.get("id", ""))
-        self._notify("DDL 紧急提醒", ddl_email_body(matched), email=True, tray=False)
+        # 紧急邮件：mandatory → 关掉提醒开关也照发（用户明确要求）
+        self._notify("DDL 紧急提醒", ddl_email_body(matched),
+                     email=True, tray=False, mandatory=True)
 
     # ── Exam email ────────────────────────────────────────
 
@@ -295,6 +300,7 @@ class ReminderService(QObject):
             "考试提醒", f"「{name}」还有 {days_left} 天",
             email=True, subject=f"考试提醒 - {name}",
             email_body=f"「{name}」还有 {days_left} 天考试\n日期: {item['date']}",
+            mandatory=True,          # 紧急邮件：不受总开关影响
         )
 
     # ── Attendance (会点名的课) ────────────────────────────
@@ -400,16 +406,19 @@ class ReminderService(QObject):
 
     def _notify(self, title: str, body: str, *, email: bool = False,
                 subject: str | None = None, email_body: str | None = None,
-                tray: bool = True) -> None:
-        """发一条提醒：受 `General/reminder_enabled` **总开关**控制（默认开）。
+                tray: bool = True, mandatory: bool = False) -> None:
+        """发一条提醒。
 
-        集中在一处的原因：新加的规则很容易忘了尊重开关，出现"用户关了提醒
-        却还在收邮件"这种自相矛盾；出口唯一就不会漏。
+        - `mandatory=True`（**考试 14/7/3 天、DDL 6 小时**这两类紧急邮件）：
+          邮件**永远发**，不受总开关影响 —— 漏掉的代价远大于被打扰（用户明确要求）；
+        - 其余提醒受 `General/reminder_enabled` 总开关控制（默认开）；
+        - 托盘通知**始终**受开关控制：关掉提醒就不该再弹窗，但关键邮件照发。
         """
-        if not self._settings.get_bool("General", "reminder_enabled", True):
+        enabled = self._settings.get_bool("General", "reminder_enabled", True)
+        if not enabled and not mandatory:
             logger.debug("提醒总开关关闭，跳过: %s", title)
             return
-        if tray:
+        if tray and enabled:
             self.reminder_notify.emit(title, body)
         if email:
             self._send_email(subject or title, email_body or body)

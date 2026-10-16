@@ -15,8 +15,17 @@ import json
 import logging
 import os
 import re
+import sys
 import threading
 from datetime import date
+from pathlib import Path
+
+# 直接 `python scripts/actions.py <命令>` 时 `sys.path[0]` 是 scripts/ 而不是仓库根，
+# 于是 `import scripts.actions_cli` 会失败（2026-10-16 拆分后实测踩到）。
+# AI 提示词宣传的正是这种调用形式，用户/外部脚本也会这么用 → 必须自举路径
+# （与 `main.py` / `send_digest.py` 同一套路）。
+if __package__ in (None, ""):
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 # DATA / _path 等一并导出：测试与外部调用点用的是 `actions.DATA`、`actions.run_in_process`
 from scripts.actions_cli import (

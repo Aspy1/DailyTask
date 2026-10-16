@@ -148,10 +148,11 @@ ui ──→ services ──→ models ──→ base(BaseJsonModel)
    `teaching_end_date` 是教学周最后一天，`end_date` 含期末周。
    历史上这里散过 5 处各算各的（状态栏不钳上界 → 显示"第 32 / 16 周"、AI 忽略
    `current_semester`、摘要第三套算法），见 `ERRORS #037`。
-8. **提醒出口单一**：所有提醒（托盘 / 邮件）都走 `ReminderService._notify()`，
-   受设置 `General/reminder_enabled` 总开关控制（默认开）；"什么算命中"是**纯函数**
-   （`services/reminder_rules.py`）。规则：点名课前 30 分钟、作业 3 天内 + 6 小时内、
-   考试 14/7/3 天、习惯提前 5 分钟、余额低于阈值、用户在日程里定的自定义提醒。
+8. **提醒出口单一**：所有提醒都走 `ReminderService._notify()`；"什么算命中"是**纯函数**
+   （`services/reminder_rules.py`）。总开关 `General/reminder_enabled`（默认开）控制
+   托盘与普通提醒；**紧急邮件例外** —— 考试 14/7/3 天、作业 6 小时内用 `mandatory=True`
+   **永远发**（漏掉的代价远大于被打扰，用户明确要求）。规则：点名课前 30 分钟、
+   作业 3 天内 / 6 小时内、考试 14/7/3 天、习惯提前 5 分钟、余额低于阈值、自定义提醒。
 8. **课程时段规则单一**：`models/course_rules.py`（`is_active_week` / `slots_of` /
    `conflicts_by_cell`）。`time_slots` 的 `end` 是**闭区间**；**同一时段允许两门课**，
    冲突要检出并提示请假（见 `ERRORS #038`）。
