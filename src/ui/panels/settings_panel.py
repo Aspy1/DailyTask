@@ -3,8 +3,8 @@
 import logging
 from pathlib import Path
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QFont
+from PySide6.QtCore import Qt, QUrl
+from PySide6.QtGui import QDesktopServices, QFont
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -24,10 +24,21 @@ from src.models.scene_archive import SceneArchive
 from src.services.ai_service import AIService
 from src.services.api_service import ApiService
 from src.services.settings_manager import SettingsManager
-from src.ui.styles.theme import FONT_CN, SIZE_SUBTITLE, get_colors
+from src.ui.styles.theme import (
+    FONT_CN,
+    RADIUS,
+    SIZE_BODY_L,
+    SIZE_BODY_S,
+    SIZE_SUBTITLE,
+    btn_secondary_qss,
+    get_colors,
+)
 from src.ui.widgets.api_test_dialog import ApiTestDialog
 from src.ui.widgets.scene_manager_dialog import SceneManagerDialog
 from src.ui.widgets.toggle_switch import ToggleSwitch
+
+# 数据目录（本文件在 src/ui/panels/ 下，往上 3 层是仓库根）
+_DATA_DIR = Path(__file__).resolve().parents[3] / "data"
 
 PROVIDERS = {
     "deepseek": {
@@ -45,6 +56,9 @@ PROVIDERS = {
 
 logger = logging.getLogger(__name__)
 
+# 输入类控件统一高度：一行一个字段，高度不一致会让文字被裁（见 2026-10-16 审查）
+FIELD_H = 34
+
 
 class SettingsPanel(QWidget):
     def __init__(self, settings: SettingsManager, ai_service: AIService, plugin_manager=None, data_manager=None, parent=None) -> None:
@@ -54,7 +68,7 @@ class SettingsPanel(QWidget):
         self._plugin_manager = plugin_manager
         self._data_manager = data_manager
         self._api_service = ApiService()  # API 服务
-        self._archive = SceneArchive(Path("data"))  # 场景存档管理器
+        self._archive = SceneArchive(_DATA_DIR)  # 场景存档管理器
         # Keep references to opened plugin windows to avoid GC closing them
         self._open_plugin_windows = []
 
@@ -64,11 +78,11 @@ class SettingsPanel(QWidget):
         container.setStyleSheet("background: transparent;")
         layout = QVBoxLayout(container)
         layout.setContentsMargins(24, 24, 24, 24)
-        layout.setSpacing(28)
-        layout.addWidget(self._section_heading("AI 设置"))
-        layout.addWidget(self._build_ai_card())
+        layout.setSpacing(20)
         layout.addWidget(self._section_heading("通用设置"))
         layout.addWidget(self._build_general_card())
+        layout.addWidget(self._section_heading("AI 设置"))
+        layout.addWidget(self._build_ai_card())
         layout.addWidget(self._section_heading("邮件提醒"))
         layout.addWidget(self._build_email_card())
         layout.addWidget(self._section_heading("余额提醒"))
@@ -81,6 +95,8 @@ class SettingsPanel(QWidget):
         if self._plugin_manager is not None:
             layout.addWidget(self._section_heading("插件"))
             layout.addWidget(self._build_plugins_card())
+        layout.addWidget(self._section_heading("关于"))
+        layout.addWidget(self._build_about_card())
         layout.addStretch()
         scroll.setWidget(container)
 
@@ -94,7 +110,6 @@ class SettingsPanel(QWidget):
         return get_colors()
 
     def _section_heading(self, title: str) -> QLabel:
-        c = get_colors()
         c = self._c()
         lbl = QLabel(title)
         lbl.setFont(QFont(FONT_CN, SIZE_SUBTITLE))
@@ -102,7 +117,6 @@ class SettingsPanel(QWidget):
         return lbl
 
     def _card(self) -> QFrame:
-        c = get_colors()
         c = self._c()
         card = QWidget()
         card.setStyleSheet(
@@ -111,7 +125,6 @@ class SettingsPanel(QWidget):
         return card
 
     def _row(self, label: str, widget: QWidget, hint: QWidget | None = None) -> QWidget:
-        c = get_colors()
         c = self._c()
         row = QWidget()
         row.setStyleSheet("background: transparent;")
@@ -133,7 +146,6 @@ class SettingsPanel(QWidget):
         return row
 
     def _divider(self) -> QFrame:
-        c = get_colors()
         c = self._c()
         d = QFrame()
         d.setFrameShape(QFrame.Shape.HLine)
@@ -141,20 +153,22 @@ class SettingsPanel(QWidget):
         return d
 
     def _input_qss(self) -> str:
-        c = get_colors()
         c = self._c()
         return f"""
             QLineEdit {{ background-color: {c['input_bg']}; color: {c['fg_primary']};
-                border-radius: 8px; padding: 7px 10px; font-size: 13px; }}
+                border-radius: {RADIUS['radius_md']}px; padding: 0 10px;
+                font-size: {SIZE_BODY_S}px; min-height: {FIELD_H}px; }}
             QLineEdit:focus {{ border-color: {c['accent']}; }}
         """
 
     def _combo_qss(self) -> str:
-        c = get_colors()
         c = self._c()
         return f"""
             QComboBox {{ background-color: {c['input_bg']}; color: {c['fg_primary']};
-                border-radius: 8px; padding: 7px 10px; font-size: 13px; }}
+                border-radius: {RADIUS['radius_md']}px; padding: 0 10px;
+                font-size: {SIZE_BODY_S}px; min-height: {FIELD_H}px; }}
+            /* 可编辑下拉里还有一个 QLineEdit：不能再叠一层 padding，否则文字被裁 */
+            QComboBox QLineEdit {{ background: transparent; border: none; padding: 0; }}
             QComboBox:hover {{ border-color: {c['border_strong']}; }}
             QComboBox:focus {{ border-color: {c['accent']}; }}
             QComboBox::drop-down {{ border: none; width: 22px; }}
@@ -197,6 +211,7 @@ class SettingsPanel(QWidget):
         self._model_combo.setStyleSheet(self._combo_qss())
         self._model_combo.setEditable(True)
         self._model_combo.setMinimumWidth(200)
+        self._model_combo.setFixedHeight(FIELD_H)
         layout.addWidget(self._row("模型", self._model_combo))
         layout.addWidget(self._divider())
 
@@ -556,14 +571,47 @@ class SettingsPanel(QWidget):
 
     def _open_scene_manager(self) -> None:
         """打开场景管理对话框"""
-        from pathlib import Path
-
         from src.models.scene_archive import SceneArchive
-        archive = SceneArchive(Path("data"))
+        archive = SceneArchive(_DATA_DIR)
         dialog = SceneManagerDialog(archive, self)
         if dialog.exec():
             # 场景已切换，可能需要刷新 UI
             self._refresh_current_scene()
+
+    def _build_about_card(self) -> QFrame:
+        """关于：版本 / 说明 / 仓库链接 / 数据目录（原侧边栏弹窗并入设置）。"""
+        c = self._c()
+        card = self._card()
+        layout = QVBoxLayout(card)
+        layout.setContentsMargins(16, 14, 16, 14)
+        layout.setSpacing(6)
+
+        title = QLabel(f"{tr('app.name')}  v{tr('app.version')}")
+        title.setStyleSheet(
+            f"color: {c['fg_primary']}; font-size: {SIZE_BODY_L}px; font-weight: 600;"
+            f" background: transparent;")
+        layout.addWidget(title)
+
+        desc = QLabel("AI 驱动的学生时间管理与生活助手")
+        desc.setStyleSheet(
+            f"color: {c['fg_secondary']}; font-size: {SIZE_BODY_S}px; background: transparent;")
+        layout.addWidget(desc)
+
+        link = QLabel('<a href="https://github.com/Aspy1/DailyTask">GitHub 仓库</a>')
+        link.setOpenExternalLinks(True)
+        link.setStyleSheet(f"background: transparent; font-size: {SIZE_BODY_S}px;")
+        layout.addWidget(link)
+
+        data_btn = QPushButton("打开数据目录")
+        data_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        data_btn.setStyleSheet(btn_secondary_qss())
+        data_btn.clicked.connect(self._open_data_dir)
+        layout.addWidget(data_btn, alignment=Qt.AlignmentFlag.AlignLeft)
+        return card
+
+    def _open_data_dir(self) -> None:
+        """在文件管理器里打开 data/（数据是本地 JSON，用户可能想直接看）。"""
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(_DATA_DIR)))
 
     def _refresh_current_scene(self) -> None:
         """刷新当前场景显示"""

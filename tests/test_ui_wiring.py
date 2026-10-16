@@ -11,7 +11,7 @@ def test_sidebar_nav_keys_are_all_routed(qapp) -> None:
     """每个导航键要么是面板、要么由 MainWindow 特判；不能有点了没反应的键。"""
     from src.ui.components.sidebar import Sidebar
 
-    routed_by_mainwindow = {"about", "more"}
+    routed_by_mainwindow = {"more"}
     nav_keys = set(Sidebar()._nav_items)
     panel_keys = {"schedule", "courses", "tasks", "exams", "daily",
                   "expenses", "inventory", "meals", "settings"}
@@ -19,10 +19,10 @@ def test_sidebar_nav_keys_are_all_routed(qapp) -> None:
     assert nav_keys - panel_keys == routed_by_mainwindow, nav_keys
 
 
-def test_mainwindow_routes_about_and_more(tmp_path, qapp, monkeypatch) -> None:
-    """`about` / `more` 必须被 MainWindow 特判，不能当面板 key 丢给 switch_to。
+def test_mainwindow_routes_more(tmp_path, qapp, monkeypatch) -> None:
+    """`more` 必须被 MainWindow 特判，不能当面板 key 丢给 switch_to。
 
-    两个处理函数都会开模态对话框，测试里替换掉以记录调用（否则会一直等用户点击）。
+    （`about` 已并入设置面板，不再是导航项。）处理函数会开模态菜单，测试里替换掉。
     """
     from src.services.ai_service import AIService
     from src.services.data_manager import DataManager
@@ -37,14 +37,13 @@ def test_mainwindow_routes_about_and_more(tmp_path, qapp, monkeypatch) -> None:
     switched: list[str] = []
     routed: list[str] = []
     monkeypatch.setattr(mw._workspace, "switch_to", lambda key: switched.append(key))
-    monkeypatch.setattr(mw, "_show_about", lambda: routed.append("about"))
     monkeypatch.setattr(mw, "_show_more_menu", lambda: routed.append("more"))
 
-    for key in ("about", "more"):
-        mw._sidebar._nav_items[key].click()
+    mw._sidebar._nav_items["more"].click()
 
-    assert routed == ["about", "more"], routed
-    assert switched == [], f"about/more 不应触发面板切换：{switched}"
+    assert routed == ["more"], routed
+    assert switched == [], f"more 不应触发面板切换：{switched}"
+    assert "about" not in mw._sidebar._nav_items, "关于已并入设置面板"
 
 
 

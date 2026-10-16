@@ -1,6 +1,6 @@
 {
   "app.name": "生活助手",
-  "app.version": "0.9.0",
+  "app.version": "0.9.1",
 
   "menu.file": "文件",
   "menu.file.export": "导出数据",

@@ -204,6 +204,35 @@
 `MD-files/DESIGN_TOKENS.md` 由脚本生成；组件经 `get_colors()` 取 `semantic` / `component` 名
 - 现状：`🔄` 2026-10-16：真值已移至 `src/ui/styles/tokens.json`（`theme.py` 加载）；`DESIGN_TOKENS.md` 待由脚本生成；`palette` 分层（`Q-H7`）尚未引入。
 
+**Q-H9 弹窗（Dialog）结构与尺寸**
+- 三段式：**标题区**（`SIZE_BODY_L` 16px / 600，左对齐，与内容同缩进）→ **内容区** → **按钮区**（右对齐）
+- 尺寸：默认宽 420–480px，最小 360px；内容超高用 `QScrollArea`
+- 边距：外边距 20px，行间距 10–12px（与卡片一致）
+- 为什么：5 个弹窗各写各的（宽 320/360/420、边距 16/20/32），并排看就不是一套东西
+
+**Q-H10 弹窗不得重复画标题**
+- 保留系统标题栏（原生拖拽 / 关闭 / 置顶行为正确），**内容区不再写一遍同名大标题**
+- 现状：`场景管理` 在系统标题栏与内容区各出现一次
+
+**Q-H11 按钮区规范**
+- 顺序：`取消` 在左，**主操作在最右**；主操作用 `btn_primary_qss()`，次操作用 `btn_secondary_qss()`
+- 文案必须是中文动词（保存 / 取消 / 删除 / 确定），**禁止 `OK` / `Cancel`**
+- 危险操作（删除 / 清空）二次确认，确认按钮用 `red_fill` 填充 + `fg_on_fill`
+- 现状：`场景管理` 用 `OK / Cancel`；库存标签对话框混用 `添加 / 删除选中 / OK`
+
+**Q-H12 输入控件高度统一**
+- 同一弹窗内所有输入类控件（`QLineEdit` / `QComboBox` / `QSpinBox` / `QDateTimeEdit`）**同高**，字号走 `SIZE_BODY_S`
+- 可编辑 `QComboBox` 的内嵌 `QLineEdit` 必须重置 padding，否则文字被裁（2026-10-16 实测）
+- 现状：`设置 → 模型` 曾因叠加 padding 被裁，已修
+
+**Q-H13 弹窗配色只走 token**
+- 底色 `bg_elevated`、卡片 `card_bg`、边框 `border_strong`、主按钮 `accent` + `fg_on_fill`
+- 由 `scripts/check_ui_tokens.py` 强制（禁硬编码 `#hex`）
+
+**Q-H14 弹窗必须跟着主题切换**
+- 每次 `exec()` 新建的弹窗天然拿到当前主题；**长驻弹窗**（如 API 测试）需实现 `refresh_theme()`
+- 兜底：`theme.remap_stylesheets()` 在切主题时统一重写所有内联样式表
+
 ## I. 异常与错误处理
 
 **Q-I1 禁止无理由盲捕获**：`except Exception` / 裸 `except:` 必须二选一——

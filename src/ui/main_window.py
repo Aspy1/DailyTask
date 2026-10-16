@@ -119,9 +119,6 @@ class MainWindow(QMainWindow):
     # ── Navigation ─────────────────────────────────────────────
 
     def _on_sidebar_nav(self, key: str) -> None:
-        if key == "about":
-            self._show_about()
-            return
         if key == "more":
             self._show_more_menu()
             return
@@ -156,8 +153,6 @@ class MainWindow(QMainWindow):
             action.triggered.connect(lambda checked, m=mode: self._switch_theme(m))
         menu.addMenu(theme_menu)
 
-        menu.addAction(tr("menu.help.about"), self._show_about)
-        menu.addSeparator()
         menu.addAction(tr("tray.exit"), self.close)
         menu.exec(self._sidebar.mapToGlobal(
             self._sidebar.rect().bottomRight()))

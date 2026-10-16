@@ -4,7 +4,7 @@
 
 [project]
 name = "life-assistant"
-version = "0.9.0"
+version = "0.9.1"
 description = "AI 驱动的 PySide6 桌面日程管理应用"
 requires-python = ">=3.12"
 
