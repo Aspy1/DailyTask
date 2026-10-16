@@ -414,9 +414,9 @@ GitHub Action（无失败 run；8/22 起因仓库约 8 周无活动被 GitHub �
 所有提醒（托盘 + 邮件）统一走 `ReminderService._notify()` 出口，关掉就都不发。
 
 **结构**：规则抽成**纯函数** `services/reminder_rules.py`（无 Qt、可单测），
-服务只留接线；`ReminderService` 类从 526 行降到 ~360 行（原来已超「单类 ≤400」的存量债）。
-UI 侧新增 `ui/widgets/schedule_actions.py`（从 `schedule_view.py` 搬出 63 行的弹窗函数，
-顺带让那个文件与类回到基线内）。
+服务只留接线；`ReminderService` 类从 526 行降到 **378** 行（原来已超「单类 ≤400」的存量债，
+现在回到限内）。UI 侧新增 `ui/widgets/schedule_actions.py`（从 `schedule_view.py` 搬出 63 行的
+弹窗函数，顺带让「单函数 >60 行」消失）。
 
 **结果**：**369 passed**（355 → 369）· ruff 0 · 门禁 14 项全绿（SIZE 存量 34 → 32）· 验收 80/80。
 
