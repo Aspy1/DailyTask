@@ -84,6 +84,19 @@ def test_course_context_menu_actions(qapp) -> None:
     assert isinstance(menu, QMenu)
     texts = [a.text() for a in menu.actions()]
     assert texts[:3] == ["修改课程名称", "删除这门课", "查看关于这门课的事项"]
-    assert [a.text() for a in menu.actions()[3:]] == ["", *COURSE_ACTIONS]
+    # 第 4 项是「会点名」开关（默认未开启 → 显示"开启…"）
+    assert texts[3] == "开启点名提醒（提前 30 分钟）"
+    assert [a.text() for a in menu.actions()[4:]] == ["", *COURSE_ACTIONS]
     assert menu.actions()[0].data() == ("rename", "c_001")
-    assert menu.actions()[3 + len(COURSE_ACTIONS)].data() == ("fill", COURSE_ACTIONS[-1])
+    assert menu.actions()[3].data() == ("toggle_attendance", "c_001")
+    assert menu.actions()[4 + len(COURSE_ACTIONS)].data() == ("fill", COURSE_ACTIONS[-1])
+
+
+def test_course_context_menu_attendance_label_flips(qapp) -> None:
+    """已开启点名的课 → 菜单项变成"关闭点名提醒"（标签按状态翻转）。"""
+    from src.ui.widgets.course_table import build_course_context_menu
+
+    menu = build_course_context_menu(
+        {"id": "c_001", "name": "高等数学", "reminders": {"attendance": True}})
+    assert menu.actions()[3].text() == "关闭点名提醒"
+    assert menu.actions()[3].data() == ("toggle_attendance", "c_001")

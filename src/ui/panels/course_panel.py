@@ -94,8 +94,7 @@ class CoursePanel(QWidget):
 
         # Table — row count driven by semester data, default 5
         self._table = CourseTable(self._dm.courses.get_period_count())
-        self._table.course_rename_requested.connect(self._rename_course)
-        self._table.course_delete_requested.connect(self._delete_course)
+        self._connect_table()
         layout.addWidget(self._table, stretch=1)
 
         # Footer
@@ -111,6 +110,12 @@ class CoursePanel(QWidget):
 
         self._current_week_offset = 0
         self._refresh()
+
+    def _connect_table(self) -> None:
+        """课程表信号接线（单独成方法：`__init__` 已接近「单函数 ≤60 行」）。"""
+        self._table.course_rename_requested.connect(self._rename_course)
+        self._table.course_delete_requested.connect(self._delete_course)
+        self._table.course_attendance_toggle_requested.connect(self._toggle_attendance)
 
     @property
     def _week_number(self) -> int:
@@ -248,6 +253,13 @@ class CoursePanel(QWidget):
             self._dm.courses.save()
             self._dm.data_changed.emit("update_course")
             self._refresh()
+
+    def _toggle_attendance(self, course_id: str) -> None:
+        """右键「会点名」开关：写 course["reminders"]，提醒服务据此提前 30 分钟提醒。"""
+        from src.ui.widgets.course_table import toggle_course_attendance
+
+        toggle_course_attendance(self._dm, course_id)
+        self._refresh()
 
     def _delete_course(self, course_id: str) -> None:
         course = None

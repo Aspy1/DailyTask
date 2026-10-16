@@ -786,68 +786,10 @@ class ScheduleView(QWidget):
     # ── Right-click menus ──────────────────────────────────
 
     def _add_email_reminder_dialog(self, item_type: str, item_name: str, item_date: str) -> None:
-        """Show datetime picker and save a custom email reminder."""
-        from PySide6.QtWidgets import QDateTimeEdit, QDialog, QHBoxLayout, QLabel, QVBoxLayout
-        c = get_colors()
-        dlg = QDialog(self)
-        dlg.setWindowTitle(tr("widget.schedule.dlg_add_email_reminder"))
-        dlg.setMinimumWidth(320)
-        dlg.setStyleSheet(f"""
-            QDialog {{ background-color: {c['card_bg']}; }}
-            QLabel {{ color: {c['fg_primary']}; font-size: 13px; }}
-            QDateTimeEdit {{ background-color: {c['bg_elevated']}; color: {c['fg_primary']};
-                border-radius: 8px; padding: 6px 10px; font-size: 13px; }}
-            QPushButton {{ background-color: {c['accent']}; color: white; border: none;
-                border-radius: 8px; padding: 6px 18px; font-size: 13px; font-weight: 600; }}
-            QPushButton:hover {{ opacity: 0.9; }}
-        """)
-        layout = QVBoxLayout(dlg)
-        layout.setSpacing(12)
+        """弹时间选择框保存自定义邮件提醒（实现见 `schedule_actions`）。"""
+        from src.ui.widgets.schedule_actions import add_email_reminder_dialog
 
-        layout.addWidget(QLabel(tr("widget.schedule.dlg_email_for_item", name=item_name)))
-        layout.addWidget(QLabel(tr("widget.schedule.dlg_email_date", date=item_date)))
-
-        dt = QDateTimeEdit()
-        from PySide6.QtCore import QLocale
-        dt.setLocale(QLocale(QLocale.Language.English, QLocale.Country.UnitedStates))
-        dt.setCalendarPopup(True)
-        from datetime import datetime, timedelta
-        # Default to 30 min from now, or 8:00 AM if viewing a future date
-        default = datetime.now() + timedelta(minutes=30)
-        try:
-            target = datetime.fromisoformat(item_date + "T08:00:00")
-            if target.date() > datetime.now().date():
-                default = target
-        except ValueError:
-            logger.debug("ScheduleView._add_email_reminder_dialog 中忽略异常", exc_info=True)
-        dt.setDateTime(default)
-        dt.setDisplayFormat("yyyy-MM-dd HH:mm")
-        layout.addWidget(dt)
-
-        btn_row = QHBoxLayout()
-        btn_row.addStretch()
-        cancel = RoundedButton(tr("widget.schedule.btn_cancel"))
-        cancel.setStyleSheet(f"""
-            QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
-                border-radius: 8px; padding: 6px 18px; font-size: 13px; }}
-        """)
-        cancel.clicked.connect(dlg.reject)
-        btn_row.addWidget(cancel)
-        confirm = RoundedButton(tr("widget.schedule.btn_confirm"))
-        confirm.clicked.connect(dlg.accept)
-        btn_row.addWidget(confirm)
-        layout.addLayout(btn_row)
-
-        if dlg.exec() == QDialog.DialogCode.Accepted:
-            from PySide6.QtWidgets import QMessageBox
-            selected = dt.dateTime().toPython()
-            if selected <= datetime.now():
-                QMessageBox.warning(self, tr("widget.schedule.msg_invalid_time_title"),
-                                    tr("widget.schedule.msg_invalid_time_body"))
-                return
-            notify_time = selected.isoformat()
-            self._dm.daily_logs.add_reminder(item_type, item_name, item_date, notify_time)
-            self._dm.daily_logs.save()
+        add_email_reminder_dialog(self._dm, self, item_type, item_name, item_date)
 
     def _remove_email_reminder(self, item_type: str, item_name: str, item_date: str) -> None:
         """Remove all email reminders for a specific item."""
@@ -882,7 +824,11 @@ class ScheduleView(QWidget):
     def _handle_course_action(self, action_type: str, payload, item) -> None:
         """执行课程右键菜单的编辑类操作。"""
         course_id = item["course"].get("id", "")
-        if action_type == "rename":
+        if action_type == "toggle_attendance":
+            from src.ui.widgets.course_table import toggle_course_attendance
+            toggle_course_attendance(self._dm, course_id)
+            self._refresh()
+        elif action_type == "rename":
             # Simple rename dialog
             from PySide6.QtWidgets import QInputDialog
 
@@ -924,16 +870,11 @@ class ScheduleView(QWidget):
         show_at_cursor(menu)
 
     def _delete_plan_at(self, item) -> None:
-        """按内容匹配删除当天该计划并刷新。"""
-        date_str = self._target_date.isoformat()
-        plans = self._dm.daily_logs.get_plans(date_str)
-        for i, p in enumerate(plans):
-            if p == item["plan"]:
-                self._dm.daily_logs.delete_plan(date_str, i)
-                self._dm.daily_logs.save()
-                self._dm.data_changed.emit("plan")
-                self._refresh()
-                return
+        """按内容匹配删除当天该计划并刷新（实现见 `schedule_actions`）。"""
+        from src.ui.widgets.schedule_actions import delete_plan_at
+
+        if delete_plan_at(self._dm, self._target_date, item):
+            self._refresh()
 
     def _habit_menu(self, pos, item, widget) -> None:
         menu = new_menu()

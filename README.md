@@ -57,7 +57,8 @@ python -m venv .venv
 │   ├── services/                   # 业务服务 (8)
 │   │   ├── ai_service.py           #   AI 对话 · Agent Loop · DeepSeek 余额
 │   │   ├── data_manager.py         #   数据聚合 · 3s 自动 reload
-│   │   ├── reminder_service.py     #   提醒 · 邮件 · DDL
+│   │   ├── reminder_service.py     #   提醒 · 邮件 · DDL（接线 + 总开关）
+│   │   ├── reminder_rules.py       #   提醒规则（纯函数：点名/3 天/6 小时/余额/自定义）
 │   │   ├── settings_manager.py     #   配置读写
 │   │   ├── weather_service.py      #   和风天气 · 实时/7 天预报
 │   │   ├── ai_service.py              #   AI 服务（提示词/Worker/指令执行）
@@ -84,6 +85,7 @@ python -m venv .venv
 │       │   └── plugins_panel.py    #     插件管理
 │       ├── widgets/                #   自定义控件
 │       │   ├── schedule_view.py    #     日程视图 (增量更新 + AI 调整)
+│       │   ├── schedule_actions.py #     日程右键动作（邮件提醒弹窗 / 删除计划）
 │       │   ├── course_table.py     #     课程表表格
 │       │   ├── course_detail_dialog.py
 │       │   ├── menu.py             #     弹出菜单模板（QMenu + 无阴影 + 三种锚点）
@@ -186,10 +188,12 @@ python -m venv .venv
 - 快速调整：一键生成日程快照 → AI 排程 → 备份 → 撤销/保存
 
 ### 提醒
-- DDL 6h 邮件，考试 14/7/3 天**托盘 + 邮件**（每个阈值各提醒一次，不重复轰炸）
+- **点名提醒**：课程右键开关「会点名」→ 开课前 30 分钟**托盘 + 邮件**（每天每门课一次）
+- DDL 6h 邮件 + **3 天内托盘 + 邮件**，考试 14/7/3 天**托盘 + 邮件**（每个阈值各提醒一次，不重复轰炸）
 - 日常提前 5 分钟托盘
 - 余额低阈值托盘 + 邮件
-- GitHub Actions 每日摘要（含 exams.json 的考试提醒）
+- **总开关**：设置 → 通用 → 「提醒」默认开；关掉则托盘与邮件都不发
+- GitHub Actions 每日摘要（含 exams.json 的考试提醒；会点名的课在课程行标注）
 
 ### 系统
 - 系统托盘，深色/浅色主题切换（侧边栏「更多…」）

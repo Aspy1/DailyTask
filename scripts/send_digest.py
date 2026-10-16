@@ -236,26 +236,32 @@ def _digest_summary(courses_data: dict, pending: list, habits_data: dict, today)
     ]
 
 
+def _course_line(course: dict) -> str:
+    """一节课在摘要里的一行：时间 + 地点 +（会点名标记）。"""
+    slots = course.get("time_slots", [])
+    time_str = ""
+    if slots:
+        s_idx = slots[0]["start"] - 1
+        try:
+            e_idx = min(max(s["end"] for s in slots) - 1, len(PERIOD_TIMES) - 1)
+        except (IndexError, KeyError):
+            e_idx = s_idx
+        if 0 <= s_idx < len(PERIOD_TIMES) and 0 <= e_idx < len(PERIOD_TIMES):
+            time_str = f" {PERIOD_TIMES[s_idx][0]}-{PERIOD_TIMES[e_idx][1]}"
+    location = course.get("location", "")
+    loc_str = f" ({location})" if location else ""
+    # 会点名的课标出来：与桌面端同一份数据（course["reminders"]["attendance"]）
+    mark = " · 会点名" if (course.get("reminders") or {}).get("attendance") else ""
+    return f"  • {course.get('name', '')}{time_str}{loc_str}{mark}"
+
+
 def _digest_courses(courses_data: dict, today) -> list[str]:
     lines = ["── 今日课程 ──"]
     courses = get_courses_for_date(courses_data, today)
     if not courses:
         lines.append("  （无课）")
         return lines
-    for c in courses:
-        time_str = ""
-        slots = c.get("time_slots", [])
-        if slots:
-            s_idx = slots[0]["start"] - 1
-            try:
-                e_idx = min(max(s["end"] for s in slots) - 1, len(PERIOD_TIMES) - 1)
-            except (IndexError, KeyError):
-                e_idx = s_idx
-            if 0 <= s_idx < len(PERIOD_TIMES) and 0 <= e_idx < len(PERIOD_TIMES):
-                time_str = f" {PERIOD_TIMES[s_idx][0]}-{PERIOD_TIMES[e_idx][1]}"
-        location = c.get("location", "")
-        loc_str = f" ({location})" if location else ""
-        lines.append(f"  • {c.get('name', '')}{time_str}{loc_str}")
+    lines += [_course_line(c) for c in courses]
     return lines
 
 

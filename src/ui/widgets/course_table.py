@@ -27,7 +27,7 @@ from PySide6.QtWidgets import (
 )
 
 from src.i18n.loader import tr
-from src.models.course import PERIOD_TIMES
+from src.models.course import ATTENDANCE_LEAD_MINUTES, PERIOD_TIMES
 from src.models.course_rules import slots_of
 from src.ui.styles.theme import RADIUS, SIZE_BODY_S, SIZE_TINY, get_colors
 from src.ui.widgets.menu import (
@@ -209,6 +209,13 @@ def build_course_context_menu(course: dict, parent=None) -> QMenu:
     add_action(menu, tr("widget.course_table.menu_delete"), data=("delete", course_id))
     add_action(menu, tr("widget.course_table.menu_view_tasks"),
                data=("view_tasks", course.get("name", "")))
+    # 点名提醒：标签按当前状态翻转（与邮件提醒同一套路 —— Q-H15：用 data/回调，
+    # 不要"exec 之后比较文案"，那会随措辞/i18n 失效）
+    attendance_on = bool((course.get("reminders") or {}).get("attendance"))
+    add_action(menu,
+               tr("widget.course_table.menu_attendance_off" if attendance_on
+                  else "widget.course_table.menu_attendance_on"),
+               data=("toggle_attendance", course_id))
 
     add_separator(menu)
 
@@ -216,6 +223,25 @@ def build_course_context_menu(course: dict, parent=None) -> QMenu:
         add_action(menu, tr(key), data=("fill", action_label))
 
     return menu
+
+
+def toggle_course_attendance(dm, course_id: str) -> bool:
+    """切换课程的「会点名」标记，返回切换后的状态。
+
+    写入 `course["reminders"] = {"attendance": bool, "lead_minutes": 30}`；
+    提醒服务据此在**开课前 30 分钟**发邮件 + 托盘（`services/reminder_service.py`）。
+    界面不猜"哪门课会点名" —— 这门课点不点名只有用户知道，所以做成右键开关。
+    """
+    course = next((c for c in dm.courses.courses if c.get("id") == course_id), None)
+    if course is None:
+        return False
+    conf = dict(course.get("reminders") or {})
+    conf["attendance"] = not conf.get("attendance", False)
+    conf.setdefault("lead_minutes", ATTENDANCE_LEAD_MINUTES)
+    dm.courses.update_course(course_id, {"reminders": conf})
+    dm.courses.save()
+    dm.data_changed.emit("course")
+    return bool(conf["attendance"])
 
 
 def _build_context_prompt(course: dict, action: str) -> str:
@@ -263,6 +289,7 @@ class CourseTable(QTableWidget):
     course_rename_requested = Signal(str)
     course_delete_requested = Signal(str)
     view_course_tasks = Signal(str)  # course_name
+    course_attendance_toggle_requested = Signal(str)  # course_id
 
     def __init__(self, period_count: int = 5, parent=None) -> None:
         self._period_count = max(1, period_count)
@@ -528,5 +555,7 @@ class CourseTable(QTableWidget):
             self.course_delete_requested.emit(course_id)
         elif action_type == "view_tasks":
             self.view_course_tasks.emit(payload)
+        elif action_type == "toggle_attendance":
+            self.course_attendance_toggle_requested.emit(course_id)
         elif action_type == "fill":
             self.fill_ai_prompt.emit(_build_context_prompt(course, payload))

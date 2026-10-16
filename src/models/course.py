@@ -21,7 +21,7 @@ DEFAULT_COURSES = {
     "holidays": {"excluded": [], "makeup": {}},
 }
 
-# Period time definitions: (start_time_str, end_time_str)
+# 一天 6 个大节的起止时间（课程块与提醒都按它换算"第几节 = 几点"）
 PERIOD_TIMES = [
     ("08:30", "10:05"),
     ("10:25", "12:00"),
@@ -30,6 +30,10 @@ PERIOD_TIMES = [
     ("18:30", "20:05"),
     ("20:10", "21:45"),
 ]
+
+# 「会点名」的课：开课前多少分钟提醒（course["reminders"]["lead_minutes"] 可覆盖）。
+# 放在模型层（而非提醒服务）：界面写数据、服务读数据，两边要同一个默认值。
+ATTENDANCE_LEAD_MINUTES = 30
 
 
 class CourseModel(BaseJsonModel):

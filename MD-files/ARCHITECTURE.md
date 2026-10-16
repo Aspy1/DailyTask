@@ -135,7 +135,8 @@ ui ──→ services ──→ models ──→ base(BaseJsonModel)
 
 1. **单例**：`SettingsManager` / `DataManager` / `AIService` 只在 `App.__init__` 实例化（`CODE_STANDARDS`/`AGENTS.md` R-001）。
 2. **原子写入**：所有持久化走 `BaseJsonModel.atomic_write()`——写 `.tmp` → 备份 `.bak` → `os.replace`（PermissionError 重试 5×50ms）。
-   **注意**：`scripts/actions.py` 不走这条路径，直接 `open()/json.dump()`。
+   AI 那条路径（`scripts/actions_core.save()`）同样原子：结构守卫 → 写前备份到
+   `data/backup/actions/` → `.tmp` → 回读自检 → `os.replace`（`ERRORS #042`）。
 3. **显式保存**：Model 改内存态后**不会自动落盘**，必须显式 `save()`。
 4. **日期语义**：`course.schedule_date()` —— **0:00–1:00 视为前一天**；跨模块统一用它，不要直接用 `date.today()`。
 5. **时区**：全部本地时间，无 tz 处理；`due_date` 形如 `YYYY-MM-DDThh:mm:ss`，日期型为 `YYYY-MM-DD`。
@@ -147,6 +148,10 @@ ui ──→ services ──→ models ──→ base(BaseJsonModel)
    `teaching_end_date` 是教学周最后一天，`end_date` 含期末周。
    历史上这里散过 5 处各算各的（状态栏不钳上界 → 显示"第 32 / 16 周"、AI 忽略
    `current_semester`、摘要第三套算法），见 `ERRORS #037`。
+8. **提醒出口单一**：所有提醒（托盘 / 邮件）都走 `ReminderService._notify()`，
+   受设置 `General/reminder_enabled` 总开关控制（默认开）；"什么算命中"是**纯函数**
+   （`services/reminder_rules.py`）。规则：点名课前 30 分钟、作业 3 天内 + 6 小时内、
+   考试 14/7/3 天、习惯提前 5 分钟、余额低于阈值、用户在日程里定的自定义提醒。
 8. **课程时段规则单一**：`models/course_rules.py`（`is_active_week` / `slots_of` /
    `conflicts_by_cell`）。`time_slots` 的 `end` 是**闭区间**；**同一时段允许两门课**，
    冲突要检出并提示请假（见 `ERRORS #038`）。
@@ -182,6 +187,8 @@ data/
 | `semesters/<id>/courses.json` | 1 | `courses[]` `holidays{excluded[],makeup{}}` | course: `id,name,teacher,day_of_week(1-7),weeks{start,end},time_slots[{start,end,location}],week_parity(all/odd/even),excluded_weeks[],notes` |
 > `time_slots` 的 `end` 是**闭区间**：单节连堂写 `{"start": 1, "end": 1}`。
 > **同一时段允许两门课**（选修过多 / 重修）→ 由 `course_rules.conflicts_by_cell()` 检出并提示请假（`ERRORS #038`）。
+> **会点名的课**在 `course["reminders"]`：`{"attendance": bool, "lead_minutes": 30}`——
+> 由课程右键菜单开关（界面不猜哪门课点名，只有用户知道），`reminder_rules.attendance_due()` 据此在开课前提醒。
 | `semesters/<id>/tasks.json` | 2 | `tasks[]` `archived[]` | task: `id,title,course_name,due_date,status(pending/completed),priority,tags[],notes,created_at,completed_at,reminded` |
 | `semesters/<id>/exams.json` | 1 | `exams[]` | exam: `id,course_name,exam_date,scope,location,notes,tags[],created_at,updated_at` |
 | `habits.json` | 2 | `habits[]` `attached_task_templates[]` `logs{date:{hid:{completed,completed_at,note}}}` | habit: `id,name,schedule{type(daily/weekly/monthly/interval),days[],value,times_per_day,start_date},duration_minutes,reminder_time,streak,longest_streak,postpone_until,canceled_on[]` |

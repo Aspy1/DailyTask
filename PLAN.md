@@ -401,6 +401,27 @@ GitHub Action（无失败 run；8/22 起因仓库约 8 周无活动被 GitHub �
 
 ---
 
+## P14 提醒功能（点名 / 作业 3 天）✅ 已完成（2026-10-16）
+
+**两条新规则**（都走「托盘 + 邮件」，并受设置总开关控制）：
+
+| 规则 | 触发 | 数据 |
+|---|---|---|
+| **点名提醒** | 开课前 **30 分钟**（`lead_minutes` 可覆盖；课已开始则不提醒） | `course["reminders"] = {"attendance": true, "lead_minutes": 30}`，由**课程右键菜单**开关 |
+| **作业截止** | 截止前 **3 天内**（与既有「6 小时内」邮件叠加，各发一次） | 现有 `tasks.json` 的 `due_date` |
+
+**总开关**：设置 → 通用 →「提醒」（`General/reminder_enabled`，**默认开**）——
+所有提醒（托盘 + 邮件）统一走 `ReminderService._notify()` 出口，关掉就都不发。
+
+**结构**：规则抽成**纯函数** `services/reminder_rules.py`（无 Qt、可单测），
+服务只留接线；`ReminderService` 类从 526 行降到 ~360 行（原来已超「单类 ≤400」的存量债）。
+UI 侧新增 `ui/widgets/schedule_actions.py`（从 `schedule_view.py` 搬出 63 行的弹窗函数，
+顺带让那个文件与类回到基线内）。
+
+**结果**：**369 passed**（355 → 369）· ruff 0 · 门禁 14 项全绿（SIZE 存量 34 → 32）· 验收 80/80。
+
+---
+
 ## A. 文档体系
 
 ### A-1 `[已完成]` 废弃逐文件 `.py.md`，改用单一 `ARCHITECTURE.md`

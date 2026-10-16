@@ -1,5 +1,7 @@
 {
   "widget.course_table.menu_rename": "修改课程名称",
+  "widget.course_table.menu_attendance_on": "开启点名提醒（提前 30 分钟）",
+  "widget.course_table.menu_attendance_off": "关闭点名提醒",
   "widget.course_table.menu_delete": "删除这门课",
   "widget.course_table.menu_view_tasks": "查看关于这门课的事项",
 
