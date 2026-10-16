@@ -24,6 +24,7 @@ from src.services.ai_service import AIService
 from src.services.data_manager import DataManager
 from src.services.settings_manager import SettingsManager
 from src.services.weather_service import WeatherService
+from src.ui.animations import count_to
 from src.ui.components.ai_panel import AIPanel
 from src.ui.components.click_label import ClickLabel
 from src.ui.components.main_workspace import MainWorkspace
@@ -519,7 +520,7 @@ class MainWindow(QMainWindow):
 
     def _update_expense(self) -> None:
         total = self._data_manager.expenses.today_total()
-        self._expense_label.setText(f"¥{total:.0f}")
+        count_to(self._expense_label, total, fmt="¥{:.0f}")
 
     
     def _update_habit_count(self) -> None:

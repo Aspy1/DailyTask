@@ -24,6 +24,7 @@ from PySide6.QtCore import QPoint, Qt
 from PySide6.QtGui import QAction, QCursor
 from PySide6.QtWidgets import QMenu, QWidget
 
+from src.ui.animations import fade_popup
 from src.ui.styles.theme import menu_qss
 
 
@@ -74,14 +75,17 @@ def add_separator(menu: QMenu) -> None:
 
 def show_at_cursor(menu: QMenu) -> QAction | None:
     """模板 1：跟随光标（右键菜单、键盘触发）。"""
+    fade_popup(menu)
     return menu.exec(QCursor.pos())
 
 
 def show_at(menu: QMenu, widget: QWidget, pos: QPoint) -> QAction | None:
     """模板 2：锚在控件内的某个点（`customContextMenuRequested` 给的局部坐标）。"""
+    fade_popup(menu)
     return menu.exec(widget.mapToGlobal(pos))
 
 
 def show_below(menu: QMenu, widget: QWidget) -> QAction | None:
     """模板 3：锚在控件左下角下方（按钮下拉）。"""
+    fade_popup(menu)
     return menu.exec(widget.mapToGlobal(widget.rect().bottomLeft()))

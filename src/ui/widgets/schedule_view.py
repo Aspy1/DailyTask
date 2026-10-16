@@ -524,7 +524,8 @@ class ScheduleView(QWidget):
 
         if not items:
             empty = QLabel("空闲")
-            empty.setStyleSheet(f"color: {c['fg_disabled']}; font-size: 13px; padding: 4px 0;")
+            # 空态也是正文：fg_disabled 在浅色下只有 1.78:1（几乎看不见）
+            empty.setStyleSheet(f"color: {c['fg_hint']}; font-size: 13px; padding: 4px 0;")
             cl.addWidget(empty)
         else:
             for item in items:

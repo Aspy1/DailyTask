@@ -243,6 +243,15 @@
   导致 5 个右键菜单失效并逐次遗留内嵌事件循环（见 `ERRORS #030`）
 - 检查：`tests/test_menus.py`（flags / 可执行 / `exec` 必须返回）+ 代码里不得再出现 `context_menu` 导入
 
+**Q-H16 动效（Animation）**
+- **只允许** opacity / 位移；时长 ≤180ms；缓动 `OutCubic`；模板见 `src/ui/animations.py`
+- **禁止**：动画化布局尺寸（宽高/间距）、侧边栏手风琴（保持 `show()`/`hide()` 即时）、
+  对 QSS 画出来的图形做 transform（QSS 没有 transform，见 `ERRORS #031`）
+- 动画对象必须保引用（`animations._RUNNING`），控件销毁时停止
+- 有总开关 `animations.set_enabled(False)`（用户觉得闪/卡时一键关掉）
+- 检查：`tests/test_animations.py`（结构守卫：模块里不得出现几何动画；结束后摘掉透明效果；
+  像素与动画前一致）
+
 ## I. 异常与错误处理
 
 **Q-I1 禁止无理由盲捕获**：`except Exception` / 裸 `except:` 必须二选一——

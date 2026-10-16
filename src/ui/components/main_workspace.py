@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
 from src.services.ai_service import AIService
 from src.services.data_manager import DataManager
 from src.services.settings_manager import SettingsManager
+from src.ui.animations import fade_in
 from src.ui.panels.course_panel import CoursePanel
 from src.ui.panels.exam_panel import ExamPanel
 from src.ui.panels.expense_panel import ExpensePanel
@@ -124,6 +125,7 @@ class MainWorkspace(QWidget):
             w = self._stack.widget(idx)
             if hasattr(w, "_refresh") and callable(w._refresh):
                 w._refresh()
+            fade_in(w)          # 动效模板（Q-H16）：只淡入，不动几何
 
     def _on_view_course_tasks(self, course_name: str) -> None:
         dlg = CourseDetailDialog(self._dm, course_name, self)
