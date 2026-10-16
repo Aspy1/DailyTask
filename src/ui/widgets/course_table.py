@@ -10,14 +10,12 @@
 """
 
 import re
-import zlib
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QFrame,
-    QHBoxLayout,
     QHeaderView,
     QLabel,
     QMenu,
@@ -37,12 +35,6 @@ from src.ui.widgets.menu import (
 )
 
 DAY_LABELS = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
-
-# 课程色令牌名（值见 src/ui/styles/tokens.json 的 course_color_1..8）
-COURSE_COLOR_TOKENS = [f"course_color_{i}" for i in range(1, 9)]
-
-# 课程块底色透明度（token 里的 course_color_* 偏淡，浅色主题下几乎看不出）
-CHIP_ALPHA = 0.18
 
 # Right-click menu actions — extensible: just add a label
 COURSE_ACTIONS = [
@@ -72,17 +64,6 @@ def _rgba(color: str, alpha: float | None = None) -> QColor:
     return QColor(color)
 
 
-def _color_token(course: dict) -> str:
-    """按课程 id 稳定地挑一个课程色（`hash()` 会随进程变化，不能用）。"""
-    cid = str(course.get("id") or course.get("name") or "")
-    return COURSE_COLOR_TOKENS[zlib.crc32(cid.encode("utf-8")) % len(COURSE_COLOR_TOKENS)]
-
-
-def _css(rgb: QColor) -> str:
-    """QColor → `rgba(...)`（QSS 里带 alpha 才透出底色）。"""
-    return f"rgba({rgb.red()},{rgb.green()},{rgb.blue()},{rgb.alpha()})"
-
-
 class _CourseChip(QFrame):
     """一节课的视觉块：圆角 + 左侧色条 + 课程名/地点两行。
 
@@ -93,28 +74,13 @@ class _CourseChip(QFrame):
                  parent=None) -> None:
         super().__init__(parent)
         self.setObjectName("courseChip")
-        token = _color_token(course)
-        c = get_colors()
-        self._accent = _rgba(c[token], 0.75)
-        self._bg = _rgba(c[token], CHIP_ALPHA)
 
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.setMinimumHeight(40)
-        # 块四周留 3px：不用 QSS 的 item padding（那会让左右不对称）
-        self.setContentsMargins(0, 0, 0, 0)
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
 
-        row = QHBoxLayout(self)
-        row.setContentsMargins(0, 0, 0, 0)
-        row.setSpacing(0)
-
-        self._bar = QFrame()
-        self._bar.setObjectName("courseChipBar")
-        self._bar.setFixedWidth(3)
-        row.addWidget(self._bar)
-
-        body = QVBoxLayout()
-        body.setContentsMargins(9, 6, 9, 6)
+        body = QVBoxLayout(self)
+        body.setContentsMargins(10, 7, 10, 7)
         body.setSpacing(2)
 
         self._name = QLabel(course.get("name", ""))
@@ -130,7 +96,6 @@ class _CourseChip(QFrame):
         body.addWidget(self._reminder)
 
         body.addStretch()
-        row.addLayout(body, stretch=1)
 
         self.set_reminder(reminder)
         self.refresh_theme()
@@ -143,13 +108,11 @@ class _CourseChip(QFrame):
 
     def refresh_theme(self) -> None:
         c = get_colors()
+        # 中性块：底 bg_surface + 细描边；不再逐课配色（用户要求"不用多余颜色"）
         self.setStyleSheet(
-            f"#courseChip {{ background-color: {_css(self._bg)};"
+            f"#courseChip {{ background-color: {c['bg_surface']};"
+            f" border: 1px solid {c['border']};"
             f" border-radius: {RADIUS['radius_md']}px; }}")
-        self._bar.setStyleSheet(
-            f"#courseChipBar {{ background-color: {_css(self._accent)};"
-            f" border-top-left-radius: {RADIUS['radius_md']}px;"
-            f" border-bottom-left-radius: {RADIUS['radius_md']}px; }}")
         self._name.setStyleSheet(
             f"color: {c['fg_primary']}; font-size: {SIZE_BODY_S}px; font-weight: 600;"
             f" background: transparent;")
