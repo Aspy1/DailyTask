@@ -5,9 +5,22 @@ from pathlib import Path
 
 import scripts.actions as actions
 
+# 真实数据目录（用于防止测试误写用户数据）
+REAL_DATA_DIR = (Path(__file__).resolve().parent.parent / "data").resolve()
+
 
 def run(cmd: str) -> str:
-    """在进程内执行一条 actions.py 命令，返回捕获的输出。"""
+    """在进程内执行一条 actions.py 命令，返回捕获的输出。
+
+    ⚠ **必须**在 `sandbox` fixture 下使用：否则 `actions.DATA` 指向真实 `data/`，
+    命令会直接写进用户数据（2026-10-16 真实事故：一个漏了 sandbox 的菜单冒烟测试
+    往 courses/tasks/exams/habits/inventory/daily_logs 各写了一条种子数据，
+    并被应用的 GitSync 自动提交推送）。这里做成硬失败，让同类错误不可能再发生。
+    """
+    if Path(actions.DATA).resolve() == REAL_DATA_DIR:
+        raise RuntimeError(
+            "run() 只能在 sandbox fixture 下调用：当前 actions.DATA 指向真实 data/，"
+            "会污染用户数据。请给测试加上 sandbox 参数。")
     return actions.run_in_process(cmd)
 
 

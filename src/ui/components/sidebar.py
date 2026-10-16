@@ -127,10 +127,6 @@ class SidebarSection(QWidget):
     def nav_items(self) -> dict[str, NavItem]:
         return self._nav_items
 
-    def nav_item(self, key: str) -> NavItem | None:
-        """按导航键取条目（用于把菜单锚在对应按钮下方）。"""
-        return self._nav_items.get(key)
-
     def refresh_theme(self) -> None:
         """切主题时重新给本分区的标题与条目上色。"""
         self._header.refresh_theme()
@@ -210,6 +206,10 @@ class Sidebar(QWidget):
         layout.addWidget(self._ai_btn)
 
         self.refresh_theme()
+
+    def nav_item(self, key: str) -> NavItem | None:
+        """按导航键取条目（用于把菜单锚在对应按钮下方）。"""
+        return self._nav_items.get(key)
 
     def refresh_theme(self) -> None:
         """按当前主题重上色（切主题时由 MainWindow 调用）。

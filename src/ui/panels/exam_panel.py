@@ -216,8 +216,9 @@ class ExamPanel(QWidget):
 
             card = _ExamCard(e, days_left)
             card.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+            # pos 是**卡片**局部坐标 → 必须拿卡片当锚点（拿面板会偏）
             card.customContextMenuRequested.connect(
-                lambda pos, ex=e: self._context_menu(pos, ex))
+                lambda pos, ex=e, c=card: self._context_menu(pos, ex, c))
             self._card_layout.insertWidget(self._card_layout.count() - 1, card)
 
     def _add_exam(self, exam: dict | None = None) -> None:
@@ -232,12 +233,11 @@ class ExamPanel(QWidget):
             self._dm.data_changed.emit("exam")
             self._refresh()
 
-    def _context_menu(self, pos, exam: dict) -> None:
-        
+    def _context_menu(self, pos, exam: dict, anchor=None) -> None:
         menu = new_menu(self)
         add_action(menu, "编辑", lambda checked=False: self._add_exam(exam))
         add_action(menu, "删除", lambda checked=False: self._delete_exam(exam["id"]))
-        show_at(menu, self, pos)
+        show_at(menu, anchor or self, pos)
 
     def _delete_exam(self, eid: str) -> None:
         name = eid

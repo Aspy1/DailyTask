@@ -29,6 +29,7 @@ from src.ui.components.click_label import ClickLabel
 from src.ui.components.main_workspace import MainWorkspace
 from src.ui.components.sidebar import Sidebar
 from src.ui.styles.theme import get_colors
+from src.ui.widgets.menu import add_action, new_menu, show_at_cursor, show_below
 
 logger = logging.getLogger(__name__)
 
@@ -137,8 +138,6 @@ class MainWindow(QMainWindow):
 
         用统一模板（Q-H15）：无原生阴影、token 配色、QMenu 负责贴边翻转。
         """
-        from src.ui.widgets.menu import add_action, new_menu, show_below
-
         menu = new_menu(self)
         current_theme = self._settings.get("General", "theme", "dark")
 
@@ -156,7 +155,6 @@ class MainWindow(QMainWindow):
         if anchor is not None:
             show_below(menu, anchor)
         else:
-            from src.ui.widgets.menu import show_at_cursor
             show_at_cursor(menu)
 
     def _switch_theme(self, mode: str) -> None:
