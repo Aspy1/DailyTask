@@ -153,3 +153,30 @@ def test_static_labels_follow_theme(tmp_path, qapp) -> None:
     assert TOKENS["light"]["fg_primary"] in amount.styleSheet()
     assert TOKENS["light"]["card_bg"] in expense._sum_month.styleSheet()
     assert TOKENS["light"]["bg_elevated"] in mw._workspace._inventory_panel._bc_cat.styleSheet()
+
+
+def test_rounded_inputs_drop_native_frame(qapp) -> None:
+    """回归：带 border-radius 的输入类控件必须关掉原生方框。
+
+    `QLineEdit`/`QComboBox` 默认 `frame=True`，Windows 上原生方框是**直角**的，
+    会从 QSS 圆角之外露出来 → 看起来"圆角框周围有角点"
+    （R-008 记的"QComboBox 禁止 border-radius（产生角点）"就是它）。
+    """
+    from PySide6.QtWidgets import QComboBox, QLineEdit
+
+    from src.ui.styles.theme import RADIUS, init_theme
+
+    qapp.setStyleSheet(init_theme(qapp, "light"))
+    combo = QComboBox()
+    combo.addItem("餐饮")
+    combo.setStyleSheet(f"QComboBox {{ border-radius: {RADIUS['radius_md']}px; }}")
+    edit = QLineEdit()
+    edit.setStyleSheet(f"QLineEdit {{ border-radius: {RADIUS['radius_md']}px; }}")
+    plain = QLineEdit()                       # 没圆角 → 不该被动
+    for w in (combo, edit, plain):
+        w.show()
+    qapp.processEvents()
+
+    assert not combo.hasFrame()
+    assert not edit.hasFrame()
+    assert plain.hasFrame()

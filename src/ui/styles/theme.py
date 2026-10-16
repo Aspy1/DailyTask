@@ -8,7 +8,7 @@ import json
 import re
 from pathlib import Path
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QEvent, QObject, Qt
 from PySide6.QtGui import QFont, QFontDatabase
 from PySide6.QtWidgets import QApplication
 
@@ -131,6 +131,41 @@ def _resolve_font() -> str:
     return "Microsoft YaHei"
 
 
+class _RoundedFrameFixer(QObject):
+    """关掉输入类控件的**原生方框**。
+
+    `QLineEdit` / `QComboBox` / `QAbstractSpinBox` 默认 `frame=True`：Windows 上原生方框是
+    **直角**的，会从 QSS 的圆角之外露出来，看起来就是"圆角框周围有角点"
+    （R-008 记的"QComboBox 禁止 border-radius（产生角点）"就是同一个原因）。
+
+    这里用全局事件钩子统一处理：凡是**样式表里带 `border-radius`** 的输入类控件，
+    在显示时关掉原生方框，让 QSS 独占绘制。这样不用去改几十处调用点。
+    """
+
+    _TYPES = ("QLineEdit", "QComboBox", "QAbstractSpinBox", "QTextEdit", "QPlainTextEdit")
+
+    def eventFilter(self, obj, event) -> bool:
+        if event.type() == QEvent.Type.Show and type(obj).__name__ in self._TYPES:
+            try:
+                qss = obj.styleSheet() or ""
+                if "border-radius" in qss and hasattr(obj, "setFrame"):
+                    obj.setFrame(False)
+            except (RuntimeError, AttributeError):
+                pass
+        return False
+
+
+def install_rounded_frame_fixer(app: QApplication) -> _RoundedFrameFixer:
+    """装上"原生方框"修复钩子（init_theme 会调用；重复调用只装一个）。"""
+    existing = getattr(app, "_rounded_frame_fixer", None)
+    if existing is not None:
+        return existing
+    fixer = _RoundedFrameFixer(app)
+    app.installEventFilter(fixer)
+    app._rounded_frame_fixer = fixer
+    return fixer
+
+
 def apply_palette(app: QApplication, mode: str) -> None:
     """把主题色写进 QPalette。
 
@@ -182,6 +217,7 @@ def init_theme(app: QApplication, mode: str = "light") -> str:
             super().drawPrimitive(element, option, painter, widget)
     app.setStyle(_NoFocusStyle(app.style()))
     apply_palette(app, mode)
+    install_rounded_frame_fixer(app)
 
     return build_theme(mode)
 

@@ -252,6 +252,14 @@
 - 检查：`tests/test_animations.py`（结构守卫：模块里不得出现几何动画；结束后摘掉透明效果；
   像素与动画前一致）
 
+**Q-H17 圆角绘制**
+- 输入类控件（`QLineEdit` / `QComboBox` / `QAbstractSpinBox`）**必须关掉原生方框**
+  （`setFrame(False)`）：Windows 上原生方框是直角，会从 QSS 圆角外露出"角点"
+  → 已由 `theme.install_rounded_frame_fixer()` 全局钩子自动处理（带 `border-radius` 的才关）
+- 需要"绝对可控"的圆角（高 DPI 下 QSS 圆角会按设备像素取整、出现台阶）时：
+  改用自绘 `QPainter` + `Antialiasing` 画背景（QSS 里把背景设透明），见 `ERRORS #032`
+- 检查：`tests/test_ui_wiring.py::test_rounded_inputs_drop_native_frame`
+
 ## I. 异常与错误处理
 
 **Q-I1 禁止无理由盲捕获**：`except Exception` / 裸 `except:` 必须二选一——
