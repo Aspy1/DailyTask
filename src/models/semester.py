@@ -177,11 +177,17 @@ def week_number_for(semester: dict | None, target: date) -> int | None:
 
 
 def _slots_invalid(slots: list[dict], period_count: int | None) -> bool:
+    """节次是否无效。
+
+    ⚠ `end` 是**闭区间**：单节连堂写 `{"start": 1, "end": 1}`（真实数据就是这么存的），
+    所以合法性要求是 `end >= start`，**不是** `end > start`。
+    （2026-10-16 曾按 `start < end` 校验，把用户 24 门单节课全部误报。）
+    """
     if not slots:
         return True
     for slot in slots:
         start, end = as_int(slot.get("start")), as_int(slot.get("end"))
-        if start is None or end is None or start < 1 or start >= end:
+        if start is None or end is None or start < 1 or end < start:
             return True
         if period_count and end > period_count:
             return True

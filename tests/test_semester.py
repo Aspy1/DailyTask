@@ -62,6 +62,17 @@ def test_validate_all_reports_model_and_course_level_issues() -> None:
     assert sem.ISSUE_NO_SEMESTER in no_semester["model"]
 
 
+def test_single_period_slot_is_valid() -> None:
+    """`end` 是**闭区间**：单节连堂写 `start == end`（真实数据就是这样）。
+
+    回归：曾按 `start < end` 校验 → 用户 24 门单节课被**全部误报**为"节次无效"。
+    """
+    assert sem.validate_courses(
+        [{"day_of_week": 1, "time_slots": [{"start": 1, "end": 1}]}], 16, 5) == []
+    assert sem.validate_courses(
+        [{"day_of_week": 1, "time_slots": [{"start": 1, "end": 2}]}], 16, 5) == []
+
+
 def test_validate_courses_flags_bad_rows() -> None:
     assert sem.validate_courses([{"weeks": {"start": 1, "end": 99}}], 20, 5) \
         == [sem.ISSUE_COURSE_WEEKS]
