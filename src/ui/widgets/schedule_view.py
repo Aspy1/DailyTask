@@ -783,19 +783,16 @@ class ScheduleView(QWidget):
         course_name = item["course"].get("name", "")
         item_date = self._target_date.isoformat()
         if self._has_email_reminder("course", course_name, item_date):
-            add_action(menu, tr("widget.schedule.menu_email_remove"))
+            # 用**回调**而不是"exec() 之后比较文案"（Q-H15）：比较文案会随措辞/i18n 失效
+            add_action(menu, tr("widget.schedule.menu_email_remove"),
+                       lambda checked=False: self._remove_email_reminder(
+                           "course", course_name, item_date))
         else:
-            add_action(menu, tr("widget.schedule.menu_email_add"))
+            add_action(menu, tr("widget.schedule.menu_email_add"),
+                       lambda checked=False: self._add_email_reminder_dialog(
+                           "course", course_name, item_date))
         chosen = show_at_cursor(menu)
-        if chosen is None:
-            return
-        if chosen.text() == tr("widget.schedule.menu_email_add"):
-            self._add_email_reminder_dialog("course", course_name, item_date)
-            return
-        if chosen.text() == tr("widget.schedule.menu_email_remove"):
-            self._remove_email_reminder("course", course_name, item_date)
-            return
-        if chosen.data() is None:
+        if chosen is None or chosen.data() is None:
             return
         action_type, payload = chosen.data()
         self._handle_course_action(action_type, payload, item)

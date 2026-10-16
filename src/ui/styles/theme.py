@@ -167,6 +167,25 @@ class _RoundedFrameFixer(QObject):
         return False
 
 
+_ACCENT_PROPERTY = "accentButton"
+
+
+def mark_accent_button(button) -> None:
+    """把按钮标为"主按钮"（强调色填充）。
+
+    ⚠ 样式刷新只能看这个**属性**，不能看按钮**文案**：文案会随措辞/i18n 改动而变，
+    用文案判断会让高亮"静默失效"（2026-10-16 修：`task_panel` 曾用
+    `txt in ("添加", "记一笔", ...)`，实际一个按钮都没匹配上 —— 是死代码；
+    `expense_panel` 则要靠同步改文案才不失效）。
+    """
+    button.setProperty(_ACCENT_PROPERTY, True)
+
+
+def is_accent_button(widget) -> bool:
+    """该控件是否被标为主按钮（见 `mark_accent_button`）。"""
+    return bool(widget.property(_ACCENT_PROPERTY))
+
+
 def install_rounded_frame_fixer(app: QApplication) -> _RoundedFrameFixer:
     """装上"原生方框"修复钩子（init_theme 会调用；重复调用只装一个）。"""
     existing = getattr(app, "_rounded_frame_fixer", None)

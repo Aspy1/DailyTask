@@ -22,7 +22,17 @@ from PySide6.QtWidgets import (
 
 from src.i18n.loader import tr
 from src.services.data_manager import DataManager
-from src.ui.styles.theme import FONT_CN, RADIUS, SIZE_BODY_S, SIZE_SUBTITLE, combo_qss, get_colors, input_qss
+from src.ui.styles.theme import (
+    FONT_CN,
+    RADIUS,
+    SIZE_BODY_S,
+    SIZE_SUBTITLE,
+    combo_qss,
+    get_colors,
+    input_qss,
+    is_accent_button,
+    mark_accent_button,
+)
 from src.ui.widgets.menu import (
     add_action,
     add_separator,
@@ -135,6 +145,7 @@ class ExpensePanel(QWidget):
             QPushButton:hover {{ background-color: {c['accent_hover']}; }}
         """)
         add_btn.clicked.connect(self._add_expense)
+        mark_accent_button(add_btn)          # 主按钮：强调色填充（刷新时按属性判断，不看文案）
         al.addWidget(add_btn)
         layout.addWidget(add_row)
 
@@ -443,8 +454,9 @@ class ExpensePanel(QWidget):
         btn_qss = self._btn_qss()
         for btn in self.findChildren(QPushButton):
             try:
-                txt = (btn.text() or "").strip()
-                if txt in (tr("panel.expense.btn_add"), tr("panel.expense.btn_record_saving")) or txt == "+":
+                # 主按钮按**属性**判断（不看文案）：文案会随措辞/i18n 变，
+                # 用文案判断会让高亮静默失效，或把次级按钮（如"记一笔"）误翻成强调色
+                if is_accent_button(btn):
                     btn.setStyleSheet(f"QPushButton {{ background-color: {c['accent']}; color: {c['fg_on_fill']}; border: none; border-radius: 8px; padding:5px 12px; font-weight:600; }}")
                 else:
                     btn.setStyleSheet(btn_qss)
