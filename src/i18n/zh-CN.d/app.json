@@ -1,0 +1,8 @@
+{
+  "app.sync.to_github": "同步到 GitHub",
+  "app.sync.syncing": " — 同步中...",
+  "app.sync.synced": " — 已同步 ✓",
+  "app.sync.done_title": "同步完成",
+  "app.sync.done_body": "数据已推送到 GitHub",
+  "app.sync.failed": " — 同步失败"
+}

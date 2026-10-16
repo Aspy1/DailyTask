@@ -504,16 +504,14 @@ class SettingsPanel(QWidget):
         return card
 
     def _update_weather_stats(self) -> None:
-        """更新天气API调用统计显示"""
-        import json
+        """更新天气 API 调用统计显示（**坏文件不能让应用崩** —— 这是启动路径）。"""
         from datetime import datetime
         from pathlib import Path
 
-        stats_file = Path(__file__).resolve().parents[3] / "data" / "weather_stats.json"
-        if not stats_file.exists():
-            return
+        from src.services.weather_store import read_json_safe
 
-        stats = json.loads(stats_file.read_text())
+        stats_file = Path(__file__).resolve().parents[3] / "data" / "weather_stats.json"
+        stats = read_json_safe(stats_file)          # 缺文件/损坏 → {}，不抛
         month = datetime.now().strftime("%Y-%m")
         monthly = stats.get("monthly", {}).get(month, {}).get("total", 0)
         self._weather_stats_label.setText(tr("panel.settings.label_weather_stats", count=monthly))

@@ -101,6 +101,7 @@ python -m venv .venv
 │   ├── gen_design_tokens.py        # 从 tokens.json 生成 DESIGN_TOKENS.md
 │   ├── check_ui_tokens.py          # UI 令牌约束检查（--strict 供 CI）
 │   ├── check_quality.py            # 工程规范门禁（尺寸/异常/ID/命名/i18n/目录 + vulture/radon）
+│   ├── acceptance_check.py         # 全量功能验收（用户视角走一遍，沙箱隔离，80 项断言）
 │   ├── quality_baseline.json       #   门禁存量债台账（只防新增）
 │   └── rewrite_history.py          # 历史重写脚本（一次性工具）
 ├── tests/                          # pytest 测试（22 个测试文件 + conftest/helpers）

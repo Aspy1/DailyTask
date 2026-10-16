@@ -55,6 +55,7 @@
 | setCellWidget 覆盖同一格/撞课静默少一门课/冲突未提示 | #038 | UI |
 | 测试套件偶发 access violation/嵌套事件循环/双重释放 | #039 | 测试 |
 | 数据无学期归属/切学期课表不变/学期数据混在一个文件 | #040 | 数据 |
+| 天气缓存并发写坏/启动路径解析崩溃/子进程编码 | #041 | 数据 |
 
 ---
 
@@ -661,4 +662,38 @@ AI 提示词里的"第 N 周 / 单双周"在多个学期时算的是**别的学�
 
 **教训**: "切换 X 不生效"要先问**"数据模型里有没有 X 这个维度"**，而不是去查刷新逻辑。
 数据维度缺失时，任何界面层的补丁都只是把问题藏起来。
+
+---
+
+### #041 | 2026-10-16 | 天气缓存被并发写坏 → **应用启动即崩**
+
+**症状**（全量验收第一遍就撞上）：`App` 构造到设置面板就抛
+`json.decoder.JSONDecodeError: Extra data: line 82 column 2` → **应用完全起不来**。
+
+**根因（两层，缺一不可）**：
+1. **写方**：`weather_service.WeatherWorker._record_request` 用
+   `stats_file.write_text(json.dumps(stats, indent=2))` —— **非原子、无锁**，
+   而 now / 7d 两个 worker 会**并发写同一文件** → 内容互相截断，
+   实测形态是"完整对象后面多出一个 `}`"；
+2. **读方**：`settings_panel._update_weather_stats()` 在**启动路径**上
+   `json.loads(stats_file.read_text())` —— **没有任何保护** → 一个缓存文件坏掉就让整个应用起不来。
+
+**修复**：
+- 新增 `services/weather_store.py`（唯一实现）：
+  `read_json_safe()`（损坏时用 `raw_decode` **救回第一个完整对象**，永不抛）、
+  `write_json_atomic()`（`.tmp` + `os.replace`）、
+  `record_request()`（读-改-写**全程加锁**）；
+- 天气统计/缓存与设置面板的读写**全部收口**到它；
+- 用户那份坏文件已备份 + 救回重写（9 天日统计 / 3 个月统计全保住）。
+
+**同一轮发现的同类问题**：`GitSync._GitWorker` 用 `subprocess.run(..., text=True)`
+**没指定编码** → 默认走本机区域编码（gbk），而 git 输出可能带非 ASCII
+（仓库里有中文文件名）→ `UnicodeDecodeError` 让整次同步失败。已改
+`encoding="utf-8", errors="replace"`。
+
+**教训**:
+- **派生缓存的读写同样要原子 + 加锁**："反正是缓存"不是不做保护的理由 ——
+  它坏掉会连累读它的**启动路径**；
+- **启动路径上的外部文件解析必须容错**：UI 不能因为一个缓存文件就起不来；
+- 子进程读输出**一律显式指定编码**：`text=True` 不等于 UTF-8（本机是 gbk）。
 

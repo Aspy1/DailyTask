@@ -1,5 +1,6 @@
 {
   "panel.habit.title": "日常",
+  "panel.habit.empty_today": "今天没有要做的日常（习惯没到日子，或今天都已打卡）",
   "panel.habit.btn_refresh": "刷新",
 
   "panel.habit.btn_check_in": "完成打卡",

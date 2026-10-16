@@ -6,7 +6,7 @@ from pathlib import Path
 
 from PySide6.QtCore import QObject, QThread, QTimer, Signal
 
-logger = logging.getLogger("gitsync")
+logger = logging.getLogger(__name__)
 
 
 class _GitWorker(QThread):
@@ -23,9 +23,17 @@ class _GitWorker(QThread):
                 result = subprocess.run(  # noqa: S603 — 固定参数列表，无 shell
                     cmd, cwd=str(self._repo),
                     capture_output=True, text=True, timeout=60,
+                    # ⚠ 必须显式指定编码：`text=True` 默认用**本机区域编码**（本机 gbk），
+                    # 而 git 的输出里可能带非 ASCII（仓库里有中文文件名）→
+                    # UnicodeDecodeError 会让整次同步失败（2026-10-16 全量验收发现）
+                    encoding="utf-8", errors="replace",
                 )
                 if result.returncode != 0:
-                    self.finished.emit(False, f"{' '.join(cmd)}: {result.stderr.strip()}")
+                    # ⚠ 失败原因可能只在 stdout（如 git 的用法错误、hook 输出），
+                    # 只看 stderr 会得到"冒号后什么都没有"的日志（全量验收发现）
+                    detail = (result.stderr.strip() or result.stdout.strip()
+                              or f"退出码 {result.returncode}")
+                    self.finished.emit(False, f"{' '.join(cmd)}: {detail[-300:]}")
                     return
             self.finished.emit(True, "")
         # 边界捕获：本层已处理/记录，不允许异常向上逃逸（CODE_STANDARDS Q-I1）

@@ -1,8 +1,8 @@
 """Entry point for the student scheduler application."""
 
 import logging
-import sys
 import os
+import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
@@ -17,21 +17,25 @@ logging.basicConfig(
         logging.StreamHandler(),
     ],
 )
+# 第三方库的 INFO 太吵（httpx 每次请求都打一行，实测占日志 100+ 行），降到 WARNING
+for _noisy in ("httpx", "httpcore", "urllib3", "requests"):
+    logging.getLogger(_noisy).setLevel(logging.WARNING)
 
 os.environ["QT_ENABLE_HIGHDPI_SCALING"] = "1"
 os.environ["QT_AUTO_SCREEN_SCALE_FACTOR"] = "1"
 
-from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QApplication
+# ⚠ 下面的 import 必须在日志配置**之后**（这样各模块 logger 才会写进 app.log）
+from PySide6.QtCore import Qt  # noqa: E402
+from PySide6.QtWidgets import QApplication  # noqa: E402
 
 QApplication.setHighDpiScaleFactorRoundingPolicy(
     Qt.HighDpiScaleFactorRoundingPolicy.PassThrough
 )
 
-from src.app import App
+from src.app import App  # noqa: E402
 
 
-def main():
+def main() -> None:
     app = App(sys.argv)
     if app.is_secondary:
         return

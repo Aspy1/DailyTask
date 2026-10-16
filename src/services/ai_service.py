@@ -10,7 +10,7 @@ from PySide6.QtCore import QObject, QThread, Signal
 
 from src.services import deepseek, openmeteo
 
-logger = logging.getLogger("ai_service")
+logger = logging.getLogger(__name__)
 
 
 # ── System prompt ──────────────────────────────────────────────

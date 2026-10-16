@@ -23,7 +23,7 @@ from PySide6.QtCore import QObject, QTimer, Signal
 
 from src.models.course import schedule_date
 
-logger = logging.getLogger("reminder")
+logger = logging.getLogger(__name__)
 
 EARLY_NOTIFY_MINUTES = 5
 CATCHUP_THRESHOLD_MINUTES = 2

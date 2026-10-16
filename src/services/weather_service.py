@@ -1,10 +1,11 @@
 """和风天气服务"""
-import json
 from datetime import datetime
 from pathlib import Path
 
 import requests
 from PySide6.QtCore import QObject, QThread, QTimer, Signal
+
+from src.services import weather_store
 
 # 绝对路径：应用可能被自启（CWD 非项目根），禁止用相对 "data/..."（见 CODE_STANDARDS Q-E2）
 _DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data"
@@ -50,38 +51,8 @@ class WeatherWorker(QThread):
             self.error.emit(str(e), self._api_type)
 
     def _record_request(self) -> None:
-        """记录API调用次数"""
-        stats_file = _STATS_FILE
-        stats = {}
-        if stats_file.exists():
-            stats = json.loads(stats_file.read_text())
-
-        today = datetime.now().strftime("%Y-%m-%d")
-        month = datetime.now().strftime("%Y-%m")
-
-        # 日统计
-        if "daily" not in stats:
-            stats["daily"] = {}
-        if today not in stats["daily"]:
-            stats["daily"][today] = {"now": 0, "7d": 0, "warning": 0, "total": 0}
-        stats["daily"][today][self._api_type] = stats["daily"][today].get(self._api_type, 0) + 1
-        stats["daily"][today]["total"] += 1
-
-        # 月统计
-        if "monthly" not in stats:
-            stats["monthly"] = {}
-        if month not in stats["monthly"]:
-            stats["monthly"][month] = {"now": 0, "7d": 0, "warning": 0, "total": 0}
-        stats["monthly"][month][self._api_type] = stats["monthly"][month].get(self._api_type, 0) + 1
-        stats["monthly"][month]["total"] += 1
-
-        # 最后请求时间
-        stats["last_request"] = {
-            "time": datetime.now().isoformat(),
-            "type": self._api_type
-        }
-
-        stats_file.write_text(json.dumps(stats, indent=2))
+        """记录 API 调用次数（原子写 + 加锁，见 `services/weather_store.py`）。"""
+        weather_store.record_request(_STATS_FILE, self._api_type)
 
 
 class WeatherService(QObject):
@@ -180,7 +151,7 @@ class WeatherService(QObject):
         if not stats_file.exists():
             return True, "OK"
 
-        stats = json.loads(stats_file.read_text())
+        stats = weather_store.read_json_safe(stats_file)      # 坏文件不让界面崩
         today = datetime.now().strftime("%Y-%m-%d")
         month = datetime.now().strftime("%Y-%m")
 
@@ -206,7 +177,7 @@ class WeatherService(QObject):
         if not stats_file.exists():
             return {"daily": 0, "monthly": 0}
 
-        stats = json.loads(stats_file.read_text())
+        stats = weather_store.read_json_safe(stats_file)
         today = datetime.now().strftime("%Y-%m-%d")
         month = datetime.now().strftime("%Y-%m")
 
@@ -293,16 +264,14 @@ class WeatherService(QObject):
         self._write_cache_to_file()
 
     def _write_cache_to_file(self) -> None:
-        """将天气缓存写入文件，供scripts/actions.py读取"""
-        import json
-        cache_file = _CACHE_FILE
+        """将天气缓存写入文件，供 scripts/actions.py 读取（原子写）。"""
         cache_data = {
             "now": self._now_cache or {},
             "now_time": self._now_cache_time.isoformat() if self._now_cache_time else "",
             "forecast": self._7d_cache or [],
             "forecast_time": self._7d_cache_time.isoformat() if self._7d_cache_time else "",
         }
-        cache_file.write_text(json.dumps(cache_data, ensure_ascii=False))
+        weather_store.write_json_atomic(_CACHE_FILE, cache_data)
 
     def _on_error(self, msg: str, api_type: str) -> None:
         """错误处理"""

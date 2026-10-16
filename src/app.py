@@ -202,16 +202,17 @@ class App(QApplication):
     def _on_sync_status(self, status: str) -> None:
         if status == "syncing":
             if hasattr(self, "_tray"):
-                self._tray.setToolTip(f"{tr('app.name')} — 同步中...")
+                self._tray.setToolTip(f"{tr('app.name')}{tr('app.sync.syncing')}")
         elif status == "done":
             if hasattr(self, "_tray"):
-                self._tray.setToolTip(f"{tr('app.name')} — 已同步 ✓")
-                self._tray.showMessage("同步完成", "数据已推送到 GitHub", QSystemTrayIcon.MessageIcon.Information, 3000)
+                self._tray.setToolTip(f"{tr('app.name')}{tr('app.sync.synced')}")
+                self._tray.showMessage(tr("app.sync.done_title"), tr("app.sync.done_body"),
+                                       QSystemTrayIcon.MessageIcon.Information, 3000)
         elif status == "idle":
             if hasattr(self, "_tray"):
                 self._tray.setToolTip(tr("app.name"))
         elif status.startswith("error") and hasattr(self, "_tray"):
-            self._tray.setToolTip(f"{tr('app.name')} — 同步失败")
+            self._tray.setToolTip(f"{tr('app.name')}{tr('app.sync.failed')}")
 
     def _on_ddl_alert(self, count: int) -> None:
         self._ddl_count = count
@@ -249,7 +250,7 @@ class App(QApplication):
         hide_action.triggered.connect(self._window.hide)
         tray_menu.addAction(hide_action)
         tray_menu.addSeparator()
-        sync_action = QAction("同步到 GitHub", self)
+        sync_action = QAction(tr("app.sync.to_github"), self)
         sync_action.triggered.connect(self._manual_sync)
         tray_menu.addAction(sync_action)
         restart_action = QAction(tr("tray.restart"), self)

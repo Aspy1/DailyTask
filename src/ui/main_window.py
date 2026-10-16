@@ -105,6 +105,9 @@ class MainWindow(QMainWindow):
         # ── Wire sidebar signals ───────────────────────────────
         self._sidebar.nav_changed.connect(self._on_sidebar_nav)
         self._sidebar.ai_toggled.connect(self._on_ai_toggle)
+        # 数据变化 → **立即**刷新状态栏。
+        # 此前只靠 30s 定时器：切学期后会显示上一个学期的数字（全量验收发现）。
+        self._data_manager.data_changed.connect(self._on_data_changed)
 
         # Course table → AI prompt fill
         self._connect_course_table()
@@ -397,6 +400,10 @@ class MainWindow(QMainWindow):
         self._update_expense()
         self._update_habit_count()
         self._update_exam_alert()
+
+    def _on_data_changed(self, _action: str = "") -> None:
+        """数据变更时刷新状态栏（`data_changed` 带一个字符串参数，故用带参槽）。"""
+        self._refresh_status()
 
     # ── Weather ───────────────────────────────────────────────
 

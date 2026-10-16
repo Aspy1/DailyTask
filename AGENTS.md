@@ -90,6 +90,8 @@
    - `check_quality.py` 覆盖：尺寸上限 / 静默吞异常 / `len()+1` ID / 令牌命名 / i18n 计数 /
      顶层目录 / 密钥入库 + `vulture` + `radon`；**存量债**在 `scripts/quality_baseline.json`，只防新增
    - 新增/修改行为要补测试；数据写入类测试必须用 `sandbox` fixture
+   - **分界点**（一批功能做完 / 大改动后）额外跑一遍全量验收：
+     `.venv\Scripts\python.exe scripts/acceptance_check.py`（沙箱隔离，不碰真实数据/注册表）
 7. **补文档**：更新 `ARCHITECTURE.md` / `CODE_STANDARDS.md` / `ERRORS.md`（如有新坑）
 8. **总结**：提炼犯错原因、决策原因
 

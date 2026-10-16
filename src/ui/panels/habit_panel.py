@@ -380,8 +380,22 @@ class HabitPanel(QWidget):
             card.skip_clicked.connect(self._skip_habit)
             card.setParent(self._grid)
             card.show()
+        if visible_count == 0:
+            # 空态：今天没有要做的日常（习惯不在今天 / 都已打卡）—— 不给提示的话整页空白，
+            # 用户会以为面板坏了（2026-10-16 全量验收发现）
+            self._add_empty_hint()
         self._grid._layout_children()
         self._grid.update()
+
+    def _add_empty_hint(self) -> None:
+        c = get_colors()
+        hint = QLabel(tr("panel.habit.empty_today"))
+        hint.setWordWrap(True)
+        hint.setStyleSheet(
+            f"color: {c['fg_hint']}; font-size: 13px; padding: 16px 4px;"
+            f" background: transparent;")
+        hint.setParent(self._grid)
+        hint.show()
 
     def refresh_theme(self) -> None:
         # Rebuild grid and fab style according to new theme
