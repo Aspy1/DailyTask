@@ -53,8 +53,8 @@ class MainWorkspace(QWidget):
         layout.addWidget(self._stack)
 
         # ── Create all panels ──────────────────────────────────
+        # 课程表已并入日程（日/周切换），不再是独立面板 —— 见 ScheduleView.course_panel
         self._schedule_view = ScheduleView(dm)
-        self._course_panel = CoursePanel(dm)
         self._task_panel = TaskPanel(dm)
         self._habit_panel = HabitPanel(dm)
         self._exam_panel = ExamPanel(dm)
@@ -69,29 +69,26 @@ class MainWorkspace(QWidget):
 
         # ── Flat stack: index = nav key ────────────────────────
         self._panel_map: dict[str, int] = {
-            "schedule": 0, "courses": 1, "tasks": 2,
-            "exams": 3, "daily": 4, "expenses": 5,
-            "inventory": 6, "meals": 7,
-            "settings": 8,
+            "schedule": 0, "tasks": 1,
+            "exams": 2, "daily": 3, "expenses": 4,
+            "inventory": 5, "meals": 6,
+            "settings": 7,
         }
         panels = [
-            self._schedule_view,   # 0: schedule
-            self._course_panel,    # 1: courses
-            self._task_panel,      # 2: tasks
-            self._exam_panel,      # 3: exams
-            self._habit_panel,     # 4: daily (habits)
-            self._expense_panel,   # 5: expenses
-            self._inventory_panel, # 6: inventory
-            self._meal_panel,      # 7: meals
-            self._settings_panel,  # 8: settings
+            self._schedule_view,   # 0: schedule（含 日/周 两页）
+            self._task_panel,      # 1: tasks
+            self._exam_panel,      # 2: exams
+            self._habit_panel,     # 3: daily (habits)
+            self._expense_panel,   # 4: expenses
+            self._inventory_panel, # 5: inventory
+            self._meal_panel,      # 6: meals
+            self._settings_panel,  # 7: settings
         ]
         for p in panels:
             self._stack.addWidget(p)
 
         # ── Cross-panel signals ────────────────────────────────
-        self._course_panel.on_view_tasks(self._on_view_course_tasks)
-        self._schedule_view.course_table_requested.connect(
-            lambda: self.switch_to("courses"))
+        self._schedule_view.course_panel.on_view_tasks(self._on_view_course_tasks)
         self._schedule_view.task_focus_requested.connect(self._on_task_focus)
         self._schedule_view.quick_adjust_requested.connect(self._on_quick_adjust)
 
@@ -154,8 +151,7 @@ class MainWorkspace(QWidget):
         # 外部写入（TG bot）与内部批量改动**不知道改的是哪个域**，一律全刷；
         # 其余按域名字符串匹配，只刷受影响的面板（ERRORS #025）。
         refresh_all = is_ai or action in ("external", "internal")
-        self._course_panel._refresh()
-        self._schedule_view._refresh()
+        self._schedule_view._refresh()      # 日程（含周视图的课程块与事项行）
         for panel, key in (
             (self._task_panel, "task"),
             (self._expense_panel, "expense"),
@@ -172,7 +168,7 @@ class MainWorkspace(QWidget):
         self.setStyleSheet(
             f"#workspace {{ background-color: {c['bg_root']}; }}")
         for attr in (
-            "_course_panel", "_task_panel", "_schedule_view",
+            "_task_panel", "_schedule_view",
             "_habit_panel", "_expense_panel", "_inventory_panel",
             "_meal_panel", "_settings_panel",
         ):
@@ -187,4 +183,9 @@ class MainWorkspace(QWidget):
 
     @property
     def course_panel(self) -> CoursePanel:
-        return self._course_panel
+        """课程表（已并入日程的周视图；保留该入口给菜单/测试用）。"""
+        return self._schedule_view.course_panel
+
+    @property
+    def schedule_view(self) -> ScheduleView:
+        return self._schedule_view

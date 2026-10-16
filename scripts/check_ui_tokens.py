@@ -84,7 +84,7 @@ def find_qfont_sizes(line: str) -> list[str]:
 TOKEN_PREFIXES = (
     "bg_", "fg_", "border", "divider", "accent", "nav_", "sidebar_", "chat_",
     "status_bar_", "card_", "input_", "btn_", "badge_", "table_", "section_",
-    "course_color_", "red", "green", "yellow", "orange",
+    "red", "green", "yellow", "orange",
 )
 
 SKIP_DIRS = {".venv", "__pycache__", ".pytest_cache", ".ruff_cache", "build", "dist"}

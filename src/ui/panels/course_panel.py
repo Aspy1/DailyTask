@@ -1,7 +1,7 @@
 """Course schedule panel — refined toolbar and table."""
 
 import logging
-from datetime import date
+from datetime import date, timedelta
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
@@ -119,8 +119,56 @@ class CoursePanel(QWidget):
         for day in range(1, 8):
             courses.extend(self._dm.courses.get_courses_for_day(day, week))
 
-        self._table.set_courses(courses, week)
+        self._table.set_courses(courses, week, self._collect_markers(week))
         self._count_label.setText(tr("panel.course.course_count", n=len(courses)))
+
+    def _week_monday(self, week: int) -> date:
+        """该周的"第 1 天"日期。
+
+        有学期时以 `start_date + (week-1)*7` 为准（与 `_week_number` 的口径一致，
+        注意学期开始日未必是周一）；没有学期时退回"本周一 + 偏移"。
+        """
+        semester = self._dm.courses.get_semester(self._dm.courses.current_semester)
+        try:
+            start = date.fromisoformat(semester["start_date"])
+            return start + timedelta(days=(week - 1) * 7)
+        except (KeyError, TypeError, ValueError):
+            today = date.today()
+            monday = today - timedelta(days=today.isoweekday() - 1)
+            return monday + timedelta(days=self._current_week_offset * 7)
+
+    def _collect_markers(self, week: int) -> dict[int, list[str]]:
+        """`{isoweekday: [文案, ...]}`：本周每天要显示的 DDL / 考试 / 计划。"""
+        monday = self._week_monday(week)
+        markers: dict[int, list[str]] = {}
+
+        def add(day: date, text: str) -> None:
+            if 0 <= (day - monday).days < 7:
+                markers.setdefault(day.isoweekday(), []).append(text)
+
+        def parse(value: str) -> date | None:
+            try:
+                return date.fromisoformat((value or "")[:10])
+            except ValueError:
+                return None
+
+        for task in self._dm.tasks.pending:
+            due = parse(task.get("due_date", ""))
+            if due:
+                add(due, tr("widget.course_table.marker_due", name=task.get("title", "")))
+
+        for exam in self._dm.exams.exams:
+            when = parse(exam.get("exam_date", ""))
+            if when:
+                add(when, tr("widget.course_table.marker_exam",
+                             name=exam.get("course_name", "")))
+
+        for offset in range(7):
+            day = monday + timedelta(days=offset)
+            for plan in self._dm.daily_logs.get_plans(day.isoformat()):
+                add(day, tr("widget.course_table.marker_plan", name=plan.get("title", "")))
+
+        return markers
 
     def _prev_week(self) -> None:
         self._current_week_offset -= 1

@@ -201,14 +201,18 @@ class CourseTable(QTableWidget):
 
     def __init__(self, period_count: int = 5, parent=None) -> None:
         self._period_count = max(1, period_count)
-        labels = self._build_labels()
+        self._marker_row = self._period_count      # 末行：当日事项（DDL / 考试 / 计划）
+        labels = [*self._build_labels(), tr("widget.course_table.row_items")]
 
-        super().__init__(self._period_count, 7, parent)
+        super().__init__(self._period_count + 1, 7, parent)
         self.setHorizontalHeaderLabels(DAY_LABELS)
         self.setVerticalHeaderLabels(labels)
 
         self.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        # 事项行按内容自适应高度（其它行均分）
+        self.verticalHeader().setSectionResizeMode(
+            self._marker_row, QHeaderView.ResizeMode.ResizeToContents)
         self.verticalHeader().setDefaultAlignment(Qt.AlignmentFlag.AlignCenter)
         self.verticalHeader().setMinimumWidth(64)
 
@@ -220,8 +224,10 @@ class CourseTable(QTableWidget):
 
         self._cell_courses: dict[tuple[int, int], dict] = {}
         self._chips: dict[tuple[int, int], _CourseChip] = {}
+        self._marker_labels: dict[int, QLabel] = {}
         self._last_courses: list[dict] = []
         self._last_week: int | None = None
+        self._last_markers: dict[int, list[str]] = {}
         self._apply_qss()
 
     # ── 样式 ────────────────────────────────────────────────
@@ -300,12 +306,15 @@ class CourseTable(QTableWidget):
     def refresh_theme(self) -> None:
         """切主题后重刷：样式表 + 课程块（块内颜色是写死的，必须重建）。"""
         self._apply_qss()
-        self.set_courses(self._last_courses, self._last_week)
+        self.set_courses(self._last_courses, self._last_week, self._last_markers)
 
     # ── 数据 → 视图 ─────────────────────────────────────────
 
-    def set_courses(self, courses: list[dict], week: int | None = None) -> None:
+    def set_courses(self, courses: list[dict], week: int | None = None,
+                    markers: dict[int, list[str]] | None = None) -> None:
+        """`markers`：`{isoweekday(1-7): [文案, ...]}` —— 当天的事项（DDL/考试/计划）。"""
         self._last_courses, self._last_week = courses, week
+        self._last_markers = markers or {}
 
         self.clearSpans()
         for chip in self._chips.values():
@@ -326,6 +335,36 @@ class CourseTable(QTableWidget):
                 if start < 0 or start >= end:
                     continue
                 self._place_course(start, end, day, course, location)
+
+        self._render_markers()
+
+    def _render_markers(self) -> None:
+        """末行列出当天事项。
+
+        为什么要它：周视图只有课程块时，**没课的日子一片空白** —— 用户会以为
+        "这周什么都没有"，而实际上有作业截止、考试、日程计划。这里把它们列出来。
+        """
+        c = get_colors()
+        for label in self._marker_labels.values():
+            label.setParent(None)
+            label.deleteLater()
+        self._marker_labels.clear()
+
+        markers = self._last_markers
+        self.setRowHidden(self._marker_row, not any(markers.values()))
+        for col in range(7):
+            items = markers.get(col + 1, [])
+            if not items:
+                self.removeCellWidget(self._marker_row, col)
+                continue
+            label = QLabel("\n".join(items))
+            label.setWordWrap(True)
+            label.setContentsMargins(8, 6, 8, 6)
+            label.setStyleSheet(
+                f"color: {c['fg_secondary']}; font-size: {SIZE_TINY}px;"
+                f" background: transparent;")
+            self.setCellWidget(self._marker_row, col, label)
+            self._marker_labels[col] = label
 
     def _place_course(self, start: int, end: int, col: int, course: dict,
                       location: str) -> None:

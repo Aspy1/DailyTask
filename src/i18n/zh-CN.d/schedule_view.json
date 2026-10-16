@@ -1,6 +1,7 @@
 {
   "widget.schedule.title": "日程",
-  "widget.schedule.btn_course_table": "课程表",
+  "widget.schedule.mode_day": "日",
+  "widget.schedule.mode_week": "周",
   "widget.schedule.btn_undo": "撤销",
   "widget.schedule.btn_save": "保存",
   "widget.schedule.btn_refresh": "刷新",

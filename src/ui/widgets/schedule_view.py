@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QMessageBox,
     QScrollArea,
+    QStackedWidget,
     QVBoxLayout,
     QWidget,
 )
@@ -20,6 +21,7 @@ from src.i18n.loader import tr
 from src.models.course import PERIOD_TIMES, schedule_date
 from src.services.data_manager import DataManager
 from src.ui.components.click_label import ClickLabel
+from src.ui.panels.course_panel import CoursePanel
 from src.ui.styles.theme import FONT_CN, SIZE_SUBTITLE, get_colors
 from src.ui.widgets.menu import (
     add_action,
@@ -63,15 +65,15 @@ class ScheduleView(QWidget):
         title.setStyleSheet("font-weight: 600; border: none;")
         bl.addWidget(title)
 
-        # Course table button
-        ct_btn = RoundedButton(tr("widget.schedule.btn_course_table"))
-        ct_btn.setStyleSheet(f"""
-            QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
-                border-radius: 8px; padding: 3px 10px; font-size: 13px; }}
-            QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; color: {c['btn_secondary_hover_fg']}; }}
-        """)
-        ct_btn.clicked.connect(self.course_table_requested.emit)
-        bl.addWidget(ct_btn)
+        # 日 / 周 切换（合并 B：课程表并入日程，不再是独立导航项）
+        self._view_mode = "day"
+        self._mode_day = RoundedButton(tr("widget.schedule.mode_day"))
+        self._mode_week = RoundedButton(tr("widget.schedule.mode_week"))
+        for btn, mode in ((self._mode_day, "day"), (self._mode_week, "week")):
+            btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            btn.setFixedWidth(36)
+            btn.clicked.connect(lambda checked=False, m=mode: self._set_mode(m))
+            bl.addWidget(btn)
 
         bl.addStretch()
 
@@ -106,6 +108,7 @@ class ScheduleView(QWidget):
         """)
         refresh_btn.clicked.connect(self._refresh)
         bl.addWidget(refresh_btn)
+        self._refresh_btn = refresh_btn
 
         # Quick arrange button
         self._arrange_btn = RoundedButton(tr("widget.schedule.btn_quick_arrange"))
@@ -117,6 +120,7 @@ class ScheduleView(QWidget):
         self._arrange_btn.clicked.connect(self._quick_arrange)
         bl.addWidget(self._arrange_btn)
 
+        self._nav_buttons = []
         for text, slot in [(tr("widget.schedule.btn_prev_day"), self._prev_day),
                            (tr("widget.schedule.btn_today"), self._go_today),
                            (tr("widget.schedule.btn_next_day"), self._next_day)]:
@@ -128,6 +132,7 @@ class ScheduleView(QWidget):
             """)
             btn.clicked.connect(slot)
             bl.addWidget(btn)
+            self._nav_buttons.append(btn)
 
         self._date_label = QLabel()
         self._date_label.setStyleSheet(f"color: {c['fg_secondary']}; font-size: 13px; min-width: 100px;")
@@ -136,7 +141,10 @@ class ScheduleView(QWidget):
 
         layout.addWidget(bar)
 
-        # Scrollable content
+        # 日 / 周 两页：日 = 时段卡片；周 = 课程表（含"事项行"）
+        self._stack = QStackedWidget()
+        layout.addWidget(self._stack, stretch=1)
+
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         self._content = QWidget()
@@ -145,9 +153,59 @@ class ScheduleView(QWidget):
         self._content_layout.setSpacing(12)
         self._content_layout.addStretch()
         scroll.setWidget(self._content)
-        layout.addWidget(scroll, stretch=1)
+        self._stack.addWidget(scroll)                     # 0：日
 
+        self._course_panel = CoursePanel(dm)              # 周视图复用课程表面板
+        self._stack.addWidget(self._course_panel)         # 1：周
+
+        self._style_mode_buttons()
         self._refresh()
+
+    # ── 日 / 周 切换 ────────────────────────────────────────
+
+    def _set_mode(self, mode: str) -> None:
+        """切到日视图或周视图。
+
+        周视图 = `CoursePanel`（课程块 + 本周的 DDL/考试/计划"事项行"），
+        解决"没课的日子一片空白，看着像这周什么都没有"。
+        """
+        self._view_mode = mode
+        day = mode == "day"
+        self._stack.setCurrentIndex(0 if day else 1)
+        for widget in (*self._nav_buttons, self._arrange_btn, self._date_label,
+                       self._refresh_btn):
+            widget.setVisible(day)
+        self._style_mode_buttons()
+        if day:
+            self._refresh()
+        else:
+            self._course_panel._refresh()
+            self.course_table_requested.emit()
+
+    def _style_mode_buttons(self) -> None:
+        c = get_colors()
+        active = f"""
+            QPushButton {{ background-color: {c['accent']}; color: {c['fg_on_fill']};
+                border: none; border-radius: 8px; padding: 3px 10px;
+                font-size: 13px; font-weight: 600; }}
+            QPushButton:hover {{ background-color: {c['accent_hover']}; }}
+        """
+        idle = f"""
+            QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
+                border-radius: 8px; padding: 3px 10px; font-size: 13px; }}
+            QPushButton:hover {{ background-color: {c['btn_secondary_hover']};
+                color: {c['btn_secondary_hover_fg']}; }}
+        """
+        self._mode_day.setStyleSheet(active if self._view_mode == "day" else idle)
+        self._mode_week.setStyleSheet(active if self._view_mode == "week" else idle)
+
+    @property
+    def course_panel(self) -> CoursePanel:
+        return self._course_panel
+
+    @property
+    def view_mode(self) -> str:
+        return self._view_mode
 
     @property
     def _target_date(self) -> date:
@@ -642,6 +700,13 @@ class ScheduleView(QWidget):
         return ddl_label
 
     def _refresh(self, force: bool = False) -> None:
+        """刷新**当前视图**：日视图重建时段卡片；周视图交给课程表面板。"""
+        if self._view_mode == "week":
+            self._course_panel._refresh()
+            return
+        self._refresh_day(force)
+
+    def _refresh_day(self, force: bool = False) -> None:
         """重建当日时段视图（hash 增量：内容未变的时段跳过）。
 
         `force=True` 用于**主题切换**：卡片颜色是创建时写死进各自样式表的，
@@ -697,6 +762,8 @@ class ScheduleView(QWidget):
     def refresh_theme(self) -> None:
         """Re-render the schedule to pick up new theme colors."""
         try:
+            self._style_mode_buttons()
+            self._course_panel.refresh_theme()
             self._refresh(force=True)
         except Exception:
             logger.debug("ScheduleView.refresh_theme 中忽略异常", exc_info=True)

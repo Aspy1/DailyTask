@@ -166,7 +166,7 @@ class Sidebar(QWidget):
         layout.addWidget(self._title)
 
         func_section = SidebarSection("func", tr("sidebar.section.func"), [
-            ("schedule", tr("sidebar.nav.schedule")), ("courses", tr("sidebar.nav.courses")),
+            ("schedule", tr("sidebar.nav.schedule")),
             ("tasks", tr("sidebar.nav.tasks")), ("exams", tr("sidebar.nav.exams"))])
         life_section = SidebarSection("life", tr("sidebar.section.life"), [
             ("daily", tr("sidebar.nav.daily")), ("expenses", tr("sidebar.nav.expenses")),

@@ -94,7 +94,7 @@ ui ──→ services ──→ models ──→ base(BaseJsonModel)
 | `AIService` | `error_occurred(str)` | `MainWindow._on_ai_error` | AI 错误 |
 | `AIService` | `instructions_executed(str,list)` | `MainWindow._on_instructions_done` | 指令执行结果 |
 | `ScheduleView` | `arrange_requested(str)` | `MainWindow._on_quick_arrange` | 快速安排 prompt |
-| `ScheduleView` | `course_table_requested` / `task_focus_requested(str)` | `MainWorkspace` | 跨面板跳转 |
+| `ScheduleView` | `course_table_requested` / `task_focus_requested(str)` | `MainWorkspace` | 日/周 切换通知 / 跨面板跳转 |
 | `Sidebar` | `nav_changed(str)` / `ai_toggled(bool)` | `MainWindow` | 导航 / AI 面板开关 |
 | `CourseTable` | `fill_ai_prompt(str)` | `MainWindow._on_course_fill_ai` | 右键填充 AI 提示词 |
 | `WeatherService` | `weather_updated(dict)` / `forecast_updated(list)` | `MainWindow` / `WeatherDetailDialog` | 天气刷新 |
@@ -159,7 +159,9 @@ ui ──→ services ──→ models ──→ base(BaseJsonModel)
 
 ## 9. 扩展点
 
-- **新增面板**：`src/ui/panels/xxx_panel.py` → `ui/components/main_workspace.py` 的 `PANELS` 注册 → `ui/components/sidebar.py` 加入条目 → 更新 `README.md`。
+- **新增面板**：`src/ui/panels/xxx_panel.py` → `ui/components/main_workspace.py` 的 `_panel_map`/`panels` 注册 →
+  `ui/components/sidebar.py` 加入条目 → 更新 `README.md`。
+  （注意：**课程表不是独立面板**，它是 `ScheduleView` 内部的"周"页，见 `ScheduleView.course_panel`。）
 - **新增数据模型**：`src/models/xxx.py`（继承 `BaseJsonModel`）→ `DataManager.__init__` 实例化 → 若要 AI 可操作，补 `scripts/actions.py` 命令。
 - **新增 AI 命令**：`scripts/actions.py`（handler + argparse + `run_in_process` 的 handler/`_defaults`）→ `SYSTEM_PROMPT_BASE` → TG skill。**三处必须一致**，由 `tests/test_prompt_consistency.py` 把关。
 - **新增插件**：`plugins/<name>/plugin.py` + `IsOpen.able`（约定见 `Q-N`/`PLAN I-13`）。

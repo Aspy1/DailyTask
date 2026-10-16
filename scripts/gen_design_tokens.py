@@ -22,7 +22,7 @@ DOMAIN_ORDER = [
     "bg_", "fg_", "border", "divider", "accent",
     "nav_", "sidebar_", "chat_", "status_bar_",
     "card_", "input_", "btn_", "badge_", "table_", "section_",
-    "course_color_", "red", "green", "yellow", "orange",
+    "red", "green", "yellow", "orange",
 ]
 
 SIZE_ORDER = [

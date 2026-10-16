@@ -7,6 +7,8 @@
   "panel.course.week_label": "第 {week} / {total} 周",
   "panel.course.course_count": "{n} 门课程",
   "panel.course.unknown_name": "未知课程",
+  "panel.course.view_day": "日",
+  "panel.course.view_week": "周",
 
   "panel.course.dlg_rename_title": "修改课程名称",
   "panel.course.dlg_rename_label": "新名称:",

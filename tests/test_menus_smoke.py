@@ -95,7 +95,7 @@ def test_every_menu_opens_without_error(app_env, opened) -> None:
                                   "name": "跑步"}, sv)
 
     # 课程表
-    table = ws._course_panel.table
+    table = ws.course_panel.table
     cell = next(iter(table._cell_courses))
     table._on_context_menu(table.visualItemRect(table.item(*cell)).center())
 
