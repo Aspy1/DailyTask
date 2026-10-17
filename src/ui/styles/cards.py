@@ -56,10 +56,16 @@ class Card(QFrame):
     """
 
     def __init__(self, variant: str = DEFAULT_VARIANT, pad: str | None = None,
+                 bg: str | None = None, hover_bg: str | None = None,
                  parent=None) -> None:
         super().__init__(parent)
         self._variant = variant if variant in CARD_VARIANTS else DEFAULT_VARIANT
         spec = CARD_VARIANTS[self._variant]
+        # bg / hover_bg 传**令牌名**（如 "bg_surface" / "accent_bg"）覆盖变体默认；
+        # 在 paintEvent 里现取令牌 → 切主题自动跟随
+        self._bg = bg or spec["bg"]
+        self._hover_bg = hover_bg
+        self._hovered = False
         # pad=None → 用变体默认；pad="spacing_none" → 内边距交给内容（有些面板的
         # 每一行自带 16/12 的内边距，卡片再设一次就会**双重内边距**）
         gap = SPACING[pad if pad in SPACING else spec["pad"]]
@@ -72,6 +78,16 @@ class Card(QFrame):
     def variant(self) -> str:
         return self._variant
 
+    def enterEvent(self, event) -> None:
+        if self._hover_bg:
+            self._hovered = True
+            self.update()
+
+    def leaveEvent(self, event) -> None:
+        if self._hover_bg:
+            self._hovered = False
+            self.update()
+
     def paintEvent(self, event) -> None:
         spec = CARD_VARIANTS[self._variant]
         c = get_colors()
@@ -81,9 +97,10 @@ class Card(QFrame):
         path = QPainterPath()
         path.addRoundedRect(rect, radius, radius)
 
+        bg_name = self._hover_bg if (self._hovered and self._hover_bg) else self._bg
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-        painter.fillPath(path, qcolor(c[spec["bg"]]))
+        painter.fillPath(path, qcolor(c[bg_name]))
         if spec.get("border"):
             pen = QPen(qcolor(c["border"]))
             pen.setWidth(1)
@@ -92,9 +109,11 @@ class Card(QFrame):
         painter.end()
 
 
-def card(variant: str = DEFAULT_VARIANT, pad: str | None = None, parent=None) -> Card:
+def card(variant: str = DEFAULT_VARIANT, pad: str | None = None,
+         bg: str | None = None, hover_bg: str | None = None, parent=None) -> Card:
     """造一张卡片（唯一入口）。**不要**传尺寸 —— 长宽交给 layout。
 
-    `pad` 传 spacing 令牌名可覆盖变体默认（`"spacing_none"` = 内边距由内容自己管）。
+    `pad` 传 spacing 令牌名可覆盖变体默认（`"spacing_none"` = 内边距由内容自己管）；
+    `bg` / `hover_bg` 传**令牌名**可覆盖底色（可点击卡用 `hover_bg="accent_bg"`）。
     """
-    return Card(variant, pad, parent)
+    return Card(variant, pad, bg, hover_bg, parent)

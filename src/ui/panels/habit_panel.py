@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
 
 from src.i18n.loader import tr
 from src.services.data_manager import DataManager
+from src.ui.styles.cards import Card
 from src.ui.styles.theme import FONT_CN, SIZE_BODY, SIZE_SUBTITLE, get_colors
 from src.ui.widgets.menu import (
     add_action,
@@ -39,7 +40,7 @@ CARD_HEIGHT = 135
 logger = logging.getLogger(__name__)
 
 
-class _HabitCard(QWidget):
+class _HabitCard(Card):
     """Warm-paper card."""
     toggled = Signal(str)
     edit_requested = Signal(str)
@@ -47,43 +48,35 @@ class _HabitCard(QWidget):
     skip_clicked = Signal(str)
 
     def __init__(self, habit: dict, active: bool, done: bool, parent=None) -> None:
-        super().__init__(parent)
+        c = get_colors()
+        # 底色随完成状态变（传**令牌名**，卡片自绘时现取 → 切主题自动跟随）；
+        # hover 高亮交给 Card 的 hover_bg，不再写 QSS
+        super().__init__("item", pad="spacing_none",
+                         bg="bg_surface" if done else "bg_card",
+                         hover_bg="accent_bg", parent=parent)
         self._hid = habit["id"]
         self._active = active
         self._done = done
 
-        c = get_colors()
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setMinimumWidth(CARD_MIN_WIDTH)
         self.setFixedHeight(CARD_HEIGHT)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        # 识别钩子（不再是 QSS 选择器 —— 样式由 Card 自绘）：测试与验收脚本按它找习惯卡
+        self.setObjectName("habitCard")
 
         # Determine habit type
         sched = habit.get("schedule", {})
         is_daily = sched.get("type") in ("daily", "interval")
         is_weekly = sched.get("type") == "weekly"
 
-        # Card background: dim when done, elevated when active
+        # 文字色：完成态整体弱化
         if done:
-            bg = c["bg_surface"]
             name_fg = c["fg_hint"]
             desc_fg = c["fg_disabled"]
         else:
-            bg = c["bg_card"]
             name_fg = c["fg_primary"]
             desc_fg = c["fg_secondary"]
-
-        self.setObjectName("habitCard")
-        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-        self.setStyleSheet(f"""
-            #habitCard {{
-                background-color: {bg};
-                border-radius: 8px;
-            }}
-            #habitCard:hover {{
-                background-color: {c['accent_bg']};
-            }}
-        """)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(16, 14, 16, 10)
