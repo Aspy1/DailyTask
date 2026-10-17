@@ -51,6 +51,7 @@ def _run(replies: list[str], settings=None) -> tuple[_StubProvider, list]:
 def test_continuation_nudge_cases() -> None:
     assert _continuation_nudge("", False), "空回复要重来"
     assert _continuation_nudge("   \n ", False), "只有空白也算空"
+    assert _continuation_nudge("", False, empty_retries=1) is None, "空回复只重试一次"
     assert _continuation_nudge("```sh\ncmd", True), "截断要分批继续"
     # 正常提问（模型在要信息）**不**续跑，否则会把问题刷 5 遍
     assert _continuation_nudge("请提供课程名称与周次", False) is None
@@ -74,10 +75,13 @@ def test_worker_retries_on_empty_reply(qapp, sandbox) -> None:
 
 
 def test_worker_stops_after_repeated_empty_replies(qapp, sandbox) -> None:
-    """一直空回复也不能死循环：续到轮数上限就结束，并把空内容交给上层提示。"""
+    """一直空回复不能空转：**只重试一次**，然后就结束并把情况交给上层提示。
+
+    实测教训：模型陷在思考里时，5 轮重试 = 用户白等三分半（43+41+43+44+45 秒）。
+    """
     provider, results = _run(["", "", "", "", ""])
 
-    assert len(provider.calls) == 5, "最多 5 轮"
+    assert len(provider.calls) == 2, "空回复只允许重试一次"
     assert results[-1][0] == "text" and results[-1][1].strip() == ""
 
 
@@ -106,3 +110,72 @@ def test_worker_reads_max_tokens_from_settings(qapp, tmp_path) -> None:
     settings.set("AI", "max_tokens", "2048")
     provider2, _ = _run(["你好"], settings=settings)
     assert provider2.calls[0]["max_tokens"] == 2048
+
+
+# ── Provider：推理内容抢救 / 少想多做 ───────────────────────
+
+class _FakeMessage:
+    def __init__(self, content: str, reasoning: str = "") -> None:
+        self.content = content
+        self.reasoning_content = reasoning
+
+
+class _FakeResponse:
+    def __init__(self, content: str, reasoning: str = "") -> None:
+        self.choices = [type("C", (), {
+            "message": _FakeMessage(content, reasoning), "finish_reason": "stop"})()]
+        self.usage = None
+
+
+class _FakeCompletions:
+    def __init__(self, responses: list, fail_first: bool = False) -> None:
+        self._responses = responses
+        self._fail_first = fail_first
+        self.calls: list[dict] = []
+
+    def create(self, **kwargs: object) -> object:
+        self.calls.append(kwargs)
+        if self._fail_first and len(self.calls) == 1:
+            raise RuntimeError("400 unsupported parameter: reasoning_effort")
+        idx = min(len(self.calls) - 1, len(self._responses) - 1)
+        return self._responses[idx]
+
+
+def _provider(responses: list, base: str = "https://opencode.ai/inference/go/openai/v1",
+              fail_first: bool = False) -> tuple:
+    from src.services.ai_service import DeepSeekProvider
+
+    p = DeepSeekProvider("sk-test", base)
+    fake = type("Client", (), {"chat": type("Chat", (), {
+        "completions": _FakeCompletions(responses, fail_first)})()})()
+    p._client = fake
+    return p, fake.chat.completions
+
+
+def test_content_empty_falls_back_to_reasoning() -> None:
+    """content 为空、推理里有命令 → 用推理文本（否则用户看到一片空白）。"""
+    p, _calls = _provider([_FakeResponse("", f"```sh\n{TASK_CMD}\n```")])
+    out = p.chat("sys", [{"role": "user", "content": "x"}], "m", 100, 0.3)
+    assert "add_task" in out
+
+
+def test_reasoning_effort_sent_to_opencode() -> None:
+    from src.services.ai_service import REASONING_EFFORT
+
+    p, calls = _provider([_FakeResponse("好的")])
+    p.chat("sys", [{"role": "user", "content": "x"}], "m", 100, 0.3)
+    assert calls.calls[0]["reasoning_effort"] == REASONING_EFFORT
+
+
+def test_reasoning_effort_dropped_when_rejected() -> None:
+    """端点不认这个参数 → 去掉重试一次（不能因此让 AI 完全不可用）。"""
+    p, calls = _provider([_FakeResponse("好的")], fail_first=True)
+    out = p.chat("sys", [{"role": "user", "content": "x"}], "m", 100, 0.3)
+    assert out == "好的"
+    assert len(calls.calls) == 2 and "reasoning_effort" not in calls.calls[1]
+
+
+def test_reasoning_effort_not_sent_to_other_endpoints() -> None:
+    p, calls = _provider([_FakeResponse("好的")], base="https://api.deepseek.com")
+    p.chat("sys", [{"role": "user", "content": "x"}], "m", 100, 0.3)
+    assert "reasoning_effort" not in calls.calls[0]

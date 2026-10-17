@@ -15,9 +15,16 @@ from src.services import weather_store
 
 
 def _corrupt_like_concurrent_write(path: Path, extra: str = "}") -> None:
-    """构造真实遇到的损坏形态：完整 JSON 后面多出残留内容。"""
-    good = json.dumps({"daily": {"2026-10-16": {"now": 1, "7d": 0, "warning": 0, "total": 1}},
-                       "monthly": {"2026-10": {"now": 1, "7d": 0, "warning": 0, "total": 1}}},
+    """构造真实遇到的损坏形态：完整 JSON 后面多出残留内容。
+
+    ⚠ 日期用**动态当天**：写死日期会在跨午夜（或跨月）时让断言失效 ——
+    2026-10-17 凌晨实测踩到（fixture 里是 10-16、断言算的是 10-17）。
+    """
+    now = datetime.now()
+    day = now.strftime("%Y-%m-%d")
+    month = now.strftime("%Y-%m")
+    good = json.dumps({"daily": {day: {"now": 1, "7d": 0, "warning": 0, "total": 1}},
+                       "monthly": {month: {"now": 1, "7d": 0, "warning": 0, "total": 1}}},
                       indent=2)
     path.write_text(good + extra, encoding="utf-8")
 
@@ -81,8 +88,9 @@ def test_record_request_recovers_from_corrupted_file(tmp_path) -> None:
     weather_store.record_request(path, "now")
     stats = json.loads(path.read_text(encoding="utf-8"))     # 修复后可正常解析
     today = datetime.now().strftime("%Y-%m-%d")
+    month = datetime.now().strftime("%Y-%m")
     assert stats["daily"][today]["now"] == 2                 # 旧数据 1 次 + 新增 1 次
-    assert stats["monthly"]["2026-10"]["total"] == 2         # 旧数据被救回并累加
+    assert stats["monthly"][month]["total"] == 2             # 旧数据被救回并累加
 
 
 def test_concurrent_record_requests_keep_file_valid(tmp_path) -> None:

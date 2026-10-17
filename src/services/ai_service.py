@@ -11,128 +11,11 @@ from typing import Any, Protocol
 from PySide6.QtCore import QObject, QThread, Signal
 
 from src.services import deepseek, openmeteo
+from src.services.ai_prompts import SYSTEM_PROMPT_BASE
 
 logger = logging.getLogger(__name__)
 
 
-# ── System prompt ──────────────────────────────────────────────
-
-SYSTEM_PROMPT_BASE = """你是一个学生时间管理助手。理解用户意图、提取参数、调用脚本。
-
-## 核心规则
-1. 回复只使用纯文本，禁止使用 markdown 格式（包括标题、列表、代码块以外的用法）
-2. 脚本命令放在 ```sh 代码块中，该代码块不会显示给用户
-3. 禁止在自然语言回复中重复脚本命令或执行结果
-4. 不编造数据，不删除数据（除非用户明确要求）
-5. 每次最多一个 ```sh 代码块，每条命令一行
-6. 改数据**只能**通过 `scripts/actions.py`；禁止自己拼 JSON、禁止直接写文件
-7. 命令被脚本拒绝时会返回 `ERROR ...`：把原因**如实**告诉用户并请他补充信息，
-   不要改写参数反复重试同一条命令（脚本拒绝就是没写任何数据）
-8. **一次很多条**的任务（导入整学期课表、批量建作业等）：**分批**处理，
-   每轮最多 8 条命令，执行完这批再继续下一批 —— 一次输出太长会被输出上限截断，
-   截断后整段命令都作废
-
-## 参数标准化
-- 课程名: 提取核心词，脚本自动模糊匹配（"算法课"→匹配算法设计与分析）
-- 日期: 统一 YYYY-MM-DD 或 YYYY-MM-DDThh:mm。用户提到具体时间(中午/下午/几点/几点半)时必须保留为Thh:mm格式。"下周日""6月20日""明天"等→计算为实际日期
-- 时段: 1=08:30-10:05, 2=10:25-12:00, 3=13:30-15:05, 4=15:25-17:00, 5=18:30-20:05, 6=20:10-21:45
-- 金额: 纯数字（不要带 ¥、元、"块"）；分类用 id 或中文名（food=餐饮, transport=交通, study=学习, entertainment=娱乐, shopping=购物, other=其他）
-- 课程名/标题不超过 120 字；备注不超过 500 字
-
-## 可用命令（按领域分组，共 7 类：课程表 / 作业 / 考试 / 习惯 / 日程 / 有什么 / 记账）
-
-### 课程表
-```sh
-python scripts/actions.py add_course --name "课程" --day 1 --weeks "1-16" --slots "3-4" [--location "教学楼" --teacher "老师" --parity odd]
-python scripts/actions.py delete_course --id "c_001"
-```
-day: 1=周一...7=周日。weeks: 起-止（1-16）。slots: 起-止（1-6）。parity: all/odd/even（单双周）。
-
-### 作业
-```sh
-python scripts/actions.py add_task --course "课程" --title "标题" --due "YYYY-MM-DD"  # 或 YYYY-MM-DDThh:mm
-python scripts/actions.py complete_task --id "t_001"
-```
-
-### 考试
-```sh
-python scripts/actions.py add_exam --course "课程" --date "YYYY-MM-DD" [--scope "范围" --location "考场" --notes "备注"]
-```
-
-### 习惯
-```sh
-python scripts/actions.py add_habit --name "习惯" --schedule "daily/1" [--duration 30 --reminder "20:00"]
-python scripts/actions.py log_habit --id "h_001"
-```
-schedule格式: daily/N, weekly/1,3,5, monthly/N。
-
-### 日程（计划）
-```sh
-python scripts/actions.py add_plan --date "YYYY-MM-DD" --title "标题" --slot 3
-python scripts/actions.py replace_plans --date "YYYY-MM-DD" --plans '[{"title":"标题","time_slot":3}]'
-python scripts/actions.py delete_plan --date "YYYY-MM-DD" --index 0
-```
-
-### 有什么（物品/库存）
-添加物品分两步，第一步只查找不添加:
-```sh
-python scripts/actions.py lookup_item --name "A"
-```
-系统会自动把查找结果发回，让你判断重复。然后你再回复确认并添加。
-```sh
-python scripts/actions.py add_item --name "物品名" --category "分类" --quantity N --location "位置" [--tags "标签1,标签2"]
-python scripts/actions.py update_item --id "i_001" --location "新位置"
-python scripts/actions.py update_item --id "i_001" --quantity N --status "需购"
-python scripts/actions.py delete_item --id "i_001"
-python scripts/actions.py need_restock
-```
-分类: 日常消耗品/数码电子/衣物/虚拟品类/其他。数量单位统一用"件"。
-移动物品: "把X从A拿到B" → update_item --id "i_xxx" --location "B"
-
-### 记账 / 存钱
-```sh
-python scripts/actions.py add_expense --amount 12.5 --category food [--note "午饭" --date "YYYY-MM-DD"]
-python scripts/actions.py add_saving --amount 30 [--note "自带午饭"]
-python scripts/actions.py delete_expense --id "e_001"
-python scripts/actions.py expense_summary [--month "2026-10"]
-```
-支出记 add_expense，存钱记 add_saving（两者是分开的两栏，不要混）。
-
-### 概览与备份
-```sh
-python scripts/actions.py status  # 今日概览（课/任务/习惯/支出）
-python scripts/actions.py list_backups --name "expenses.json"
-python scripts/actions.py restore --name "expenses.json" --yes  # 仅用户明确要求恢复时
-```
-
-## 关键词 → 命令（判断优先级）
-1. 课程表/上课/几点的课/在哪上/单双周/第几周/排课 → add_course（删除用 delete_course）
-2. 作业/布置/pre/论文/报告/实验/大作业/提交/DDL/截止 → add_task
-3. 做完了/写完了/交了/完成了 → complete_task
-4. 考试/期中/期末/小测/考查/补考 → add_exam
-5. 习惯/打卡/每天/每周/坚持/连续/签到 → add_habit、log_habit
-6. 计划/安排/日程/几点做/提醒我 → add_plan（整段重排用 replace_plans）
-7. 物品/存货/库存/还有多少/用完了/没货/该买/放在哪/在哪/挪到/拿到 → add_item、update_item、delete_item、lookup_item、need_restock
-8. 花了/买了/支出/记账/消费/多少钱/吃饭花了/打车/话费 → add_expense
-9. 存钱/省钱/攒钱/今天没花钱/自带饭/没消费 → add_saving
-10. 这个月花了多少/分类统计/预算还剩/超支了吗 → expense_summary
-11. 概览/统计/今天有什么/还有多少 → status
-12. 天气/气温/多少度/下雨/晴天 → 直接用下文「天气」段回答，**不要调用脚本**
-13. 余额/剩余/还剩/额度/多少钱（指卡余额）→ 直接用下文「余额」段回答，**不要调用脚本**
-
-## 数据安全
-- 脚本会**严格校验**每个参数：范围错（--day 9、--slots 3-99）、非法日期（2026-02-30）、
-  负数金额、拼错的参数名（--titel）都会被拒绝并返回 ERROR，**此时数据没有被修改**。
-- 收到 ERROR 时：把原因用自然语言告诉用户，请他补充/纠正信息；不要连续重试。
-- `restore` / `list_backups` 是**给用户的手动入口**：除非用户明确说"恢复/回滚"，否则不要调用。
-- `delete_*` 只在用户明确要求删除时使用；不确定就先问。
-
-## 天气与日程规划
-- 规划日程时参考天气预报。若当天有雨（weathercode 51-67, 80-82, 95-99），在相关日程备注中提醒"记得带伞"
-- 若温度超过35°C，提醒"注意防暑"
-- 若温度低于0°C，提醒"注意保暖"
-- 天气信息已在上下文中提供，直接引用即可
-"""
 
 
 
@@ -169,23 +52,30 @@ _SESSION_ID = uuid.uuid4().hex
 # "导入 24 门课"这种长回复（实测 40–58s），超时则给出明确错误。
 AI_REQUEST_TIMEOUT = 120
 
+# 让模型**少想多做**：这类"翻译成命令"的任务不需要长篇推理，而推理会把输出预算
+# 吃光（实测 8192 全给推理 → content 为空）。只在 OpenCode 端点发这个参数。
+REASONING_EFFORT = "none"
+
 
 def _looks_truncated(text: str) -> bool:
     """回复是否疑似被输出上限截断：代码围栏数量是奇数 = 有开场没收尾。"""
     return text.count("```") % 2 == 1
 
 
-def _continuation_nudge(text: str, truncated: bool) -> str | None:
+def _continuation_nudge(text: str, truncated: bool, empty_retries: int = 0) -> str | None:
     """该不该要求模型"继续"？需要时返回提示语，正常回复返回 None。
 
     - **空回复**（0 字符）：多半是推理把输出预算吃光（`finish_reason=length`）
-      → 明确要求它直接输出命令、别长篇思考；
+      → 明确要求它直接输出命令、别长篇思考。**只重试一次**：连续两次都空说明是
+      模型/网关陷在思考里，再刷 5 轮只会让用户白等三分钟（2026-10-16 实测）。
     - **被截断**（围栏没收尾）→ 要求分批继续。
 
     非空的普通文本回复**不**续跑：那可能是它在向用户提问（"请提供课表"），
     硬续跑只会把问题刷成 5 遍。
     """
     if not text.strip():
+        if empty_retries >= 1:
+            return None
         return ("[系统] 你上一轮没有输出任何内容。请**直接**输出 ```sh 命令块"
                 "（每轮最多 8 条），不要长篇思考，也不要只解释。")
     if truncated:
@@ -217,6 +107,7 @@ class DeepSeekProvider:
     def __init__(self, api_key: str, base_url: str = "https://api.deepseek.com",
                  extra_headers: dict | None = None) -> None:
         from openai import OpenAI
+        self._base_url = base_url or ""
         self._client = OpenAI(api_key=api_key, base_url=base_url,
                               default_headers=extra_headers or None,
                               timeout=AI_REQUEST_TIMEOUT)
@@ -224,12 +115,7 @@ class DeepSeekProvider:
     def chat(self, system_prompt: str, messages: list[dict], model: str,
              max_tokens: int, temperature: float) -> str:
         full_messages = [{"role": "system", "content": system_prompt}, *messages]
-        response = self._client.chat.completions.create(
-            model=model or "deepseek-chat",
-            messages=full_messages,
-            max_tokens=max_tokens,
-            temperature=temperature,
-        )
+        response = self._create(full_messages, model, max_tokens, temperature)
         choice = response.choices[0]
         # 关键诊断：`finish_reason=length` + content 为空 = 推理把输出预算吃光了
         # （2026-10-16 用户报"连续返回空内容"，没有这行日志就只能靠猜）
@@ -240,7 +126,40 @@ class DeepSeekProvider:
                     getattr(usage, "completion_tokens", "?"),
                     getattr(details, "reasoning_tokens", "?"),
                     getattr(usage, "prompt_tokens", "?"))
-        return choice.message.content or ""
+        content = choice.message.content or ""
+        if not content.strip():
+            # 推理模型有时把答案**只写在推理里**（content 为空、finish_reason=length）
+            # → 抢救一次：把推理文本当回复交出去，命令仍由 actions.py 严格校验。
+            # 否则用户看到的是一片空白（2026-10-16 实测 5 轮全是 8192 推理 + 0 内容）。
+            reasoning = getattr(choice.message, "reasoning_content", "") or ""
+            if reasoning.strip():
+                logger.warning("content 为空、推理有 %d 字符，改用推理文本", len(reasoning))
+                return reasoning
+        return content
+
+    def _create(self, full_messages: list[dict], model: str,
+                max_tokens: int, temperature: float) -> Any:
+        """发一次请求。
+
+        OpenCode Go 上 `reasoning_effort="none"` 实测有效：推理 token 归零、
+        输出更长（生成命令这种任务不需要长篇思考）。端点若不认这个参数（400），
+        自动去掉重试一次，不影响可用性。
+        """
+        kwargs = {
+            "model": model or "deepseek-chat",
+            "messages": full_messages,
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+        }
+        if "opencode.ai" not in self._base_url:
+            return self._client.chat.completions.create(**kwargs)
+        try:
+            return self._client.chat.completions.create(
+                **kwargs, reasoning_effort=REASONING_EFFORT)
+        except Exception:  # 端点可能不认这个参数，降级重试
+            logger.warning("端点不接受 reasoning_effort=%s，去掉重试", REASONING_EFFORT,
+                           exc_info=True)
+            return self._client.chat.completions.create(**kwargs)
 
 
 # ── Worker ─────────────────────────────────────────────────────
@@ -295,19 +214,10 @@ class AIWorker(QObject):
                             len(InstructionParser.parse(text)))
                 instructions = InstructionParser.parse(text)
                 if not instructions:
-                    nudge = _continuation_nudge(text, truncated) if turn < 4 else None
-                    if nudge:
-                        logger.warning("AI 第 %d 轮没有可执行命令，要求继续", turn + 1)
-                        msgs.append({"role": "assistant", "content": text})
-                        msgs.append({"role": "user", "content": nudge})
+                    if self._handle_no_instructions(text, truncated, msgs, turn,
+                                                    all_instructions):
                         final_text = text
                         continue
-                    # No tool calls — done
-                    if all_instructions:
-                        # Instructions were executed in earlier turns
-                        self.finished_with_instructions.emit(final_text, all_instructions)
-                    else:
-                        self.finished.emit(text)
                     return
                 all_instructions.extend(instructions)
                 # Execute tools silently
@@ -326,6 +236,24 @@ class AIWorker(QObject):
         # 边界捕获：本层已处理/记录，不允许异常向上逃逸（CODE_STANDARDS Q-I1）
         except Exception as e:  # noqa: BLE001
             self.error.emit(str(e))
+
+    def _handle_no_instructions(self, text: str, truncated: bool, msgs: list,
+                                turn: int, all_instructions: list) -> bool:
+        """这一轮没有可执行命令：要么要求模型继续（返回 True），要么收尾（返回 False）。"""
+        empty_retries = sum(1 for m in msgs
+                            if m["role"] == "user" and "[系统]" in str(m["content"]))
+        nudge = _continuation_nudge(text, truncated, empty_retries) if turn < 4 else None
+        if nudge:
+            logger.warning("AI 第 %d 轮没有可执行命令，要求继续", turn + 1)
+            msgs.append({"role": "assistant", "content": text})
+            msgs.append({"role": "user", "content": nudge})
+            return True
+        if all_instructions:
+            # 前几轮执行过命令 → 走"执行完成"路径（带上汇总文本）
+            self.finished_with_instructions.emit(text, all_instructions)
+        else:
+            self.finished.emit(text)
+        return False
 
 
 # ── Instruction parser ─────────────────────────────────────────
@@ -748,7 +676,8 @@ class AIService(QObject):
             # 空回复（常见于推理吃满 token 或输出被截断）必须**说出来**，
             # 否则界面是一片空白，用户只会以为"AI 没反应"（2026-10-16 实测）
             logger.warning("AI 返回空内容")
-            display = "（模型这次没有返回内容，请重试；导入大量课程时请分批发给我）"
+            display = ("（模型这次没有输出内容 —— 通常是它把输出预算全用在思考上了。"
+                       "可以直接重试；若反复出现，请在 设置 → AI 里换一个模型）")
         self.response_received.emit(display or text)
 
     def _on_response_with_instructions(self, text: str, instructions: list) -> None:
