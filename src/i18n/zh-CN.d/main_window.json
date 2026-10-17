@@ -10,6 +10,9 @@
   "window.arrange.done_count": "日程调整完成，{n} 条指令",
   "window.arrange.failed": "安排失败: {err}",
 
+  "window.save_conflict.title": "数据保存冲突",
+  "window.save_conflict.body": "「{name}」在磁盘上已被其它程序改动（skill / CLI / 手工编辑），本次修改没有写进去，以免覆盖对方。你的版本已存为：\n{path}\n请核对后手动合并。",
+
   "window.ai.error": "错误: {err}",
 
   "window.status.weather_placeholder": "天气: --",

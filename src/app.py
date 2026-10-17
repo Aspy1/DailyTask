@@ -1,5 +1,6 @@
 """Application singleton with system tray support and single-instance lock."""
 
+import contextlib
 import ctypes
 import logging
 import sys
@@ -121,11 +122,9 @@ class App(QApplication):
         self.setApplicationName(tr("app.name"))
         self.setQuitOnLastWindowClosed(False)
 
-        # Windows: set AppUserModelID for proper taskbar icon
-        try:
+        # Windows: 设置 AppUserModelID 让任务栏图标正确（失败不影响运行）
+        with contextlib.suppress(Exception):
             ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("LifeAssistant.StudentScheduler")
-        except Exception:
-            logger.debug("App.__init__ 中忽略异常", exc_info=True)
 
         app_icon = _make_icon()
         self._icon_normal = app_icon
@@ -161,6 +160,7 @@ class App(QApplication):
         self._plugin_manager.load_plugins()
 
         self._window = MainWindow(self._settings, self._ai_service, self._data_manager, self._plugin_manager)
+        self._data_manager.save_conflict.connect(self._on_save_conflict)
         self._window.setWindowIcon(app_icon)
 
         self._setup_tray(app_icon)  # tray must be ready before window shows (auto-start behavior)
@@ -267,6 +267,13 @@ class App(QApplication):
     def _on_tray_activated(self, reason) -> None:
         if reason == QSystemTrayIcon.ActivationReason.Trigger:
             self._bring_to_front()
+
+    def _on_save_conflict(self, name: str, path: str) -> None:
+        """保存冲突：磁盘上这份数据被别人改过 → 没覆盖，留了副本（审查 2026-10-17 #1）。"""
+        from PySide6.QtWidgets import QMessageBox
+
+        QMessageBox.warning(self._window, tr("window.save_conflict.title"),
+                            tr("window.save_conflict.body", name=name, path=path))
 
     def _restart(self) -> None:
         self._data_manager.flush_on_exit()

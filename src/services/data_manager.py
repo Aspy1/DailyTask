@@ -82,6 +82,7 @@ class DataManager(QObject):
         self.daily_logs = DailyLogModel(data_dir / "daily_logs.json")
         self.inventory = InventoryModel(data_dir / "inventory.json")
         self.habits._inventory = self.inventory
+        self._attach_conflict_hook()
 
         # Auto-reload: check file mtimes every 3s, reload if changed externally
         self._file_mtimes: dict[str, float] = {}
@@ -99,6 +100,11 @@ class DataManager(QObject):
         self.courses = CourseModel(folder / "courses.json", self.semesters)
         self.tasks = TaskModel(folder / "tasks.json")
         self.exams = ExamModel(folder / "exams.json")
+        # ⚠ 重建的模型要重新装回调（否则新学期那三个模型丢了回调 → 冲突又变静默覆盖）。
+        # 这里**只装这三个**：本方法在 `__init__` 早期就会跑一次，那时共享模型还没建，
+        # 走 `_models()` 会 AttributeError。
+        for model in (self.courses, self.tasks, self.exams):
+            model.on_conflict = self._on_model_conflict
 
     def switch_semester(self, semester_id: str) -> bool:
         """切换当前学期：改指针 → **重定向**按学期的模型 → 通知界面刷新。"""
@@ -161,6 +167,23 @@ class DataManager(QObject):
         if changed:
             self.data_changed.emit("external")
 
+    def _attach_conflict_hook(self) -> None:
+        """给每个模型装上保存冲突回调（模型不是 QObject，所以用回调而不是信号）。
+
+        ⚠ 切学期会**重建** courses/tasks/exams → `_bind_semester_models()` 里也要重装
+        （那里单独处理，因为它跑得比共享模型更早）。
+        """
+        for model, _name in self._models():
+            model.on_conflict = self._on_model_conflict
+
+    def _on_model_conflict(self, model) -> None:
+        """某模型保存时发现磁盘被外部改过 → 留副本 + 通知（不覆盖、不静默）。"""
+        name = next((n for m, n in self._models() if m is model), "unknown")
+        path = _write_conflict_copy(model.data, name,
+                                    self.data_dir / "backup" / "save_conflict")
+        logger.warning("%s 保存被拒：磁盘内容已被外部改动（我方版本存 %s）", name, path)
+        self.save_conflict.emit(name, str(path))
+
     def save_all(self) -> None:
         """**无条件**落盘全部模型（勿漏 exams/inventory —— ERRORS #026）。
 
@@ -181,10 +204,10 @@ class DataManager(QObject):
         - 文件缺失 → 正常落盘（没东西可保护）
         - 磁盘内容 == 内存态 → **不碰文件**（各面板本来就显式保存，这里是兜底）
         - 读不出来（损坏）或内容不同 → **不覆盖**：我方版本落到
-          `data/backup/exit_conflict/`（`data/backup/` 已在 `.gitignore`），
+          `data/backup/save_conflict/`（`data/backup/` 已在 `.gitignore`），
           原文件保持原样（损坏现场也留着），并发 `save_conflict` 告知
         """
-        folder = self.data_dir / "backup" / "exit_conflict"
+        folder = self.data_dir / "backup" / "save_conflict"
         for model, name in self._models():
             if not model.file_path.exists():
                 model.save()

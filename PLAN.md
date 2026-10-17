@@ -540,9 +540,14 @@ OpenCode 端点加 `reasoning_effort="none"`（不认则自动降级）✓；空
      内容不同 → **不覆盖**，我方版本落到 `data/backup/exit_conflict/`（`data/backup/` 已在
      `.gitignore`）+ 日志 + `save_conflict` 信号
    - 撤销改**内存快照 + 只回滚本次涉及的 plan 条目 + 校验期间无他人改动**（不一致则拒绝并告知）
-2. **`_rev` 冲突检测**（对应 #1 的核心）
-   - `_rev`（内容修订，每次写入 +1）与 `_version`（schema 版本，迁移用）**分开两个键**
-   - `atomic_write()` 写前重读磁盘 `_rev`；不一致 → 抛 `RevConflict` 且**不动磁盘文件**
+2. **保存冲突检测**（对应 #1 的核心）
+   - 实现用**磁盘内容指纹**（sha256 + `sort_keys`），**不用 `_rev` 号**：`_rev` 要求每个
+     写入方都配合维护，而 `scripts/actions_core.py`、skill、手工编辑都会漏 → 冲突照样
+     静默通过，而这三条正是真实的并发来源（2026-10-17 实现时改的方案，理由见 dev-log）
+   - `save()` 写前比对指纹：不一致 → **不写** + `on_conflict` 回调（`DataManager` 留副本到
+     `data/backup/save_conflict/` + 发 `save_conflict` 信号）→ `MainWindow` 弹窗；
+     **不抛异常**（`save()` 有二十来个调用点，抛出去会把 UI 打崩）
+   - 指纹与键序无关 → "只是被重新格式化过"不算改动
 3. **CLI 单写者**（对应 #1 的根因）
    - `scripts/actions.py` 写前用现有 `QLocalSocket` 单实例通道探测；应用在跑 → 把命令交给
      应用执行（沿用 AI 那条已验证的路径 + `reload_all()`）；不在跑 → 直写；连不上 → **明确拒绝**
