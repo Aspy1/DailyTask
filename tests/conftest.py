@@ -6,7 +6,9 @@
   保证测试绝不触碰真实 data/。
 """
 
+import gc
 import sys
+import weakref
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -20,6 +22,34 @@ for _p in (ROOT, TESTS):
 
 import scripts.actions as actions  # noqa: E402
 import scripts.actions_core as actions_core  # noqa: E402
+
+# ── 服务实例注册表（只给"清理残留定时器"用，见 _stop_leftover_service_timers）──
+# 在构造时登记：比每个测试都 `gc.get_objects()` 全堆扫描快两个数量级。
+_SERVICE_REFS: list = []
+
+
+def _register_service(cls) -> None:
+    """把某服务类的实例登记进 `_SERVICE_REFS`（测试专用，不改产品代码语义）。"""
+    original = cls.__init__
+
+    def _init(self, *args: object, **kwargs: object) -> None:
+        original(self, *args, **kwargs)
+        _SERVICE_REFS.append(weakref.ref(self))
+
+    cls.__init__ = _init
+
+
+def _install_service_registry() -> None:
+    from src.services.data_manager import DataManager
+    from src.services.reminder_service import ReminderService
+
+    for cls in (DataManager, ReminderService):
+        if not getattr(cls.__init__, "_service_registered", False):
+            _register_service(cls)
+            cls.__init__._service_registered = True  # type: ignore[attr-defined]
+
+
+_install_service_registry()
 
 
 @pytest.fixture
@@ -73,9 +103,39 @@ def _cleanup_qt_leftovers() -> Iterator[None]:
     app = QApplication.instance()
     if app is None:
         return
+    _stop_leftover_service_timers()
     # 只处理被测代码自己 `deleteLater()` 的对象（它们的 Python 引用已清）。
     # ⚠ 不要在这里对控件 `deleteLater()`，也不要 `close()` 顶层控件：
     # - 强制删除 Python 仍持有的包装器 → 之后 Python 侧再删一次 → 双重释放（崩）
     # - `close()` 会触发 `closeEvent`（MainWindow 的 closeEvent 会做保存/同步），
     #   既慢又给测试引入副作用
     app.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    gc.collect()
+
+
+def _stop_leftover_service_timers() -> None:
+    """停掉本测试留下的"服务类"定时器（DataManager / ReminderService）。
+
+    为什么单独做这一步：这些服务**自建 QTimer 并在构造时就 start()**。测试结束后
+    对象进入 GC 队列，但定时器仍挂在事件循环上 —— 它会在**后面某个测试**的
+    `processEvents()` 里触发，而那时宿主对象可能正被回收 → 在事件处理中途销毁
+    C++ 对象 → `Windows fatal exception: access violation`
+    （2026-10-17 CI 反复崩在 `test_animations._settle`，就是这个）。
+
+    ⚠ 只 `stop()`，不 delete / 不 close（删/关都会造成双重释放）。
+    ⚠ 用**注册表**（构造时登记）而不是 `gc.get_objects()` 全堆扫描：
+       全堆扫描每个测试要多花 ~0.15s，整个套件会从 30s 变成 85s。
+    """
+    import contextlib
+
+    live = []
+    for ref in _SERVICE_REFS:
+        obj = ref()
+        if obj is not None:
+            live.append(ref)
+            for attr in ("_reload_timer", "_timer"):
+                timer = getattr(obj, attr, None)
+                if timer is not None:
+                    with contextlib.suppress(RuntimeError):
+                        timer.stop()
+    _SERVICE_REFS[:] = live
