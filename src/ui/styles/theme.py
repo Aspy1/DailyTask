@@ -10,7 +10,7 @@ import re
 from pathlib import Path
 
 from PySide6.QtCore import QEvent, QLocale, QObject, Qt
-from PySide6.QtGui import QFont, QFontDatabase
+from PySide6.QtGui import QColor, QFont, QFontDatabase
 from PySide6.QtWidgets import QApplication
 from shiboken6 import isValid
 
@@ -38,6 +38,11 @@ SIZE_FAB = _TOKENS_DATA["sizes"]["SIZE_FAB"]
 # ── 圆角刻度（radius_sm/md/lg/pill）──────────────
 RADIUS: dict = _TOKENS_DATA["radius"]
 
+# ── 间距刻度（spacing_xs…xxxl，4px 网格）──────────
+# 用途：卡片内边距、页面边距、行内间隙。此前这些数字散落在 86 处
+# `setContentsMargins(...)` 里（6/7/10/14/28 这种脱网格值也混在里面）。
+SPACING: dict = _TOKENS_DATA["spacing"]
+
 # 输入类控件统一高度（一行一个字段；高度不一致会让文字被裁）
 FIELD_H = 34
 
@@ -57,6 +62,31 @@ def get_colors() -> dict:
     if _color_cache is None:
         _color_cache = TOKENS.get(_current_mode, TOKENS["light"])
     return _color_cache
+
+
+def qcolor(css: str, alpha: float | None = None) -> QColor:
+    """token 色值 → QColor（支持 `#rrggbb` 与 `rgba(r,g,b,a)`）。
+
+    自绘控件族（输入/按钮/卡片）都要把令牌值交给 QPainter，`QColor("#rrggbb")`
+    能直接吃，但 `rgba(...)` 不行 —— 所以统一在这里解析（此前
+    `rounded_input` 与 `rounded_button` 各有一份私有实现）。
+    """
+    css = css.strip()
+    if css.startswith("#"):
+        color = QColor(css)
+        if alpha is not None:
+            color.setAlphaF(alpha)
+        return color
+    if css.startswith("rgb"):
+        parts = [p.strip() for p in css[css.index("(") + 1:css.rindex(")")].split(",")]
+        r, g, b = (int(float(p)) for p in parts[:3])
+        a = float(parts[3]) if len(parts) > 3 else 1.0
+        if alpha is not None:
+            a = alpha
+        return QColor(r, g, b, int(a * 255))
+    if css in ("transparent", "none", ""):
+        return QColor(0, 0, 0, 0)
+    return QColor(css)
 
 
 def elide_text(text: str, font: QFont, max_width: int) -> str:

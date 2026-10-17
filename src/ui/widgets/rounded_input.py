@@ -13,28 +13,10 @@
 """
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor, QPainter
+from PySide6.QtGui import QPainter
 from PySide6.QtWidgets import QComboBox, QLineEdit
 
-from src.ui.styles.theme import RADIUS, combo_qss, get_colors, input_qss
-
-
-def _qcolor(css: str, alpha: float | None = None) -> QColor:
-    """token 值 → QColor（`#rrggbb` / `rgba(...)`）。"""
-    css = css.strip()
-    if css.startswith("#"):
-        color = QColor(css)
-        if alpha is not None:
-            color.setAlphaF(alpha)
-        return color
-    if css.startswith("rgb"):
-        parts = [p.strip() for p in css[css.index("(") + 1:css.rindex(")")].split(",")]
-        r, g, b = (int(float(p)) for p in parts[:3])
-        a = float(parts[3]) if len(parts) > 3 else 1.0
-        if alpha is not None:
-            a = alpha
-        return QColor(r, g, b, int(a * 255))
-    return QColor(css)
+from src.ui.styles.theme import RADIUS, combo_qss, get_colors, input_qss, qcolor
 
 
 class _RoundedField:
@@ -43,8 +25,8 @@ class _RoundedField:
     def _paint_rounded(self) -> None:
         c = get_colors()
         focused = self.hasFocus()  # type: ignore[attr-defined]
-        fill = _qcolor(c["input_bg"])
-        border = _qcolor(c["accent"] if focused else c["border"])
+        fill = qcolor(c["input_bg"])
+        border = qcolor(c["accent"] if focused else c["border"])
         radius = RADIUS["radius_md"]
 
         painter = QPainter(self)  # type: ignore[arg-type]

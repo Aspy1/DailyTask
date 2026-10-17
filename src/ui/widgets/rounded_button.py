@@ -17,23 +17,9 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QPainter
 from PySide6.QtWidgets import QPushButton, QStyle, QStyleOptionButton
 
-from src.ui.styles.theme import RADIUS, get_colors
+from src.ui.styles.theme import RADIUS, get_colors, qcolor
 
 _DECL = r"(?:background(?:-color)?|border|border-radius)\s*:\s*[^;{}]+;?"
-
-
-def _qcolor(css: str) -> QColor:
-    css = css.strip()
-    if css.startswith("#"):
-        return QColor(css)
-    if css.startswith("rgb"):
-        parts = [p.strip() for p in css[css.index("(") + 1:css.rindex(")")].split(",")]
-        r, g, b = (int(float(p)) for p in parts[:3])
-        a = float(parts[3]) if len(parts) > 3 else 1.0
-        return QColor(r, g, b, int(a * 255))
-    if css in ("transparent", "none", ""):
-        return QColor(0, 0, 0, 0)
-    return QColor(css)
 
 
 def _extract(qss: str) -> tuple[dict[str, QColor], QColor | None, int]:
@@ -55,12 +41,12 @@ def _extract(qss: str) -> tuple[dict[str, QColor], QColor | None, int]:
         state = _state(block)
         m = re.search(r"background(?:-color)?\s*:\s*([^;]+);", block)
         if m:
-            colors[state] = _qcolor(m.group(1))
+            colors[state] = qcolor(m.group(1))
         m = re.search(r"border\s*:\s*([^;]+);", block)
         if m and state == "normal":
             spec = m.group(1)
             mc = re.search(r"(#[0-9a-fA-F]{3,8}|rgba?\([^)]*\))", spec)
-            border = _qcolor(mc.group(1)) if mc else None
+            border = qcolor(mc.group(1)) if mc else None
             if "none" in spec:
                 border = None
         m = re.search(r"border-radius\s*:\s*(\d+)px", block)

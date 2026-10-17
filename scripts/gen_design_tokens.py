@@ -30,6 +30,12 @@ SIZE_ORDER = [
     "SIZE_BODY_L", "SIZE_ICON", "SIZE_SUBTITLE", "SIZE_TITLE", "SIZE_HEADING", "SIZE_FAB",
 ]
 
+# 间距刻度（4px 网格；命名对齐 radius_sm/md/lg/pill）
+SPACING_ORDER = [
+    "spacing_xs", "spacing_sm", "spacing_md", "spacing_lg",
+    "spacing_xl", "spacing_xxl", "spacing_xxxl",
+]
+
 
 def _domain_rank(name: str) -> int:
     for i, prefix in enumerate(DOMAIN_ORDER):
@@ -62,6 +68,15 @@ def _size_table(data: dict) -> str:
     return "\n".join(lines)
 
 
+def _spacing_table(data: dict) -> str:
+    spacing = data["spacing"]
+    notes = data.get("spacing_notes", {})
+    lines = ["| Token | px | 用途 |", "|---|---|---|"]
+    for name in SPACING_ORDER:
+        lines.append(f"| `{name}` | {spacing[name]} | {notes.get(name, {}).get('use', '')} |")
+    return "\n".join(lines)
+
+
 def _replace_between(text: str, tag: str, body: str) -> str:
     begin = f"<!-- TOKENS:{tag}:BEGIN -->"
     end = f"<!-- TOKENS:{tag}:END -->"
@@ -78,11 +93,13 @@ def main() -> None:
 
     doc = _replace_between(doc, "colors", _color_table(data))
     doc = _replace_between(doc, "sizes", _size_table(data))
+    doc = _replace_between(doc, "spacing", _spacing_table(data))
 
     DOC_FILE.write_text(doc, encoding="utf-8", newline="")
     print(f"updated {DOC_FILE.relative_to(ROOT)}")
     print(f"  colors: {len(data['colors']['light'])} tokens (light) / {len(data['colors']['dark'])} (dark)")
     print(f"  sizes : {len(data['sizes'])} tokens")
+    print(f"  spacing: {len(data['spacing'])} tokens")
 
 
 if __name__ == "__main__":
