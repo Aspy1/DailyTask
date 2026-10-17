@@ -111,18 +111,26 @@ def _print_inventory(items: list[dict]) -> None:
               f" @{it.get('location') or '—'} [{it.get('status')}]{extra}")
 
 
-CONFIRM = "对，就按我说的办；如果库存里没有这件物品，就新建一条。"   # 两步流程第二步
+CONFIRM = "对，继续。"                    # 两步流程第二步（**中性**：不暗示"新建"）
+CONFIRM_CREATE = "对，库存里没有，就新建一条。"   # 只给"确实要新建"的样例用
+
+# 这些样例**确实要新建**物品 → 确认时可以说"没有就新建"；
+# 其余（移动 / 查询 / 边界）用中性确认，否则会把"该反问"的样例诱导成乱写 ✗
+CREATE_LABELS = {
+    "份数+位置", "份数+补货", "同类不同特征+位置", "补货（新物品）",
+    "同类不同位置", "位置·清单外新增",
+}
 
 
-def _ask_turns(svc, dm, settings, text: str) -> tuple[str, object]:
-    """跑一到两轮：第一轮模型可能只 `lookup_item` 并等用户确认（提示词规定的两步流程）。
+def _ask_turns(svc, dm, settings, text: str, confirm: str = CONFIRM) -> tuple[str, object]:
+    """跑最多三轮：模型可能先查、再确认、才写（提示词规定的两步流程）。
 
     返回最后一轮的 `(类型, 载荷)`：`instr`（有命令）/ `text`（只说话）/ `error`。
     """
     model = settings.get("AI", "model", "deepseek-v4.1-flash")
     history: list[dict] = []
     kind, payload = "", ""
-    for turn in (1, 2):
+    for turn in (1, 2, 3):
         worker = AIWorker(svc._make_provider(), model, svc._build_system_prompt(),
                           [*history, {"role": "user", "content": text}], dm, settings)
         seen: list[tuple[str, object]] = []
@@ -137,7 +145,9 @@ def _ask_turns(svc, dm, settings, text: str) -> tuple[str, object]:
         if kind != "text":
             break                              # 有命令（或出错）→ 不用再确认
         if turn == 1:
-            text = CONFIRM                     # 模型在等确认 → 替用户确认一次
+            text = confirm                     # 模型在等确认 → 替用户确认一次
+        elif turn == 2:
+            text = CONFIRM_CREATE              # 它还在问（多半是"要不要新建"）→ 明确一下
     return kind, payload
 
 
@@ -150,7 +160,9 @@ def _run_one(svc, dm, settings, index: int, label: str, text: str,
         dm.inventory.add_item(dict(item))
     dm.inventory.save()
 
-    kind, payload = _ask_turns(svc, dm, settings, text)
+    kind, payload = _ask_turns(
+        svc, dm, settings, text,
+        CONFIRM_CREATE if label in CREATE_LABELS else CONFIRM)
 
     print(f"\n── [{index}/{len(SAMPLES)}] {label} ──────────────────────────")
     print(f"你说：{text}")
