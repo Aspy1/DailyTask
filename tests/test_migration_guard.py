@@ -132,3 +132,21 @@ def test_failed_step_does_not_touch_memory(tmp_path) -> None:
     assert m.version == 1, "内存版本必须回滚"
     assert "added_v2" not in m.data, "半成品字段不许留在内存里"
     assert m.data == before
+
+
+def test_failed_final_save_rolls_back_memory(tmp_path) -> None:
+    """审查第三轮 #3：迁移的**最终写盘**被拒时，内存也要回滚并明确报失败。
+
+    原来 `self.save()` 在回滚边界之外、返回值也不看 → 磁盘还是 v1、内存已 v2，
+    方法却正常返回。
+    """
+    path = tmp_path / "x.json"
+    m = _TwoSteps(path)
+    path.write_text(json.dumps({"_version": 1, "items": [], "外部改过": True}),
+                    encoding="utf-8")           # 磁盘内容变了 → save() 会拒绝
+
+    with pytest.raises(MigrationFailed):
+        m.migrate(2)
+
+    assert m.version == 1, "内存必须回滚到 v1"
+    assert "added_v2" not in m.data, "半成品字段不许留在内存里"

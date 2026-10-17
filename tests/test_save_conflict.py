@@ -185,3 +185,69 @@ def test_conflict_hook_survives_semester_switch(qapp, tmp_path) -> None:
     dm.create_semester("测试学期", date(2026, 9, 21))
     for model, name in dm._models():
         assert model.on_conflict is not None, f"{name} 丢了冲突回调"
+
+
+def test_actions_core_refuses_after_semester_switch(sandbox) -> None:
+    """审查第三轮 #1：读 A 学期 → 切 B → 保存必须被拒。
+
+    原来 `save()` 会**重新解析**当前学期，于是把 A 的快照写进 B；B 若还没有指纹记录
+    更是直接跳过检查。
+    """
+    from scripts import actions_core
+    from src.models import semester_paths
+
+    a_path = actions_core._path("tasks.json")
+    a_path.parent.mkdir(parents=True, exist_ok=True)
+    a_path.write_text(json.dumps({"_version": 1, "tasks": [{"id": "t_001"}]}),
+                      encoding="utf-8")
+    data = actions_core.load("tasks.json")            # 读 A：记下 A 的路径 + 指纹
+
+    registry = semester_paths.registry_path(actions_core.DATA)
+    registry.parent.mkdir(parents=True, exist_ok=True)
+    registry.write_text(json.dumps({
+        "_version": 1, "current_semester": "sem_B",
+        "semesters": [{"id": "sem_B", "name": "B 学期", "start_date": "2026-09-21"}],
+    }, ensure_ascii=False), encoding="utf-8")
+    assert actions_core._path("tasks.json") != a_path, "前提：解析结果确实换了学期"
+
+    with pytest.raises(actions_core.ActionError):
+        actions_core.save("tasks.json", data)
+
+    assert "t_001" in a_path.read_text(encoding="utf-8"), "旧学期的文件不许被动"
+
+
+def test_file_lock_blocks_another_process(sandbox) -> None:
+    """审查第三轮 #2：锁必须**跨进程** —— 应用关掉后两个 CLI 同时写，一个要等另一个。
+
+    进程内的 `RLock` 挡不住独立进程；这里真起一个子进程来验。
+    """
+    import subprocess
+    import sys
+    import time
+
+    from scripts import actions_core
+    from src.models.base import file_lock
+
+    root = Path(__file__).resolve().parent.parent
+    path = actions_core._path("inventory.json")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({"_version": 1, "items": []}), encoding="utf-8")
+
+    code = (
+        f"import sys; sys.path.insert(0, r'{root!s}');"
+        "from pathlib import Path;"
+        "import scripts.actions_core as c;"
+        f"c.DATA = Path(r'{actions_core.DATA!s}');"
+        "d = c.load('inventory.json'); d['items'].append({'id': 'i_child'});"
+        "c.save('inventory.json', d); print('CHILD-DONE')"
+    )
+
+    with file_lock(path):                     # 父进程先占住文件锁
+        child = subprocess.Popen([sys.executable, "-c", code],
+                                 stdout=subprocess.PIPE, text=True,
+                                 encoding="utf-8", errors="replace")
+        time.sleep(0.6)
+        assert child.poll() is None, "子进程没被挡住 —— 锁没跨进程生效"
+
+    out, _err = child.communicate(timeout=20)
+    assert "CHILD-DONE" in out, f"子进程没跑完：{out!r}"

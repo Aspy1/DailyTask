@@ -14,11 +14,16 @@ import json
 import logging
 import os
 import re
-import shutil
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-from src.models.base import WRITE_LOCK, fingerprint
+from scripts.actions_backup import (  # noqa: F401 — 重新导出给 actions.py / 测试用
+    DEFAULT_MAX_BACKUPS,
+    _backup_dir,
+    _backup_file,
+    _max_backups,
+)
+from src.models.base import file_lock, fingerprint
 
 DATA = Path(__file__).parent.parent / "data"
 
@@ -53,16 +58,23 @@ def load(name) -> dict:
             f"再用 `restore --name {p.name} --yes` 恢复。") from e
     if not isinstance(data, dict):
         raise ActionError(f"{p.name} 顶层不是 JSON 对象，拒绝继续操作")
-    # 记下"读到的磁盘内容"：`save()` 写前比对，避免用旧快照覆盖别人刚写的改动
-    # （审查 2026-10-17 #1 —— AI 与 UI 在**同一进程**里并发写）
-    # ⚠ 按**解析后的完整路径**记，不按文件名：切学期后同名文件在别的目录下，
-    #   按名字记会拿旧指纹误判成"被改过"。
-    _LOADED[str(p)] = fingerprint(data)
+    # 记下"**哪个文件** + 那时的内容指纹"：`save()` 必须用同一组 ——
+    # 只记指纹不够：`save()` 会**重新解析**当前学期，切学期后就会把旧学期的快照
+    # 写进新学期（审查 2026-10-17 第三轮 #1）。
+    _LOADED[_load_key(name)] = (str(p), fingerprint(data))
     return data
 
 
-# 载入时的磁盘指纹（按文件名）—— `save()` 用它判断"这份数据在我手上期间被改过没"
-_LOADED: dict[str, str] = {}
+def _load_key(name: str) -> tuple[str, str]:
+    """`(数据目录, 文件名)` —— **带上数据目录**，否则不同目录之间会串状态
+    （测试沙箱一个接一个用不同 tmp 目录，第一条的指纹会污染后面的 ✓→✗）；
+    同一个数据目录内换学期仍能检出（解析出的路径变了）。"""
+    return str(DATA), name
+
+
+# 载入时的 (目标路径, 内容指纹)，按 (数据目录, 文件名) 记 —— `save()` 用它判断
+# "这份数据在我手上期间，目标文件变了没 / 内容被改过没"
+_LOADED: dict[tuple[str, str], tuple[str, str]] = {}
 
 
 def _disk_fingerprint(p: Path) -> str | None:
@@ -74,54 +86,8 @@ def _disk_fingerprint(p: Path) -> str | None:
         return None
 
 
-# ── 备份：写入前自动留存，可用 restore 手动回滚 ──────────────
-# 目录选 `data/backup/`：它在 .gitignore 里（不会被 GitSync 推到 GitHub），
-# 而 data/*.json 本身有 git 历史兜底 —— 两者互补。
-DEFAULT_MAX_BACKUPS = 10
-
-
-def _backup_dir() -> Path:
-    """备份目录（**每次现算**，不要在 import 时固化）。
-
-    固化过一次的代价：`DATA` 被替换（测试的 sandbox fixture）后备份仍写到旧位置 ——
-    测试的备份会落进用户真实 `data/`（2026-10-16 实测发生）。
-    """
-    return DATA / "backup" / "actions"
-
-
-def _max_backups() -> int:
-    """保留份数：读设置里的 `Backup.max_backups`（该键此前存在但无人使用）。
-
-    用 configparser **只读**打开 settings.ini：绝不能为了读一个数字而让
-    SettingsManager 去补默认值/回写这个含密钥的文件。
-    """
-    import configparser
-
-    try:
-        parser = configparser.ConfigParser()
-        parser.read(DATA / "settings.ini", encoding="utf-8")
-        return max(1, min(int(parser.get("Backup", "max_backups", fallback="10")), 100))
-    except (OSError, ValueError, configparser.Error):
-        return DEFAULT_MAX_BACKUPS
-
-
-def _backup_file(p: Path) -> Path | None:
-    """把 `p` 的**当前内容**存一份到备份目录，并按份数上限轮转。"""
-    if not p.exists():
-        return None
-    backup_dir = _backup_dir()
-    backup_dir.mkdir(parents=True, exist_ok=True)
-    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-    dest = backup_dir / f"{p.name}.{stamp}.json"
-    n = 2
-    while dest.exists():                      # 同一秒内多次写入也不互相覆盖
-        dest = backup_dir / f"{p.name}.{stamp}-{n}.json"
-        n += 1
-    shutil.copy2(p, dest)
-    olds = sorted(backup_dir.glob(f"{p.name}.*.json"))
-    for old in olds[:-_max_backups()]:
-        old.unlink(missing_ok=True)
-    return dest
+# ── 备份（写入前自动留存 + 轮转）：实现搬去 actions_backup.py，
+# 顶部已**重新导出**，`actions.py` 与测试的调用点不用改 ──────
 
 
 def _validate_payload(name: str, obj: dict) -> None:
@@ -146,17 +112,27 @@ def save(name, obj) -> None:
 
     此前这里是裸 `json.dump`：写一半断电/并发就是坏文件（ERRORS #041 同类）。
 
-    **整段持 `WRITE_LOCK`**（与 `BaseJsonModel.save()` 同一把锁，审查 2026-10-17 #1），
-    并在写前比对"`load()` 时读到的磁盘内容"：不一致 → 拒绝，不用旧快照静默覆盖。
+    **整段持 `file_lock`**（与 `BaseJsonModel.save()` 同一套：进程内锁 + OS 级文件锁，
+    审查 2026-10-17 #1 / 第三轮 #2），并比对"`load()` 时读到的**路径 + 内容**"：
+    路径变了（切学期）或内容变了 → 拒绝，不用旧快照静默覆盖。
     """
-    p = _path(name)
+    p = _path(name)                 # 现在的解析结果
     _validate_payload(name, obj)
-    with WRITE_LOCK:
-        seen = _LOADED.get(str(p))
-        if seen is not None and _disk_fingerprint(p) != seen:
-            raise ActionError(
-                f"{p.name} 在本次操作期间被其它程序改动，已放弃写入以免覆盖。"
-                f"请重新查询后再改（`list_backups` / `restore` 可回滚）。")
+    with file_lock(p):
+        seen = _LOADED.get(_load_key(name))
+        if seen is not None:
+            recorded, recorded_fp = seen
+            if str(p) != recorded:
+                # 目标文件在"读"与"写"之间换了（切学期 / 改了注册表）→ 拒绝，
+                # 否则会把旧学期的快照写进新学期（审查 2026-10-17 第三轮 #1）
+                raise ActionError(
+                    f"{name} 的目标文件在本次操作期间变了（切了学期？）："
+                    f"读取时是 {Path(recorded).parent.name}/，现在是 {p.parent.name}/。"
+                    f"已放弃写入，请重新查询后再改。")
+            if _disk_fingerprint(p) != recorded_fp:
+                raise ActionError(
+                    f"{p.name} 在本次操作期间被其它程序改动，已放弃写入以免覆盖。"
+                    f"请重新查询后再改（`list_backups` / `restore` 可回滚）。")
         p.parent.mkdir(parents=True, exist_ok=True)
         _backup_file(p)
         tmp = p.with_name(p.name + ".tmp")
@@ -166,7 +142,12 @@ def save(name, obj) -> None:
             os.replace(tmp, p)                               # 原子替换
         finally:
             tmp.unlink(missing_ok=True)
-        _LOADED[str(p)] = fingerprint(obj)
+        _LOADED[_load_key(name)] = (str(p), fingerprint(obj))
+
+def forget_loaded(name: str) -> None:
+    """丢掉 `name` 的载入基准 —— 内容被**整份替换**过（如 `restore`）之后要调它。"""
+    _LOADED.pop(_load_key(name), None)
+
 
 def gen_id(items, prefix) -> str:
     existing = set()

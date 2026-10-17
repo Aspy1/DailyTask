@@ -40,3 +40,5 @@ Thumbs.db
 *.bak
 *.tmp
 *.corrupt-*.json
+# 写入锁文件（跨进程文件锁用；不该进版本库）
+*.lock

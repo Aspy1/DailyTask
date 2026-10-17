@@ -1,3 +1,4 @@
+import contextlib
 import copy
 import hashlib
 import json
@@ -6,10 +7,15 @@ import os
 import shutil
 import threading
 import time
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Iterator
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+
+try:                       # Windows：OS 级文件锁（进程崩了由系统释放，不会留死锁）
+    import msvcrt as _msvcrt
+except ImportError:        # 其它平台：退回进程内锁（本项目只在 Windows 上跑）
+    _msvcrt = None
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +28,40 @@ logger = logging.getLogger(__name__)
 # ⚠ `scripts/actions_core.py`（AI 那条写数据路径）在**同一进程**里也必须用它，
 # 否则 AI 工作线程与 UI 线程照样交错。
 WRITE_LOCK = threading.RLock()
+
+
+@contextlib.contextmanager
+def file_lock(path: Path) -> Iterator[None]:
+    """**跨进程**的文件锁：同一个文件的写入者互斥。
+
+    进程内的 `WRITE_LOCK` 只挡得住同进程的线程 —— 应用关掉之后，两个 CLI 各写各的，
+    仍会同时通过指纹检查、后写者覆盖前写者（审查 2026-10-17 第三轮 #2）。
+    这里加一层 OS 级文件锁：Windows 用 `msvcrt.locking`（进程退出即释放，不留死锁），
+    其它平台退回进程内锁。
+
+    ⚠ 覆盖范围：**指纹检查 + 写入**整段 —— 调用方把这两件事都放在 `with` 里。
+    """
+    with WRITE_LOCK:
+        handle = None
+        try:
+            # 锁文件所在目录可能还不存在（新学期刚切过去）→ 先建目录
+            path.parent.mkdir(parents=True, exist_ok=True)
+            # 这个 handle 必须活过 with 体（由 finally 收尾）→ 不能用 with 管
+            handle = open(path.with_name(path.name + ".lock"), "a+b")  # noqa: SIM115
+            if _msvcrt is not None:
+                handle.seek(0)
+                _msvcrt.locking(handle.fileno(), _msvcrt.LK_LOCK, 1)
+            yield
+        finally:
+            if handle is not None:
+                if _msvcrt is not None:
+                    try:
+                        handle.seek(0)
+                        _msvcrt.locking(handle.fileno(), _msvcrt.LK_UNLCK, 1)
+                    except OSError:      # 进程即将退出时解锁失败属正常
+                        handle = None
+                        logger.debug("文件锁释放失败", exc_info=True)
+                handle.close()
 
 
 class DataCorrupted(RuntimeError):
@@ -163,7 +203,7 @@ class BaseJsonModel:
         ⚠ 冲突时**不抛异常**：`save()` 有二十来个调用点（各面板改完就存），抛出去会把
         UI 打崩。留副本 + 通知由 `on_conflict`（`DataManager` 装上）负责。
         """
-        with WRITE_LOCK:
+        with file_lock(self.file_path):
             if self._write_blocked:
                 # 载入时损坏且留档失败 → 一律不写（审查 2026-10-17 #3）
                 self._report_conflict()
@@ -277,7 +317,17 @@ class BaseJsonModel:
         except Exception:
             self._data = original          # 回滚内存，与磁盘保持一致
             raise
-        self.save()
+        # 最终写盘也在事务边界内：被拒（磁盘被外部改过）或抛错 → 内存一并回滚，
+        # 并明确报"迁移没完成"（审查 2026-10-17 第三轮 #3）
+        try:
+            saved = self.save()
+        except Exception as e:
+            self._data = original
+            raise MigrationFailed(f"迁移结果写盘失败：{e}") from e
+        if not saved:
+            self._data = original
+            raise MigrationFailed(
+                "迁移结果没能写盘（磁盘内容已被外部改动）—— 内存与磁盘都保持原样")
 
     def _migration_steps(self, current: int, target: int) -> list[tuple]:
         """把迁移拆成逐步，并**先整条检查一遍**：缺哪一步就在这里抛。"""

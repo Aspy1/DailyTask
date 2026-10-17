@@ -513,15 +513,22 @@ def cmd_restore(args) -> None:
         return
     _validate_payload(name, data)
 
+    from scripts.actions_core import forget_loaded
+    from src.models.base import file_lock
+
     dest = _path(name)
-    _backup_file(dest)
     dest.parent.mkdir(parents=True, exist_ok=True)
-    tmp = dest.with_name(dest.name + ".tmp")
-    try:
-        tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-        os.replace(tmp, dest)
-    finally:
-        tmp.unlink(missing_ok=True)
+    # 恢复也是写入口 → 同一把文件锁（审查 2026-10-17 第三轮 #2）
+    with file_lock(dest):
+        _backup_file(dest)
+        tmp = dest.with_name(dest.name + ".tmp")
+        try:
+            tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2),
+                           encoding="utf-8")
+            os.replace(tmp, dest)
+        finally:
+            tmp.unlink(missing_ok=True)
+    forget_loaded(name)                 # 内容整份换了 → 丢掉旧基准
     print(f"OK restore {name} ← {src.name}")
 
 
