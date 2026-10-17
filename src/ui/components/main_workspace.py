@@ -29,6 +29,37 @@ from src.ui.widgets.schedule_view import ScheduleView
 logger = logging.getLogger(__name__)
 
 
+# 数据事件 → 需要刷新的面板键（**唯一映射**，2026-10-17 审查 #6）。
+#
+# 起因：原来只把 external / internal / ai_action 当"全刷"，其余用**子串**匹配
+# （`key in action`）→ `task_status` / `update_course` 靠巧合匹配上，而 `"semester"`
+# 匹配不上任何面板 → **切学期后作业/考试面板不刷新**；`"saving"` 也匹配不上记账面板。
+# 现在显式登记，`tests/test_data_events.py` 扫全仓 emit 守住它。
+# 未登记的事件 → `_on_data_changed` 保守全刷（不会漏，但浪费一次重绘）。
+ALL_PANELS = frozenset({"task", "expense", "habit", "exam", "inventory"})
+EVENT_PANELS: dict[str, frozenset[str]] = {
+    # 域名本身（面板直接用自己的域发事件）
+    "task": frozenset({"task"}),
+    "exam": frozenset({"exam"}),
+    "habit": frozenset({"habit"}),
+    "expense": frozenset({"expense"}),
+    "inventory": frozenset({"inventory"}),
+    # 历史事件名（同一个域的不同写法，别让它们掉进"保守全刷"）
+    "task_status": frozenset({"task"}),
+    "saving": frozenset({"expense"}),      # 存钱也显示在记账面板（原来漏刷）
+    "course": frozenset(),
+    "update_course": frozenset(),
+    "delete_course": frozenset(),
+    "plan": frozenset(),
+    # 切学期：课程表 / 作业 / 考试都换了一份数据（审查 #6 报的漏刷）
+    "semester": frozenset({"task", "exam"}),
+    # 来源不明（AI 批量改动 / 外部写入 / 内部批量）→ 全刷
+    "ai_action": ALL_PANELS,
+    "external": ALL_PANELS,
+    "internal": ALL_PANELS,
+}
+
+
 class MainWorkspace(QWidget):
     """Content area that switches between panels based on sidebar selection."""
 
@@ -147,11 +178,11 @@ class MainWorkspace(QWidget):
         self._task_panel.show_ddl_highlight()
 
     def _on_data_changed(self, action: str) -> None:
-        is_ai = "ai_action" in action
-        # 外部写入（TG bot）与内部批量改动**不知道改的是哪个域**，一律全刷；
-        # 其余按域名字符串匹配，只刷受影响的面板（ERRORS #025）。
-        refresh_all = is_ai or action in ("external", "internal")
-        self._schedule_view._refresh()      # 日程（含周视图的课程块与事项行）
+        # 日程视图**总是**刷（课程块 / 事项行 / 计划都在它里面）
+        self._schedule_view._refresh()
+        # 显式映射（见 EVENT_PANELS）：没登记的事件保守**全刷** —— 不会漏，但浪费一次重绘，
+        # 且 `tests/test_data_events.py` 会红着提醒去登记（审查 2026-10-17 #6）
+        keys = EVENT_PANELS.get(action, ALL_PANELS)
         for panel, key in (
             (self._task_panel, "task"),
             (self._expense_panel, "expense"),
@@ -159,7 +190,7 @@ class MainWorkspace(QWidget):
             (self._exam_panel, "exam"),
             (self._inventory_panel, "inventory"),
         ):
-            if refresh_all or key in action:
+            if key in keys:
                 panel._refresh()
 
     def refresh_theme(self) -> None:

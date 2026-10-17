@@ -61,6 +61,8 @@ class DataManager(QObject):
     # 落盘时发现"这个文件被别人改过" → (模型名, 冲突副本路径)。
     # 退出路径（`flush_on_exit`）与阶段 2 的 `_rev` 冲突都用它 —— 不静默选一边。
     save_conflict = Signal(str, str)
+    # 按学期模型当前绑定的学期 id（`_auto_reload` 用它发现"外部切了学期"，审查 #6）
+    _bound_semester: str = ""
 
     def __init__(self, data_dir: Path, parent=None) -> None:
         super().__init__(parent)
@@ -106,6 +108,7 @@ class DataManager(QObject):
         # 走 `_models()` 会 AttributeError。
         for model in (self.courses, self.tasks, self.exams):
             model.on_conflict = self._on_model_conflict
+        self._bound_semester = self.semesters.current_semester
 
     def switch_semester(self, semester_id: str) -> bool:
         """切换当前学期：改指针 → **重定向**按学期的模型 → 通知界面刷新。"""
@@ -165,6 +168,12 @@ class DataManager(QObject):
                     changed = True
             except OSError:
                 logger.debug("DataManager._auto_reload 中忽略异常", exc_info=True)
+        if self.semesters.current_semester != self._bound_semester:
+            # 外部（skill / CLI）改了注册表 → 必须走**同一条切换流程**：重定向按学期的
+            # 三个模型，否则界面还在读旧学期的文件（审查 2026-10-17 #6）
+            self._bind_semester_models()
+            self.data_changed.emit("semester")
+            return
         if changed:
             self.data_changed.emit("external")
 
