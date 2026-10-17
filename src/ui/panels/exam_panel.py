@@ -93,7 +93,8 @@ class _ExamCard(Card):
         if days_left <= 7:
             return "red_tint_weak", "red"
         if days_left <= 15:
-            return "orange_tint", "orange"
+            # 用 `_weak` 档：0.03 < red_tint_weak 之上不能更浓，否则紧迫度梯度倒挂
+            return "orange_tint_weak", "orange"
         return "card_bg", "accent"
 
     @staticmethod

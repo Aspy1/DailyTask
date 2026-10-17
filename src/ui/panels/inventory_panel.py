@@ -19,7 +19,10 @@ from PySide6.QtWidgets import (
 
 from src.i18n.loader import tr
 from src.services.data_manager import DataManager
-from src.ui.styles.theme import FONT_CN, RADIUS, SIZE_SUBTITLE, get_colors
+
+# 面板里"每张卡"的局部变量就叫 `card` → 工厂用**别名**导入，避免同名遮蔽（ERRORS #047）
+from src.ui.styles.cards import card as make_card
+from src.ui.styles.theme import FONT_CN, RADIUS, SIZE_SUBTITLE, SPACING, get_colors
 from src.ui.widgets.menu import (
     add_action,
     add_separator,
@@ -292,10 +295,9 @@ class InventoryPanel(QWidget):
         for cat_name in cats:
             count = counts.get(cat_name, 0)
 
-            card = QWidget()
+            card = make_card("item", pad="spacing_none")
             card.setMinimumHeight(56)
             card.setCursor(Qt.CursorShape.PointingHandCursor)
-            card.setStyleSheet(f"background-color: {c['bg_elevated']}; border-radius: 8px;")
             # Only left-click enters category; right-click is blocked
             def _on_click(e, cn=cat_name) -> None:
                 if e.button() == Qt.MouseButton.LeftButton:
@@ -368,10 +370,9 @@ class InventoryPanel(QWidget):
 
     def _render_group_card(self, c: dict, d: dict) -> None:
         """Render a clickable group card at Level 1."""
-        card = QWidget()
+        card = make_card("item", pad="spacing_none", bg="accent_bg")
         card.setMinimumHeight(56)
         card.setCursor(Qt.CursorShape.PointingHandCursor)
-        card.setStyleSheet(f"background-color: {c['accent_bg']}; border-radius: 8px;")
         # Only left-click enters group; right-click is blocked
         def _on_click(e, gn=d["name"]) -> None:
             if e.button() == Qt.MouseButton.LeftButton:
@@ -403,19 +404,12 @@ class InventoryPanel(QWidget):
 
     def _render_item_card(self, c: dict, it: dict) -> None:
         """Render an individual item card with status badge and context menu."""
-        card = QWidget()
+        status = it.get("status", "充足")
+        # 底色按状态取**令牌名**（此前是 `c["red"] + "10"` 这类派生色，绕过了令牌体系）
+        bg_key = {"需购": "red_tint", "不足": "orange_tint"}.get(status, "bg_elevated")
+        card = make_card("item", pad="spacing_none", bg=bg_key)
         card.setMinimumHeight(64)
         card.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-
-        status = it.get("status", "充足")
-        if status == "需购":
-            bg = c["red"] + "10"
-        elif status == "不足":
-            bg = c["orange"] + "10"
-        else:
-            bg = c["bg_elevated"]
-
-        card.setStyleSheet(f"background-color: {bg}; border-radius: 8px;")
 
         cl = QVBoxLayout(card)
         cl.setContentsMargins(16, 10, 16, 10)
@@ -491,10 +485,9 @@ class InventoryPanel(QWidget):
         expanded = iid in self._expanded_items
 
         # Type card (always clickable)
-        card = QWidget()
+        card = make_card("item", pad="spacing_none")
         card.setMinimumHeight(52)
         card.setCursor(Qt.CursorShape.PointingHandCursor)
-        card.setStyleSheet(f"background-color: {c['bg_elevated']}; border-radius: 8px;")
         card.mousePressEvent = lambda e, id=iid: self._toggle_expand(id)
 
         cl = QHBoxLayout(card)
@@ -531,9 +524,8 @@ class InventoryPanel(QWidget):
 
     def _render_instance_card(self, c: dict, parent_id: str, idx: int, inst: dict, parent: dict) -> None:
         """Render an individual instance card with tags and context menu."""
-        card = QWidget()
+        card = make_card("sub", pad="spacing_none")
         card.setMinimumHeight(48)
-        card.setStyleSheet(f"background-color: {c['bg_elevated']}; border-left: 3px solid {c['accent']}; border-radius: 0 8px 8px 0; margin-left: 24px;")
 
         cl = QHBoxLayout(card)
         cl.setContentsMargins(12, 8, 12, 8)
@@ -573,7 +565,15 @@ class InventoryPanel(QWidget):
                      "inst_data": inst}
         card.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         card.customContextMenuRequested.connect(lambda _, i=inst_item: self._context_menu(i))
-        self._card_layout.insertWidget(self._card_layout.count() - 1, card)
+        # 层级缩进：QSS 的 `margin-left` 只改内容区，缩不了卡片本身 → 外面套一层带左边距的行。
+        # ⚠ 用**容器控件**而不是嵌套 layout：`_refresh()` 靠 `item.widget()` 清卡，
+        # 嵌套 layout 的 `item.widget()` 是 None → 旧卡不会被删、会留在屏幕上。
+        row = QWidget()
+        rl = QHBoxLayout(row)
+        rl.setContentsMargins(SPACING["spacing_xxl"], 0, 0, 0)
+        rl.setSpacing(0)
+        rl.addWidget(card)
+        self._card_layout.insertWidget(self._card_layout.count() - 1, row)
 
     def _format_quantity(self, it: dict) -> str:
         cat = it.get("category", "")

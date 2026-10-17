@@ -25,7 +25,7 @@ lay.addWidget(...)
 「图标按钮 / 对齐用输入框宽」这类确有必要的场景使用，且必须走令牌。
 """
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QRectF, Qt
 from PySide6.QtGui import QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import QFrame
 
@@ -37,6 +37,10 @@ CARD_VARIANTS: dict[str, dict] = {
                "border": False},
     "item":   {"radius": "radius_md", "bg": "bg_elevated", "pad": "spacing_md",
                "border": False},
+    # 子项：左侧色条 + 只右两角圆（等价 QSS 的 `border-left` + `border-radius: 0 r r 0`）。
+    # 层级缩进是**布局**的事 → 由调用方在外面套一层带左边距的 layout，卡片不管缩进。
+    "sub":    {"radius": "radius_md", "bg": "bg_elevated", "pad": "spacing_none",
+               "border": False, "bar": "accent"},
     "chip":   {"radius": "radius_sm", "bg": "bg_input", "pad": "spacing_xs",
                "border": False},
     "bubble": {"radius": "radius_lg", "bg": "bg_elevated", "pad": "spacing_sm",
@@ -46,6 +50,9 @@ CARD_VARIANTS: dict[str, dict] = {
 }
 
 DEFAULT_VARIANT = "panel"
+
+# 左侧色条宽度（`sub` 变体）：走 spacing 刻度，不写像素（R-005）
+BAR_W = SPACING["spacing_xs"]
 
 
 class Card(QFrame):
@@ -94,13 +101,24 @@ class Card(QFrame):
         rect = self.rect().adjusted(0, 0, -1, -1)
         # pill 的 999 必须钳到一半，否则 QPainterPath 画不出
         radius = min(RADIUS[spec["radius"]], rect.height() / 2, rect.width() / 2)
+        bar = spec.get("bar")
         path = QPainterPath()
         path.addRoundedRect(rect, radius, radius)
+        if bar:
+            # `sub` 形状：左两角改方 —— 用同色矩形盖住左半圆的包围条。
+            # ⚠ QPainterPath 默认**奇偶填充**，两块重叠区会互相挖空 → 必须切到
+            # 非零环绕（WindingFill）才是"并集"。
+            path.setFillRule(Qt.FillRule.WindingFill)
+            path.addRect(QRectF(rect.left(), rect.top(), radius, rect.height()))
 
         bg_name = self._hover_bg if (self._hovered and self._hover_bg) else self._bg
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         painter.fillPath(path, qcolor(c[bg_name]))
+        if bar:
+            # 色条铺满**整高**（含 `rect` 为描边让出的最后一行）
+            painter.fillRect(QRectF(rect.left(), rect.top(), BAR_W, self.height()),
+                             qcolor(c[bar]))
         if spec.get("border"):
             pen = QPen(qcolor(c["border"]))
             pen.setWidth(1)
