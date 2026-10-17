@@ -62,6 +62,7 @@
 | 小节/大节混淆 → 导入课表时段整体偏移 | #045 | AI |
 | `update_*` 注入默认值 → 改掉没传的字段 | #046 | 数据 |
 | 局部变量与导入的工厂同名 → 遮蔽 → 22 个测试崩 | #047 | 代码 |
+| 搬函数后测试 patch 的模块级名字没跟着搬 → 模态框挂死 900s | #048 | 测试 |
 
 ---
 
@@ -862,4 +863,25 @@ Python 看到函数体里有 `card = …` 就把 `card` 判为**局部名**，�
 - 这类遮蔽**静态检查就能抓**（ruff `F823`）→ 改完先跑 `ruff`，别等到跑测试；
 - 反过来看也成立：如果让 22 个测试挂了才发现，说明**验证顺序**应该固定为
   `compileall → ruff → pytest`（本仓库 §3 步骤 6 就是这个顺序）。
+
+---
+
+### #048 | 2026-10-17 | 搬函数时，被 patch 的**模块级名字**没跟着搬 → 模态框挂死
+
+**症状**：把"快速安排"的撤销逻辑从 `schedule_view.py` 搬到 `schedule_actions.py` 之后，
+`pytest` 在 `test_undo_refuses_when_plans_changed_since_arrange` 上**挂死**（900s 超时），
+**没有任何报错**。
+
+**根因**：`_undo_arrange` 以前在 `schedule_view` 里调 `QMessageBox.warning(...)`，测试用
+`monkeypatch.setattr(sv_module, "QMessageBox", _StubBox)` 把它换掉。逻辑搬走后，调用点
+变成了 `schedule_actions` 里的 `QMessageBox` —— 而 patch 还打在旧模块上 → **真的弹出了
+模态框**，离屏测试里没人点它，于是永久阻塞。
+
+**修复**：patch 目标改成 `schedule_actions`，并在测试里注释说明为什么是这个模块。
+
+**教训**：
+- 移动函数时，凡是"被测试替换的**模块级名字**"（Qt 类、常量、logger）都要一起搬 patch 目标；
+- **模态框 + 离屏测试 = 挂死**（不是失败）→ 测试里凡是会弹 Qt 对话框的路径必须显式 patch；
+- 更稳的写法：让被测逻辑**返回状态码**，把弹窗留给薄薄一层 UI 包装
+  （本次就是这么改的 —— `undo_arrange()` 返回 `bool`，视图只管按钮与提示）。
 

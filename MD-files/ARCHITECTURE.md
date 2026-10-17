@@ -137,6 +137,9 @@ ui ──→ services ──→ models ──→ base(BaseJsonModel)
 2. **原子写入**：所有持久化走 `BaseJsonModel.atomic_write()`——写 `.tmp` → 备份 `.bak` → `os.replace`（PermissionError 重试 5×50ms）。
    AI 那条路径（`scripts/actions_core.save()`）同样原子：结构守卫 → 写前备份到
    `data/backup/actions/` → `.tmp` → 回读自检 → `os.replace`（`ERRORS #042`）。
+   **退出 / 重启**走 `DataManager.flush_on_exit()`：磁盘内容与内存不一致（被外部改过）时
+   **不覆盖**，我方版本留到 `data/backup/exit_conflict/`（`PLAN.md` P17，2026-10-17）。
+   `save_all()` 是**无条件**写，只给"明确没有外部写入"的场合（测试 / 验收脚本）。
 3. **显式保存**：Model 改内存态后**不会自动落盘**，必须显式 `save()`。
 4. **日期语义**：`course.schedule_date()` —— **0:00–1:00 视为前一天**；跨模块统一用它，不要直接用 `date.today()`。
 5. **时区**：全部本地时间，无 tz 处理；`due_date` 形如 `YYYY-MM-DDThh:mm:ss`，日期型为 `YYYY-MM-DD`。
