@@ -367,7 +367,7 @@ class MainWindow(QMainWindow):
         self._arrange_pending = True
         try:
             self._ai_service.send_message(prompt)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             self._arrange_pending = False
             self._course_info_label.setText(tr("window.arrange.failed", err=e))
             sv.on_arrange_done(False, str(e))

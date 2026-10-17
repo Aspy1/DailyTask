@@ -7,9 +7,28 @@ on:
   workflow_dispatch:
 
 jobs:
+  # 锁文件复现：只照 requirements.lock.txt 装一遍，验证"照着锁能装出可用环境"。
+  # 2026-10-17 审查：CI 原来只装区间依赖（requirements-dev.txt），复现不了任何一次运行。
+  lock-repro:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: 按锁文件安装
+        run: python -m pip install -r requirements.lock.txt
+      - name: 依赖一致性
+        run: python -m pip check
+
   check:
     # 与目标平台一致（PySide6 的 Qt 库在 Windows runner 上开箱可用）
     runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      # 3.12 = pyproject 的下限；3.14 = 实际运行版本（本机 venv）
+      matrix:
+        python-version: ['3.12', '3.14']
     env:
       # Windows runner 控制台默认 cp1252，中文输出会 UnicodeEncodeError
       PYTHONUTF8: "1"
@@ -18,7 +37,7 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: ${{ matrix.python-version }}
 
       - name: 安装依赖
         run: python -m pip install -r requirements-dev.txt

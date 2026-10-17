@@ -400,7 +400,7 @@ class ScheduleView(QWidget):
             self._arrange_btn.setText("...")
             self._arrange_btn.setEnabled(False)
             self.arrange_requested.emit(prompt)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             QMessageBox.warning(self, tr("widget.schedule.msg_error_title"),
                                 tr("widget.schedule.msg_quick_arrange_failed", e=e))
             self._arrange_btn.setText(tr("widget.schedule.btn_quick_arrange"))

@@ -237,5 +237,5 @@ data/
 | 线程安全（跨线程改 Model、类属性缓存、terminate） | `CODE_STANDARDS §B`、`PLAN P3-①` |
 | 三套天气实现 | `CODE_STANDARDS Q-A3` |
 | ID 生成两套并存（`len()+1` / max+1） | `CODE_STANDARDS Q-A1`/`Q-E2`、`PLAN` |
-| 74 处盲捕获/静默吞异常 | `CODE_STANDARDS §I`、`PLAN P3-②` |
-| 覆盖率 1% | `CODE_STANDARDS Q-F1`、`dev-logs/2026-10-15-现状基线.md` |
+| 盲捕获/静默吞异常 | `CODE_STANDARDS §I`（UI 层已改成**逐处** `# noqa: BLE001` + 理由，不再整目录豁免）|
+| 测试覆盖率 / 门禁状态 | **不记数**：以 CI 与 `scripts/check_quality.py` 的实时输出为准（写进文档必漂）|

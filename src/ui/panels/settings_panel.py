@@ -427,7 +427,7 @@ class SettingsPanel(QWidget):
                 s.login(user, pwd)
                 s.send_message(msg)
             QMessageBox.information(self, tr("panel.settings.dialog_title_success"), tr("panel.settings.msg_test_email_sent", user=user))
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             QMessageBox.warning(self, tr("panel.settings.dialog_title_failed"), tr("panel.settings.msg_send_failed", error=e))
 
     def _save_email_settings(self) -> None:
