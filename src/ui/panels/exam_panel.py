@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
 
 from src.i18n.loader import tr
 from src.services.data_manager import DataManager
+from src.ui.styles.cards import Card
 from src.ui.styles.theme import FONT_CN, RADIUS, SIZE_SUBTITLE, get_colors
 from src.ui.widgets.menu import (
     add_action,
@@ -32,27 +33,23 @@ from src.ui.widgets.rounded_button import RoundedButton
 logger = logging.getLogger(__name__)
 
 
-class _ExamCard(QWidget):
+class _ExamCard(Card):
     """Card widget for one exam."""
 
     def __init__(self, exam: dict, days_left: int, parent=None) -> None:
-        super().__init__(parent)
-        self._exam = exam
         c = get_colors()
+        # 底色按紧迫度取**令牌名**（不再拼派生色），hover 高亮交给 Card
+        bg_key, accent_key = self._make_urgency_keys(days_left)
+        accent_color = c[accent_key]
+        super().__init__("item", pad="spacing_none", bg=bg_key,
+                         hover_bg="accent_bg", parent=parent)
+        self._exam = exam
 
         self.setMinimumHeight(80)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
-
-        # Card styling based on urgency
-        bg, accent_color = self._make_urgency_colors(days_left, c)
-
+        # 识别钩子（不再是 QSS 选择器）：测试/调试按它找考试卡
         self.setObjectName("examCard")
-        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-        self.setStyleSheet(f"""
-            #examCard {{ background-color: {bg}; border-radius: 8px; }}
-            #examCard:hover {{ background-color: {c['accent_bg']}; }}
-        """)
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(16, 12, 16, 12)
@@ -81,18 +78,23 @@ class _ExamCard(QWidget):
         layout.addStretch()
 
     @staticmethod
-    def _make_urgency_colors(days_left: int, c: dict) -> tuple[str, str]:
-        """按紧迫度返回卡片 (背景色, 强调色)。"""
+    def _make_urgency_keys(days_left: int) -> tuple[str, str]:
+        """按紧迫度返回 (卡片底色**令牌名**, 强调色**令牌名**)。
+
+        ⚠ 返回**令牌名**而不是色值：卡片自绘时现取令牌 → 切主题自动跟随。
+        此前这里是 `c["red"] + "12"`（拼派生色），既绕过令牌体系，
+        又踩了"QColor 与 QSS 对 8 位 hex 理解不同"的坑。
+        """
         if days_left < 0:
             # 已过 ≠ 禁用：fg_disabled 在浅色下只有 1.5:1，正文必须仍可读
-            return c["bg_surface"], c["fg_secondary"]
+            return "bg_surface", "fg_secondary"
         if days_left == 0:
-            return c["red"] + "12", c["red"]
+            return "red_tint", "red"
         if days_left <= 7:
-            return c["red"] + "08", c["red"]
+            return "red_tint_weak", "red"
         if days_left <= 15:
-            return c["orange"] + "08", c["orange"]
-        return c["card_bg"], c["accent"]
+            return "orange_tint", "orange"
+        return "card_bg", "accent"
 
     @staticmethod
     def _make_badge(days_left: int, c: dict) -> QLabel:

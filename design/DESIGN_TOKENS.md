@@ -66,10 +66,13 @@
 | `section_heading` | `#8C5F24` | `#D9AE58` | 区块标题 |
 | `red` | `#B93B3B` | `#E57474` | 危险 / DDL 过期 |
 | `red_fill` | `#B93B3B` | `#C24B4B` | 危险色 · 实心徽章底（配 fg_on_fill 白字） |
+| `red_tint` | `rgba(185,59,59,0.07)` | `rgba(229,116,116,0.07)` | 危险底色 · 最紧迫（今天到期） |
+| `red_tint_weak` | `rgba(185,59,59,0.03)` | `rgba(229,116,116,0.03)` | 危险底色 · 次紧迫（7 天内） |
 | `green` | `#3A744D` | `#6FBB8C` | 成功 / 完成 |
 | `yellow` | `#8C5F24` | `#D9AE58` | 注意 / 即将到期（同 accent） |
 | `orange` | `#9E571F` | `#E09A55` | 中等警告 |
 | `orange_fill` | `#9E571F` | `#A85F26` | 警告色 · 实心徽章底（配 fg_on_fill 白字） |
+| `orange_tint` | `rgba(158,87,31,0.03)` | `rgba(224,154,85,0.03)` | 中等警告底色（卡片淡色） |
 | `code_bg` | `#3a3a40` | `#3a3a40` | 行内代码块背景（AI 回复/API 测试） |
 <!-- TOKENS:colors:END -->
 
