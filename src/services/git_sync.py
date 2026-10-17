@@ -20,15 +20,26 @@ DATA_FILES = ("daily_logs.json", "expenses.json", "habits.json",
 DATA_DIRS = ("semesters",)
 
 
-def build_sync_commands(data_rel: str, message: str) -> list[list[str]]:
+def sync_paths(data_dir: Path, data_rel: str) -> list[str]:
+    """要暂存的路径（仓库相对）。**只列存在的**。
+
+    ⚠ `git add` 对不存在的路径会直接 `fatal: pathspec … did not match any files`，
+    整条命令链就此中断（2026-10-17 用临时仓库实测到）—— 新机器 / 新克隆上必然踩。
+    目录整个带上：新学期的文件还没进过版本库，也要能一次加进去。
+    全都不存在时退回数据目录本身（`.gitignore` 会把派生文件挡住）。
+    """
+    paths = [f"{data_rel}/{n}" for n in DATA_FILES if (data_dir / n).exists()]
+    paths += [f"{data_rel}/{d}" for d in DATA_DIRS if (data_dir / d).exists()]
+    return paths or [data_rel]
+
+
+def build_sync_commands(data_rel: str, message: str, paths: list[str]) -> list[list[str]]:
     """拼同步命令：add（只加用户数据）→ commit → push。**纯函数**，便于测试。
 
     ⚠ 手动同步**不再** `git add -A`（审查 2026-10-17 #4）：那会把开发中的源码一起
     提交。源码该由开发时显式提交 —— 两条路径的范围**完全一样**，只有提交信息不同。
     `-A -- <路径>`：路径内的**删除**也要暂存，而 `--` 后面是显式路径，扫不到源码。
     """
-    paths = [f"{data_rel}/{name}" for name in DATA_FILES]
-    paths += [f"{data_rel}/{d}" for d in DATA_DIRS]
     return [["git", "add", "-A", "--", *paths],
             ["git", "commit", "-m", message],
             ["git", "push"]]
@@ -40,7 +51,11 @@ def is_nothing_to_commit(detail: str) -> bool:
 
 
 def is_up_to_date(push_output: str) -> bool:
-    """push 输出 "Everything up-to-date" → 没有任何东西被推上去。"""
+    """push 输出 "Everything up-to-date" → 没有任何东西被推上去。
+
+    ⚠ 调用方要把 **stdout + stderr 合并**传进来：git 的推送进度与这句都走 stderr
+    （只看 stdout 会一直判成"推过了"，2026-10-17 用临时仓库实测到）。
+    """
     return "up-to-date" in push_output.lower()
 
 
@@ -82,7 +97,8 @@ class _GitWorker(QThread):
                     self.finished.emit(False, f"{' '.join(cmd)}: {detail[-300:]}", "")
                     return
                 if cmd[:2] == ["git", "push"]:
-                    pushed = not is_up_to_date(result.stdout)
+                    # stdout + stderr 合并：git 的推送信息走 stderr（实测）
+                    pushed = not is_up_to_date(result.stdout + result.stderr)
             self.finished.emit(True, "", classify_sync(pushed))
         # 边界捕获：本层已处理/记录，不允许异常向上逃逸（CODE_STANDARDS Q-I1）
         except Exception as e:  # noqa: BLE001
@@ -129,7 +145,8 @@ class GitSync(QObject):
 
         self.sync_status.emit("syncing")
         message = "data: manual sync [skip ci]" if manual else "data: auto-sync [skip ci]"
-        cmds = build_sync_commands(self._data_rel(), message)
+        paths = sync_paths(self._data_dir, self._data_rel())
+        cmds = build_sync_commands(self._data_rel(), message, paths)
         self._worker = _GitWorker(self._repo, cmds, self)
         self._worker.finished.connect(self._on_done)
         self._worker.finished.connect(self._worker.deleteLater)  # 生命周期回收（Q-B5）

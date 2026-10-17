@@ -1,10 +1,12 @@
 """Git 同步范围（审查 2026-10-17 #4）。
 
-两件事必须钉住：
+三件事必须钉住：
 
 1. **同步清单不漂移**：`DATA_FILES` / `DATA_DIRS` 必须覆盖 `DataManager` 的每个模型
    文件 —— 新增数据文件时忘了加清单，数据会**悄悄**不同步（比报错更糟）。
-2. **手动同步不再扫全仓**：旧实现 `git add -A` 会把开发中的源码一起提交，
+2. **只暂存存在的路径**：`git add` 对不存在的路径会 `fatal: pathspec … did not match`
+   并中断整条命令链（用临时仓库实测到）—— 新机器/新克隆上必然踩。
+3. **手动同步不再扫全仓**：旧实现 `git add -A` 会把开发中的源码一起提交，
    而"没东西可提交"时又直接 `return`，导致 push 根本不执行。
 """
 
@@ -18,6 +20,7 @@ from src.services.git_sync import (
     classify_sync,
     is_nothing_to_commit,
     is_up_to_date,
+    sync_paths,
 )
 
 
@@ -32,19 +35,32 @@ def test_manifest_covers_every_model(tmp_path, qapp) -> None:
             f"{name}（{rel}）不在同步清单里 —— 加进 `git_sync.DATA_FILES`/`DATA_DIRS`")
 
 
-def test_add_is_scoped_to_explicit_data_paths() -> None:
+def test_paths_only_include_existing_ones(tmp_path, qapp) -> None:
+    """不存在的路径必须跳过；一个都不存在时退回数据目录本身。"""
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    assert sync_paths(data_dir, "data") == ["data"]
+
+    DataManager(data_dir)                      # 建出全部数据文件
+    paths = sync_paths(data_dir, "data")
+    assert "data/semesters" in paths           # 按学期的整个目录要带上
+    assert "data/habits.json" in paths
+    assert all((tmp_path / p).exists() for p in paths)
+
+
+def test_add_is_scoped_to_explicit_data_paths(tmp_path, qapp) -> None:
     """`git add` 必须限定在 `data/` 下，且用 `--` 显式列路径（禁止扫全仓）。"""
-    add = build_sync_commands("data", "msg")[0]
+    data_dir = tmp_path / "data"
+    DataManager(data_dir)
+    add = build_sync_commands("data", "msg", sync_paths(data_dir, "data"))[0]
     assert add[:3] == ["git", "add", "-A"], add
     assert "--" in add, "必须用 `--` 限定显式路径"
     assert all(p.startswith("data/") for p in add[add.index("--") + 1:]), add
-    # 按学期的整个目录要带上（不只当前学期）
-    assert "data/semesters" in add
 
 
 def test_push_stays_last() -> None:
     """push 必须留在最后：即使"没东西可提交"，之前攒下的提交也要推上去。"""
-    cmds = build_sync_commands("data", "msg")
+    cmds = build_sync_commands("data", "msg", ["data"])
     assert " ".join(cmds[-1]) == "git push"
 
 
