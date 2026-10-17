@@ -25,6 +25,7 @@ from src.services.single_instance import (
     SINGLE_INSTANCE_KEY,
     decode_request,
     encode_reply,
+    feed_buffer,
 )
 from src.ui.main_window import MainWindow
 from src.ui.styles.theme import FONT_CN, SIZE_TITLE, init_theme
@@ -195,12 +196,19 @@ class App(QApplication):
             return
         sock.readyRead.connect(lambda s=sock: self._on_instance_message(s))
         sock.disconnected.connect(lambda s=sock: self._on_instance_closed(s))
+        # 连接**之前**就可能已经到达的数据：`readyRead` 那时已经发过、不会重发（审查 #7）
+        if sock.bytesAvailable():
+            self._on_instance_message(sock)
 
     def _on_instance_message(self, sock) -> None:
-        """收到一行请求 `{"argv": [...]}` → 执行（与 CLI/AI 同一条路径）+ 重载 + 回结果。"""
+        """累积到**换行帧**再解析 —— 本地 socket 是字节流，一次读可能只有半帧（审查 #7）。"""
         from scripts.actions import run_argv_in_process
 
-        argv = decode_request(bytes(sock.readAll()).decode("utf-8", "replace").strip())
+        rest, line = feed_buffer(bytes(sock.property("buf") or b""), bytes(sock.readAll()))
+        sock.setProperty("buf", rest)
+        if line is None:
+            return                                  # 还没收完 → 等下一片
+        argv = decode_request(line)
         if argv is None:
             sock.write(encode_reply(False, f"ERROR {BAD_REQUEST_MESSAGE}"))
             sock.flush()

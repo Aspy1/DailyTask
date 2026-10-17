@@ -8,6 +8,7 @@
 """
 
 import json
+import time
 
 SINGLE_INSTANCE_KEY = "StudentSchedulerSingleInstance"
 
@@ -27,6 +28,7 @@ CHANNEL_REFUSE = "refuse"
 REFUSE_MESSAGE = ("应用正在运行但没有按协议回应（可能是旧版本）。"
                   "请重启应用后再改数据，或先关掉它。")
 BAD_REQUEST_MESSAGE = "无法解析的委派请求（协议或版本不匹配？）"
+BAD_REPLY_MESSAGE = "应用的回复不是合法帧（协议或版本不匹配？）"
 
 
 def decide_channel(connected: bool, replied: bool) -> str:
@@ -60,12 +62,45 @@ def encode_reply(ok: bool, out: str) -> bytes:
     return (json.dumps({"ok": ok, "out": out}, ensure_ascii=False) + "\n").encode("utf-8")
 
 
-def decode_reply(line: str) -> str | None:
+def decode_reply(line: str) -> tuple[bool, str] | None:
+    """解析应答帧；结构不对返回 None。
+
+    ⚠ 调用方拿到 None 时必须**拒绝**，不能把原文当结果交出去（审查 2026-10-17 #7）。
+    """
     try:
         payload = json.loads(line)
     except json.JSONDecodeError:
         return None
-    return payload.get("out") if isinstance(payload, dict) else None
+    if not isinstance(payload, dict):
+        return None
+    ok, out = payload.get("ok"), payload.get("out")
+    if not isinstance(ok, bool) or not isinstance(out, str):
+        return None
+    return ok, out
+
+
+def feed_buffer(buf: bytes, chunk: bytes) -> tuple[bytes, str | None]:
+    """把新到的字节并进缓冲：凑齐**一行**就返回 `(剩余缓冲, 那一行)`，否则 `(新缓冲, None)`。
+
+    本地 socket 是**字节流**不是消息流 —— 一次读可能只拿到半帧（审查 #7）。
+    """
+    buf += chunk
+    if b"\n" not in buf:
+        return buf, None
+    line, rest = buf.split(b"\n", 1)
+    return rest, line.decode("utf-8", "replace")
+
+
+def _read_frame(sock, timeout_ms: int) -> str | None:
+    """从 socket 读**一整行**；超时 / 断开返回 None（审查 #7：不能只等一次就解析）。"""
+    buf = bytearray()
+    deadline = time.monotonic() + timeout_ms / 1000
+    while b"\n" not in buf:
+        remaining = int((deadline - time.monotonic()) * 1000)
+        if remaining <= 0 or not sock.waitForReadyRead(remaining):
+            return None
+        buf += bytes(sock.readAll())
+    return bytes(buf).split(b"\n", 1)[0].decode("utf-8", "replace")
 
 
 def delegate(argv: list[str]) -> tuple[str, str]:
@@ -86,12 +121,15 @@ def delegate(argv: list[str]) -> tuple[str, str]:
 
     sock.write(encode_request(argv))
     sock.flush()
-    replied = sock.waitForReadyRead(REPLY_TIMEOUT_MS)
-    line = bytes(sock.readAll()).decode("utf-8", "replace").strip() if replied else ""
+    line = _read_frame(sock, REPLY_TIMEOUT_MS)      # 累积到换行帧（可能分片）
     sock.disconnectFromServer()
     sock.abort()
 
-    channel = decide_channel(True, bool(line))
+    channel = decide_channel(True, line is not None)
     if channel == CHANNEL_REFUSE:
         return channel, REFUSE_MESSAGE
-    return channel, decode_reply(line) or line
+    parsed = decode_reply(line or "")
+    if parsed is None:
+        # 回复不是合法帧 → 拒绝，**不把原文当结果**（审查 #7）
+        return CHANNEL_REFUSE, BAD_REPLY_MESSAGE
+    return channel, parsed[1]
