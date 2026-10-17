@@ -86,6 +86,19 @@ SAMPLES: list[tuple[str, str, list[dict], object]] = [
      lambda it: _has(it, "洗手液", quantity=1)),
     ("同类不同位置", "纸巾：客厅 2 包、储物间 6 包", [],
      lambda it: _has(it, "纸巾")),
+    ("查找·按位置", "书架3 上都放了什么？",
+     [{"name": "纸巾", "quantity": 2, "min_quantity": 1, "unit": "包",
+       "location": "书架3"}],
+     _unchanged([{"name": "纸巾"}])),
+    ("查找·按分类", "我有哪些虚拟会员？",
+     [{"name": "QQ音乐会员", "quantity": 1, "min_quantity": 1, "unit": "个",
+       "category": "虚拟品类"}],
+     _unchanged([{"name": "QQ音乐会员"}])),
+    ("查找·需补货", "哪些东西该补货了？",
+     [{"name": "牙膏", "quantity": 0, "min_quantity": 1, "unit": "支"}],
+     _unchanged([{"name": "牙膏"}])),
+    ("位置·清单外新增", "把抹布放在厨房水槽下面", [],
+     lambda it: _has(it, "抹布", location_has="厨房")),
     ("边界·不存在的东西", "把不存在的东西挪到车库", [], _unchanged([])),
     ("边界·模糊表述", "衣柜里那几件夏天 T 恤挪到收纳箱", [], _unchanged([])),
 ]
@@ -174,6 +187,13 @@ def main() -> None:
     core.DATA = sandbox                       # AI 的命令写进沙箱（不碰真实数据）
     dm = DataManager(sandbox)
     svc = AIService(settings, dm)
+
+    # 沙箱也装上那 12 个固定位置 —— 让探针跑在**和真实环境一样的配置**下
+    from scripts.actions import run_in_process
+
+    print("位置清单:", run_in_process(
+        'set_locations --values "衣柜左1,衣柜左2,衣柜左3,衣柜左4,衣柜右1,衣柜右2,'
+        '左侧抽屉,右侧抽屉,书架1,书架2,书架3,书架4"'))
 
     print(f"沙箱：{sandbox}")
     print(f"模型：{settings.get('AI', 'model', '?')}"

@@ -96,7 +96,13 @@ python scripts/actions.py delete_plan --date "YYYY-MM-DD" --index 0
 ### 有什么（物品/库存）
 添加物品分两步，第一步只查找不添加:
 ```sh
-python scripts/actions.py lookup_item --name "A"
+python scripts/actions.py lookup_item --name "纸巾"
+python scripts/actions.py lookup_item --location "书架3"
+python scripts/actions.py lookup_item --category "虚拟品类"
+python scripts/actions.py lookup_item --tag "药品"
+python scripts/actions.py lookup_item --restock yes
+python scripts/actions.py lookup_item
+python scripts/actions.py add_location --name "卫生间柜子"
 ```
 系统会自动把查找结果发回，让你判断重复。然后你再回复确认并添加。
 ```sh
@@ -121,8 +127,13 @@ python scripts/actions.py need_restock
   `update_item --id … --min_qty N`（让它变成需购/不足）；没有就 `add_item`。
   **不要**用 `add_plan` 代替补货（那是日程计划，不是库存状态）。
 - 消耗（"用掉一瓶洗手液"）用 `consume`，**不要**手算 `--quantity`。
-- **位置**：只能从**上下文给出的位置清单**里选（`set_locations` 设定的那批固定格位），
-  不要自己编位置名；清单里没有合适的就先问用户。
+- **位置**：只能从**上下文给出的位置清单**里选。清单里没有合适格位时，**先
+  `add_location --name "新位置"` 再加物品**（你可以自行添加位置）—— 不要凭空编一个位置
+  直接写进物品。
+- **查找**：`lookup_item` 支持按名字 / 分类 / 标签 / 位置 / 是否需补货**任意组合**筛选
+  （不带条件 = 列出全部）。问"书架3 上有什么"→ `lookup_item --location "书架3"`；
+  问"有哪些虚拟会员"→ `lookup_item --category "虚拟品类"`；问"哪些要补货"→
+  `lookup_item --restock yes`。
 移动物品: "把X从A拿到B" → update_item --id "i_xxx" --location "B"
 
 ### 记账 / 存钱

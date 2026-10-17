@@ -65,9 +65,11 @@ def cmd_add_item(args) -> None:
     data.setdefault("items", [])
     item = _new_item(gen_id(data["items"], "i"), args)
     item["status"] = InventoryModel.derive_status(item)   # 建好再推导（规则只写一份）
+    added_loc = _ensure_location(data, item.get("location", ""))
     data["items"].append(item)
     save("inventory.json", data)
-    print(f"OK add_item {item['id']} | {args.name}")
+    note = f" | 新增位置 {added_loc}" if added_loc else ""
+    print(f"OK add_item {item['id']} | {args.name}{note}")
 
 
 def cmd_set_locations(args) -> None:
@@ -167,8 +169,10 @@ def cmd_update_item(args) -> None:
             continue
         _apply_item_updates(it, args)
         it["updated_at"] = now_iso()
+        added_loc = _ensure_location(data, it.get("location", ""))
         save("inventory.json", data)
-        print(f"OK update_item {args.id}")
+        note = f" | 新增位置 {added_loc}" if added_loc else ""
+        print(f"OK update_item {args.id}{note}")
         return
     print(f"ERROR item not found: {args.id}")
 
@@ -193,19 +197,85 @@ def cmd_need_restock(args) -> None:
     if not needs:
         print("无需购物品")
 
-def cmd_lookup_item(args) -> None:
+def _item_line(it: dict) -> str:
+    """一行摘要：id 名称 数量单位 @位置 - 状态（附片数/阈值/各件数/标签）。"""
+    extra = []
+    dpu = it.get("doses_per_unit", 1) or 1
+    if dpu != 1:
+        extra.append(f"{it.get('quantity', 0) * dpu}片")
+    if it.get("min_doses"):
+        extra.append(f"下限{it['min_doses']}片")
+    elif it.get("min_quantity"):
+        extra.append(f"下限{it['min_quantity']}{it.get('unit', '')}")
+    if it.get("instances"):
+        extra.append(f"{len(it['instances'])}件各自特征")
+    if it.get("tags"):
+        extra.append("/".join(it["tags"]))
+    tail = f" ({' · '.join(extra)})" if extra else ""
+    loc = f" @{it['location']}" if it.get("location") else ""
+    return (f"  [{it['id']}] {it['name']} {it.get('quantity', 0)}{it.get('unit', '')}"
+            f"{loc} - {it.get('status', '')}{tail}")
+
+
+def _ensure_location(data: dict, location: str) -> str | None:
+    """位置必须来自清单；不在就**自动加进去**（用户允许 AI 自行添加）。
+
+    返回新加的位置名（没新增则 None），供命令回执里说明。
+    """
+    name = (location or "").strip()
+    if not name:
+        return None
+    locs = data.setdefault("locations", [])
+    if name in locs:
+        return None
+    locs.append(name)
+    return name
+
+
+def cmd_add_location(args) -> None:
+    """给位置清单**追加**一个（不替换原有；整份替换用 `set_locations`）。"""
     data = load("inventory.json")
-    name = args.name.strip().lower()
-    matches = []
-    for it in data.get("items", []):
-        iname = it["name"].lower()
-        if name in iname or iname in name:
-            matches.append(it)
-    if matches:
-        for m in matches:
-            loc = m.get("location", "")
-            loc_str = f" @{loc}" if loc else ""
-            print(f"  [{m['id']}] {m['name']} ({m['quantity']}件) - {m['status']}{loc_str}")
-        print(f"FOUND {len(matches)}")
-    else:
+    name = (getattr(args, "name", "") or "").strip()
+    added = _ensure_location(data, name)
+    save("inventory.json", data)
+    print(f"OK add_location {name}" if added else f"OK add_location {name}（已存在）")
+
+
+def _lookup_filters(args) -> list:
+    """把**非空**的筛选条件变成一组判定函数（空条件不参与筛选）。
+
+    数据驱动而不是一串 `if`：`cmd_lookup_item` 的圈复杂度会随条件数线性上涨
+    （2026-10-18 一度到 D(21)，被 radon 门禁拦下）。
+    """
+    raw = {k: (getattr(args, k, None) or "").strip()
+           for k in ("name", "category", "tag", "location")}
+    checks = {
+        # 名字用**双向**子串匹配：用户可能说得比记录更长（"我的纸巾盒" → "纸巾"）
+        "name": lambda it: raw["name"].lower() in it["name"].lower()
+        or it["name"].lower() in raw["name"].lower(),
+        "category": lambda it: it.get("category", "") == raw["category"],
+        "tag": lambda it: raw["tag"] in (it.get("tags") or []),
+        "location": lambda it: it.get("location", "") == raw["location"],
+    }
+    active = [checks[k] for k in checks if raw[k]]
+    if str(getattr(args, "restock", None) or "").strip() == "yes":
+        active.append(lambda it: it.get("status") in ("需购", "不足"))
+    return active
+
+
+def cmd_lookup_item(args) -> None:
+    """按**任意组合**的条件找物品：名字 / 分类 / 标签 / 位置 / 只列需补货。
+
+    不带条件 = 列出全部（"我都有什么"）。**只查不写** —— "先查后加"的两步流程照旧。
+    """
+    data = load("inventory.json")
+    filters = _lookup_filters(args)
+    matches = [it for it in data.get("items", [])
+               if all(f(it) for f in filters)]
+
+    if not matches:
         print("NOT_FOUND")
+        return
+    for m in matches:
+        print(_item_line(m))
+    print(f"FOUND {len(matches)}")

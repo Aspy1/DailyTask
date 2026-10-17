@@ -37,6 +37,7 @@ from scripts.actions_cli import (
 )
 from scripts.actions_cmds_items import (
     cmd_add_item,
+    cmd_add_location,
     cmd_consume,
     cmd_delete_item,
     cmd_lookup_item,
@@ -591,11 +592,16 @@ def _build_action_namespace(parts: list[str]) -> argparse.Namespace:
                 f"未知参数 {'、'.join(sorted(_fname(u) for u in unknown))}"
                 f"（{ns.action} 只接受：{'、'.join(sorted(_fname(o) for o in allowed)) or '无'}）")
 
-    # Apply argparse defaults for all optional args (not in CLI string)
-    # ⚠ `update_*` 的语义是"只改显式传入的字段" → **不注入任何默认值**：
-    # 注入会把没传的字段一起改掉（例如 `update_item --location` 会把 quantity
-    # 重置成默认的 1；`update_course --slots` 会把 parity 重置成 all）。
-    if ns.action in ("update_course", "update_item"):
+    # 补齐默认值 —— 但**纯查询 / 部分更新**类命令**一个都不注入**：
+    #
+    # ⚠ 原来这里是一张**硬编码的全局默认值表**，无差别注入给所有命令 ✗ ——
+    # 于是 `lookup_item` 也被塞进 `category="其他"`（那是 `add_item` 的默认值），
+    # 查找把它当成**筛选条件**，结果**什么都查不到**（NOT_FOUND，2026-10-18 实测）。
+    #
+    # - `update_*`：语义是"只改显式传入的字段"，注入会把没传的字段一起改掉
+    #   （`update_item --location` 会把 quantity 重置成 1）
+    # - `lookup_item`：语义是"按传入的条件筛选"，注入会把默认值变成筛选条件
+    if ns.action in ("update_course", "update_item", "lookup_item"):
         return ns
     _defaults = {
         'priority': 'medium', 'schedule': 'daily/1', 'duration': 30,
@@ -669,6 +675,7 @@ HANDLERS = {
     "add_item": cmd_add_item, "update_item": cmd_update_item,
     "consume": cmd_consume,
     "set_locations": cmd_set_locations,
+    "add_location": cmd_add_location,
     "delete_item": cmd_delete_item,
     "need_restock": cmd_need_restock,
     "lookup_item": cmd_lookup_item,

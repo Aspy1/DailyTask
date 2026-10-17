@@ -575,7 +575,7 @@ ALLOWED_OPTIONS: dict[str, set[str]] = {
     "set_locations": {"values"},
     "delete_item": {"id"},
     "need_restock": set(),
-    "lookup_item": {"name"},
+    "lookup_item": {"name", "category", "tag", "location", "restock"}, "add_location": {"name"},
     "status": set(),
     "add_expense": {"amount", "category", "note", "date"},
     "add_saving": {"amount", "note", "date"},
@@ -680,7 +680,11 @@ SPECS: dict[str, dict] = {
                 "amount": ("int_opt", 1, MAX_QUANTITY)},
     "set_locations": {"required": ("values",), "values": ("text", MAX_NOTE)},
     "delete_item": {"required": ("id",), "id": ("id",)},
-    "lookup_item": {"required": ("name",), "name": ("text", MAX_TITLE)},
+    # 查找：所有条件都可选（不带条件 = 列出全部）
+    "lookup_item": {"name": ("text", MAX_TITLE), "category": ("text", MAX_TEXT),
+                    "tag": ("text", MAX_TEXT), "location": ("text", MAX_TEXT),
+                    "restock": ("choice", ("yes", "no"))},
+    "add_location": {"required": ("name",), "name": ("text", MAX_TEXT)},
     "add_expense": {
         "required": ("amount", "category"),
         "amount": ("money",), "category": ("text", MAX_TEXT),

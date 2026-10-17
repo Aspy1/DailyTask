@@ -2,7 +2,6 @@
   "_note": "存量债台账（CODE_STANDARDS 门禁 baseline）：只防新增，修好后重写。",
   "log_sole_statement": 35,
   "sizes": {
-    "class:AIService@src/services/ai_service.py": 411,
     "class:ExpensePanel@src/ui/panels/expense_panel.py": 432,
     "class:InventoryPanel@src/ui/panels/inventory_panel.py": 729,
     "class:MainWindow@src/ui/main_window.py": 591,

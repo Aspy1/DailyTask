@@ -29,7 +29,7 @@ IMPLEMENTED = [
     "add_plan", "replace_plans", "delete_plan",
     "add_course", "update_course", "delete_course",
     "add_item", "update_item", "delete_item", "consume", "set_locations",
-    "need_restock", "lookup_item",
+    "add_location", "need_restock", "lookup_item",
     "status",
     "add_expense", "add_saving", "delete_expense", "expense_summary",
     "list_backups", "restore",

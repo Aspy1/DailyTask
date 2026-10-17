@@ -129,7 +129,14 @@ def _add_item_parsers(sub) -> None:
     p = sub.add_parser("delete_item", help="删除物品")
     p.add_argument("--id", required=True)
 
-    p = sub.add_parser("lookup_item", help="查找物品")
+    p = sub.add_parser("lookup_item", help="按条件查找物品（不带条件=列出全部）")
+    p.add_argument("--name")
+    p.add_argument("--category")
+    p.add_argument("--tag")
+    p.add_argument("--location")
+    p.add_argument("--restock", choices=["yes", "no"], help="只看需补货的")
+
+    p = sub.add_parser("add_location", help="给位置清单追加一个位置")
     p.add_argument("--name", required=True)
 
     sub.add_parser("need_restock", help="查看需购物品")

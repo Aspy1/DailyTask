@@ -117,3 +117,32 @@ def test_set_locations_replaces_the_allowed_list(sandbox) -> None:
 
     data = json.loads((sandbox / "inventory.json").read_text(encoding="utf-8"))
     assert data["locations"] == ["衣柜左1", "衣柜左2", "书架1"], "去空白 + 去重"
+
+
+def test_unknown_location_is_registered_automatically(sandbox) -> None:
+    """位置是**受控属性**：物品用了清单外的位置 → 自动登记进清单（用户允许 AI 自行添加）。"""
+    run('set_locations --values "衣柜左1"')
+    out = run('add_item --name "洗发水" --quantity 2 --unit "瓶" --location "卫生间柜子"')
+
+    assert "新增位置" in out, f"回执里应说明新增了位置：{out}"
+    data = json.loads((sandbox / "inventory.json").read_text(encoding="utf-8"))
+    assert "卫生间柜子" in data["locations"]
+    assert data["items"][0]["location"] == "卫生间柜子"
+
+
+def test_lookup_filters_by_location_category_and_restock(sandbox) -> None:
+    """查找支持多属性组合：位置 / 分类 / 标签 / 只看需补货。"""
+    run('add_item --name "T恤" --quantity 3 --unit "件" --category "衣物" '
+        '--location "衣柜左1" --tags "夏装"')
+    run('add_item --name "QQ音乐会员" --quantity 1 --unit "个" --category "虚拟品类"')
+    run('add_item --name "纸巾" --quantity 0 --unit "包" --category "日常消耗品" '
+        '--location "书架3"')
+
+    assert "T恤" in run('lookup_item --location "衣柜左1"')
+    assert "QQ音乐会员" in run('lookup_item --category "虚拟品类"')
+    assert "T恤" in run('lookup_item --tag "夏装"')
+
+    restock = run("lookup_item --restock yes")
+    assert "纸巾" in restock and "T恤" not in restock, "只看需补货的"
+
+    assert "FOUND 3" in run("lookup_item"), "不带条件 = 列出全部"
