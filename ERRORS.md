@@ -934,8 +934,9 @@ Python 看到函数体里有 `card = …` 就把 `card` 判为**局部名**，�
 ### #051 | 2026-10-17 | 编辑时 `newString` 写成 `oldString` 的前缀 → 静默删掉一个换行
 
 **症状**：想"在某个 `def` 之前插入一个新方法"，编辑报**成功**，但结果是把下一行
-（docstring）接到了 `def` 那一行的末尾 → 语法错误。本会话犯了**两次**（`base.py` 与
-`data_manager.py` 各一次）。
+（docstring）接到了 `def` 那一行的末尾 → 语法错误。本会话犯了**三次**（`base.py`、
+`data_manager.py`、`main_workspace.py` 各一次 —— 前两次记进本条之后**又犯了一次**，
+所以这条规则要当硬约束执行）。
 
 **根因**：`oldString` 写成了 `def foo(self) -> None:\n`，而 `newString` 写成
 `def foo(self) -> None:`（少了结尾换行）—— 那次编辑的唯一效果就是**删掉一个换行**。
