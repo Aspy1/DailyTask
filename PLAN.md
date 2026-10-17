@@ -563,6 +563,44 @@ execution`（`cc6a9e4`，2026-10-17）：`chat()` 不再把 `reasoning_content` 
 
 ---
 
+## P18 「有什么」AI 重建（命令面补齐 → 提示词测试 → 清空重建）`[已定]`
+
+**用户决策（2026-10-17）**：补货要**推送提醒**；命令面**全补 + 提示词补例**；
+**等 P17 全部做完再清空重建真实数据**。
+
+**为什么必须先补命令面**（核实结果，2026-10-17）：
+
+| 维度 | 数据模型 | AI 能用的命令 | 现有真实数据 | 结论 |
+|---|---|---|---|---|
+| 位置 | `location` | `--location` ✓ | 11/11 有 | **够用** |
+| 份数 | `quantity` + `unit` + `doses_per_unit` | 只有 `--quantity` ✗ | 11/11 有 `unit` | **缺 2 个参数** |
+| 同类不同特征 | `group` + `tags` + `instances` | `instances` ✗ | 6/11 有 `instances` | **缺 1 个参数** |
+| 提醒补货 | `min_quantity` + 状态自动推导 + `need_restock()` | `--min_qty` ✓、`need_restock` ✓（提示词无例 ✗）| 11/11 有 `min_quantity` | 阈值够用、**缺推送** |
+
+现有 11 条（衣物 3 / 日常消耗品 3 / 数码电子 2 / 虚拟 2 / 其他 1）用到了
+`unit` / `min_quantity` / `instances`，而 AI 只能写 `min_quantity` →
+**现在清空重建会得到比现有更差的数据**（丢单位、丢同类分件）。这正是"先测提示词"的价值。
+
+**待做（顺序固定）**：
+
+1. **命令面补齐**（`actions_core` SPECS + `actions_cli` + `ai_prompts` 三处一起改）
+   - `add_item` / `update_item`：`--unit`、`--doses-per-unit`
+   - `add_item` / `update_item`：`--instances`（JSON 列表，写法同 `replace_plans --plans`）
+   - 新命令 `consume --id --amount`（带状态推导 + 每份数扣减；`InventoryModel.consume()` 已存在）
+   - 提示词补例：`--min_qty`（补货阈值）、`need_restock`（"还有什么要买的"）
+2. **补货推送提醒**：`InventoryModel.need_restock()` 已有 → 在 `services/reminder_rules.py`
+   加一条规则（状态为需购/不足 → 托盘 + 邮件，**每天最多一次**，受
+   `General/reminder_enabled` 总开关控制）
+3. **沙箱端到端测试**：真实 AI 全链路（提示词 → 日常口语 → 模型输出命令 → 执行 → 断言沙箱 JSON），
+   **原样打印模型发出的命令**；**密钥不读**（走 `SettingsManager` 加载）；
+   10 个样例覆盖 4 维度 + 2 个边界（拒绝不存在的物品 / 模糊表述应反问）；
+   关键样例跑 2–3 次（模型有随机性，单次通过 ≠ 稳定）
+4. **清空重建**（用户看过测试结果并确认后再做）：整份备份到
+   `%TEMP%\inventory_backup_before_reset\` → **先关应用** →
+   用 `scripts/actions.py delete_item --id ...` 逐条删（R-002 的合法写入路径）
+
+---
+
 ## A. 文档体系
 
 ### A-1 `[已完成]` 废弃逐文件 `.py.md`，改用单一 `ARCHITECTURE.md`
