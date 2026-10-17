@@ -42,6 +42,16 @@ def _add_task_parsers(sub) -> None:
     p = sub.add_parser("delete_course", help="删除课程")
     p.add_argument("--id", required=True)
 
+    p = sub.add_parser("update_course", help="修改课程（只改传入的字段）")
+    p.add_argument("--id", required=True)
+    p.add_argument("--name")
+    p.add_argument("--day", type=int, help="1=周一 … 7=周日")
+    p.add_argument("--weeks", help="起-止（1-16）")
+    p.add_argument("--slots", help="起-止（1-6，大节）")
+    p.add_argument("--location")
+    p.add_argument("--teacher")
+    p.add_argument("--parity", choices=["all", "odd", "even"])
+
 
 def _add_routine_parsers(sub) -> None:
     """习惯 / 日程计划。"""

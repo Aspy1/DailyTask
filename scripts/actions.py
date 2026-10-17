@@ -35,14 +35,24 @@ from scripts.actions_cli import (
     _add_routine_parsers,
     _add_task_parsers,
 )
+from scripts.actions_cmds_items import (
+    cmd_add_item,
+    cmd_delete_item,
+    cmd_lookup_item,
+    cmd_need_restock,
+    cmd_update_item,
+)
 from scripts.actions_core import (  # noqa: F401
     ALLOWED_OPTIONS,
     DATA,
     MAX_NOTE,
+    MAX_TITLE,
     ActionError,
     _backup_dir,
     _backup_file,
+    _choice,
     _fname,
+    _integer,
     _iso_date,
     _max_backups,
     _money,
@@ -51,9 +61,11 @@ from scripts.actions_core import (  # noqa: F401
     _path,
     _record_id,
     _resolve_category,
+    _slots_range,
     _text,
     _validate_args,
     _validate_payload,
+    _weeks_range,
     gen_id,
     load,
     match_course,
@@ -285,104 +297,58 @@ def cmd_delete_course(args) -> None:
             return
     print(f"ERROR course not found: {cid}")
 
-def cmd_add_item(args) -> None:
-    data = load("inventory.json")
-    data.setdefault("items", [])
-    iid = gen_id(data["items"], "i")
-    qty = 1 if args.quantity is None else args.quantity
-    item = {"id": iid, "name": args.name, "category": args.category or "其他",
-            "group": args.group or "",
-            "quantity": qty, "unit": "件",
-            "status": "需购" if qty <= 0 else "充足",
-            "min_quantity": args.min_qty or 1,
-            "location": args.location or "", "notes": args.notes or "",
-            "created_at": now_iso(), "updated_at": now_iso()}
-    data["items"].append(item)
-    save("inventory.json", data)
-    print(f"OK add_item {iid} | {args.name}")
 
-def _apply_item_quantity_fields(item: dict, args) -> None:
-    """数量/单位/状态/下限：仅当显式传值才覆盖。"""
-    if args.quantity is not None:
-        item["quantity"] = args.quantity
-    if args.unit:
-        item["unit"] = args.unit
-    if args.status:
-        item["status"] = args.status
-    if args.min_qty is not None:
-        item["min_quantity"] = args.min_qty
+def _apply_course_updates(course: dict, args) -> None:
+    """把命令行**显式传入**的字段写回课程（没传的保持原样）。
 
+    为什么需要这个命令：以前改课程只能 `delete_course` + `add_course`（丢 id、
+    丢其它字段，AI 还容易做错）。2026-10-17 用户让 AI 修正时段，AI 因为
+    "没有可改的命令"只能去跑 `status`，回复了一串无用命令。
 
-def _split_tag_list(tags: str) -> list[str]:
-    """逗号分隔标签 → 去空白后的非空列表。"""
-    return [t.strip() for t in tags.split(",") if t.strip()]
-
-
-def _apply_item_updates(item: dict, args) -> None:
-    """把命令行传入的非空字段写回物品条目（保持原有字段写入顺序）。"""
-    if args.name:
-        item["name"] = args.name
-    if args.group is not None and args.group != "":
-        item["group"] = args.group
-    if args.category:
-        item["category"] = args.category
-    _apply_item_quantity_fields(item, args)
-    if args.location:
-        item["location"] = args.location
-    if args.tags:
-        item["tags"] = _split_tag_list(args.tags)
+    全部用 `getattr(..., None)`：`update_*` 不注入默认值，属性可能不存在。
+    """
+    name = getattr(args, "name", None)
+    day = getattr(args, "day", None)
+    weeks = getattr(args, "weeks", None)
+    slots_arg = getattr(args, "slots", None)
+    parity = getattr(args, "parity", None)
+    teacher = getattr(args, "teacher", None)
+    location = getattr(args, "location", None)
+    if name:
+        course["name"] = _text(name, "name", required=True, max_len=MAX_TITLE)
+    if day is not None:
+        course["day_of_week"] = _integer(day, "day", 1, 7)
+    if weeks:
+        start, end = _weeks_range(weeks)
+        course["weeks"] = {"start": start, "end": end}
+    if slots_arg:
+        start, end = _slots_range(slots_arg)
+        slots = course.get("time_slots") or [{}]
+        slots[0] = {**slots[0], "start": start, "end": end}
+        course["time_slots"] = slots
+    if parity:
+        course["week_parity"] = _choice(parity, "parity", ("all", "odd", "even"))
+    if teacher:
+        course["teacher"] = _text(teacher, "teacher")
+    if location:
+        course["location"] = _text(location, "location")
+        for slot in course.get("time_slots", []):
+            slot["location"] = course["location"]
 
 
-def cmd_update_item(args) -> None:
-    data = load("inventory.json")
-    for it in data.get("items", []):
-        if it["id"] != args.id:
-            continue
-        _apply_item_updates(it, args)
-        it["updated_at"] = now_iso()
-        save("inventory.json", data)
-        print(f"OK update_item {args.id}")
-        return
-    print(f"ERROR item not found: {args.id}")
-
-def cmd_delete_item(args) -> None:
-    data = load("inventory.json")
-    iid = args.id
-    items = data.get("items", [])
-    for i, it in enumerate(items):
-        if it["id"] == iid:
-            removed = items.pop(i)
-            save("inventory.json", data)
-            print(f"OK delete_item {iid} | {removed.get('name','')}")
+def cmd_update_course(args) -> None:
+    """改一门课的时间/周次/单双周/地点/教师/名称（只改显式传入的字段）。"""
+    cid = _record_id(args.id)
+    data = load("courses.json")
+    for course in data.get("courses", []):
+        if course.get("id") == cid:
+            _apply_course_updates(course, args)
+            save("courses.json", data)
+            slots = course.get("time_slots") or [{}]
+            print(f"OK update_course {cid} | {course.get('name', '')} | "
+                  f"周{course.get('day_of_week')} 第{slots[0].get('start')}-{slots[0].get('end')}节")
             return
-    print(f"ERROR item not found: {iid}")
-
-
-def cmd_need_restock(args) -> None:
-    data = load("inventory.json")
-    needs = [it for it in data.get("items", []) if it.get("status") in ("需购", "不足")]
-    for it in needs:
-        print(f"  [{it['id']}] {it['name']} ({it['quantity']}{it.get('unit','个')}) - {it['status']}")
-    if not needs:
-        print("无需购物品")
-
-def cmd_lookup_item(args) -> None:
-    data = load("inventory.json")
-    name = args.name.strip().lower()
-    matches = []
-    for it in data.get("items", []):
-        iname = it["name"].lower()
-        if name in iname or iname in name:
-            matches.append(it)
-    if matches:
-        for m in matches:
-            loc = m.get("location", "")
-            loc_str = f" @{loc}" if loc else ""
-            print(f"  [{m['id']}] {m['name']} ({m['quantity']}件) - {m['status']}{loc_str}")
-        print(f"FOUND {len(matches)}")
-    else:
-        print("NOT_FOUND")
-
+    print(f"ERROR course not found: {cid}")
 def cmd_status(args) -> None:
     t = load("tasks.json")
     h = load("habits.json")
@@ -617,6 +583,11 @@ def _build_action_namespace(parts: list[str]) -> argparse.Namespace:
                 f"（{ns.action} 只接受：{'、'.join(sorted(_fname(o) for o in allowed)) or '无'}）")
 
     # Apply argparse defaults for all optional args (not in CLI string)
+    # ⚠ `update_*` 的语义是"只改显式传入的字段" → **不注入任何默认值**：
+    # 注入会把没传的字段一起改掉（例如 `update_item --location` 会把 quantity
+    # 重置成默认的 1；`update_course --slots` 会把 parity 重置成 all）。
+    if ns.action in ("update_course", "update_item"):
+        return ns
     _defaults = {
         'priority': 'medium', 'schedule': 'daily/1', 'duration': 30,
         'slot': 1, 'type': 'custom', 'weeks': '1-16', 'slots': '3-4',
@@ -624,7 +595,6 @@ def _build_action_namespace(parts: list[str]) -> argparse.Namespace:
         'tags': None, 'notes': '', 'location': '', 'scope': '', 'teacher': '',
         'course': '', 'reminder': '', 'unit': '', 'status': None, 'due': '', 'note': '', 'group': '',
         'title': '', 'date': '', 'name': '', 'plans': '[]', 'index': 0,
-        'day': 0,
     }
     for k, v in _defaults.items():
         if not hasattr(ns, k):
@@ -676,6 +646,7 @@ HANDLERS = {
     "log_habit": cmd_log_habit, "add_plan": cmd_add_plan,
     "replace_plans": cmd_replace_plans, "delete_plan": cmd_delete_plan,
     "add_course": cmd_add_course, "delete_course": cmd_delete_course,
+    "update_course": cmd_update_course,
     "add_item": cmd_add_item, "update_item": cmd_update_item,
     "delete_item": cmd_delete_item,
     "need_restock": cmd_need_restock,

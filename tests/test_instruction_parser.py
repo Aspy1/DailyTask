@@ -54,6 +54,26 @@ def test_parse_ignores_prose_without_script_call() -> None:
     assert InstructionParser.parse("```sh\nls -la\n```") == []
 
 
+def test_parse_accepts_other_fence_labels() -> None:
+    """模型常写 ```bash / ```shell —— 只认 ```sh 会让命令整段失效。
+
+    （2026-10-17 用户报"AI 回复了奇怪的代码"：模型用了非 sh 围栏，
+    命令没执行、代码还漏到聊天里。）
+    """
+    assert InstructionParser.parse("```bash\npython scripts/actions.py status\n```") \
+        == ["python scripts/actions.py status"]
+    assert InstructionParser.parse("```shell\npython scripts/actions.py status\n```") \
+        == ["python scripts/actions.py status"]
+
+
+def test_strip_code_blocks_hides_any_fence() -> None:
+    from src.services.ai_service import _strip_code_blocks
+
+    assert _strip_code_blocks("好的\n```bash\ncmd\n```") == "好的"
+    assert _strip_code_blocks("```shell\ncmd\n```") == ""
+    assert _strip_code_blocks("```sh\ncmd\n```") == ""
+
+
 def test_looks_truncated_detects_unclosed_fence() -> None:
     from src.services.ai_service import _looks_truncated
 

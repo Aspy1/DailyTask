@@ -12,7 +12,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from helpers import read_json
+from helpers import read_json, run
 
 from src.services.ai_service import AIWorker, _continuation_nudge, _looks_truncated
 
@@ -110,6 +110,39 @@ def test_worker_reads_max_tokens_from_settings(qapp, tmp_path) -> None:
     settings.set("AI", "max_tokens", "2048")
     provider2, _ = _run(["你好"], settings=settings)
     assert provider2.calls[0]["max_tokens"] == 2048
+
+
+# ── update_course / update_item：只改显式传入的字段 ─────────
+
+def test_update_course_only_changes_passed_fields(sandbox) -> None:
+    """回归：`update_*` 不能被"注入的默认值"改掉没传的字段。
+
+    2026-10-17 实测：`update_course --slots` 会把 parity 重置成 all、
+    `update_item --location` 会把 quantity 重置成 1（后者是更早的隐患）。
+    """
+    run('add_course --name "算法" --day 1 --weeks "1-16" --slots "3-3" --parity odd')
+    assert run('update_course --id "c_001" --slots "2-2"').startswith("OK")
+
+    course = read_json(sandbox, "courses.json")["courses"][0]
+    assert [(s["start"], s["end"]) for s in course["time_slots"]] == [(2, 2)]
+    assert course["week_parity"] == "odd", "没传 --parity 不能重置"
+    assert course["day_of_week"] == 1 and course["name"] == "算法"
+
+
+def test_update_course_rejects_bad_slots_without_writing(sandbox) -> None:
+    run('add_course --name "算法" --day 1 --slots "3-3"')
+    out = run('update_course --id "c_001" --slots "9-9"')
+    assert out.startswith("ERROR"), out
+    assert read_json(sandbox, "courses.json")["courses"][0]["time_slots"][0]["start"] == 3
+
+
+def test_update_item_keeps_quantity(sandbox) -> None:
+    """回归：`update_item --location` 以前会把数量重置成默认的 1。"""
+    run('add_item --name "纸巾" --quantity 5')
+    assert run('update_item --id "i_001" --location "柜子"').startswith("OK")
+
+    item = read_json(sandbox, "inventory.json")["items"][0]
+    assert item["quantity"] == 5 and item["location"] == "柜子"
 
 
 # ── Provider：推理内容抢救 / 少想多做 ───────────────────────

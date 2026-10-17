@@ -543,6 +543,8 @@ ALLOWED_OPTIONS: dict[str, set[str]] = {
     "delete_plan": {"date", "index"},
     "add_course": {"name", "day", "weeks", "slots", "location", "teacher", "parity"},
     "delete_course": {"id"},
+    "update_course": {"id", "name", "day", "weeks", "slots", "location",
+                      "teacher", "parity"},
     "add_item": {"name", "category", "quantity", "min_qty", "location", "notes",
                  "group", "tags", "status"},
     "update_item": {"id", "name", "group", "category", "quantity", "status",
@@ -619,6 +621,13 @@ SPECS: dict[str, dict] = {
         "location": ("text", MAX_TEXT), "teacher": ("text", MAX_TEXT),
     },
     "delete_course": {"required": ("id",), "id": ("id",)},
+    "update_course": {
+        "required": ("id",), "id": ("id",),
+        "name": ("text", MAX_TITLE), "day": ("int_opt", 1, 7),
+        "weeks": ("weeks_opt",), "slots": ("slots_opt",),
+        "parity": ("choice", ("all", "odd", "even")),
+        "location": ("text", MAX_TEXT), "teacher": ("text", MAX_TEXT),
+    },
     "add_item": {
         "required": ("name",),
         "name": ("text", MAX_TITLE), "category": ("text", MAX_TEXT),
@@ -702,40 +711,30 @@ def _json_plans(value, field: str = "plans") -> None:
             _integer(p.get("time_slot"), "plans.time_slot", 1, 6)
 
 
-def _int_opt(value, field: str, lo: int, hi: int) -> None:
-    """可缺省整数：None/空放过（要能区分「没传」与「传 0」）。"""
-    if value is not None and str(value).strip():
-        _integer(value, field, lo, hi)
-
-
-def _date_opt(value, field: str) -> None:
-    """可缺省日期：空放过（命令内取默认值）。"""
-    if value is not None and str(value).strip():
-        _iso_date(value, field)
-
-
 def _apply_rule(value, field: str, rule: tuple) -> None:
     """按规格里的规则校验单个参数。
 
-    用"提前 return + 查表"，而不是一条 20 分支的 if/elif ——
+    规则名带 `_opt` 后缀 = **可缺省**（None/空直接放过，命令内自己取默认），
+    其余规则要求有值。用"提前 return + 查表"，而不是一条 20 分支的 if/elif ——
     后者会被 radon 判为高复杂度（C 级以上），门禁会拦。
     """
     kind, *rest = rule
+    if kind.endswith("_opt"):
+        if value is None or not str(value).strip():
+            return
+        kind = kind[: -len("_opt")]
     if kind == "text":
         _text_or_empty(value, field, rest[0])
         return
     if kind == "int":
         _integer(value, field, rest[0], rest[1])
         return
-    if kind == "int_opt":
-        _int_opt(value, field, rest[0], rest[1])
-        return
     if kind == "choice":
         _choice(value, field, rest[0], default="")
         return
 
     simple = {
-        "due": _due, "date": _iso_date, "date_opt": _date_opt, "month": _month,
+        "due": _due, "date": _iso_date, "month": _month,
         "money": _money, "id": _record_id, "weeks": _weeks_range,
         "slots": _slots_range, "schedule": _schedule_spec,
         "reminder": _reminder, "jsonplans": _json_plans,

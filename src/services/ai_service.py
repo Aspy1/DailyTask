@@ -62,6 +62,16 @@ def _looks_truncated(text: str) -> bool:
     return text.count("```") % 2 == 1
 
 
+def _strip_code_blocks(text: str) -> str:
+    """去掉代码块，只留自然语言（显示给用户用）。
+
+    围栏语言标记要放宽：模型常写 ```bash / ```shell，只认 ```sh 会把命令漏给用户看
+    （2026-10-17 实测：用户看到的"奇怪代码"就是这么漏出来的）。
+    """
+    return re.sub(r'```(?:sh|bash|shell|console|zsh|json)\s*.*?```', '',
+                  text, flags=re.DOTALL).strip()
+
+
 def _continuation_nudge(text: str, truncated: bool, empty_retries: int = 0) -> str | None:
     """该不该要求模型"继续"？需要时返回提示语，正常回复返回 None。
 
@@ -272,7 +282,8 @@ class InstructionParser:
         （2026-10-16 实测：24 门课的导入回复被截断 → 旧实现一行都不执行，
         也不告诉用户，用户看到的就是"AI 没反应"。）
         """
-        blocks = re.findall(r'```sh\s*\n?(.*?)(?:```|\Z)', text, re.DOTALL)
+        blocks = re.findall(r'```(?:sh|bash|shell|console|zsh)\s*\n?(.*?)(?:```|\Z)',
+                            text, re.DOTALL)
         commands = []
         for block in blocks:
             for line in block.strip().split('\n'):
@@ -670,8 +681,7 @@ class AIService(QObject):
 
     def _on_response(self, text: str) -> None:
         self._history.append({"role": "assistant", "content": text})
-        # Strip code blocks
-        display = re.sub(r'```(?:sh|json)\s*.*?```', '', text, flags=re.DOTALL).strip()
+        display = _strip_code_blocks(text)
         if not display and not text.strip():
             # 空回复（常见于推理吃满 token 或输出被截断）必须**说出来**，
             # 否则界面是一片空白，用户只会以为"AI 没反应"（2026-10-16 实测）
@@ -690,10 +700,8 @@ class AIService(QObject):
             self._dm.reload_all()
             self._dm.data_changed.emit("ai_action")
 
-        # Strip code blocks from display text — keep only natural language
-        display_text = re.sub(r'```(?:sh|json)\s*.*?```', '', text, flags=re.DOTALL).strip()
-        if not display_text:
-            display_text = re.sub(r'```(?:sh|json)?\s*.*?```', '', text, flags=re.DOTALL).strip()
+        # 只把自然语言显示给用户（代码块里的命令不进聊天记录）
+        display_text = _strip_code_blocks(text)
 
         summary = f"已执行 {n} 条指令" if n else text
         self.instructions_executed.emit(display_text or summary, instructions)

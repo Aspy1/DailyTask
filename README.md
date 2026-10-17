@@ -56,6 +56,7 @@ python -m venv .venv
 │   │   └── inventory.py            #   物品库存 · 5 分类
 │   ├── services/                   # 业务服务 (8)
 │   │   ├── ai_service.py           #   AI 对话 · Agent Loop · DeepSeek 余额
+│   │   ├── ai_prompts.py           #   系统提示词（唯一处：命令口径/关键词映射/数据安全）
 │   │   ├── data_manager.py         #   数据聚合 · 3s 自动 reload
 │   │   ├── reminder_service.py     #   提醒 · 邮件 · DDL（接线 + 总开关）
 │   │   ├── reminder_rules.py       #   提醒规则（纯函数：点名/3 天/6 小时/余额/自定义）
@@ -97,7 +98,8 @@ python -m venv .venv
 │       └── styles/
 │           └── theme.py            #     令牌加载 · QSS（真值见 design/tokens.json）
 ├── scripts/
-│   ├── actions.py                  # 数据操作命令层（22 命令 + 内存调用）
+│   ├── actions.py                  # 数据操作命令层（23 命令 + 内存调用）
+│   ├── actions_cmds_items.py       #   物品（有什么）命令：增/改/删/查/需购
 │   ├── actions_core.py             #   核心层：读写（原子+写前备份）/ 参数校验 / 日期与课程匹配
 │   ├── actions_cli.py              #   argparse 子命令定义
 │   ├── build_index.py              # 模糊搜索索引
