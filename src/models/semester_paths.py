@@ -22,6 +22,8 @@ data/
 
 import json
 import logging
+import os
+from datetime import datetime
 from pathlib import Path
 
 from src.models.semester import DEFAULT_SEMESTER_ID, default_semester
@@ -46,15 +48,28 @@ def is_per_semester(name: str) -> bool:
 
 
 def read_registry(data_dir: Path) -> dict:
-    """读注册表（缺文件/坏 JSON → 空 dict，不抛）。"""
+    """读注册表：缺文件 → 空 dict；**坏 JSON → 留档后按空处理**（不静默覆盖，审查 #5）。"""
     path = registry_path(data_dir)
     if not path.exists():
         return {}
     try:
         return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
-        logger.warning("学期注册表无法解析：%s", path, exc_info=True)
+        keep = _quarantine(path)
+        logger.error("学期注册表无法解析，现场已留档到 %s（将重建一份）", keep)
         return {}
+
+
+def _quarantine(path: Path) -> Path:
+    """把坏文件改名留档，返回留档路径 —— **保留现场**，绝不直接覆盖（审查 #5）。"""
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    keep = path.with_name(f"{path.stem}.corrupt-{stamp}{path.suffix}")
+    try:
+        os.replace(path, keep)
+    except OSError:
+        keep = path                         # 没搬成 → 返回原路径
+        logger.error("留档失败：%s", path, exc_info=True)
+    return keep
 
 
 def read_current_id(data_dir: Path) -> str:

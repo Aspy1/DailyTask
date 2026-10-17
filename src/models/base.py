@@ -1,12 +1,28 @@
 import copy
 import hashlib
 import json
+import logging
 import os
 import shutil
 import time
 from collections.abc import Callable, Iterable
+from datetime import datetime
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger(__name__)
+
+
+class DataCorrupted(RuntimeError):
+    """文件存在但解析不出来 —— 已**留档**（改名保留现场），绝不当作空数据。"""
+
+
+class MigrationUnavailable(RuntimeError):
+    """缺少某一步迁移实现 —— **拒绝**升级（审查 2026-10-17 #5）。"""
+
+
+class MigrationFailed(RuntimeError):
+    """某一步迁移抛错 —— 版本不更新、文件不写。"""
 
 
 def next_id(prefix: str, existing_ids: Iterable[str], width: int = 3) -> str:
@@ -32,6 +48,8 @@ class BaseJsonModel:
     # 保存冲突时的回调：由 `DataManager` 装上（留副本 + 通知界面）。模型不是 QObject，
     # 所以用回调而不是信号。
     on_conflict: Callable[["BaseJsonModel"], None] | None = None
+    # 载入时发现文件损坏 → 留档路径（`DataManager` 汇总进日志/通知）；None = 正常
+    recovered_from: Path | None = None
 
     def __init__(self, file_path: Path, default_data: dict[str, Any] | None = None) -> None:
         self.file_path = file_path
@@ -48,16 +66,49 @@ class BaseJsonModel:
             self._data = copy.deepcopy(self._default_data)
             self.save()
         else:
-            self.load()
+            try:
+                self.load()
+            except DataCorrupted:
+                # 已留档（`load()` 干的）→ 用默认值继续，别让应用起不来。
+                # 现场路径记在 `recovered_from`，`DataManager` 会汇总进日志
+                self._data = copy.deepcopy(self._default_data)
+                self._disk_fingerprint = None
+                self.save()
 
     def load(self) -> dict[str, Any]:
         with open(self.file_path, encoding="utf-8") as f:
-            self._data = json.load(f)
+            raw = f.read()
+        try:
+            self._data = json.loads(raw)
+        except json.JSONDecodeError as e:
+            # 损坏 ≠ 缺失：**保留现场**（改名留档）后抛，由 `__init__` 退回默认值。
+            # 绝不静默当空数据（审查 2026-10-17 #5）
+            self.recovered_from = self._quarantine()
+            raise DataCorrupted(
+                f"{self.file_path.name} 无法解析（现场已留档 {self.recovered_from.name}）：{e}"
+            ) from e
         # 自愈：旧文件可能早于版本键存在（Q-E4）；缺失即按 v1 处理
         self._data.setdefault("_version", 1)
+        if self.version > self.supported_version:
+            # 比本程序认识的版本还新（可能是更新版应用写的）→ 只警告，不改动数据
+            note = (f"{self.file_path.name} 的 _version={self.version} "
+                    f"比本程序支持的 v{self.supported_version} 新")
+            logger.warning("%s —— 不做任何迁移，也不当作可覆盖的目标", note)
         # 记下"我们看到的磁盘内容"：保存前拿它判断有没有别人改过（见 `save()`）
         self._disk_fingerprint = self._fingerprint(self._data)
         return self._data
+
+    def _quarantine(self) -> Path:
+        """把当前文件改名留档（**保留现场**），返回留档路径。"""
+        stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        keep = self.file_path.with_name(
+            f"{self.file_path.stem}.corrupt-{stamp}{self.file_path.suffix}")
+        try:
+            os.replace(self.file_path, keep)
+        except OSError:
+            keep = self.file_path          # 没搬成 → 返回原路径（调用方据此知道）
+            logger.error("留档失败：%s", self.file_path, exc_info=True)
+        return keep
 
     def reload(self) -> None:
         """Re-read data from disk, discarding in-memory changes."""
@@ -138,12 +189,39 @@ class BaseJsonModel:
     def version(self) -> int:
         return self._data.get("_version", 1)
 
+    @property
+    def supported_version(self) -> int:
+        """本程序认识的版本（= 默认数据的版本）。比它新 = 更新版应用写的。"""
+        return int(self._default_data.get("_version", 1))
+
     def migrate(self, target_version: int) -> None:
+        """把数据迁到 `target_version`：**逐步**执行，缺一步就拒绝（审查 2026-10-17 #5）。
+
+        - 逐步：v1→v2→v3 依次调 `_migrate_v1_to_v2` / `_migrate_v2_to_v3`
+        - **缺哪一步就抛 `MigrationUnavailable`，一个字节都不写** ——
+          旧实现找不到方法也照样把 `_version` 抬上去，数据"看起来迁过了"其实没有
+        - 任一步抛错 → `MigrationFailed`，版本与文件都保持原样
+        """
         current = self.version
         if current >= target_version:
             return
-        method_name = f"_migrate_v{current}_to_v{target_version}"
-        if hasattr(self, method_name):
-            getattr(self, method_name)()
-        self._data["_version"] = target_version
+        steps = self._migration_steps(current, target_version)
+        for from_v, to_v, method in steps:
+            try:
+                method()
+            except Exception as e:
+                raise MigrationFailed(f"迁移 v{from_v}→v{to_v} 失败：{e}") from e
+            self._data["_version"] = to_v
         self.save()
+
+    def _migration_steps(self, current: int, target: int) -> list[tuple]:
+        """把迁移拆成逐步，并**先整条检查一遍**：缺哪一步就在这里抛。"""
+        steps = []
+        for from_v in range(current, target):
+            method = getattr(self, f"_migrate_v{from_v}_to_v{from_v + 1}", None)
+            if method is None:
+                raise MigrationUnavailable(
+                    f"{type(self).__name__} 缺少 v{from_v}→v{from_v + 1} 的迁移实现，"
+                    f"拒绝把版本抬到 v{target}（数据未改动）")
+            steps.append((from_v, from_v + 1, method))
+        return steps

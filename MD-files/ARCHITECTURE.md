@@ -174,6 +174,10 @@ ui ──→ services ──→ models ──→ base(BaseJsonModel)
    直接改 `semesters.json` 的指针不会换数据（`ERRORS #040`）。
    旧布局由 `semester_paths.migrate_legacy()` 一次性迁移（先写新文件、校验、再删旧文件）。
 10. **`data/` 是用户数据**（含密钥 `settings.ini`），不进发行版（`Q-P2`）。
+11. **版本与损坏**（2026-10-17，审查 #5）：`migrate()` **逐步**执行且**缺一步就拒绝**
+    （`MigrationUnavailable`，不写文件）—— 不许"找不到迁移函数也把 `_version` 抬上去"。
+    文件**缺失** → 建默认值；**损坏** → 改名留档（`*.corrupt-<时间戳>.json`）+ 用默认值
+    继续 + ERROR 日志（`DataManager._log_recoveries`）；**版本比本程序新** → 只警告、不改动。
 
 ## 8. 数据文件 schema 总表
 

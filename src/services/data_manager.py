@@ -83,6 +83,7 @@ class DataManager(QObject):
         self.inventory = InventoryModel(data_dir / "inventory.json")
         self.habits._inventory = self.inventory
         self._attach_conflict_hook()
+        self._log_recoveries()
 
         # Auto-reload: check file mtimes every 3s, reload if changed externally
         self._file_mtimes: dict[str, float] = {}
@@ -166,6 +167,15 @@ class DataManager(QObject):
                 logger.debug("DataManager._auto_reload 中忽略异常", exc_info=True)
         if changed:
             self.data_changed.emit("external")
+
+    def _log_recoveries(self) -> None:
+        """把"载入时留档的损坏文件"汇总进日志 —— 应用还能起，但这事必须留痕。"""
+        recovered = {name: model.recovered_from for model, name in self._models()
+                     if model.recovered_from is not None}
+        if recovered:
+            detail = "、".join(f"{n}→{p.name}" for n, p in recovered.items())
+            logger.error("载入时有 %d 个文件损坏，现场已留档（当前用的是默认值）：%s",
+                         len(recovered), detail)
 
     def _attach_conflict_hook(self) -> None:
         """给每个模型装上保存冲突回调（模型不是 QObject，所以用回调而不是信号）。
