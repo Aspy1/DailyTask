@@ -45,6 +45,7 @@ class ScheduleView(QWidget):
     # 放**类级**而不是 `__init__`：`__init__` 是 SIZE 存量项，门禁只防新增/加重
     _arrange_before: dict | None = None   # 安排前
     _arrange_after: dict | None = None    # 安排后（校验期间没被改过）
+    _arrange_scope: tuple[str, ...] = ()  # 本次安排覆盖的日期（撤销只回滚这些天）
 
     def __init__(self, dm: DataManager, parent=None) -> None:
         super().__init__(parent)
@@ -382,6 +383,10 @@ class ScheduleView(QWidget):
                 f.write(snapshot)
 
             self._arrange_before = plans_snapshot(self._dm.daily_logs)
+            # 本次安排覆盖的日期（与快照同一口径）：撤销**只回滚这些天**，
+            # 免得把等待期间用户给别的日期加的计划一起删掉（审查 2026-10-17 #4）
+            self._arrange_scope = tuple(
+                (self._target_date + timedelta(days=i)).isoformat() for i in range(days))
             self._arrange_after = None
 
             period_count = self._dm.courses.get_period_count()
@@ -428,10 +433,12 @@ class ScheduleView(QWidget):
 
     def _undo_arrange(self) -> None:
         """只回滚本次安排涉及的 `plans`（实现见 `schedule_actions.undo_arrange`）。"""
-        if not undo_arrange(self, self._dm, self._arrange_before, self._arrange_after):
-            return                    # 无快照 / 期间被改过 → 已提示，按钮保持原样
+        if not undo_arrange(self, self._dm, self._arrange_before, self._arrange_after,
+                            self._arrange_scope):
+            return                    # 无快照 / 期间被改过 / 写盘被拒 → 已提示，快照保留
         self._arrange_before = None
         self._arrange_after = None
+        self._arrange_scope = ()
         self._undo_btn.hide()
         self._save_btn.hide()
         self._dm.data_changed.emit("plan")

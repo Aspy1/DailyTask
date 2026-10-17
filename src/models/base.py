@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import shutil
+import threading
 import time
 from collections.abc import Callable, Iterable
 from datetime import datetime
@@ -11,6 +12,16 @@ from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger(__name__)
+
+# 进程内**唯一的写入锁**（审查 2026-10-17 #1）。
+#
+# `save()` 的"读磁盘指纹 → 比较 → 写"三步必须互斥：否则两个写入者会各自通过检查，
+# 后写者**静默**覆盖前写者，且双方都返回成功（审查方隔离复现过）。加锁不保证"都写成功"，
+# 但保证**至少有一个被拒绝并告知** —— 这正是要的性质。
+#
+# ⚠ `scripts/actions_core.py`（AI 那条写数据路径）在**同一进程**里也必须用它，
+# 否则 AI 工作线程与 UI 线程照样交错。
+WRITE_LOCK = threading.RLock()
 
 
 class DataCorrupted(RuntimeError):
@@ -23,6 +34,16 @@ class MigrationUnavailable(RuntimeError):
 
 class MigrationFailed(RuntimeError):
     """某一步迁移抛错 —— 版本不更新、文件不写。"""
+
+
+def fingerprint(doc: dict) -> str:
+    """内容指纹（`sort_keys` → 与键序无关）。
+
+    `BaseJsonModel` 与 `scripts/actions_core.py`（AI 那条写入路径）共用它 ——
+    两条路都要能判断"磁盘上这份内容还是不是我读到的那份"（审查 2026-10-17 #1）。
+    """
+    blob = json.dumps(doc, sort_keys=True, ensure_ascii=False)
+    return hashlib.sha256(blob.encode("utf-8")).hexdigest()
 
 
 def next_id(prefix: str, existing_ids: Iterable[str], width: int = 3) -> str:
@@ -50,6 +71,8 @@ class BaseJsonModel:
     on_conflict: Callable[["BaseJsonModel"], None] | None = None
     # 载入时发现文件损坏 → 留档路径（`DataManager` 汇总进日志/通知）；None = 正常
     recovered_from: Path | None = None
+    # 载入时损坏且**留档失败** → 拒绝一切写入（不许毁现场，审查 2026-10-17 #3）
+    _write_blocked: bool = False
 
     def __init__(self, file_path: Path, default_data: dict[str, Any] | None = None) -> None:
         self.file_path = file_path
@@ -73,7 +96,14 @@ class BaseJsonModel:
                 # 现场路径记在 `recovered_from`，`DataManager` 会汇总进日志
                 self._data = copy.deepcopy(self._default_data)
                 self._disk_fingerprint = None
-                self.save()
+                if self.recovered_from is None:
+                    # 留档**失败** → 损坏现场还在原地 → **不许**建替代文件
+                    # （否则一写就把现场毁了，审查 2026-10-17 #3）
+                    self._write_blocked = True
+                    logger.error("%s 损坏且留档失败，已禁止写入以免毁掉现场",
+                                 self.file_path.name)
+                else:
+                    self.save()
 
     def load(self) -> dict[str, Any]:
         with open(self.file_path, encoding="utf-8") as f:
@@ -84,9 +114,10 @@ class BaseJsonModel:
             # 损坏 ≠ 缺失：**保留现场**（改名留档）后抛，由 `__init__` 退回默认值。
             # 绝不静默当空数据（审查 2026-10-17 #5）
             self.recovered_from = self._quarantine()
+            kept = (self.recovered_from.name if self.recovered_from
+                    else "留档失败，现场仍在原处")
             raise DataCorrupted(
-                f"{self.file_path.name} 无法解析（现场已留档 {self.recovered_from.name}）：{e}"
-            ) from e
+                f"{self.file_path.name} 无法解析（{kept}）：{e}") from e
         # 自愈：旧文件可能早于版本键存在（Q-E4）；缺失即按 v1 处理
         self._data.setdefault("_version", 1)
         if self.version > self.supported_version:
@@ -98,16 +129,20 @@ class BaseJsonModel:
         self._disk_fingerprint = self._fingerprint(self._data)
         return self._data
 
-    def _quarantine(self) -> Path:
-        """把当前文件改名留档（**保留现场**），返回留档路径。"""
+    def _quarantine(self) -> Path | None:
+        """把当前文件改名留档（**保留现场**）；**失败返回 None**。
+
+        返回 None 时调用方必须拒绝写入 —— 现场还在原地，写替代文件等于毁掉它
+        （审查 2026-10-17 #3）。
+        """
         stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
         keep = self.file_path.with_name(
             f"{self.file_path.stem}.corrupt-{stamp}{self.file_path.suffix}")
         try:
             os.replace(self.file_path, keep)
         except OSError:
-            keep = self.file_path          # 没搬成 → 返回原路径（调用方据此知道）
             logger.error("留档失败：%s", self.file_path, exc_info=True)
+            return None
         return keep
 
     def reload(self) -> None:
@@ -115,39 +150,61 @@ class BaseJsonModel:
         self.load()
 
     def save(self) -> bool:
-        """落盘。返回 `False` 表示**没写**（磁盘被别人改过，已交 `on_conflict`）。
+        """落盘。返回 `False` 表示**没写**（磁盘被别人改过或读不出来，已交 `on_conflict`）。
 
         冲突检测用**磁盘内容指纹**，不用 mtime（应用自己保存也会动 mtime），也不用
         `_rev` 号 —— 那要求每个写入方都配合维护，而 `scripts/actions_core.py`、skill、
         手工编辑都会漏，于是冲突**静默**通过（那正是要修的问题）。指纹与键序无关，
         所以"只是被重新格式化过"不算改动。
 
+        **"读指纹 → 比较 → 写"整段持 `WRITE_LOCK`**（审查 2026-10-17 #1）：否则两个写入者
+        各自通过检查、后写者静默覆盖。加锁后至少有一个会被拒绝。
+
         ⚠ 冲突时**不抛异常**：`save()` 有二十来个调用点（各面板改完就存），抛出去会把
         UI 打崩。留副本 + 通知由 `on_conflict`（`DataManager` 装上）负责。
         """
-        if self._disk_fingerprint is not None:
-            current = self._read_disk_fingerprint()
-            if current is not None and current != self._disk_fingerprint:
-                if self.on_conflict is not None:
-                    self.on_conflict(self)
+        with WRITE_LOCK:
+            if self._write_blocked:
+                # 载入时损坏且留档失败 → 一律不写（审查 2026-10-17 #3）
+                self._report_conflict()
                 return False
-        self.atomic_write()
-        self._disk_fingerprint = self._fingerprint(self._data)
-        return True
+            if self._disk_fingerprint is not None:
+                state, current = self._read_disk_state()
+                if state == "unreadable":
+                    # 文件在但读不出来 → **拒绝覆盖**（写下去现场就没了，审查 #3）
+                    self._report_conflict()
+                    return False
+                if state == "ok" and current != self._disk_fingerprint:
+                    self._report_conflict()
+                    return False
+            self.atomic_write()
+            self._disk_fingerprint = self._fingerprint(self._data)
+            return True
+
+    def _report_conflict(self) -> None:
+        """把"这次没写"交给上层（留副本 + 通知），模型自己不弹窗也不抛异常。"""
+        logger.warning("%s 保存被拒：磁盘内容与内存不一致或无法读取", self.file_path.name)
+        if self.on_conflict is not None:
+            self.on_conflict(self)
 
     @staticmethod
     def _fingerprint(doc: dict) -> str:
-        """内容指纹（`sort_keys` → 与键序无关）。"""
-        blob = json.dumps(doc, sort_keys=True, ensure_ascii=False)
-        return hashlib.sha256(blob.encode("utf-8")).hexdigest()
+        """内容指纹（与 `base.fingerprint()` 同一实现，两处不各写一份）。"""
+        return fingerprint(doc)
 
-    def _read_disk_fingerprint(self) -> str | None:
-        """磁盘上那份内容的指纹；文件缺失 / 损坏返回 None（当作"没有可冲突的对象"）。"""
+    def _read_disk_state(self) -> tuple[str, str | None]:
+        """磁盘状态：(状态, 指纹)。状态 ∈ `missing` / `ok` / `unreadable`。
+
+        `unreadable` = 文件在、但读不出来（损坏 / 权限）—— 调用方**必须拒绝覆盖**：
+        覆盖会把现场毁掉（审查 2026-10-17 #3）。
+        """
+        if not self.file_path.exists():
+            return "missing", None
         try:
             with open(self.file_path, encoding="utf-8") as f:
-                return self._fingerprint(json.load(f))
+                return "ok", self._fingerprint(json.load(f))
         except (OSError, json.JSONDecodeError):
-            return None
+            return "unreadable", None
 
     def atomic_write(self) -> None:
         tmp_path = self.file_path.with_suffix(".tmp")
@@ -206,12 +263,20 @@ class BaseJsonModel:
         if current >= target_version:
             return
         steps = self._migration_steps(current, target_version)
-        for from_v, to_v, method in steps:
-            try:
-                method()
-            except Exception as e:
-                raise MigrationFailed(f"迁移 v{from_v}→v{to_v} 失败：{e}") from e
-            self._data["_version"] = to_v
+        # 在**深拷贝**上迁移：任一步失败都不动内存（否则会出现"磁盘 v1、内存 v2 半成品"，
+        # 之后一次普通保存就把失败迁移的中间态写进文件，审查 2026-10-17 #5）
+        original = self._data
+        self._data = copy.deepcopy(original)
+        try:
+            for from_v, to_v, method in steps:
+                try:
+                    method()
+                except Exception as e:
+                    raise MigrationFailed(f"迁移 v{from_v}→v{to_v} 失败：{e}") from e
+                self._data["_version"] = to_v
+        except Exception:
+            self._data = original          # 回滚内存，与磁盘保持一致
+            raise
         self.save()
 
     def _migration_steps(self, current: int, target: int) -> list[tuple]:

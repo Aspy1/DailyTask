@@ -20,28 +20,19 @@ DATA_FILES = ("daily_logs.json", "expenses.json", "habits.json",
 DATA_DIRS = ("semesters",)
 
 
-def sync_paths(data_dir: Path, data_rel: str) -> list[str]:
-    """要暂存的路径（仓库相对）。**只列存在的**。
+def build_sync_commands(data_rel: str, message: str) -> list[list[str]]:
+    """拼同步命令：add（只加数据目录）→ commit（只提交这些路径）→ push。**纯函数**。
 
-    ⚠ `git add` 对不存在的路径会直接 `fatal: pathspec … did not match any files`，
-    整条命令链就此中断（2026-10-17 用临时仓库实测到）—— 新机器 / 新克隆上必然踩。
-    目录整个带上：新学期的文件还没进过版本库，也要能一次加进去。
-    全都不存在时退回数据目录本身（`.gitignore` 会把派生文件挡住）。
+    - `git add -A -- <数据目录>`：目录级暂存 —— 新学期的目录、**已跟踪文件的删除**都
+      一次带上，而且不会像逐个列文件那样"路径不存在就 fatal"（审查 2026-10-17 #6）。
+      忽略规则（`.gitignore`）把密钥/派生文件挡在外面。
+    - `git commit --only -- <数据目录>`：**只提交这些路径**，不碰暂存区里其它东西 ——
+      否则普通 `commit` 会把开发者已经 `git add` 的源码一起提交（审查 #2）。
+    - 手动同步与自动同步范围**完全一样**，只有提交信息不同（旧实现手动同步用
+      `git add -A`，会把开发中的源码一起提交）。
     """
-    paths = [f"{data_rel}/{n}" for n in DATA_FILES if (data_dir / n).exists()]
-    paths += [f"{data_rel}/{d}" for d in DATA_DIRS if (data_dir / d).exists()]
-    return paths or [data_rel]
-
-
-def build_sync_commands(data_rel: str, message: str, paths: list[str]) -> list[list[str]]:
-    """拼同步命令：add（只加用户数据）→ commit → push。**纯函数**，便于测试。
-
-    ⚠ 手动同步**不再** `git add -A`（审查 2026-10-17 #4）：那会把开发中的源码一起
-    提交。源码该由开发时显式提交 —— 两条路径的范围**完全一样**，只有提交信息不同。
-    `-A -- <路径>`：路径内的**删除**也要暂存，而 `--` 后面是显式路径，扫不到源码。
-    """
-    return [["git", "add", "-A", "--", *paths],
-            ["git", "commit", "-m", message],
+    return [["git", "add", "-A", "--", data_rel],
+            ["git", "commit", "--only", "-m", message, "--", data_rel],
             ["git", "push"]]
 
 
@@ -145,8 +136,7 @@ class GitSync(QObject):
 
         self.sync_status.emit("syncing")
         message = "data: manual sync [skip ci]" if manual else "data: auto-sync [skip ci]"
-        paths = sync_paths(self._data_dir, self._data_rel())
-        cmds = build_sync_commands(self._data_rel(), message, paths)
+        cmds = build_sync_commands(self._data_rel(), message)
         self._worker = _GitWorker(self._repo, cmds, self)
         self._worker.finished.connect(self._on_done)
         self._worker.finished.connect(self._worker.deleteLater)  # 生命周期回收（Q-B5）

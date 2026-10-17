@@ -18,6 +18,8 @@ import shutil
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
+from src.models.base import WRITE_LOCK, fingerprint
+
 DATA = Path(__file__).parent.parent / "data"
 
 # ═══════════════════════════════════════════════════════════
@@ -51,7 +53,25 @@ def load(name) -> dict:
             f"再用 `restore --name {p.name} --yes` 恢复。") from e
     if not isinstance(data, dict):
         raise ActionError(f"{p.name} 顶层不是 JSON 对象，拒绝继续操作")
+    # 记下"读到的磁盘内容"：`save()` 写前比对，避免用旧快照覆盖别人刚写的改动
+    # （审查 2026-10-17 #1 —— AI 与 UI 在**同一进程**里并发写）
+    # ⚠ 按**解析后的完整路径**记，不按文件名：切学期后同名文件在别的目录下，
+    #   按名字记会拿旧指纹误判成"被改过"。
+    _LOADED[str(p)] = fingerprint(data)
     return data
+
+
+# 载入时的磁盘指纹（按文件名）—— `save()` 用它判断"这份数据在我手上期间被改过没"
+_LOADED: dict[str, str] = {}
+
+
+def _disk_fingerprint(p: Path) -> str | None:
+    """磁盘当前内容的指纹；文件缺失 / 读不出来 → None（调用方一律判为"变了"）。"""
+    try:
+        with open(p, encoding="utf-8") as f:
+            return fingerprint(json.load(f))
+    except (OSError, json.JSONDecodeError):
+        return None
 
 
 # ── 备份：写入前自动留存，可用 restore 手动回滚 ──────────────
@@ -125,18 +145,28 @@ def save(name, obj) -> None:
     """原子写入：结构守卫 → 备份旧文件 → 写 .tmp → 回读自检 → 原子替换。
 
     此前这里是裸 `json.dump`：写一半断电/并发就是坏文件（ERRORS #041 同类）。
+
+    **整段持 `WRITE_LOCK`**（与 `BaseJsonModel.save()` 同一把锁，审查 2026-10-17 #1），
+    并在写前比对"`load()` 时读到的磁盘内容"：不一致 → 拒绝，不用旧快照静默覆盖。
     """
     p = _path(name)
     _validate_payload(name, obj)
-    p.parent.mkdir(parents=True, exist_ok=True)
-    _backup_file(p)
-    tmp = p.with_name(p.name + ".tmp")
-    try:
-        tmp.write_text(json.dumps(obj, ensure_ascii=False, indent=2), encoding="utf-8")
-        json.loads(tmp.read_text(encoding="utf-8"))      # 回读自检：写出来必须是合法 JSON
-        os.replace(tmp, p)                               # 原子替换
-    finally:
-        tmp.unlink(missing_ok=True)
+    with WRITE_LOCK:
+        seen = _LOADED.get(str(p))
+        if seen is not None and _disk_fingerprint(p) != seen:
+            raise ActionError(
+                f"{p.name} 在本次操作期间被其它程序改动，已放弃写入以免覆盖。"
+                f"请重新查询后再改（`list_backups` / `restore` 可回滚）。")
+        p.parent.mkdir(parents=True, exist_ok=True)
+        _backup_file(p)
+        tmp = p.with_name(p.name + ".tmp")
+        try:
+            tmp.write_text(json.dumps(obj, ensure_ascii=False, indent=2), encoding="utf-8")
+            json.loads(tmp.read_text(encoding="utf-8"))      # 回读自检：写出来必须是合法 JSON
+            os.replace(tmp, p)                               # 原子替换
+        finally:
+            tmp.unlink(missing_ok=True)
+        _LOADED[str(p)] = fingerprint(obj)
 
 def gen_id(items, prefix) -> str:
     existing = set()

@@ -622,6 +622,8 @@ execution`（`cc6a9e4`，2026-10-17）：`chat()` 不再把 `reasoning_content` 
 | #5 迁移闭环 | ✅ **完成**（2026-10-17）：`migrate()` 逐步执行 + 缺一步就拒绝（不再"假装迁过了"）；缺失/损坏/版本过新三种情况分开；坏文件**留档**（`*.corrupt-*.json`）后用默认值继续 + ERROR 日志。见 `dev-logs/2026-10-17-迁移与损坏数据闭环.md` |
 | #6 学期事件 | ✅ **完成**（2026-10-17）：事件→面板**显式映射**（`main_workspace.EVENT_PANELS`）+ 未登记事件保守全刷 + 守卫测试扫全仓 emit；`_auto_reload` 发现外部改注册表 → **重绑学期模型** + 发 `"semester"`。顺带修掉 `"saving"` 刷不到记账、`"semester"` 刷不到作业/考试。见 `dev-logs/2026-10-17-数据事件映射.md` |
 | 星期几敏感的既有测试 | ⏳ 5 个：`test_reminder_exams` ×3 · `test_ui_fixes::test_statusbar_refreshes_on_data_changed` · `test_course_conflicts::test_day_view_warns_about_conflict`（本地/UTC 跨到 10-18 周日就红；代码路径与本轮改动不相交）|
+| **第二轮审查（85a2287..97c52f8）** | ✅ **1~6 已修**（2026-10-18）：写入锁 + `actions_core` 同锁与指纹校验 · `commit --only` · 损坏三态与留档失败禁写 · 撤销只回滚本次覆盖日期 · 迁移内存回滚 · 目录级暂存覆盖删除。见 `dev-logs/2026-10-18-并发与损坏路径加固.md` |
+| 第二轮 #7（CLI 委派分帧） | ⏳ 服务端 `readyRead` 每次当完整 JSON、客户端只等一次 → 要缓冲到换行帧 + 校验 `ok/out` 类型 + 真实 socket 分片测试 |
 | `fill_prompt:` 借 `data_changed` 传提示词 | ⏳ 不是数据变更、且全仓无消费者（疑似死 emit）→ 应改成专用信号（`schedule_view.py:844`）|
 | 文档规范 | ⏳ BLE001 收窄到 Qt 事件边界 · 删文档里会漂移的硬编码数字 · L1 与 DoD 统一 · CI 加 3.14 + 锁文件复现 |
 

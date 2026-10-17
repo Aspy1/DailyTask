@@ -110,3 +110,25 @@ def test_registry_corrupt_is_quarantined(tmp_path) -> None:
 
     assert semester_paths.read_registry(tmp_path) == {}
     assert list(tmp_path.glob("semesters.corrupt-*.json")), "注册表现场要留档"
+
+
+def test_failed_step_does_not_touch_memory(tmp_path) -> None:
+    """v1→v2 成功、v2→v3 失败后：**内存也不能停在半成品**（审查 #5）。
+
+    否则磁盘还是 v1、内存已是 v2 且带部分新字段 —— 之后一次普通保存就把失败迁移的
+    中间态写进文件。
+    """
+    class _Halfway(_TwoSteps):
+        def _migrate_v2_to_v3(self) -> None:
+            raise RuntimeError("boom")
+
+    path = tmp_path / "x.json"
+    m = _Halfway(path)
+    before = json.loads(path.read_text(encoding="utf-8"))
+
+    with pytest.raises(MigrationFailed):
+        m.migrate(3)
+
+    assert m.version == 1, "内存版本必须回滚"
+    assert "added_v2" not in m.data, "半成品字段不许留在内存里"
+    assert m.data == before

@@ -1,14 +1,18 @@
-"""Git 同步范围（审查 2026-10-17 #4）。
+"""Git 同步范围与**真实集成**（审查 2026-10-17 #4 / #2 / #6）。
 
-三件事必须钉住：
+四件事：
 
-1. **同步清单不漂移**：`DATA_FILES` / `DATA_DIRS` 必须覆盖 `DataManager` 的每个模型
-   文件 —— 新增数据文件时忘了加清单，数据会**悄悄**不同步（比报错更糟）。
-2. **只暂存存在的路径**：`git add` 对不存在的路径会 `fatal: pathspec … did not match`
-   并中断整条命令链（用临时仓库实测到）—— 新机器/新克隆上必然踩。
-3. **手动同步不再扫全仓**：旧实现 `git add -A` 会把开发中的源码一起提交，
-   而"没东西可提交"时又直接 `return`，导致 push 根本不执行。
+1. **同步清单不漂移**：数据文件必须都在数据目录下（目录级暂存才覆盖得到）；
+2. **不夹带已暂存的源码**：普通 `commit` 会提交整个暂存区 → 必须 `commit --only`；
+3. **删除也要同步**：只挑"存在的文件"会漏掉已跟踪文件的删除；
+4. 状态判定（没东西可提交 / 已经是最新）是纯函数。
+
+第 2、3 条用**真实临时仓库 + 本地裸仓库**跑 —— 纯函数测不到 git 的真实行为
+（前一轮就是靠真跑才发现 `git add` 对不存在路径会 fatal、push 的 up-to-date 走 stderr）。
 """
+
+import subprocess
+from pathlib import Path
 
 import pytest
 
@@ -16,16 +20,16 @@ from src.services.data_manager import DataManager
 from src.services.git_sync import (
     DATA_DIRS,
     DATA_FILES,
+    _GitWorker,
     build_sync_commands,
     classify_sync,
     is_nothing_to_commit,
     is_up_to_date,
-    sync_paths,
 )
 
 
 def test_manifest_covers_every_model(tmp_path, qapp) -> None:
-    """清单必须覆盖 `DataManager._models()` 的每个文件（含按学期的三个）。"""
+    """每个模型文件都要落在"数据目录 + 清单子目录"之内（目录级暂存才覆盖得到）。"""
     dm = DataManager(tmp_path)
     covered = set(DATA_FILES) | set(DATA_DIRS)
     for model, name in dm._models():
@@ -35,33 +39,14 @@ def test_manifest_covers_every_model(tmp_path, qapp) -> None:
             f"{name}（{rel}）不在同步清单里 —— 加进 `git_sync.DATA_FILES`/`DATA_DIRS`")
 
 
-def test_paths_only_include_existing_ones(tmp_path, qapp) -> None:
-    """不存在的路径必须跳过；一个都不存在时退回数据目录本身。"""
-    data_dir = tmp_path / "data"
-    data_dir.mkdir()
-    assert sync_paths(data_dir, "data") == ["data"]
-
-    DataManager(data_dir)                      # 建出全部数据文件
-    paths = sync_paths(data_dir, "data")
-    assert "data/semesters" in paths           # 按学期的整个目录要带上
-    assert "data/habits.json" in paths
-    assert all((tmp_path / p).exists() for p in paths)
-
-
-def test_add_is_scoped_to_explicit_data_paths(tmp_path, qapp) -> None:
-    """`git add` 必须限定在 `data/` 下，且用 `--` 显式列路径（禁止扫全仓）。"""
-    data_dir = tmp_path / "data"
-    DataManager(data_dir)
-    add = build_sync_commands("data", "msg", sync_paths(data_dir, "data"))[0]
-    assert add[:3] == ["git", "add", "-A"], add
-    assert "--" in add, "必须用 `--` 限定显式路径"
-    assert all(p.startswith("data/") for p in add[add.index("--") + 1:]), add
-
-
-def test_push_stays_last() -> None:
-    """push 必须留在最后：即使"没东西可提交"，之前攒下的提交也要推上去。"""
-    cmds = build_sync_commands("data", "msg", ["data"])
-    assert " ".join(cmds[-1]) == "git push"
+def test_add_and_commit_are_scoped_to_data_dir() -> None:
+    """`add` 与 `commit` 都必须限定在数据目录下（禁止扫全仓、禁止提交整个暂存区）。"""
+    add, commit, push = build_sync_commands("data", "msg")
+    assert add[:4] == ["git", "add", "-A", "--"], add
+    assert add[4] == "data"
+    assert commit[:3] == ["git", "commit", "--only"], commit
+    assert "--" in commit and commit[-1] == "data"
+    assert " ".join(push) == "git push"
 
 
 @pytest.mark.parametrize(("detail", "expected"), [
@@ -85,3 +70,69 @@ def test_is_up_to_date(output: str, expected: bool) -> None:
 def test_classify_sync() -> None:
     assert classify_sync(pushed=True) == "pushed"
     assert classify_sync(pushed=False) == "up-to-date"
+
+
+# ── 真实仓库集成（下面这些必须跑真 git）────────────────────────
+
+def _git(repo: Path, *args: str) -> subprocess.CompletedProcess:
+    return subprocess.run(["git", *args], cwd=str(repo), capture_output=True,
+                          text=True, encoding="utf-8", errors="replace")
+
+
+def _init_repo(tmp_path: Path) -> Path:
+    """临时仓库 + 本地裸仓库当远端；`data/habits.json` 已提交并推送。"""
+    origin, repo = tmp_path / "origin.git", tmp_path / "repo"
+    repo.mkdir()
+    _git(tmp_path, "init", "--bare", "-q", str(origin))
+    _git(repo, "init", "-q")
+    _git(repo, "config", "user.email", "t@example.com")
+    _git(repo, "config", "user.name", "tester")
+    (repo / "data").mkdir()
+    (repo / "data" / "habits.json").write_text('{"_version": 1}\n', encoding="utf-8")
+    _git(repo, "remote", "add", "origin", str(origin))
+    _git(repo, "add", "-A", "--", "data")
+    _git(repo, "commit", "-q", "-m", "init")
+    _git(repo, "push", "-q", "-u", "origin", "HEAD")
+    return repo
+
+
+def _run_sync(repo: Path) -> tuple[bool, str, str]:
+    out: list[tuple[bool, str, str]] = []
+    worker = _GitWorker(repo, build_sync_commands("data", "data: auto-sync [skip ci]"))
+    worker.finished.connect(lambda ok, detail, state: out.append((ok, detail, state)))
+    worker.run()
+    return out[-1]
+
+
+def test_sync_does_not_swallow_already_staged_source(qapp, tmp_path) -> None:
+    """审查 #2：开发者已 `git add` 的源码不许被同步的提交夹带进去。"""
+    repo = _init_repo(tmp_path)
+    (repo / "source.py").write_text("x = 1\n", encoding="utf-8")
+    _git(repo, "add", "--", "source.py")                    # 开发者已暂存源码
+    (repo / "data" / "habits.json").write_text('{"_version": 1, "x": 1}\n',
+                                               encoding="utf-8")
+
+    ok, detail, _state = _run_sync(repo)
+    assert ok, detail
+
+    committed = _git(repo, "show", "--name-only", "--format=", "HEAD").stdout
+    assert "source.py" not in committed, f"源码被夹带进同步提交：{committed}"
+    staged = _git(repo, "diff", "--cached", "--name-only").stdout
+    assert "source.py" in staged, "开发者原有的暂存状态必须保留"
+
+
+def test_sync_stages_deletion_of_tracked_data(qapp, tmp_path) -> None:
+    """审查 #6：删掉一个已跟踪的数据文件，同步必须把"删除"也提交上去。"""
+    repo = _init_repo(tmp_path)
+    (repo / "data" / "inventory.json").write_text('{"_version": 1, "items": []}\n',
+                                                  encoding="utf-8")
+    _git(repo, "add", "-A", "--", "data")
+    _git(repo, "commit", "-q", "-m", "add inv")
+    _git(repo, "push", "-q")
+
+    (repo / "data" / "inventory.json").unlink()             # 用户删了它
+    ok, detail, _state = _run_sync(repo)
+    assert ok, detail
+
+    tree = _git(repo, "ls-tree", "-r", "--name-only", "origin/master").stdout
+    assert "data/inventory.json" not in tree, f"远端还留着已删除的文件：{tree}"

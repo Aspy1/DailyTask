@@ -178,13 +178,17 @@ class DataManager(QObject):
             self.data_changed.emit("external")
 
     def _log_recoveries(self) -> None:
-        """把"载入时留档的损坏文件"汇总进日志 —— 应用还能起，但这事必须留痕。"""
+        """把"留档的损坏文件"与"禁止写入的文件"汇总进日志 —— 应用还能起，但必须留痕。"""
         recovered = {name: model.recovered_from for model, name in self._models()
                      if model.recovered_from is not None}
         if recovered:
             detail = "、".join(f"{n}→{p.name}" for n, p in recovered.items())
             logger.error("载入时有 %d 个文件损坏，现场已留档（当前用的是默认值）：%s",
                          len(recovered), detail)
+        blocked = [name for model, name in self._models() if model._write_blocked]
+        if blocked:
+            names = "、".join(blocked)
+            logger.error("以下文件损坏且留档失败，已禁止写入（请手工处理后再用）：%s", names)
 
     def _attach_conflict_hook(self) -> None:
         """给每个模型装上保存冲突回调（模型不是 QObject，所以用回调而不是信号）。

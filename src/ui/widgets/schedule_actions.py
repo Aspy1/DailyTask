@@ -37,24 +37,38 @@ def plans_snapshot(daily_logs) -> dict:
     return copy.deepcopy(daily_logs.data.get("plans", {}))
 
 
-def undo_arrange(parent, dm, before: dict | None, after: dict | None) -> bool:
-    """把 `plans` 回滚到 `before`，并校验期间没人动过它。返回是否真的回滚了。
+def undo_arrange(parent, dm, before: dict | None, after: dict | None,
+                 scope: tuple[str, ...] | list[str] | None = None) -> bool:
+    """只回滚**本次安排覆盖的那些日期**，逐日校验冲突。返回是否真的回滚了。
 
-    旧实现是 `copy2` 整份 `daily_logs.json` 覆盖 —— 会连带回滚 `logs`/`reminders`，
-    还绕开原子写。现在只写回 `plans`，且"期间被改过就拒绝"（不静默选一边）。
+    ⚠ 不能整体写回 `before`：等待 AI 的期间用户可能给**别的日期**加了计划，
+    整体回滚会把那些无关计划一起删掉（审查 2026-10-17 #4）。
+    ⚠ 写盘被拒（磁盘又被改动）→ 返回 `False`，让调用方**保留快照**以便重试（审查 #4）。
     """
     if before is None or after is None:
         QMessageBox.information(parent, tr("widget.schedule.msg_undo_title"),
                                 tr("widget.schedule.msg_no_backup"))
         return False
+    days = list(scope) if scope else sorted(set(before) | set(after))
     # 先按磁盘刷新：内存里可能还是安排前的旧值，直接写回会丢掉期间的其它改动
     dm.daily_logs.reload()
-    if dm.daily_logs.data.get("plans", {}) != after:
+    plans = dm.daily_logs.data.get("plans", {})
+    stale = [d for d in days if plans.get(d) != after.get(d)]
+    if stale:
+        # 这些日期在安排之后又被改过 → 拒绝，不动任何数据（不静默选一边）
+        logger.warning("撤销被拒：这些日期在安排之后又被改过 %s", stale)
         QMessageBox.warning(parent, tr("widget.schedule.msg_undo_title"),
                             tr("widget.schedule.msg_undo_stale"))
         return False
-    dm.daily_logs.data["plans"] = copy.deepcopy(before)
-    dm.daily_logs.save()
+    for day in days:
+        if day in before:
+            plans[day] = copy.deepcopy(before[day])
+        else:
+            plans.pop(day, None)      # 安排新增的那天 → 撤销就把它去掉
+    saved = dm.daily_logs.save()
+    if not saved:
+        logger.warning("撤销写盘被拒（磁盘又被改动），保留快照以便重试")
+        return False
     return True
 
 
