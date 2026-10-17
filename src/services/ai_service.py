@@ -72,6 +72,12 @@ def _strip_code_blocks(text: str) -> str:
                   text, flags=re.DOTALL).strip()
 
 
+# 空回复的**明确失败**文案：模型只输出推理（或什么都没给）时用。
+# 服务层沿用既有做法直接 emit 文案（与 `self.error.emit(str(e))` 一致）。
+_EMPTY_REPLY_NOTE = ("模型没有返回可执行内容（推理可能占满了输出预算）。"
+                     "请重试，或提高设置里的 AI.max_tokens。")
+
+
 def _continuation_nudge(text: str, truncated: bool, empty_retries: int = 0) -> str | None:
     """该不该要求模型"继续"？需要时返回提示语，正常回复返回 None。
 
@@ -138,13 +144,15 @@ class DeepSeekProvider:
                     getattr(usage, "prompt_tokens", "?"))
         content = choice.message.content or ""
         if not content.strip():
-            # 推理模型有时把答案**只写在推理里**（content 为空、finish_reason=length）
-            # → 抢救一次：把推理文本当回复交出去，命令仍由 actions.py 严格校验。
-            # 否则用户看到的是一片空白（2026-10-16 实测 5 轮全是 8192 推理 + 0 内容）。
+            # ⚠ 推理文本**绝不能**当回答交出去：`InstructionParser.parse()` 会从任意
+            # 文本里抽含 `scripts/actions.py` 的行去执行，而推理里常有"比如可以这样
+            # 删…"这类**被否决或仅作举例**的命令 —— `actions.py` 只校验格式合法，
+            # 校验不了**意图**。空内容交给上层按"没有可执行内容"处理：
+            # `_handle_no_instructions()` 会要求模型直接输出命令（只重试一次），
+            # 仍为空则明确报错（`_EMPTY_REPLY_NOTE`）。
             reasoning = getattr(choice.message, "reasoning_content", "") or ""
-            if reasoning.strip():
-                logger.warning("content 为空、推理有 %d 字符，改用推理文本", len(reasoning))
-                return reasoning
+            logger.warning("content 为空、推理 %d 字符 —— 推理不进执行通道，按空回复处理",
+                           len(reasoning))
         return content
 
     def _create(self, full_messages: list[dict], model: str,
@@ -241,8 +249,10 @@ class AIWorker(QObject):
             display = re.sub(r'```(?:sh|json)\s*.*?```', '', final_text, flags=re.DOTALL).strip()
             if all_instructions:
                 self.finished_with_instructions.emit(display or "已完成", all_instructions)
+            elif display:
+                self.finished.emit(display)
             else:
-                self.finished.emit(display or "已完成")
+                self.error.emit(_EMPTY_REPLY_NOTE)
         # 边界捕获：本层已处理/记录，不允许异常向上逃逸（CODE_STANDARDS Q-I1）
         except Exception as e:  # noqa: BLE001
             self.error.emit(str(e))
@@ -260,9 +270,12 @@ class AIWorker(QObject):
             return True
         if all_instructions:
             # 前几轮执行过命令 → 走"执行完成"路径（带上汇总文本）
-            self.finished_with_instructions.emit(text, all_instructions)
-        else:
+            self.finished_with_instructions.emit(text or _EMPTY_REPLY_NOTE, all_instructions)
+        elif text.strip():
             self.finished.emit(text)
+        else:
+            # 空回复 = **失败**，不是"完成"（此前会把推理文本当回答显示并执行）
+            self.error.emit(_EMPTY_REPLY_NOTE)
         return False
 
 

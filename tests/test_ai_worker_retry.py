@@ -75,14 +75,17 @@ def test_worker_retries_on_empty_reply(qapp, sandbox) -> None:
 
 
 def test_worker_stops_after_repeated_empty_replies(qapp, sandbox) -> None:
-    """一直空回复不能空转：**只重试一次**，然后就结束并把情况交给上层提示。
+    """一直空回复不能空转：**只重试一次**，然后**明确报错**（不是"完成"）。
 
     实测教训：模型陷在思考里时，5 轮重试 = 用户白等三分半（43+41+43+44+45 秒）。
+    ⚠ 报错而不是 `finished`：空回复此前会把**推理文本**当回答交给上层（含执行通道），
+    现在只允许失败（2026-10-17）。
     """
     provider, results = _run(["", "", "", "", ""])
 
     assert len(provider.calls) == 2, "空回复只允许重试一次"
-    assert results[-1][0] == "text" and results[-1][1].strip() == ""
+    assert results[-1][0] == "error", "连续空回复是失败，不是完成"
+    assert "max_tokens" in results[-1][1], "报错要给出可操作的建议"
 
 
 # ── 截断 → 分批继续 ─────────────────────────────────────────
@@ -185,11 +188,37 @@ def _provider(responses: list, base: str = "https://opencode.ai/inference/go/ope
     return p, fake.chat.completions
 
 
-def test_content_empty_falls_back_to_reasoning() -> None:
-    """content 为空、推理里有命令 → 用推理文本（否则用户看到一片空白）。"""
+def test_content_empty_does_not_leak_reasoning() -> None:
+    """content 为空时**不得**把推理当回答 —— 推理里的命令会被解析器真的执行。
+
+    2026-10-17 之前这里是"用推理文本抢救"，等于把模型的**思考过程**（常含被否决
+    或仅作举例的命令）送进 `InstructionParser` 执行。`actions.py` 只校验格式合法、
+    校验不了**意图**，所以推理必须止步在显示层之外。
+    """
+    from src.services.ai_service import InstructionParser
+
     p, _calls = _provider([_FakeResponse("", f"```sh\n{TASK_CMD}\n```")])
     out = p.chat("sys", [{"role": "user", "content": "x"}], "m", 100, 0.3)
-    assert "add_task" in out
+    assert out == "", "空 content 必须返回空，不得回落到推理文本"
+    assert InstructionParser.parse(out) == [], "推理文本不得进入执行通道"
+
+
+def test_worker_reports_empty_reply_as_error(qapp) -> None:
+    """整条链路：content 空 + 推理里带命令 → 一条都不执行，且走 error 而不是"完成"。"""
+    from src.services.ai_service import AIWorker
+
+    p, _calls = _provider([_FakeResponse("", f"```sh\n{TASK_CMD}\n```")])
+    worker = AIWorker(p, "m", "sys", [{"role": "user", "content": "x"}])
+    errors: list[str] = []
+    finished: list[str] = []
+    worker.error.connect(errors.append)
+    worker.finished.connect(finished.append)
+    worker.finished_with_instructions.connect(lambda text, ins: finished.append(text))
+
+    worker.run()
+
+    assert errors, "空回复必须走 error（明确失败）"
+    assert not finished, "空回复不得走 finished/finished_with_instructions"
 
 
 def test_reasoning_effort_sent_to_opencode() -> None:
