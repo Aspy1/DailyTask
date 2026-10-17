@@ -34,7 +34,7 @@ from src.models.semester import (
 )
 from src.services.data_manager import DataManager
 from src.ui.components.semester_text import issue_text, semester_state_text
-from src.ui.styles.theme import SIZE_BODY_L, SIZE_BODY_S, get_colors
+from src.ui.styles.theme import FIELD_H, SIZE_BODY_L, SIZE_BODY_S, get_colors
 from src.ui.widgets.rounded_button import RoundedButton
 from src.ui.widgets.rounded_input import RoundedLineEdit
 
@@ -72,7 +72,7 @@ class SemesterDialog(QDialog):
 
     def _build_switch_row(self, layout: QVBoxLayout) -> None:
         self._switch_combo = QComboBox()
-        self._switch_combo.setFixedHeight(34)
+        self._switch_combo.setFixedHeight(FIELD_H)
         row = QHBoxLayout()
         row.setSpacing(8)
         row.addWidget(QLabel(tr("dialog.semester.section_switch")))
@@ -100,7 +100,7 @@ class SemesterDialog(QDialog):
         self._exam_input.setValue(DEFAULT_EXAM_WEEKS)
         for widget in (self._name_input, self._start_input, self._weeks_input,
                        self._periods_input, self._exam_input):
-            widget.setFixedHeight(34)
+            widget.setFixedHeight(FIELD_H)
 
         for label_key, widget in (
             ("dialog.semester.label_name", self._name_input),

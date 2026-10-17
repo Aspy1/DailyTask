@@ -46,6 +46,17 @@ SPACING: dict = _TOKENS_DATA["spacing"]
 # 输入类控件统一高度（一行一个字段；高度不一致会让文字被裁）
 FIELD_H = 34
 
+# 小按钮（设置/记账面板的「保存」「测试」「添加」这类）：**固定高 + 最小宽**。
+# 不要固定宽 —— 文案换语言或变长就会被裁（此前 72/80/56/70 几个宽度都是手工调出来的）
+BTN_H_SM = 30
+BTN_W_SM = 72
+
+
+def size_small_button(btn, min_width: int = BTN_W_SM) -> None:
+    """把小按钮设成统一尺寸（理由见上方常量注释）。"""
+    btn.setFixedHeight(BTN_H_SM)
+    btn.setMinimumWidth(min_width)
+
 # ── Design tokens（colors：light / dark）───────────────
 TOKENS: dict = _TOKENS_DATA["colors"]
 

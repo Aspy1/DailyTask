@@ -32,6 +32,7 @@ from src.ui.styles.theme import (
     combo_qss,
     get_colors,
     input_qss,
+    size_small_button,
 )
 from src.ui.widgets.api_test_dialog import ApiTestDialog
 from src.ui.widgets.rounded_button import RoundedButton
@@ -212,7 +213,7 @@ class SettingsPanel(QWidget):
         sr.addWidget(self._status_label)
         sr.addStretch()
         save_btn = RoundedButton(tr("panel.settings.btn_save"))
-        save_btn.setFixedSize(72, 30)
+        size_small_button(save_btn)
         save_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         save_btn.setStyleSheet(f"""
             QPushButton {{ background-color: {c['accent']}; color: {c['fg_on_fill']}; border: none;
@@ -224,7 +225,7 @@ class SettingsPanel(QWidget):
         sr.addWidget(save_btn)
 
         test_btn = RoundedButton(tr("panel.settings.btn_api_test"))
-        test_btn.setFixedSize(80, 30)  # 增加宽度以容纳文字
+        size_small_button(test_btn)
         test_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         test_btn.setStyleSheet(f"""
             QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
@@ -270,7 +271,7 @@ class SettingsPanel(QWidget):
         br.setContentsMargins(16, 12, 16, 12)
         br.addStretch()
         save_btn = RoundedButton(tr("panel.settings.btn_save"))
-        save_btn.setFixedSize(72, 30)
+        size_small_button(save_btn)
         save_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         save_btn.setStyleSheet(f"""
             QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['fg_primary']}; border: none;
@@ -369,7 +370,7 @@ class SettingsPanel(QWidget):
         trl = QHBoxLayout(test_row)
         trl.setContentsMargins(16, 8, 16, 8)
         test_btn = RoundedButton(tr("panel.settings.btn_send_test_email"))
-        test_btn.setFixedWidth(120)
+        test_btn.setMinimumWidth(120)
         test_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         test_btn.setStyleSheet(f"""
             QPushButton {{ background-color: {c['accent']}; color: {c['fg_on_fill']}; border: none;
@@ -388,7 +389,7 @@ class SettingsPanel(QWidget):
         br.setContentsMargins(16, 12, 16, 12)
         br.addStretch()
         save_btn = RoundedButton(tr("panel.settings.btn_save"))
-        save_btn.setFixedSize(72, 30)
+        size_small_button(save_btn)
         save_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         save_btn.setStyleSheet(f"""
             QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['fg_primary']}; border: none;
@@ -503,7 +504,7 @@ class SettingsPanel(QWidget):
         br.setContentsMargins(16, 12, 16, 12)
         br.addStretch()
         save_btn = RoundedButton(tr("panel.settings.btn_save"))
-        save_btn.setFixedSize(72, 30)
+        size_small_button(save_btn)
         save_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         save_btn.setStyleSheet(f"""
             QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['fg_primary']}; border: none;
@@ -746,7 +747,7 @@ class SettingsPanel(QWidget):
 
         br.addStretch()
         save_btn = RoundedButton(tr("panel.settings.btn_save"))
-        save_btn.setFixedSize(72, 30)
+        size_small_button(save_btn)
         save_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         save_btn.setStyleSheet(f"""
             QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['fg_primary']}; border: none;

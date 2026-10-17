@@ -32,6 +32,7 @@ from src.ui.styles.theme import (
     input_qss,
     is_accent_button,
     mark_accent_button,
+    size_small_button,
 )
 from src.ui.widgets.menu import (
     add_action,
@@ -137,7 +138,7 @@ class ExpensePanel(QWidget):
         al.addWidget(self._note_input)
 
         add_btn = RoundedButton(tr("panel.expense.btn_add"))
-        add_btn.setFixedWidth(56)
+        size_small_button(add_btn, 56)
         c = get_colors()
         add_btn.setStyleSheet(f"""
             QPushButton {{ background-color: {c['accent']}; color: {c['fg_on_fill']}; border: none;
@@ -170,7 +171,7 @@ class ExpensePanel(QWidget):
         self._sav_note.setStyleSheet(self._input_qss())
         sl.addWidget(self._sav_note)
         sav_btn = RoundedButton(tr("panel.expense.btn_record_saving"))
-        sav_btn.setFixedWidth(70)
+        size_small_button(sav_btn, 70)
         sav_btn.setStyleSheet(f"""
             QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
                 border: 1px solid {c['border_strong']}; border-radius: 8px; padding: 5px 12px;
