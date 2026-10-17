@@ -2,7 +2,6 @@
 
 import logging
 import os as _os
-import shutil
 from datetime import date, datetime, timedelta
 
 from PySide6.QtCore import Qt, Signal
@@ -31,6 +30,7 @@ from src.ui.widgets.menu import (
     show_at_cursor,
 )
 from src.ui.widgets.rounded_button import RoundedButton
+from src.ui.widgets.schedule_actions import plans_snapshot, undo_arrange
 
 logger = logging.getLogger(__name__)
 
@@ -41,11 +41,15 @@ class ScheduleView(QWidget):
     quick_adjust_requested = Signal(str)  # AI prompt for schedule optimization
     arrange_requested = Signal(str)       # Quick-arrange: snapshot prompt → AI service
 
+    # 快速安排的撤销快照：只记 `plans`（撤销不该连带回滚 `logs`/`reminders`，审查 #3）。
+    # 放**类级**而不是 `__init__`：`__init__` 是 SIZE 存量项，门禁只防新增/加重
+    _arrange_before: dict | None = None   # 安排前
+    _arrange_after: dict | None = None    # 安排后（校验期间没被改过）
+
     def __init__(self, dm: DataManager, parent=None) -> None:
         super().__init__(parent)
         self._dm = dm
         self._day_offset = 0
-        self._arrange_backup_path: str | None = None
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -377,9 +381,8 @@ class ScheduleView(QWidget):
             with open(snapshot_path, 'w', encoding='utf-8') as f:
                 f.write(snapshot)
 
-            backup_path = str(self._dm.daily_logs.file_path) + ".bak"
-            shutil.copy2(str(self._dm.daily_logs.file_path), backup_path)
-            self._arrange_backup_path = backup_path
+            self._arrange_before = plans_snapshot(self._dm.daily_logs)
+            self._arrange_after = None
 
             period_count = self._dm.courses.get_period_count()
             prompt = f"""请根据以下日程快照，为未来{days}天重新安排日程计划。
@@ -408,6 +411,7 @@ class ScheduleView(QWidget):
         self._arrange_btn.setText(tr("widget.schedule.btn_quick_arrange"))
         self._arrange_btn.setEnabled(True)
         if success:
+            self._arrange_after = plans_snapshot(self._dm.daily_logs)
             self._undo_btn.show()
             self._save_btn.show()
             self._refresh()
@@ -416,26 +420,20 @@ class ScheduleView(QWidget):
                                 msg or tr("widget.schedule.msg_ai_error"))
 
     def _save_arrange(self) -> None:
-        """Accept the arrangement, dismiss undo/save buttons."""
+        """确认这次安排：丢掉撤销快照。"""
         self._undo_btn.hide()
         self._save_btn.hide()
-        # Keep backup for one more undo — actually, clear it
-        if self._arrange_backup_path and _os.path.exists(self._arrange_backup_path):
-            _os.remove(self._arrange_backup_path)
-        self._arrange_backup_path = None
+        self._arrange_before = None
+        self._arrange_after = None
 
     def _undo_arrange(self) -> None:
-        """Restore daily_logs.json from backup."""
-        if not self._arrange_backup_path or not _os.path.exists(self._arrange_backup_path):
-            QMessageBox.information(self, tr("widget.schedule.msg_undo_title"),
-                                    tr("widget.schedule.msg_no_backup"))
-            return
-        shutil.copy2(self._arrange_backup_path, str(self._dm.daily_logs.file_path))
-        _os.remove(self._arrange_backup_path)
-        self._arrange_backup_path = None
+        """只回滚本次安排涉及的 `plans`（实现见 `schedule_actions.undo_arrange`）。"""
+        if not undo_arrange(self, self._dm, self._arrange_before, self._arrange_after):
+            return                    # 无快照 / 期间被改过 → 已提示，按钮保持原样
+        self._arrange_before = None
+        self._arrange_after = None
         self._undo_btn.hide()
         self._save_btn.hide()
-        self._dm.reload_all()
         self._dm.data_changed.emit("plan")
         self._refresh()
 

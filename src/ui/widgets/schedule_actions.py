@@ -7,6 +7,7 @@
 依赖方向：本模块不 import `schedule_view`（避免环），调用方把 `dm` / `parent` 传进来。
 """
 
+import copy
 import logging
 from datetime import datetime, timedelta
 
@@ -25,6 +26,36 @@ from src.ui.styles.theme import get_colors
 from src.ui.widgets.rounded_button import RoundedButton
 
 logger = logging.getLogger(__name__)
+
+
+def plans_snapshot(daily_logs) -> dict:
+    """取 `plans` 的深拷贝（快速安排的撤销快照）。
+
+    只记 `plans`，**不是**整份 `daily_logs.json` —— 撤销时不该连带回滚期间产生的
+    打卡记录（`logs`）与自定义提醒（`reminders`）（审查 2026-10-17 #3）。
+    """
+    return copy.deepcopy(daily_logs.data.get("plans", {}))
+
+
+def undo_arrange(parent, dm, before: dict | None, after: dict | None) -> bool:
+    """把 `plans` 回滚到 `before`，并校验期间没人动过它。返回是否真的回滚了。
+
+    旧实现是 `copy2` 整份 `daily_logs.json` 覆盖 —— 会连带回滚 `logs`/`reminders`，
+    还绕开原子写。现在只写回 `plans`，且"期间被改过就拒绝"（不静默选一边）。
+    """
+    if before is None or after is None:
+        QMessageBox.information(parent, tr("widget.schedule.msg_undo_title"),
+                                tr("widget.schedule.msg_no_backup"))
+        return False
+    # 先按磁盘刷新：内存里可能还是安排前的旧值，直接写回会丢掉期间的其它改动
+    dm.daily_logs.reload()
+    if dm.daily_logs.data.get("plans", {}) != after:
+        QMessageBox.warning(parent, tr("widget.schedule.msg_undo_title"),
+                            tr("widget.schedule.msg_undo_stale"))
+        return False
+    dm.daily_logs.data["plans"] = copy.deepcopy(before)
+    dm.daily_logs.save()
+    return True
 
 
 def has_email_reminder(dm, item_type: str, item_name: str, item_date: str) -> bool:

@@ -22,6 +22,7 @@
   "widget.schedule.msg_ai_error": "AI未能生成有效的安排方案。",
   "widget.schedule.msg_undo_title": "撤销",
   "widget.schedule.msg_no_backup": "没有可撤销的备份。",
+  "widget.schedule.msg_undo_stale": "计划在安排之后又被改动过（手动调整或另一轮 AI），已取消撤销，以免覆盖这些修改。",
   "widget.schedule.msg_invalid_time_title": "时间无效",
   "widget.schedule.msg_invalid_time_body": "提醒时间不能是过去的时间。",
 

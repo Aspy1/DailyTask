@@ -10,8 +10,10 @@
 这是"切换学期就该换一份数据"的落点（此前切学期只改周次映射，课表永远不变）。
 """
 
+import json
 import logging
-from datetime import date
+import os
+from datetime import date, datetime
 from pathlib import Path
 
 from PySide6.QtCore import QObject, QTimer, Signal
@@ -34,8 +36,31 @@ from src.models.task import TaskModel
 logger = logging.getLogger(__name__)
 
 
+def _read_doc(path: Path) -> dict | None:
+    """读磁盘上的 JSON；缺失 / 损坏返回 None（调用方据此判断"有没有东西要保护"）。"""
+    try:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return None
+
+
+def _write_conflict_copy(doc: dict, name: str, folder: Path) -> Path:
+    """把我方版本写成冲突副本（原子写：`.tmp` → `os.replace`，**不碰原文件**）。"""
+    folder.mkdir(parents=True, exist_ok=True)
+    path = folder / f"{name}.{datetime.now().strftime('%Y%m%d-%H%M%S')}.json"
+    tmp = path.with_suffix(".tmp")
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(doc, f, ensure_ascii=False, indent=2)
+    os.replace(tmp, path)
+    return path
+
+
 class DataManager(QObject):
     data_changed = Signal(str)
+    # 落盘时发现"这个文件被别人改过" → (模型名, 冲突副本路径)。
+    # 退出路径（`flush_on_exit`）与阶段 2 的 `_rev` 冲突都用它 —— 不静默选一边。
+    save_conflict = Signal(str, str)
 
     def __init__(self, data_dir: Path, parent=None) -> None:
         super().__init__(parent)
@@ -137,9 +162,41 @@ class DataManager(QObject):
             self.data_changed.emit("external")
 
     def save_all(self) -> None:
-        """落盘全部模型（退出 / 重启前调用，勿漏 exams/inventory —— ERRORS #026）。"""
+        """**无条件**落盘全部模型（勿漏 exams/inventory —— ERRORS #026）。
+
+        ⚠ 退出 / 重启**不要**用这个（会覆盖外部改动）→ 用 `flush_on_exit()`。
+        保留它是给"明确知道没有外部写入"的场合：测试与 `acceptance_check.py`。
+        """
         for model, _name in self._models():
             model.save()
+
+    def flush_on_exit(self) -> None:
+        """退出 / 重启前落盘，但**不覆盖**别人改过的文件。
+
+        退出时整份写回是最现实的静默覆盖路径（审查 2026-10-17 #1）：应用跑着的
+        时候若 skill / CLI / 手工改过文件，`save_all()` 会把那些改动整份盖掉。
+        这里逐模型比对**磁盘内容**而不是 mtime —— 应用自己保存也会动 mtime，
+        只比 mtime 会把"刚保存完就退出"误判成冲突：
+
+        - 文件缺失 → 正常落盘（没东西可保护）
+        - 磁盘内容 == 内存态 → **不碰文件**（各面板本来就显式保存，这里是兜底）
+        - 读不出来（损坏）或内容不同 → **不覆盖**：我方版本落到
+          `data/backup/exit_conflict/`（`data/backup/` 已在 `.gitignore`），
+          原文件保持原样（损坏现场也留着），并发 `save_conflict` 告知
+        """
+        folder = self.data_dir / "backup" / "exit_conflict"
+        for model, name in self._models():
+            if not model.file_path.exists():
+                model.save()
+                continue
+            on_disk = _read_doc(model.file_path)
+            if on_disk is not None and on_disk == model.data:
+                continue
+            path = _write_conflict_copy(model.data, name, folder)
+            logger.warning("退出时 %s 与磁盘不一致，已跳过覆盖（我方版本存 %s）",
+                           name, path)
+            self.save_conflict.emit(name, str(path))
+        self._capture_mtimes()
 
     def get_today_summary(self) -> dict:
         return {

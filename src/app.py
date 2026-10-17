@@ -269,7 +269,7 @@ class App(QApplication):
             self._bring_to_front()
 
     def _restart(self) -> None:
-        self._data_manager.save_all()
+        self._data_manager.flush_on_exit()
         self._settings.save()
         self._window.hide()
         self._instance_server.close()
@@ -278,7 +278,7 @@ class App(QApplication):
         self.quit()
 
     def quit(self) -> None:
-        self._data_manager.save_all()
+        self._data_manager.flush_on_exit()
         self._settings.save()
         self._window.close()
         super().quit()
