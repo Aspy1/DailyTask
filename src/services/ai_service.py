@@ -78,6 +78,16 @@ _EMPTY_REPLY_NOTE = ("模型没有返回可执行内容（推理可能占满了�
                      "请重试，或提高设置里的 AI.max_tokens。")
 
 
+def _looks_like_tool_call(text: str) -> bool:
+    """模型是否改用了"工具调用"格式（本项目**不解析**它）。
+
+    2026-10-18 探针实测：模型偶尔输出 `<｜｜DSML｜｜ invoke name="add_item">…<｜｜DSML｜｜ parameter …>`
+    —— `InstructionParser` 只认 ```sh 代码块，于是那一轮**什么都不做**（用户看起来就是
+    "AI 没反应"）。这里识别出来，好让上层明确纠正格式。
+    """
+    return "invoke name=" in text or "<｜" in text or "｜>" in text
+
+
 def _continuation_nudge(text: str, truncated: bool, empty_retries: int = 0) -> str | None:
     """该不该要求模型"继续"？需要时返回提示语，正常回复返回 None。
 
@@ -94,6 +104,13 @@ def _continuation_nudge(text: str, truncated: bool, empty_retries: int = 0) -> s
             return None
         return ("[系统] 你上一轮没有输出任何内容。请**直接**输出 ```sh 命令块"
                 "（每轮最多 8 条），不要长篇思考，也不要只解释。")
+    if _looks_like_tool_call(text):
+        # 模型改用了"工具调用"格式（`<｜｜DSML｜｜ invoke name=…>` 之类）→ 解析器认不出，
+        # 等于什么都没做。明确纠正格式，只纠正一次（2026-10-18 探针实测遇到）
+        if empty_retries >= 1:
+            return None
+        return ("[系统] 你用的是**工具调用格式**，本项目不解析它。请改用 ```sh 代码块，"
+                "每行一条 `python scripts/actions.py …` 命令。")
     if truncated:
         return ("[系统] 你的回复被输出上限截断了。请**分批**继续："
                 "每轮最多 8 条命令，先执行完这批再继续下一批。")
@@ -601,7 +618,7 @@ class AIService(QObject):
 假期/调休:
 {self._build_holiday_info()}
 """
-        prompt = SYSTEM_PROMPT_BASE + "\n" + context + "\n【输出格式】\n- 纯文本，禁用 markdown。仅可用**加粗**。\n- 禁止输出脚本命令原文和执行结果。\n- 查找发现重复物品时，在该轮回复中告知用户，等待确认后再处理。\n- 完成后用一行简练中文总结操作结果。"
+        prompt = SYSTEM_PROMPT_BASE + "\n" + context + "\n【输出格式】\n- 纯文本，禁用 markdown。仅可用**加粗**。\n- 禁止输出脚本命令原文和执行结果。\n- ⚠ 要执行操作时**只能**输出 ```sh 代码块（每行一条 `python scripts/actions.py …`）。\n  禁止输出任何**工具调用 / 函数调用**格式（例如 `<｜｜DSML｜｜ invoke name=…>`、`<｜｜DSML｜｜ parameter …>`、\n  XML/JSON 包裹的 invoke/parameter）—— 那些不会被解析，等于什么都没做。\n- 查找发现重复物品时，在该轮回复中告知用户，等待确认后再处理。\n- 完成后用一行简练中文总结操作结果。"
         self._prompt_cache_key = cache_key
         self._prompt_cache_value = prompt
         return prompt

@@ -113,6 +113,9 @@ python scripts/actions.py need_restock
 - **同类物品不同特征**：一条物品 + `--instances`（JSON 数组），**不要**拆成两条无关物品。
   例：两条充电线 → `--name "充电线" --quantity 2 --instances '[{"tags":["Type-C"]},{"tags":["Lightning"]}]'`。
 - **补货**：低于 `--min_qty` 会自动标成"需购/不足"；问"还有什么要买的"用 `need_restock`。
+- 说"快用完了 / 快吃完了 / 该买了 / 要补货"时 → **先 `lookup_item`**：有这件物品就
+  `update_item --id … --min_qty N`（让它变成需购/不足）；没有就 `add_item`。
+  **不要**用 `add_plan` 代替补货（那是日程计划，不是库存状态）。
 - 消耗（"用掉一瓶洗手液"）用 `consume`，**不要**手算 `--quantity`。
 移动物品: "把X从A拿到B" → update_item --id "i_xxx" --location "B"
 
