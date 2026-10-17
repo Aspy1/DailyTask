@@ -20,11 +20,18 @@ from src.services.git_sync import GitSync
 from src.services.plugin_manager import PluginManager
 from src.services.reminder_service import ReminderService
 from src.services.settings_manager import SettingsManager, migrate_legacy_scene_location
+from src.services.single_instance import (
+    BAD_REQUEST_MESSAGE,
+    SINGLE_INSTANCE_KEY,
+    decode_request,
+    encode_reply,
+)
 from src.ui.main_window import MainWindow
 from src.ui.styles.theme import FONT_CN, SIZE_TITLE, init_theme
 
 DATA_DIR = Path(__file__).parent.parent / "data"
-SINGLE_INSTANCE_KEY = "StudentSchedulerSingleInstance"
+# 单实例通道的 key 与委派协议见 `src/services/single_instance.py`
+# （CLI 也要用同一个 key，所以别在这儿重定义 —— 见 PLAN.md P17 阶段 3）
 REGISTRY_RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
 APP_REGISTRY_NAME = "StudentScheduler"
 
@@ -182,15 +189,34 @@ class App(QApplication):
         self._instance_server.newConnection.connect(self._on_second_instance)
 
     def _on_second_instance(self) -> None:
-        sock: QLocalSocket | None = None
-        try:
-            sock = self._instance_server.nextPendingConnection()
-            if sock:
-                sock.disconnectFromServer()
-        finally:
-            if sock:
-                sock.deleteLater()
-        self._bring_to_front()
+        """有进程连上来：带命令的（CLI 委派）执行后回结果；空手的（第二次启动）前置窗口。"""
+        sock = self._instance_server.nextPendingConnection()
+        if sock is None:
+            return
+        sock.readyRead.connect(lambda s=sock: self._on_instance_message(s))
+        sock.disconnected.connect(lambda s=sock: self._on_instance_closed(s))
+
+    def _on_instance_message(self, sock) -> None:
+        """收到一行请求 `{"argv": [...]}` → 执行（与 CLI/AI 同一条路径）+ 重载 + 回结果。"""
+        from scripts.actions import run_argv_in_process
+
+        argv = decode_request(bytes(sock.readAll()).decode("utf-8", "replace").strip())
+        if argv is None:
+            sock.write(encode_reply(False, f"ERROR {BAD_REQUEST_MESSAGE}"))
+            sock.flush()
+            return
+        sock.setProperty("delegated", True)
+        out = run_argv_in_process(argv)
+        self._data_manager.reload_all()
+        self._data_manager.data_changed.emit("ai_action")
+        sock.write(encode_reply(True, out))
+        sock.flush()
+        sock.disconnectFromServer()
+
+    def _on_instance_closed(self, sock) -> None:
+        if not sock.property("delegated"):
+            self._bring_to_front()      # 第二次启动：只把窗口叫出来
+        sock.deleteLater()
 
     def _show_reminder_notify(self, title: str, body: str) -> None:
         if hasattr(self, "_tray") and self._tray.supportsMessages():

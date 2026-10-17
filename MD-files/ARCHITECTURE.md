@@ -130,6 +130,9 @@ ui ──→ services ──→ models ──→ base(BaseJsonModel)
 - ✅ **系统提示词构建不再同步发网络请求**：余额/天气缓存改由一次性守护线程预热
   （`AIService._warm_context_cache`），`_build_system_prompt` 只读缓存；预热不触碰主线程属主的 `WeatherService`
 - 🔄 `actions.run_in_process` 仍用 `contextlib.redirect_stdout`（已加锁串行化；彻底修复需 handler 返回字符串）
+- ✅ **写入只有一个写者**（`PLAN.md` P17 阶段 3，2026-10-17）：CLI 写前用单实例通道探应用 ——
+  在跑就把命令交给应用执行（`run_argv_in_process` + `reload_all()`），不在跑才自己写，
+  连上但没回应则**拒绝**（不静默直写）。保存冲突另有**内容指纹**兜底（见 §7 不变量 2）
 
 ## 7. 关键不变量
 

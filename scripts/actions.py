@@ -603,37 +603,47 @@ def _build_action_namespace(parts: list[str]) -> argparse.Namespace:
 
 
 def run_in_process(cmd_str: str) -> str:
-    """Execute an actions.py command string in-process.
+    """执行一条 actions.py 命令串（AI 那条路用）。
 
-    Parses the shell command string, builds an argparse Namespace,
-    and calls the handler directly — no subprocess overhead.
+    ⚠ 命令串要重新拆引号，参数里带空格会拆错（`--name 抽纸 一提`）→ **CLI 委派**
+    那条路改传 argv 列表，走 `run_argv_in_process`（见 `src/services/single_instance.py`）。
+    """
+    return run_argv_in_process(_split_command_parts(cmd_str))
+
+
+def run_argv_in_process(argv: list[str]) -> str:
+    """执行已拆好的 argv（`run_in_process` 与"应用代 CLI 执行"**共用同一条路径**）。
+
     Thread-safe: each call gets its own stdout buffer.
-
     参数校验在 handler **之前**：非法输入只回 `ERROR ...`，**一个字节都不写**。
     """
     import io
     from contextlib import redirect_stdout
 
-    parts = _split_command_parts(cmd_str)
-    if not parts:
+    if not argv:
         return "ERROR: empty command"
 
     buf = io.StringIO()
     with _STDOUT_LOCK, redirect_stdout(buf):
-        try:
-            action = parts[0]
-            ns = _build_action_namespace(parts)
-            if action not in HANDLERS:
-                print(f"ERROR unknown action: {action}")
-            else:
-                _validate_args(action, ns)
-                HANDLERS[action](ns)
-        # 边界捕获：本层已处理/记录，不允许异常向上逃逸（CODE_STANDARDS Q-I1）
-        except ActionError as e:
-            print(f"ERROR {e}")
-        except Exception as e:  # noqa: BLE001
-            print(f"ERROR {e}")
+        _run_argv(argv)
     return buf.getvalue().strip()
+
+
+def _run_argv(argv: list[str]) -> None:
+    """校验 + 调用 handler；输出交给调用方重定向的 stdout。"""
+    action = argv[0]
+    try:
+        ns = _build_action_namespace(argv)
+        if action not in HANDLERS:
+            print(f"ERROR unknown action: {action}")
+        else:
+            _validate_args(action, ns)
+            HANDLERS[action](ns)
+    # 边界捕获：本层已处理/记录，不允许异常向上逃逸（CODE_STANDARDS Q-I1）
+    except ActionError as e:
+        print(f"ERROR {e}")
+    except Exception as e:  # noqa: BLE001
+        print(f"ERROR {e}")
 
 
 # ═══════════════════════════════════════════════════════════
@@ -683,6 +693,18 @@ def main() -> None:
     args = parser.parse_args()
     if not args.action:
         parser.print_help()
+        return
+
+    # 应用在跑 → 把命令交给它执行（它是唯一写者，PLAN.md P17 阶段 3）；
+    # 连不上 → 自己写文件；连上但没回应（可能是旧版本应用）→ 拒绝，不静默直写。
+    from src.services.single_instance import CHANNEL_DELEGATE, CHANNEL_REFUSE, delegate
+
+    channel, out = delegate(sys.argv[1:])
+    if channel == CHANNEL_REFUSE:
+        print(f"ERROR {out}")
+        return
+    if channel == CHANNEL_DELEGATE:
+        print(out)
         return
 
     try:
