@@ -89,7 +89,9 @@ def _service(tmp_path) -> tuple:
     settings.load()
     dm = DataManager(tmp_path)
     svc = ReminderService(settings, dm)
-    svc._timer.stop()          # 测试里不留运行中的定时器（见 conftest 的清理说明）
+    # 测试里不留运行中的定时器：它们会在别的测试的事件循环里被回收 → access violation
+    svc._timer.stop()
+    dm._reload_timer.stop()
     return settings, dm, svc
 
 
@@ -150,6 +152,7 @@ def test_toggle_attendance_writes_schema(qapp, tmp_path) -> None:
     from src.ui.widgets.course_table import toggle_course_attendance
 
     dm = DataManager(tmp_path)
+    dm._reload_timer.stop()        # 不留运行中的定时器（见 conftest 的清理说明）
     dm.courses.add_course({"name": "算法", "day_of_week": 1,
                            "time_slots": [{"start": 1, "end": 2}]})
     dm.courses.save()
@@ -178,6 +181,7 @@ def test_course_panel_signal_writes_attendance(qapp, tmp_path) -> None:
     from src.ui.panels.course_panel import CoursePanel
 
     dm = DataManager(tmp_path)
+    dm._reload_timer.stop()        # 不留运行中的定时器（见 conftest 的清理说明）
     dm.courses.add_course({"name": "算法", "day_of_week": 1,
                            "time_slots": [{"start": 1, "end": 2}]})
     dm.courses.save()

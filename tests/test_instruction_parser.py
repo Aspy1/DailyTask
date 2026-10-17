@@ -101,7 +101,9 @@ def test_empty_reply_surfaces_a_hint(qapp, tmp_path) -> None:
 
     settings = SettingsManager(tmp_path / "settings.ini")
     settings.load()
-    svc = AIService(settings, DataManager(tmp_path))
+    dm = DataManager(tmp_path)
+    dm._reload_timer.stop()        # 不留运行中的定时器（见 conftest 的清理说明）
+    svc = AIService(settings, dm)
     seen: list[str] = []
     svc.response_received.connect(seen.append)
 

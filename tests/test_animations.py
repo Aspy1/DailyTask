@@ -16,9 +16,19 @@ from src.ui import animations
 
 
 def _settle(ms: int = 260) -> None:
-    """等动画跑完（Qt 动画靠事件循环推进）。"""
+    """等动画跑完（Qt 动画靠事件循环推进）。
+
+    ⚠ **先 `gc.collect()` 再进事件循环**：其它测试留下的服务对象（DataManager 等）
+    持有运行中的 QTimer，如果它们在 `processEvents()` **中途**被 Python 回收，
+    就会在事件处理里销毁 C++ 对象 → `Windows fatal exception: access violation`
+    （2026-10-17 CI 偶发崩在这里；与 conftest `_cleanup_qt_leftovers` 同一道理：
+    把回收安排在**没有事件循环**的时刻）。
+    """
+    import gc
+
     from PySide6.QtWidgets import QApplication
 
+    gc.collect()
     app = QApplication.instance()
     end = time.monotonic() + ms / 1000
     while time.monotonic() < end:
