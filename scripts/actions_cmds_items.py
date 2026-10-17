@@ -4,13 +4,35 @@
 自成一个领域，依赖的读写/校验工具都在 `actions_core.py`。
 """
 
+import json
+
 from scripts.actions_core import (
-    ActionError,  # noqa: F401 — 与其它命令模块保持一致的导出面
+    ActionError,
     gen_id,
     load,
     now_iso,
     save,
 )
+from src.models.inventory import InventoryModel
+
+
+def _parse_instances(raw: str | None) -> list[dict]:
+    """`--instances` 传 JSON 数组（写法同 `replace_plans --plans`）。
+
+    每项是这一"件"的特征，例如
+    `[{"tags": ["Type-C"], "notes": "1 米"}, {"tags": ["Lightning"]}]`。
+    **同类物品不同特征**靠它表达（一条物品 + 多个 instances），
+    而不是硬拆成两条互不相关的物品。
+    """
+    if not raw:
+        return []
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError as e:
+        raise ActionError(f"--instances 不是合法 JSON：{e}") from e
+    if not isinstance(parsed, list) or not all(isinstance(x, dict) for x in parsed):
+        raise ActionError("--instances 必须是 JSON 对象数组")
+    return parsed
 
 
 def cmd_add_item(args) -> None:
@@ -18,16 +40,44 @@ def cmd_add_item(args) -> None:
     data.setdefault("items", [])
     iid = gen_id(data["items"], "i")
     qty = 1 if args.quantity is None else args.quantity
+    min_qty = args.min_qty or 1
     item = {"id": iid, "name": args.name, "category": args.category or "其他",
             "group": args.group or "",
-            "quantity": qty, "unit": "件",
-            "status": "需购" if qty <= 0 else "充足",
-            "min_quantity": args.min_qty or 1,
+            "quantity": qty, "unit": getattr(args, "unit", None) or "件",
+            # 状态按数量与下限推导（原来只判 qty<=0 → "1 件 / 下限 5" 也记成充足 ✗）
+            "status": InventoryModel.derive_status(qty, min_qty),
+            "min_quantity": min_qty,
             "location": args.location or "", "notes": args.notes or "",
+            "tags": _split_tag_list(getattr(args, "tags", "") or ""),
+            "instances": _parse_instances(getattr(args, "instances", None)),
+            "doses_per_unit": getattr(args, "doses_per_unit", None) or 1,
             "created_at": now_iso(), "updated_at": now_iso()}
     data["items"].append(item)
     save("inventory.json", data)
     print(f"OK add_item {iid} | {args.name}")
+
+
+def cmd_consume(args) -> None:
+    """消耗 N 份（默认 1）：按 `doses_per_unit` 扣减 + 重算状态。
+
+    "用掉一瓶洗手液" → `consume --id i_003`，不必先查数量再手算（原来只能
+    `lookup_item` 查完再 `update_item --quantity N-1`）。
+    """
+    data = load("inventory.json")
+    amount = args.amount or 1
+    for it in data.get("items", []):
+        if it["id"] != args.id:
+            continue
+        dpu = it.get("doses_per_unit", 1) or 1
+        it["quantity"] = max(0, (it.get("quantity", 0) * dpu - amount) // dpu)
+        it["status"] = InventoryModel.derive_status(it["quantity"],
+                                                    it.get("min_quantity", 1))
+        it["updated_at"] = now_iso()
+        save("inventory.json", data)
+        print(f"OK consume {args.id} | 剩 {it['quantity']}{it.get('unit', '件')}"
+              f"（{it['status']}）")
+        return
+    raise ActionError(f"没有 id 为 {args.id} 的物品 —— 先用 lookup_item 查一下")
 
 def _apply_item_quantity_fields(item: dict, args) -> None:
     """数量/单位/状态/下限：仅当显式传值才覆盖。
@@ -40,6 +90,8 @@ def _apply_item_quantity_fields(item: dict, args) -> None:
     unit = getattr(args, "unit", None)
     status = getattr(args, "status", None)
     min_qty = getattr(args, "min_qty", None)
+    dpu = getattr(args, "doses_per_unit", None)
+    instances = getattr(args, "instances", None)
     if quantity is not None:
         item["quantity"] = quantity
     if unit:
@@ -48,6 +100,10 @@ def _apply_item_quantity_fields(item: dict, args) -> None:
         item["status"] = status
     if min_qty is not None:
         item["min_quantity"] = min_qty
+    if dpu is not None:
+        item["doses_per_unit"] = dpu
+    if instances is not None:
+        item["instances"] = _parse_instances(instances)
 
 
 def _split_tag_list(tags: str) -> list[str]:

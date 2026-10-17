@@ -95,6 +95,12 @@ def _add_item_parsers(sub) -> None:
     p.add_argument("--group", default="")
     p.add_argument("--tags")
     p.add_argument("--status", default=None)  # accepted but ignored, auto-derived
+    p.add_argument("--unit", help="单位（件/盒/提/片/瓶…）")
+    p.add_argument("--doses-per-unit", type=int, default=None,
+                   help="每份含量（1 盒 24 片 → 24）")
+    p.add_argument("--instances",
+                   help='同类不同特征的各件，JSON 数组，'
+                        '如 \'[{"tags":["Type-C"],"notes":"1米"},{"tags":["Lightning"]}]\'')
 
     p = sub.add_parser("update_item", help="更新物品")
     p.add_argument("--id", required=True)
@@ -106,6 +112,13 @@ def _add_item_parsers(sub) -> None:
     p.add_argument("--min_qty", type=int)
     p.add_argument("--location")
     p.add_argument("--tags")
+    p.add_argument("--unit")
+    p.add_argument("--doses-per-unit", type=int)
+    p.add_argument("--instances", help="JSON 数组（整组替换）")
+
+    p = sub.add_parser("consume", help="消耗 N 份（按每份含量扣减 + 重算状态）")
+    p.add_argument("--id", required=True)
+    p.add_argument("--amount", type=int, default=1)
 
     p = sub.add_parser("delete_item", help="删除物品")
     p.add_argument("--id", required=True)

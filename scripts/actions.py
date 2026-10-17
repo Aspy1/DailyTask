@@ -37,6 +37,7 @@ from scripts.actions_cli import (
 )
 from scripts.actions_cmds_items import (
     cmd_add_item,
+    cmd_consume,
     cmd_delete_item,
     cmd_lookup_item,
     cmd_need_restock,
@@ -658,6 +659,7 @@ HANDLERS = {
     "add_course": cmd_add_course, "delete_course": cmd_delete_course,
     "update_course": cmd_update_course,
     "add_item": cmd_add_item, "update_item": cmd_update_item,
+    "consume": cmd_consume,
     "delete_item": cmd_delete_item,
     "need_restock": cmd_need_restock,
     "lookup_item": cmd_lookup_item,

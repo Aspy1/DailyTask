@@ -67,6 +67,19 @@ class InventoryModel(BaseJsonModel):
         items.append(item)
         return iid
 
+    @staticmethod
+    def derive_status(quantity: int, min_quantity: int) -> str:
+        """按数量与下限推导状态：`<=0` → 需购；低于下限 → 不足；否则充足。
+
+        **规则只写一份**：`scripts/actions_cmds_items.py` 的 add / update / consume
+        也调它（`CODE_STANDARDS` 的"单一真值"）。
+        """
+        if quantity <= 0:
+            return "需购"
+        if quantity < min_quantity:
+            return "不足"
+        return "充足"
+
     def update_item(self, iid: str, data: dict) -> bool:
         for it in self.items:
             if it["id"] == iid:
@@ -75,12 +88,10 @@ class InventoryModel(BaseJsonModel):
                     if k in data:
                         it[k] = data[k]
                 it["updated_at"] = datetime.now().isoformat()
-                # Auto-set status (skip if ignore_low_stock)
+                # 状态自动推导（`ignore_low_stock` 的物品跳过 —— 那是显式豁免）。
+                # ⚠ 现在**也会回到"充足"**：补货之后不该还挂着"需购"（原来不清）
                 if not it.get("ignore_low_stock"):
-                    if it["quantity"] <= 0:
-                        it["status"] = "需购"
-                    elif it["quantity"] < it["min_quantity"]:
-                        it["status"] = "不足"
+                    it["status"] = self.derive_status(it["quantity"], it["min_quantity"])
                 return True
         return False
 
@@ -100,12 +111,7 @@ class InventoryModel(BaseJsonModel):
                 total_doses = it["quantity"] * dpu
                 total_doses -= amount
                 it["quantity"] = max(0, total_doses // dpu)
-                if it["quantity"] <= 0:
-                    it["status"] = "需购"
-                elif it["quantity"] < it.get("min_quantity", 1):
-                    it["status"] = "不足"
-                else:
-                    it["status"] = "充足"
+                it["status"] = self.derive_status(it["quantity"], it.get("min_quantity", 1))
                 if not it.get("ignore_low_stock"):
                     it["updated_at"] = __import__("datetime").datetime.now().isoformat()
                 return it["quantity"] > 0

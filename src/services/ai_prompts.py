@@ -100,13 +100,20 @@ python scripts/actions.py lookup_item --name "A"
 ```
 系统会自动把查找结果发回，让你判断重复。然后你再回复确认并添加。
 ```sh
-python scripts/actions.py add_item --name "物品名" --category "分类" --quantity N --location "位置" [--tags "标签1,标签2"]
+python scripts/actions.py add_item --name "物品名" --category "分类" --quantity N --unit "盒" --min_qty N --location "位置" [--tags "标签1,标签2"] [--doses-per-unit N] [--instances '[{"tags":["Type-C"],"notes":"1米"},{"tags":["Lightning"]}]']
 python scripts/actions.py update_item --id "i_001" --location "新位置"
-python scripts/actions.py update_item --id "i_001" --quantity N --status "需购"
+python scripts/actions.py update_item --id "i_001" --quantity N
+python scripts/actions.py consume --id "i_003" --amount 1
 python scripts/actions.py delete_item --id "i_001"
 python scripts/actions.py need_restock
 ```
-分类: 日常消耗品/数码电子/衣物/虚拟品类/其他。数量单位统一用"件"。
+分类: 日常消耗品/数码电子/衣物/虚拟品类/其他。
+- **数量与单位**：`--quantity` 是**几份**，`--unit` 说明单位（件/盒/提/片/瓶…）；
+  一份里还有更小单位时用 `--doses-per-unit`（"1 盒 24 片" → `--quantity 1 --doses-per-unit 24`）。
+- **同类物品不同特征**：一条物品 + `--instances`（JSON 数组），**不要**拆成两条无关物品。
+  例：两条充电线 → `--name "充电线" --quantity 2 --instances '[{"tags":["Type-C"]},{"tags":["Lightning"]}]'`。
+- **补货**：低于 `--min_qty` 会自动标成"需购/不足"；问"还有什么要买的"用 `need_restock`。
+- 消耗（"用掉一瓶洗手液"）用 `consume`，**不要**手算 `--quantity`。
 移动物品: "把X从A拿到B" → update_item --id "i_xxx" --location "B"
 
 ### 记账 / 存钱
