@@ -229,7 +229,7 @@ class App(QApplication):
         if status == "syncing":
             if hasattr(self, "_tray"):
                 self._tray.setToolTip(f"{tr('app.name')}{tr('app.sync.syncing')}")
-        elif status == "done":
+        elif status.startswith("done"):
             if hasattr(self, "_tray"):
                 self._tray.setToolTip(f"{tr('app.name')}{tr('app.sync.synced')}")
                 self._tray.showMessage(tr("app.sync.done_title"), tr("app.sync.done_body"),

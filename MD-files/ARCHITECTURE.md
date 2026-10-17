@@ -76,7 +76,9 @@ ui ──→ services ──→ models ──→ base(BaseJsonModel)
 
 **消费方**：
 - `MainWorkspace._on_data_changed` —— 按子串匹配刷新面板（`"task" in action or is_ai`）
-- `GitSync.on_data_changed` —— 启动 30s 防抖计时，随后 `git add data/*.json && commit && push`
+- `GitSync.on_data_changed` —— 启动 30s 防抖计时，随后 `git add -A -- <用户数据清单> && commit && push`
+  （范围见 `git_sync.DATA_FILES` / `DATA_DIRS` —— **唯一清单**，自动与手动同步共用；
+  手动同步**不再** `git add -A`，源码由开发时显式提交。派生文件不进库，见 `.gitignore`）
 - `ReminderService._on_data_changed` —— 仅当 `"task" in action` 时重算 DDL 计数
 
 > ⚠ **架构债**：路径 A 与 B 是**两套真值来源**（Model 内存态 vs 磁盘文件），靠 3s 轮询"对账"。

@@ -203,9 +203,12 @@
 
 - 每次功能修改后 **commit + push**；message ≤60 字符英文，形如
   `fix: ...` / `feat: ...` / `docs: ...` / `chore: ...`。
-- **只提交与本次改动相关的文件**。不要手动提交：
-  - 易变数据（`data/weather_cache.json`、`data/weather_stats.json` 等，由应用自动 sync）
-  - `.venv/`、缓存目录、密钥文件
+- **数据同步的范围是唯一的**：`src/services/git_sync.py` 的 `DATA_FILES` / `DATA_DIRS`
+  —— 自动同步（应用）与手动同步（托盘菜单）都用它。**新增数据文件必须同步加进清单**
+  （`tests/test_git_sync_scope.py` 会拿 `DataManager._models()` 对照，漏了就红）。
+- **不进版本库的东西**：`data/settings.ini`（密钥）· `data/app.log` · `data/backup/` ·
+  `data/schedule_snapshot.txt` · **派生/缓存**（`weather_cache` / `weather_stats` /
+  `search_index` / `scenes_meta`）· `*.bak` / `*.tmp` —— 全部见 `.gitignore`。
 - 提交前确认 `git status`，避免夹带无关改动。
 
 ## 8. 文档维护规则
