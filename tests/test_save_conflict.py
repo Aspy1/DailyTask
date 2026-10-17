@@ -251,3 +251,84 @@ def test_file_lock_blocks_another_process(sandbox) -> None:
 
     out, _err = child.communicate(timeout=20)
     assert "CHILD-DONE" in out, f"子进程没跑完：{out!r}"
+
+
+def test_missing_file_then_semester_switch_is_rejected(sandbox) -> None:
+    """审查第四轮 #1：A 学期**没有** tasks.json → 切到有任务的 B → 保存必须被拒。
+
+    原来 `load()` 遇缺失文件直接 `return {}`、**不记基准** → 保存时跳过检查，覆盖 B。
+    """
+    from scripts import actions_core
+    from src.models import semester_paths
+
+    data = actions_core.load("tasks.json")            # A 学期：文件不存在
+    assert data == {}
+
+    b_dir = semester_paths.semester_dir(actions_core.DATA, "sem_B")
+    b_dir.mkdir(parents=True, exist_ok=True)
+    (b_dir / "tasks.json").write_text(
+        json.dumps({"_version": 1, "tasks": [{"id": "t_b"}]}), encoding="utf-8")
+    semester_paths.registry_path(actions_core.DATA).write_text(json.dumps({
+        "_version": 1, "current_semester": "sem_B",
+        "semesters": [{"id": "sem_B", "name": "B", "start_date": "2026-09-21"}],
+    }, ensure_ascii=False), encoding="utf-8")
+
+    data["tasks"] = [{"id": "t_new"}]
+    with pytest.raises(actions_core.ActionError):
+        actions_core.save("tasks.json", data)
+
+    kept = json.loads((b_dir / "tasks.json").read_text(encoding="utf-8"))
+    assert [t["id"] for t in kept["tasks"]] == ["t_b"], "B 的任务不许被覆盖"
+
+
+def test_save_refuses_when_file_appears_after_missing_read(sandbox) -> None:
+    """审查第四轮 #1（双进程首次创建）：读时文件不存在，别人先建了 → 必须拒绝。"""
+    from scripts import actions_core
+
+    data = actions_core.load("inventory.json")        # 不存在 → 记下"缺失"状态
+    path = actions_core._path("inventory.json")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({"_version": 1, "items": [{"id": "i_other"}]}),
+                    encoding="utf-8")                 # 另一个进程先建了
+
+    data["items"] = [{"id": "i_mine"}]
+    with pytest.raises(actions_core.ActionError):
+        actions_core.save("inventory.json", data)
+
+    kept = json.loads(path.read_text(encoding="utf-8"))
+    assert [it["id"] for it in kept["items"]] == ["i_other"], "别人的数据不许被覆盖"
+
+
+def test_lock_acquisition_failure_keeps_original_error(qapp, tmp_path, monkeypatch) -> None:
+    """审查第四轮 #2：**获取锁失败**时抛出的必须是原错误，不能被清理逻辑盖成 AttributeError。"""
+    import src.models.base as base_module
+
+    class _BoomMsvcrt:
+        LK_LOCK, LK_UNLCK = 1, 2
+
+        @staticmethod
+        def locking(*args: object) -> None:
+            raise OSError("模拟：拿不到锁")
+
+    monkeypatch.setattr(base_module, "_msvcrt", _BoomMsvcrt)
+
+    with pytest.raises(OSError, match="拿不到锁"), base_module.file_lock(tmp_path / "x.json"):
+        pass
+
+
+def test_lock_release_failure_does_not_mask(qapp, tmp_path, monkeypatch) -> None:
+    """审查第四轮 #2：**释放锁失败**不许掩盖调用方真正的异常。"""
+    import src.models.base as base_module
+
+    class _ReleaseBoom:
+        LK_LOCK, LK_UNLCK = 1, 2
+
+        @staticmethod
+        def locking(fd: int, mode: int, nbytes: int) -> None:
+            if mode == _ReleaseBoom.LK_UNLCK:
+                raise OSError("模拟：释放失败")
+
+    monkeypatch.setattr(base_module, "_msvcrt", _ReleaseBoom)
+
+    with pytest.raises(ValueError, match="业务错误"), base_module.file_lock(tmp_path / "x.json"):
+        raise ValueError("业务错误")

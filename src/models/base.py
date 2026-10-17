@@ -42,25 +42,24 @@ def file_lock(path: Path) -> Iterator[None]:
     ⚠ 覆盖范围：**指纹检查 + 写入**整段 —— 调用方把这两件事都放在 `with` 里。
     """
     with WRITE_LOCK:
-        handle = None
+        path.parent.mkdir(parents=True, exist_ok=True)
+        # 这个 handle 必须活过 with 体（由 finally 收尾）→ 不能用 with 管
+        handle = open(path.with_name(path.name + ".lock"), "a+b")  # noqa: SIM115
+        acquired = False
         try:
-            # 锁文件所在目录可能还不存在（新学期刚切过去）→ 先建目录
-            path.parent.mkdir(parents=True, exist_ok=True)
-            # 这个 handle 必须活过 with 体（由 finally 收尾）→ 不能用 with 管
-            handle = open(path.with_name(path.name + ".lock"), "a+b")  # noqa: SIM115
             if _msvcrt is not None:
                 handle.seek(0)
                 _msvcrt.locking(handle.fileno(), _msvcrt.LK_LOCK, 1)
+                acquired = True
             yield
         finally:
-            if handle is not None:
-                if _msvcrt is not None:
-                    try:
-                        handle.seek(0)
-                        _msvcrt.locking(handle.fileno(), _msvcrt.LK_UNLCK, 1)
-                    except OSError:      # 进程即将退出时解锁失败属正常
-                        handle = None
-                        logger.debug("文件锁释放失败", exc_info=True)
+            # 收尾**绝不能再抛异常**（那会掩盖调用方真正的错，审查 2026-10-17 第四轮 #2）：
+            # 只在**确实拿到过锁**时解锁，且各自吞掉自己的异常
+            if acquired:
+                with contextlib.suppress(OSError):     # 进程退出时解锁失败属正常
+                    handle.seek(0)
+                    _msvcrt.locking(handle.fileno(), _msvcrt.LK_UNLCK, 1)
+            with contextlib.suppress(OSError):
                 handle.close()
 
 

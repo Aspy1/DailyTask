@@ -47,6 +47,9 @@ def _path(name: str) -> Path:
 def load(name) -> dict:
     p = _path(name)
     if not p.exists():
+        # ⚠ 缺失也要**记一笔**（指纹记 None）：否则"读缺失文件 → 切学期 / 别人先建了它 →
+        # 保存"会绕过路径与状态检查，把别人的数据覆盖掉（审查 2026-10-17 第四轮 #1）
+        _LOADED[_load_key(name)] = (str(p), None)
         return {}
     try:
         with open(p, encoding='utf-8') as f:
@@ -129,7 +132,13 @@ def save(name, obj) -> None:
                     f"{name} 的目标文件在本次操作期间变了（切了学期？）："
                     f"读取时是 {Path(recorded).parent.name}/，现在是 {p.parent.name}/。"
                     f"已放弃写入，请重新查询后再改。")
-            if _disk_fingerprint(p) != recorded_fp:
+            if recorded_fp is None:
+                # 读取时这个文件**还不存在** → 现在存在 = 别人（另一个 CLI / 应用）先建了它
+                if p.exists():
+                    raise ActionError(
+                        f"{p.name} 在本次操作期间被其它程序创建了，已放弃写入以免覆盖。"
+                        f"请重新查询后再改。")
+            elif _disk_fingerprint(p) != recorded_fp:
                 raise ActionError(
                     f"{p.name} 在本次操作期间被其它程序改动，已放弃写入以免覆盖。"
                     f"请重新查询后再改（`list_backups` / `restore` 可回滚）。")
