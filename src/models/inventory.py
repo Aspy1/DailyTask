@@ -53,7 +53,8 @@ class InventoryModel(BaseJsonModel):
             "group": data.get("group", ""),
             "quantity": data.get("quantity", 1),
             "unit": "件",
-            "status": data.get("status", "充足"),  # 充足/不足/需购
+            "status": data.get("status") or self.derive_status(
+                data.get("quantity", 1), data.get("min_quantity", 1)),
             "min_quantity": data.get("min_quantity", 1),
             "location": data.get("location", ""),
             "notes": data.get("notes", ""),

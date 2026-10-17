@@ -37,6 +37,7 @@ from src.services.reminder_rules import (
     ddl_reminder_due,
     expired_custom_reminder_ids,
     pending_custom_reminders,
+    restock_body,
 )
 
 logger = logging.getLogger(__name__)
@@ -177,6 +178,8 @@ class ReminderService(QObject):
         if not self._balance_notified_today or \
            self._settings.get("Balance", "last_balance_notify_date", fallback="") != today_str:
             self._check_balances()
+
+        self._check_restock()          # 补货（每天最多一次，函数自身幂等）
 
         self._last_check = now
         self._settings.set("Email", "last_reminder_check", now.isoformat())
@@ -365,6 +368,18 @@ class ReminderService(QObject):
 
         self._settings.set("Balance", "last_balance_notify_date",
                            datetime.now().strftime("%Y-%m-%d"))
+        self._settings.save()
+
+    def _check_restock(self) -> None:
+        """有"需购/不足"的物品 → 邮件 + 托盘（每天最多一次；幂等，随便谁调都不重复）。"""
+        today_str = datetime.now().strftime("%Y-%m-%d")
+        if self._settings.get("Inventory", "last_restock_notify_date",
+                              fallback="") == today_str:
+            return
+        items = self._dm.inventory.need_restock      # 属性（不是方法）
+        if items:
+            self._notify("该补货了", restock_body(items), email=True, subject="补货提醒")
+        self._settings.set("Inventory", "last_restock_notify_date", today_str)
         self._settings.save()
 
     # ── Custom email reminders ────────────────────────────

@@ -159,6 +159,19 @@ def balance_alerts(settings) -> list[str]:
     return alerts
 
 
+# ── 补货（「有什么」里需购 / 不足的物品）──────────────────────
+def restock_body(items: list[dict]) -> str:
+    """需要补货的物品 → 一条提醒正文。
+
+    **选择**逻辑在 `InventoryModel.need_restock()`（已排除 `ignore_low_stock` 的物品），
+    这里只管排版。
+    """
+    return "\n".join(
+        f"· {it.get('name', '')}（剩 {it.get('quantity', 0)}{it.get('unit', '件')}"
+        f" · {it.get('status', '')}）"
+        for it in items)
+
+
 # ── 自定义提醒（用户在日程里定的）────────────────────────────
 
 def parse_notify_time(value: str) -> datetime | None:
