@@ -98,6 +98,8 @@ def _add_item_parsers(sub) -> None:
     p.add_argument("--unit", help="单位（件/盒/提/片/瓶…）")
     p.add_argument("--doses-per-unit", type=int, default=None,
                    help="每份含量（1 盒 24 片 → 24）")
+    p.add_argument("--min-doses", type=int, default=None,
+                   help="片级下限（剩不到 N 片/包就标不足 → 触发补货提醒）")
     p.add_argument("--instances",
                    help='同类不同特征的各件，JSON 数组，'
                         '如 \'[{"tags":["Type-C"],"notes":"1米"},{"tags":["Lightning"]}]\'')
@@ -114,11 +116,15 @@ def _add_item_parsers(sub) -> None:
     p.add_argument("--tags")
     p.add_argument("--unit")
     p.add_argument("--doses-per-unit", type=int)
+    p.add_argument("--min-doses", type=int)
     p.add_argument("--instances", help="JSON 数组（整组替换）")
 
     p = sub.add_parser("consume", help="消耗 N 份（按每份含量扣减 + 重算状态）")
     p.add_argument("--id", required=True)
     p.add_argument("--amount", type=int, default=1)
+
+    p = sub.add_parser("set_locations", help="整份设置允许的位置清单（逗号分隔）")
+    p.add_argument("--values", required=True)
 
     p = sub.add_parser("delete_item", help="删除物品")
     p.add_argument("--id", required=True)

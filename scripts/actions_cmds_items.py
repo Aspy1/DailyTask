@@ -35,26 +35,53 @@ def _parse_instances(raw: str | None) -> list[dict]:
     return parsed
 
 
+def _new_item_units(args) -> dict:
+    """单位相关字段：单位 / 片级下限 / 每份含量 / 标签 / 各件特征。"""
+    return {
+        "unit": getattr(args, "unit", None) or "件",
+        # 片级下限：说"剩不到 N 片/包"时用它（`min_qty` 是**同单位**的下限）
+        "min_doses": getattr(args, "min_doses", None) or 0,
+        "doses_per_unit": getattr(args, "doses_per_unit", None) or 1,
+        "tags": _split_tag_list(getattr(args, "tags", "") or ""),
+        "instances": _parse_instances(getattr(args, "instances", None)),
+    }
+
+
+def _new_item(iid: str, args) -> dict:
+    """按命令行参数造一条物品记录（状态由 `derive_status` 统一推导，不在这里写）。"""
+    return {
+        "id": iid, "name": args.name, "category": args.category or "其他",
+        "group": args.group or "",
+        "quantity": 1 if args.quantity is None else args.quantity,
+        "min_quantity": args.min_qty or 1,
+        **_new_item_units(args),
+        "location": args.location or "", "notes": args.notes or "",
+        "created_at": now_iso(), "updated_at": now_iso(),
+    }
+
+
 def cmd_add_item(args) -> None:
     data = load("inventory.json")
     data.setdefault("items", [])
-    iid = gen_id(data["items"], "i")
-    qty = 1 if args.quantity is None else args.quantity
-    min_qty = args.min_qty or 1
-    item = {"id": iid, "name": args.name, "category": args.category or "其他",
-            "group": args.group or "",
-            "quantity": qty, "unit": getattr(args, "unit", None) or "件",
-            # 状态按数量与下限推导（原来只判 qty<=0 → "1 件 / 下限 5" 也记成充足 ✗）
-            "status": InventoryModel.derive_status(qty, min_qty),
-            "min_quantity": min_qty,
-            "location": args.location or "", "notes": args.notes or "",
-            "tags": _split_tag_list(getattr(args, "tags", "") or ""),
-            "instances": _parse_instances(getattr(args, "instances", None)),
-            "doses_per_unit": getattr(args, "doses_per_unit", None) or 1,
-            "created_at": now_iso(), "updated_at": now_iso()}
+    item = _new_item(gen_id(data["items"], "i"), args)
+    item["status"] = InventoryModel.derive_status(item)   # 建好再推导（规则只写一份）
     data["items"].append(item)
     save("inventory.json", data)
-    print(f"OK add_item {iid} | {args.name}")
+    print(f"OK add_item {item['id']} | {args.name}")
+
+
+def cmd_set_locations(args) -> None:
+    """整份设置"允许的位置清单"（逗号分隔）。
+
+    位置是自由文本，但 AI 重建 / 整理时**只应从这份清单里选** —— 提示词会把清单带给它
+    （`AIService._build_inventory_list`）。例：
+    `set_locations --values "衣柜左1,衣柜左2,书架1"`
+    """
+    data = load("inventory.json")
+    data["locations"] = InventoryModel.normalize_locations(
+        _split_tag_list(getattr(args, "values", "") or ""))
+    save("inventory.json", data)
+    print(f"OK set_locations | {len(data['locations'])} 个位置")
 
 
 def cmd_consume(args) -> None:
@@ -70,8 +97,7 @@ def cmd_consume(args) -> None:
             continue
         dpu = it.get("doses_per_unit", 1) or 1
         it["quantity"] = max(0, (it.get("quantity", 0) * dpu - amount) // dpu)
-        it["status"] = InventoryModel.derive_status(it["quantity"],
-                                                    it.get("min_quantity", 1))
+        it["status"] = InventoryModel.derive_status(it)
         it["updated_at"] = now_iso()
         save("inventory.json", data)
         print(f"OK consume {args.id} | 剩 {it['quantity']}{it.get('unit', '件')}"
@@ -90,6 +116,7 @@ def _apply_item_quantity_fields(item: dict, args) -> None:
     unit = getattr(args, "unit", None)
     status = getattr(args, "status", None)
     min_qty = getattr(args, "min_qty", None)
+    min_doses = getattr(args, "min_doses", None)
     dpu = getattr(args, "doses_per_unit", None)
     instances = getattr(args, "instances", None)
     if quantity is not None:
@@ -100,6 +127,8 @@ def _apply_item_quantity_fields(item: dict, args) -> None:
         item["status"] = status
     if min_qty is not None:
         item["min_quantity"] = min_qty
+    if min_doses is not None:
+        item["min_doses"] = min_doses
     if dpu is not None:
         item["doses_per_unit"] = dpu
     if instances is not None:

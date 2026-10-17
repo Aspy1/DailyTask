@@ -86,3 +86,34 @@ def test_update_item_replaces_instances_and_unit(sandbox) -> None:
     item = _items(sandbox)[0]
     assert item["unit"] == "根"
     assert item["instances"] == [{"tags": ["USB-C"]}]
+
+
+def test_min_doses_is_dose_level_threshold(sandbox) -> None:
+    """片级下限：说"剩不到 5 片"要用 `--min-doses 5`，不是 `--min-qty 5`（= 5 盒 ✗）。
+
+    2026-10-18 探针发现：模型把"5 片"写成了"5 盒"（差 24 倍），因为原来只有单位级下限。
+    """
+    run('add_item --name "布洛芬" --quantity 1 --unit "盒" --doses-per-unit 24 '
+        '--min-doses 5 --location "药箱"')
+
+    item = _items(sandbox)[0]
+    assert item["min_doses"] == 5
+    assert item["status"] == "充足", "1 盒 = 24 片，还在 5 片之上"
+
+
+def test_min_doses_fires_below_threshold_while_unit_level_does_not(sandbox) -> None:
+    """对照：片级下限会触发、单位级不会 —— 这正是当初单位错位的后果。"""
+    run('add_item --name "布洛芬" --quantity 1 --unit "盒" --doses-per-unit 4 '
+        '--min-doses 5')
+    assert _items(sandbox)[0]["status"] == "不足", "1 盒 4 片 < 下限 5 片 → 不足"
+
+    run('add_item --name "对照" --quantity 1 --unit "盒" --doses-per-unit 4 --min_qty 1')
+    assert _items(sandbox)[1]["status"] == "充足", "只有单位级下限时看不出片数不够"
+
+
+def test_set_locations_replaces_the_allowed_list(sandbox) -> None:
+    """位置清单：整份替换 + 去空白去重（AI 重建时只从这份里选）。"""
+    assert run('set_locations --values "衣柜左1, 衣柜左2 ,衣柜左1,书架1"').startswith("OK")
+
+    data = json.loads((sandbox / "inventory.json").read_text(encoding="utf-8"))
+    assert data["locations"] == ["衣柜左1", "衣柜左2", "书架1"], "去空白 + 去重"

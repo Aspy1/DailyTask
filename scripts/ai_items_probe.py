@@ -68,7 +68,8 @@ SAMPLES: list[tuple[str, str, list[dict], object]] = [
     ("份数+位置", "家里抽纸还有 3 提，放在阳台储物柜", [],
      lambda it: _has(it, "抽纸", quantity=3, unit="提", location_has="阳台")),
     ("份数+补货", "布洛芬 1 盒 24 片，放药箱；剩不到 5 片就提醒我买", [],
-     lambda it: _has(it, "布洛芬", quantity=1, unit="盒", location_has="药箱")),
+     lambda it: _has(it, "布洛芬", quantity=1, unit="盒", location_has="药箱",
+                     min_doses=5)),          # 片级下限（不是 `--min_qty 5` = 5 盒）
     ("同类不同特征+位置", "两条充电线，一条 Type-C 一条 Lightning，都在书房抽屉", [],
      lambda it: _has(it, "充电线", quantity=2, instances=2)),
     ("补货（新物品）", "猫粮快吃完了，这周内要买", [],

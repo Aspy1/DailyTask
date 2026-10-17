@@ -41,6 +41,7 @@ from scripts.actions_cmds_items import (
     cmd_delete_item,
     cmd_lookup_item,
     cmd_need_restock,
+    cmd_set_locations,
     cmd_update_item,
 )
 from scripts.actions_core import (  # noqa: F401
@@ -667,6 +668,7 @@ HANDLERS = {
     "update_course": cmd_update_course,
     "add_item": cmd_add_item, "update_item": cmd_update_item,
     "consume": cmd_consume,
+    "set_locations": cmd_set_locations,
     "delete_item": cmd_delete_item,
     "need_restock": cmd_need_restock,
     "lookup_item": cmd_lookup_item,

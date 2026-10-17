@@ -344,6 +344,37 @@ class InstructionParser:
         return results
 
 
+def _inventory_prompt(inventory) -> str:
+    """物品清单 + 允许的位置清单（位置由 `set_locations` 维护，AI 只能从里面选）。"""
+    lines = []
+    for it in inventory.items:
+        loc = it.get("location", "")
+        loc_str = f" [{loc}]" if loc else ""
+        tags = it.get("tags", [])
+        tag_str = f" ({','.join(tags)})" if tags else ""
+        lines.append(f"  [{it['id']}] {it['name']} {it['quantity']}{it['unit']}"
+                     f"{loc_str} - {it['status']}{tag_str}")
+    allowed = inventory.locations
+    if allowed:
+        lines.append(f"  【位置只能从这些里选】{'、'.join(allowed)}")
+    return chr(10).join(lines) or "  （无物品记录）"
+
+
+def _expense_prompt(expenses) -> str:
+    """最近 20 条支出。"""
+    records = sorted(expenses.records, key=lambda r: r.get("date", ""), reverse=True)[:20]
+    if not records:
+        return "  （无支出记录）"
+    cat_names = {c["id"]: c["name"] for c in expenses.categories}
+    lines = []
+    for r in records:
+        cat = cat_names.get(r.get("category", ""), r.get("category", ""))
+        d = (r.get("date", "") or "")[:10]
+        lines.append(f"  [{r.get('id', '')}] {d} {cat} ¥{r.get('amount', 0):.1f} "
+                     f"{r.get('note', '')}")
+    return "\n".join(lines)
+
+
 class AIService(QObject):
     response_received = Signal(str)
     error_occurred = Signal(str)
@@ -601,7 +632,7 @@ class AIService(QObject):
 本月支出: ¥{self._dm.expenses.month_total():.2f} / 预算 ¥{self._dm.expenses.budget.get('monthly', 0):.0f}
 
 最近支出（按支出日期 date 字段排列，非记录时间）:
-{self._build_expense_list()}
+{_expense_prompt(self._dm.expenses)}
 
 已有习惯（id 用于修改/推迟/取消）:
 {self._build_habit_list()}
@@ -613,7 +644,7 @@ class AIService(QObject):
 {weather_info}
 
 物品库存（id 用于修改/移动）:
-{self._build_inventory_list()}
+{_inventory_prompt(self._dm.inventory)}
 
 假期/调休:
 {self._build_holiday_info()}
@@ -622,21 +653,6 @@ class AIService(QObject):
         self._prompt_cache_key = cache_key
         self._prompt_cache_value = prompt
         return prompt
-
-    def _build_expense_list(self) -> str:
-        records = sorted(self._dm.expenses.records, key=lambda r: r.get("date", ""), reverse=True)[:20]
-        if not records:
-            return "  （无支出记录）"
-        cat_names = {c["id"]: c["name"] for c in self._dm.expenses.categories}
-        lines = []
-        for r in records:
-            rid = r.get("id", "")
-            d = (r.get("date", "") or "")[:10]
-            cat = cat_names.get(r.get("category", ""), r.get("category", ""))
-            amt = r.get("amount", 0)
-            note = r.get("note", "")
-            lines.append(f"  [{rid}] {d} {cat} ¥{amt:.1f} {note}")
-        return "\n".join(lines)
 
     def _build_habit_list(self) -> str:
         habits = self._dm.habits.habits
@@ -679,19 +695,6 @@ class AIService(QObject):
                 day_str = day_names[day-1] if 1 <= day <= 7 else "?"
                 lines.append(f"  {c.get('name','')}: {day_str} {parity}周")
         return chr(10).join(lines) if lines else "  (无)"
-
-    def _build_inventory_list(self) -> str:
-        items = self._dm.inventory.items
-        if not items:
-            return "  （无物品记录）"
-        lines = []
-        for it in items:
-            loc = it.get("location", "")
-            loc_str = f" [{loc}]" if loc else ""
-            tags = it.get("tags", [])
-            tag_str = f" ({','.join(tags)})" if tags else ""
-            lines.append(f"  [{it['id']}] {it['name']} {it['quantity']}{it['unit']}{loc_str} - {it['status']}{tag_str}")
-        return chr(10).join(lines)
 
     def _build_holiday_info(self) -> str:
         h = self._dm.courses.holidays

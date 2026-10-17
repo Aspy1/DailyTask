@@ -10,6 +10,9 @@ DEFAULT_INVENTORY = {
     "_version": 1,
     "items": [],
     "categories": ["日常消耗品", "数码电子", "衣物", "虚拟品类", "其他"],
+    # 允许的位置清单（用户定的固定格位）。位置本身仍是自由文本，但**AI 只应从这份清单里选**
+    # —— 提示词会把它带给模型（`AIService._build_inventory_list`）。
+    "locations": [],
 }
 
 
@@ -53,8 +56,7 @@ class InventoryModel(BaseJsonModel):
             "group": data.get("group", ""),
             "quantity": data.get("quantity", 1),
             "unit": "件",
-            "status": data.get("status") or self.derive_status(
-                data.get("quantity", 1), data.get("min_quantity", 1)),
+            "status": data.get("status") or self.derive_status(data),
             "min_quantity": data.get("min_quantity", 1),
             "location": data.get("location", ""),
             "notes": data.get("notes", ""),
@@ -69,30 +71,36 @@ class InventoryModel(BaseJsonModel):
         return iid
 
     @staticmethod
-    def derive_status(quantity: int, min_quantity: int) -> str:
-        """按数量与下限推导状态：`<=0` → 需购；低于下限 → 不足；否则充足。
+    def derive_status(item: dict) -> str:
+        """按**单位级**下限 `min_quantity` 与**片级**下限 `min_doses` 推导状态。
 
-        **规则只写一份**：`scripts/actions_cmds_items.py` 的 add / update / consume
-        也调它（`CODE_STANDARDS` 的"单一真值"）。
+        规则（`CODE_STANDARDS` 单一真值）：`quantity <= 0` → 需购；低于下限 → 不足；
+        否则充足。两个下限同时给了**以片级为准**（`quantity × doses_per_unit < min_doses`）
+        —— 它才对应"剩不到 5 片就提醒我买"（2026-10-18 探针发现的单位错位：
+        `--min_qty 5` 是"5 盒"，与用户说的"5 片"差 24 倍）。
         """
+        quantity = item.get("quantity", 1)
         if quantity <= 0:
             return "需购"
-        if quantity < min_quantity:
-            return "不足"
-        return "充足"
+        min_doses = item.get("min_doses", 0) or 0
+        if min_doses > 0:
+            doses = quantity * (item.get("doses_per_unit", 1) or 1)
+            return "不足" if doses < min_doses else "充足"
+        return "不足" if quantity < item.get("min_quantity", 1) else "充足"
 
     def update_item(self, iid: str, data: dict) -> bool:
         for it in self.items:
             if it["id"] == iid:
                 for k in ("name", "category", "group", "quantity", "unit", "status",
-                          "min_quantity", "location", "notes", "tags", "instances", "ignore_low_stock", "doses_per_unit"):
+                          "min_quantity", "min_doses", "location", "notes", "tags",
+                          "instances", "ignore_low_stock", "doses_per_unit"):
                     if k in data:
                         it[k] = data[k]
                 it["updated_at"] = datetime.now().isoformat()
                 # 状态自动推导（`ignore_low_stock` 的物品跳过 —— 那是显式豁免）。
                 # ⚠ 现在**也会回到"充足"**：补货之后不该还挂着"需购"（原来不清）
                 if not it.get("ignore_low_stock"):
-                    it["status"] = self.derive_status(it["quantity"], it["min_quantity"])
+                    it["status"] = self.derive_status(it)
                 return True
         return False
 
@@ -112,7 +120,7 @@ class InventoryModel(BaseJsonModel):
                 total_doses = it["quantity"] * dpu
                 total_doses -= amount
                 it["quantity"] = max(0, total_doses // dpu)
-                it["status"] = self.derive_status(it["quantity"], it.get("min_quantity", 1))
+                it["status"] = self.derive_status(it)
                 if not it.get("ignore_low_stock"):
                     it["updated_at"] = __import__("datetime").datetime.now().isoformat()
                 return it["quantity"] > 0
@@ -128,6 +136,25 @@ class InventoryModel(BaseJsonModel):
     def need_restock(self) -> list[dict]:
         return [it for it in self.items
                 if it.get("status") in ("需购", "不足") and not it.get("ignore_low_stock")]
+
+    @property
+    def locations(self) -> list[str]:
+        """允许的位置清单（用户定的固定格位）；键缺失就补一份（老文件没有这个键）。"""
+        locs = self._data.get("locations")
+        if not locs:
+            locs = list(DEFAULT_INVENTORY["locations"])
+            self._data["locations"] = locs
+        return locs
+
+    @staticmethod
+    def normalize_locations(values: list[str]) -> list[str]:
+        """去空白 + 去重，保持传入顺序（命令层与界面共用同一套规则）。"""
+        seen: list[str] = []
+        for v in values:
+            name = v.strip()
+            if name and name not in seen:
+                seen.append(name)
+        return seen
 
     @property
     def all_tags(self) -> list[str]:

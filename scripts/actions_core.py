@@ -565,11 +565,14 @@ ALLOWED_OPTIONS: dict[str, set[str]] = {
     "delete_course": {"id"},
     "update_course": {"id", "name", "day", "weeks", "slots", "location",
                       "teacher", "parity"},
-    "add_item": {"name", "category", "quantity", "min_qty", "location", "notes",
-                 "group", "tags", "status", "unit", "doses_per_unit", "instances"},
+    "add_item": {"name", "category", "quantity", "min_qty", "min_doses", "location",
+                 "notes", "group", "tags", "status", "unit", "doses_per_unit",
+                 "instances"},
     "update_item": {"id", "name", "group", "category", "quantity", "status", "min_qty",
-                    "location", "tags", "unit", "doses_per_unit", "instances"},
+                    "min_doses", "location", "tags", "unit", "doses_per_unit",
+                    "instances"},
     "consume": {"id", "amount"},
+    "set_locations": {"values"},
     "delete_item": {"id"},
     "need_restock": set(),
     "lookup_item": {"name"},
@@ -658,6 +661,7 @@ SPECS: dict[str, dict] = {
         "group": ("text", MAX_TEXT), "tags": ("text", MAX_NOTE),
         "status": ("text", MAX_TEXT),          # CLI 接受但忽略（状态自动推导）
         "unit": ("text", MAX_TEXT), "doses_per_unit": ("int_opt", 1, MAX_QUANTITY),
+        "min_doses": ("int_opt", 0, MAX_QUANTITY),   # 片级下限（0 = 不用）
         "instances": ("text", MAX_TEXT),       # JSON 数组，handler 里解析
     },
     "update_item": {
@@ -669,10 +673,12 @@ SPECS: dict[str, dict] = {
         "category": ("text", MAX_TEXT), "location": ("text", MAX_TEXT),
         "tags": ("text", MAX_NOTE),
         "unit": ("text", MAX_TEXT), "doses_per_unit": ("int_opt", 1, MAX_QUANTITY),
+        "min_doses": ("int_opt", 0, MAX_QUANTITY),
         "instances": ("text", MAX_TEXT),
     },
     "consume": {"required": ("id",), "id": ("id",),
                 "amount": ("int_opt", 1, MAX_QUANTITY)},
+    "set_locations": {"required": ("values",), "values": ("text", MAX_NOTE)},
     "delete_item": {"required": ("id",), "id": ("id",)},
     "lookup_item": {"required": ("name",), "name": ("text", MAX_TITLE)},
     "add_expense": {
