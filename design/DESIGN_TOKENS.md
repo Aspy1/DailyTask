@@ -120,6 +120,7 @@
 <!-- TOKENS:spacing:BEGIN -->
 | Token | px | 用途 |
 |---|---|---|
+| `spacing_none` | 0 | 内边距由内容自己管（卡片只提供圆角+底色） |
 | `spacing_xs` | 4 | chip / 小徽标内边距 |
 | `spacing_sm` | 8 | 紧凑卡内边距、行内间隙 |
 | `spacing_md` | 12 | 条目卡内边距 |

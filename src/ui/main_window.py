@@ -7,7 +7,6 @@ from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
     QApplication,
     QDialog,
-    QFrame,
     QHBoxLayout,
     QLabel,
     QMainWindow,
@@ -29,6 +28,7 @@ from src.ui.components.click_label import ClickLabel
 from src.ui.components.main_workspace import MainWorkspace
 from src.ui.components.semester_text import ALERT_STATES, semester_state_text
 from src.ui.components.sidebar import Sidebar
+from src.ui.styles.cards import card
 from src.ui.styles.theme import get_colors
 from src.ui.widgets.menu import add_action, new_menu, show_at_cursor, show_below
 from src.ui.widgets.rounded_button import RoundedButton
@@ -711,10 +711,7 @@ class WeatherDetailDialog(QDialog):
         # 实时天气卡片
         if self._now_card:
             self._layout.removeWidget(self._now_card)
-        self._now_card = QFrame()
-        self._now_card.setStyleSheet(f"""
-            QFrame {{ background-color: {c['bg_elevated']}; border-radius: 8px; padding: 12px; }}
-        """)
+        self._now_card = card("item")
         card_layout = QVBoxLayout(self._now_card)
         card_layout.setSpacing(8)
 

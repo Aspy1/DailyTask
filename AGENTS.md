@@ -50,6 +50,18 @@
   `httpx2 → truststore → platform.system() → cmd 子进程`；CPU 被其它项目占满时可能假死
   （非本项目缺陷）。运行应用时避免同时跑满 CPU 的重任务。
 - 控制台中文乱码时设 `PYTHONIOENCODING=utf-8`。
+- **命令一律走 Git Bash**（PowerShell 会二次解析参数里的引号/`;`/`|`，本机实测反复踩坑）：
+  - Git 装在 **`D:\Program Files\Git`**（不是默认的 `C:\Program Files`）；`D:\Dev\w64devkit` 的 bash **处理不了中文路径**，不要用
+  - 推荐姿势：脚本用 PowerShell here-string 写好后**管道给 `bash -s`**（零转义）：
+    ```powershell
+    $script = @'
+    set -e
+    PYTHONIOENCODING=utf-8 ./.venv/Scripts/python.exe -m pytest -q
+    '@
+    $script | & "D:\Program Files\Git\bin\bash.exe" -s
+    ```
+  - ⚠ **命令串里不要写中文**（会被管道编码吃掉、变成 `????`）：中文一律写进文件，用 `write`/`edit` 工具落盘
+  - 收益：中文路径可用、**输出不再乱码**（PowerShell 下即便设了 `PYTHONIOENCODING` 仍会显示成 mojibake）
 
 ## 3. 开发 / Bug 修复流程
 

@@ -22,6 +22,7 @@ from src.i18n.loader import tr
 from src.services.ai_service import AIService
 from src.services.api_service import ApiService
 from src.services.settings_manager import SettingsManager
+from src.ui.styles.cards import card
 from src.ui.styles.theme import (
     FIELD_H,
     FONT_CN,
@@ -121,12 +122,12 @@ class SettingsPanel(QWidget):
         return lbl
 
     def _card(self) -> QFrame:
-        c = self._c()
-        card = QWidget()
-        card.setStyleSheet(
-            f"QWidget {{ background-color: {c['card_bg']}; border-radius: 8px; }}"
-        )
-        return card
+        """设置卡：圆角与底色走卡片组件；**内边距由各行自己管**（故用 spacing_none）。
+
+        这样"设置卡长什么样"由 `cards.CARD_VARIANTS["panel"]` 一处决定，
+        不再是每个面板各写一段 QSS。
+        """
+        return card("panel", pad="spacing_none")
 
     def _row(self, label: str, widget: QWidget, hint: QWidget | None = None) -> QWidget:
         c = self._c()

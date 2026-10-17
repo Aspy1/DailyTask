@@ -32,7 +32,7 @@ SIZE_ORDER = [
 
 # 间距刻度（4px 网格；命名对齐 radius_sm/md/lg/pill）
 SPACING_ORDER = [
-    "spacing_xs", "spacing_sm", "spacing_md", "spacing_lg",
+    "spacing_none", "spacing_xs", "spacing_sm", "spacing_md", "spacing_lg",
     "spacing_xl", "spacing_xxl", "spacing_xxxl",
 ]
 

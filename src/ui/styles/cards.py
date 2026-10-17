@@ -55,13 +55,16 @@ class Card(QFrame):
     不需要逐个卡片接线（对比：写死样式表的控件必须显式 `refresh_theme()`）。
     """
 
-    def __init__(self, variant: str = DEFAULT_VARIANT, parent=None) -> None:
+    def __init__(self, variant: str = DEFAULT_VARIANT, pad: str | None = None,
+                 parent=None) -> None:
         super().__init__(parent)
         self._variant = variant if variant in CARD_VARIANTS else DEFAULT_VARIANT
         spec = CARD_VARIANTS[self._variant]
-        pad = SPACING[spec["pad"]]
+        # pad=None → 用变体默认；pad="spacing_none" → 内边距交给内容（有些面板的
+        # 每一行自带 16/12 的内边距，卡片再设一次就会**双重内边距**）
+        gap = SPACING[pad if pad in SPACING else spec["pad"]]
         # 调用方拿到控件后直接挂自己的 layout：内边距已经就位
-        self.setContentsMargins(pad, pad, pad, pad)
+        self.setContentsMargins(gap, gap, gap, gap)
         self.setFrameShape(QFrame.Shape.NoFrame)
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, False)
 
@@ -89,6 +92,9 @@ class Card(QFrame):
         painter.end()
 
 
-def card(variant: str = DEFAULT_VARIANT, parent=None) -> Card:
-    """造一张卡片（唯一入口）。**不要**传尺寸 —— 长宽交给 layout。"""
-    return Card(variant, parent)
+def card(variant: str = DEFAULT_VARIANT, pad: str | None = None, parent=None) -> Card:
+    """造一张卡片（唯一入口）。**不要**传尺寸 —— 长宽交给 layout。
+
+    `pad` 传 spacing 令牌名可覆盖变体默认（`"spacing_none"` = 内边距由内容自己管）。
+    """
+    return Card(variant, pad, parent)
