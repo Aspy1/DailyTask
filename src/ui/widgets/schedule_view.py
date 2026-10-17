@@ -22,6 +22,7 @@ from src.models.course import PERIOD_TIMES, schedule_date
 from src.services.data_manager import DataManager
 from src.ui.components.click_label import ClickLabel
 from src.ui.panels.course_panel import CoursePanel
+from src.ui.styles.cards import card
 from src.ui.styles.theme import FONT_CN, SIZE_SUBTITLE, get_colors
 from src.ui.widgets.menu import (
     add_action,
@@ -585,11 +586,8 @@ class ScheduleView(QWidget):
         else:
             time_str = tr("widget.schedule.slot_fallback", n=period)
 
-        card = QWidget()
-        card.setStyleSheet(f"""
-            QWidget {{ background-color: {c['card_bg']}; border-radius: 8px; }}
-        """)
-        cl = QVBoxLayout(card)
+        slot_card = card("panel", pad="spacing_none")
+        cl = QVBoxLayout(slot_card)
         cl.setContentsMargins(16, 12, 16, 8)
         cl.setSpacing(8)
 
@@ -614,7 +612,7 @@ class ScheduleView(QWidget):
 
         for t in ddls:
             cl.addWidget(self._create_ddl_label(t, c))
-        return card
+        return slot_card
 
     def _create_item_widget(self, item: dict, plans: list[dict], c: dict) -> QWidget | None:
         """按条目类型构建卡片内的小部件。"""
@@ -627,9 +625,7 @@ class ScheduleView(QWidget):
         return None
 
     def _create_course_item(self, item: dict, plans: list[dict], c: dict) -> QWidget:
-        course_card = QWidget()
-        course_card.setStyleSheet(
-            f"QWidget {{ background-color: {c['bg_elevated']}; border-radius: 8px; }}")
+        course_card = card("item", pad="spacing_none")
         course_card.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         course_card.customContextMenuRequested.connect(
             lambda pos, ci=item, card=course_card: self._course_menu(pos, ci, card))
@@ -654,9 +650,7 @@ class ScheduleView(QWidget):
         return course_card
 
     def _create_plan_item(self, item: dict, c: dict) -> QWidget:
-        plan_card = QWidget()
-        plan_card.setStyleSheet(
-            f"QWidget {{ background-color: {c['accent_bg']}; border-radius: 8px; }}")
+        plan_card = card("item", pad="spacing_none", bg="accent_bg")
         plan_card.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         plan_card.customContextMenuRequested.connect(
             lambda pos, pi=item, card=plan_card: self._plan_menu(pos, pi, card))
@@ -677,9 +671,7 @@ class ScheduleView(QWidget):
         return plan_card
 
     def _create_habit_item(self, item: dict, c: dict) -> QWidget:
-        hab_card = QWidget()
-        hab_card.setStyleSheet(
-            f"QWidget {{ background-color: {c['bg_elevated']}; border-radius: 8px; }}")
+        hab_card = card("item", pad="spacing_none")
         hab_card.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         hab_card.customContextMenuRequested.connect(
             lambda pos, hi=item, card=hab_card: self._habit_menu(pos, hi, card))

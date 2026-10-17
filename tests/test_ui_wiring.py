@@ -95,19 +95,24 @@ def test_theme_switch_repaints_baked_styles(tmp_path, qapp, monkeypatch) -> None
     mw._workspace.switch_to("schedule")
 
     light_sidebar_qss = mw._sidebar.styleSheet()
-    light_card_qss = sv._slot_cards[1].styleSheet()
 
     assert mw._sidebar.testAttribute(Qt.WidgetAttribute.WA_StyledBackground)
     assert mw._workspace.testAttribute(Qt.WidgetAttribute.WA_StyledBackground)
+
+    # 卡片自绘（`styles/cards.py`）：颜色**不写进样式表**，paintEvent 里现取令牌
+    card = sv._slot_cards[1]
+    assert card.styleSheet() == "", "Card 应自绘，不该把颜色写进样式表"
+    light_card_pixels = card.grab().toImage()
 
     mw._switch_theme("dark")
 
     dark = TOKENS["dark"]
     assert dark["sidebar_bg"] in mw._sidebar.styleSheet()
     assert mw._sidebar.styleSheet() != light_sidebar_qss
-    card = sv._slot_cards[1]
-    assert dark["card_bg"] in card.styleSheet() or dark["bg_card"] in card.styleSheet()
-    assert card.styleSheet() != light_card_qss, "切主题后时段卡片必须重建"
+    # 用"切主题后像素确实变了"验证卡片跟随主题 —— 比查样式表更贴近用户看到的结果
+    dark_card_pixels = sv._slot_cards[1].grab().toImage()
+    assert dark_card_pixels != light_card_pixels, "切主题后卡片必须重绘成新配色"
+    assert sv._slot_cards[1] is not card, "切主题后时段卡片应重建（哈希增量不保留旧配色）"
 
 
 @pytest.mark.parametrize("mode", ["light", "dark"])
