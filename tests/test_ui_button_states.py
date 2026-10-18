@@ -6,10 +6,33 @@
   **AARRGGBB**，`#B93B3B18` 会被解释成透明橄榄色，而不是浅红。
 """
 
+from collections.abc import Iterator
+
 import pytest
 
 from src.ui.styles.theme import qcolor, rgba
 from src.ui.widgets.rounded_button import _extract, _state_of
+
+
+@pytest.fixture(autouse=True)
+def _drop_widgets_created_here(qapp) -> Iterator[None]:
+    """本文件会造不少顶层控件；测完按**安全顺序**清掉。
+
+    ⚠ conftest 明确警告过：**不能**对所有顶层控件统一 `deleteLater()` / `close()`
+    （会双重释放）。这里只处理**本测试新造**的：先让测试函数返回（它的局部引用随之释放），
+    再 `deleteLater()` + 跑一次事件循环 —— 这正是 conftest 说的安全姿势。
+
+    为什么必须做：不清理的话解释器退出时 Qt 会**乱序**销毁它们 —— 2026-10-18 本地实测
+    连跑三次就有一次 SIGSEGV（CI 的 3.12 job 因此偶发"530 passed 但退出码 1"）。
+    """
+    from PySide6.QtWidgets import QApplication
+
+    before = set(QApplication.topLevelWidgets())
+    yield
+    for widget in QApplication.topLevelWidgets():
+        if widget not in before:
+            widget.deleteLater()
+    QApplication.processEvents()
 
 QSS = ("QPushButton { background: #111111; border: 1px solid #222222; border-radius: 8px; }"
        "QPushButton:hover { background: #333333; }"
