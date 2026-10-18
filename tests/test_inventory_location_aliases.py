@@ -102,3 +102,20 @@ def test_wardrobe_and_cabinet_stay_distinct(sandbox) -> None:
     # 衣柜没说哪一侧一律算左（用户口径）
     assert "被罩" in run('lookup_item --location "衣柜1"')
     assert "被罩" in run('lookup_item --location "衣柜左1"')
+
+
+def test_table_locations_auto_register_on_first_use(sandbox) -> None:
+    """用例表里出现的格位（柜子1-4 / 桌面 / 晾衣架 / 床上）**一用就自动进词表**。
+
+    所以不需要预先 `set_locations` 写死 —— 那反而会**整份替换**掉重建过程中
+    已登记的格位（2026-10-18：用户数据正在重建、应用在跑）。
+    """
+    from tests.helpers import run
+
+    for name, loc in (("工具箱", "柜子1"), ("茶包", "桌面"), ("毛巾", "晾衣架"),
+                      ("枕头", "床上"), ("插排", "柜子4")):
+        assert run(f'add_item --name "{name}" --quantity 1 --location "{loc}"').startswith("OK")
+
+    locs = _locations(sandbox)
+    for loc in ("柜子1", "柜子4", "桌面", "晾衣架", "床上"):
+        assert loc in locs, f"{loc} 应该自动登记进词表：{locs}"
