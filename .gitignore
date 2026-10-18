@@ -44,3 +44,6 @@ Thumbs.db
 *.corrupt-*.json
 # 写入锁文件（跨进程文件锁用；不该进版本库）
 *.lock
+
+# UI 渲染产物（`scripts/ui_render.py` 的输出，供人工逐页批注用）
+shots-*/
