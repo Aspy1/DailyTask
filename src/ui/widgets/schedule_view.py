@@ -22,6 +22,7 @@ from src.ui.components.click_label import ClickLabel
 from src.ui.panels.course_panel import CoursePanel
 from src.ui.styles.cards import card
 from src.ui.styles.theme import font, get_colors
+from src.ui.widgets.hint_bar import HintBar
 from src.ui.widgets.menu import (
     add_action,
     add_separator,
@@ -31,6 +32,12 @@ from src.ui.widgets.menu import (
 from src.ui.widgets.rounded_button import RoundedButton
 from src.ui.widgets.schedule_actions import plans_snapshot, set_plan_category, undo_arrange
 from src.ui.widgets.schedule_filter import CategoryFilter, add_category_actions, visible
+from src.ui.widgets.schedule_slots import (
+    add_course_to_slots,
+    add_habit_to_slots,
+    add_plan_to_slots,
+    slot_for_minutes,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -126,6 +133,9 @@ class ScheduleView(QWidget):
 
         layout.addWidget(bar)
 
+        self._hint_bar = HintBar(self._dm.data_dir)
+        layout.addWidget(self._hint_bar)
+
         # 日 / 周 两页：日 = 时段卡片；周 = 课程表（含"事项行"）
         self._stack = QStackedWidget()
         layout.addWidget(self._stack, stretch=1)
@@ -168,7 +178,6 @@ class ScheduleView(QWidget):
             self.course_table_requested.emit()
 
     def _build_action_row(self, bl, c: dict) -> None:
-        """顶部按钮行：撤销 / 保存（安排完成后才显示）+ 学习·生活筛选。"""
         for name, key, tone, slot in (("_undo_btn", "btn_undo", "danger", self._undo_arrange),
                                       ("_save_btn", "btn_save", "success", self._save_arrange)):
             btn = RoundedButton(tr(f"widget.schedule.{key}"))
@@ -308,20 +317,9 @@ class ScheduleView(QWidget):
 
     # ── Refresh 辅助方法（拆分自原 60 复杂度的 _refresh）────────
 
-    @staticmethod
-    def _slot_for_minutes(minutes: int, period_count: int | None = None) -> int | None:
-        """把「当天分钟数」映射到节次（1 起）；不在任何时段返回 None。"""
-        periods = PERIOD_TIMES if period_count is None else PERIOD_TIMES[:period_count]
-        for i, (start_s, end_s) in enumerate(periods):
-            s = int(start_s[:2]) * 60 + int(start_s[3:])
-            e = int(end_s[:2]) * 60 + int(end_s[3:])
-            if s <= minutes <= e:
-                return i + 1
-        return None
-
     def _current_slot(self) -> int | None:
         now = datetime.now()
-        return self._slot_for_minutes(now.hour * 60 + now.minute)
+        return slot_for_minutes(now.hour * 60 + now.minute)
 
     def _build_slot_data(self, courses: list, plans: list, habits: list) -> dict[int, list[dict]]:
         slot_data: dict[int, list[dict]] = {i: [] for i in range(1, 7)}
@@ -329,64 +327,14 @@ class ScheduleView(QWidget):
                                   for xs, kind in ((courses, "course"), (plans, "plan"), (habits, "habit")))
 
         for course in courses:
-            self._add_course_to_slots(slot_data, course)
+            add_course_to_slots(slot_data, course)
 
         for plan in plans:
-            self._add_plan_to_slots(slot_data, plan)
+            add_plan_to_slots(slot_data, plan)
 
         for h in habits:
-            self._add_habit_to_slots(slot_data, h)
+            add_habit_to_slots(slot_data, h, self._dm)
         return slot_data
-
-    @staticmethod
-    def _add_course_to_slots(slot_data: dict[int, list[dict]], course: dict) -> None:
-        """把单门课程写入其占用的每个时段。"""
-        for slot in course.get("time_slots", []):
-            for s in range(slot["start"], slot["end"] + 1):
-                if 1 <= s <= 6:
-                    slot_data[s].append({
-                        "type": "course",
-                        "course": course,
-                        "name": course.get("name", ""),
-                        "location": course.get("location", ""),
-                    })
-
-    @staticmethod
-    def _add_plan_to_slots(slot_data: dict[int, list[dict]], plan: dict) -> None:
-        """把单条计划写入其时段。"""
-        ts = plan.get("time_slot", 0)
-        if 1 <= ts <= 6:
-            slot_data[ts].append({
-                "type": "plan",
-                "plan": plan,
-                "plan_type": plan.get("type", "custom"),
-                "title": plan.get("title", ""),
-                "course_name": plan.get("course_name", ""),
-                "note": plan.get("note", ""),
-                "done": bool(plan.get("done")),
-            })
-
-    def _add_habit_to_slots(self, slot_data: dict[int, list[dict]], h: dict) -> None:
-        """把单个当日活跃习惯按提醒时间归入时段。"""
-        if not self._dm.habits.is_active_today(h["id"]):
-            return
-        rt = h.get("reminder_time", "").strip()
-        h_min = 0
-        if rt:
-            try:
-                hh, mm = rt.split(":")
-                h_min = int(hh) * 60 + int(mm)
-            except ValueError:
-                h_min = 0
-        slot = self._slot_for_minutes(h_min) or 1
-        if 1 <= slot <= 6:
-            slot_data[slot].append({
-                "type": "habit",
-                "habit": h,
-                "name": h.get("name", ""),
-                "duration": h.get("duration_minutes", 30),
-                "reminder_time": rt,
-            })
 
     def _build_ddl_by_slot(self, target, period_count: int) -> dict[int, list[dict]]:
         """收集「今日截止」的任务，并按截止时刻归入节次。"""
@@ -402,7 +350,7 @@ class ScheduleView(QWidget):
             if due_dt.date() != target:
                 continue
             minutes = due_dt.hour * 60 + due_dt.minute
-            slot = self._slot_for_minutes(minutes, period_count)
+            slot = slot_for_minutes(minutes, period_count)
             if slot is None:  # 早于第一节 / 晚于最后一节 → 就近归入
                 first_start = int(PERIOD_TIMES[0][0][:2]) * 60 + int(PERIOD_TIMES[0][0][3:])
                 slot = 1 if minutes < first_start else period_count
@@ -582,6 +530,7 @@ class ScheduleView(QWidget):
         return ddl_label
 
     def _refresh(self, force: bool = False) -> None:
+        self._hint_bar.refresh()
         """刷新**当前视图**：日视图重建时段卡片；周视图交给课程表面板。"""
         if self._view_mode == "week":
             self._course_panel._refresh()
@@ -644,6 +593,7 @@ class ScheduleView(QWidget):
     def refresh_theme(self) -> None:
         try:
             self._style_mode_buttons()
+            self._hint_bar.refresh()
             self._category_filter.refresh_theme()
             self._course_panel.refresh_theme()
             self._refresh(force=True)

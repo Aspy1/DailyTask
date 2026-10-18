@@ -58,8 +58,10 @@ def test_done_plan_card_shows_check_and_strikethrough(qapp, tmp_path) -> None:
     sv, _ = _view(tmp_path)
     c = get_colors()
 
+    from src.ui.widgets.schedule_slots import add_plan_to_slots
+
     slot_data: dict[int, list[dict]] = {i: [] for i in range(1, 7)}
-    sv._add_plan_to_slots(slot_data, {"title": "整理扑克牌", "time_slot": 2, "done": True})
+    add_plan_to_slots(slot_data, {"title": "整理扑克牌", "time_slot": 2, "done": True})
     assert slot_data[2][0]["done"] is True, "「已完成」要跟着 item 传到卡片层"
 
     done_card = sv._create_plan_item(slot_data[2][0], c)
@@ -70,7 +72,7 @@ def test_done_plan_card_shows_check_and_strikethrough(qapp, tmp_path) -> None:
     assert "line-through" in title.styleSheet(), "已完成要划掉"
 
     # 未完成的仍是原样（📅 / 🔄 前缀，不划线）
-    sv._add_plan_to_slots(slot_data, {"title": "复习", "time_slot": 2})
+    add_plan_to_slots(slot_data, {"title": "复习", "time_slot": 2})
     todo_card = sv._create_plan_item(slot_data[2][1], c)
     todo_title = next(w for w in todo_card.findChildren(QLabel) if "复习" in w.text())
     assert "line-through" not in todo_title.styleSheet()

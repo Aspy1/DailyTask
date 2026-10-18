@@ -5,7 +5,7 @@
     "class:ExpensePanel@src/ui/panels/expense_panel.py": 432,
     "class:InventoryPanel@src/ui/panels/inventory_panel.py": 727,
     "class:MainWindow@src/ui/main_window.py": 591,
-    "class:ScheduleView@src/ui/widgets/schedule_view.py": 753,
+    "class:ScheduleView@src/ui/widgets/schedule_view.py": 695,
     "class:SettingsPanel@src/ui/panels/settings_panel.py": 707,
     "file:src/ui/main_window.py": 871,
     "func:__init__@src/app.py": 78,
@@ -21,7 +21,7 @@
     "func:__init__@src/ui/panels/task_panel.py": 105,
     "func:__init__@src/ui/widgets/api_test_dialog.py": 112,
     "func:__init__@src/ui/widgets/course_detail_dialog.py": 64,
-    "func:__init__@src/ui/widgets/schedule_view.py": 119,
+    "func:__init__@src/ui/widgets/schedule_view.py": 101,
     "func:_build_ai_card@src/ui/panels/settings_panel.py": 73,
     "func:_build_balance_card@src/ui/panels/settings_panel.py": 70,
     "func:_build_email_card@src/ui/panels/settings_panel.py": 70,
@@ -43,5 +43,5 @@
     "colors.light.red",
     "colors.light.yellow"
   ],
-  "ui_chinese_literals": 101
+  "ui_chinese_literals": 102
 }
