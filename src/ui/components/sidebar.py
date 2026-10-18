@@ -57,11 +57,14 @@ class NavItem(QPushButton):
         c = get_colors()
         pl = "36px" if self._indent else "16px"
         fs = "13px" if self._indent else "12px"
+        # 底部那两项（设置 / 更多…，`indent=False`）**居中**，与「AI 助手」一致；
+        # 主功能区仍左对齐（2026-10-18 用户口径）
+        align = "left" if self._indent else "center"
         self.setStyleSheet(f"""
             QPushButton {{
                 background: transparent; border: none;
                 color: {c['fg_secondary']}; font-size: {fs}; font-weight: 500;
-                text-align: left; padding: 7px 16px 7px {pl};
+                text-align: {align}; padding: 7px 16px 7px {pl};
             }}
             QPushButton:hover {{
                 background-color: {c['accent_bg']};

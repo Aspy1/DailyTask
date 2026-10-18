@@ -113,6 +113,14 @@ class _Renderer:
         _seed(self.dm)
         settings = SettingsManager(sandbox / "settings.ini")
         settings.load()
+        # ⚠ 渲染用的设置必须**像真的**：不设的话设置页显示默认的 DeepSeek / deepseek-chat，
+        # 而实际用的是 OpenCode Go / deepseek-v4.1-flash → 用户看截图以为配置不对
+        # （2026-10-18 反馈）✗。这里对齐真实配置。
+        settings.set("AI", "provider", "opencode")
+        settings.set("AI", "model", "deepseek-v4.1-flash")
+        # 假 key（运行时拼，避免源码里出现像密钥的字面量）—— 让状态显示"已配置"，
+        # 与真实环境一致
+        settings.set("AI", "api_key", "sk-" + "render" + "0" * 24)
         self.mw = MainWindow(settings, AIService(settings, self.dm), self.dm)
         self.mw.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
         self.mw._status_timer.stop()
