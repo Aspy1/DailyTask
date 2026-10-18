@@ -35,6 +35,7 @@ from src.models.semester import (
 from src.services.data_manager import DataManager
 from src.ui.components.semester_text import issue_text, semester_state_text
 from src.ui.styles.theme import FIELD_H, SIZE_BODY_L, SIZE_BODY_S, get_colors
+from src.ui.widgets.dialog_shell import cap_height, dialog_qss, make_scrollable
 from src.ui.widgets.rounded_button import RoundedButton
 from src.ui.widgets.rounded_input import RoundedLineEdit
 
@@ -53,9 +54,12 @@ class SemesterDialog(QDialog):
 
     # ── 结构 ────────────────────────────────────────────────
     def _build(self) -> None:
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(20, 20, 20, 16)
-        layout.setSpacing(12)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(20, 20, 20, 16)
+        outer.setSpacing(12)
+        # 内容可滚动 + 限高（审查 U9）：屏幕不够高时按钮仍可见。
+        # ⚠ 按钮行挂在 `outer` 上（不是返回的内容 layout），否则会跟着内容滚走。
+        layout = make_scrollable(outer)
 
         self._status_label = QLabel()
         self._status_label.setWordWrap(True)
@@ -67,7 +71,9 @@ class SemesterDialog(QDialog):
 
         self._build_switch_row(layout)
         self._build_new_section(layout)
-        self._build_buttons(layout)
+        self._build_buttons(outer)
+        self.setStyleSheet(dialog_qss())
+        cap_height(self)
         self._refresh()
 
     def _build_switch_row(self, layout: QVBoxLayout) -> None:
