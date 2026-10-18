@@ -97,18 +97,6 @@ def _has_write_cmd(commands: list) -> bool:
     return any(n and n[0] not in ("lookup_item", "need_restock", "status") for n in names)
 
 
-def _state_fingerprint() -> str:
-    """**从磁盘**算「库存 + 日程」的指纹 —— 这一轮到底有没有**真的改动**（不看模型怎么说）。"""
-    import hashlib
-    import json as _json
-
-    import scripts.actions_core as core
-
-    blob = _json.dumps([core.load(n) for n in ("inventory.json", "daily_logs.json")],
-                       sort_keys=True, ensure_ascii=False, default=str)
-    return hashlib.sha256(blob.encode("utf-8")).hexdigest()
-
-
 def _claims_done(text: str) -> bool:
     """模型是不是在**声称已经写入**（"已记录 / 已录入 / 已更新"…）。
 
@@ -275,6 +263,7 @@ class AIWorker(QObject):
             all_instructions = []  # collect across multi-turn agent loop
             max_tokens = self._max_tokens()
             wrote_data = False     # **数据真的变了**才算（不是"发过命令"）
+            write_failures: list[str] = []   # 写命令里返回 ERROR 的（权威信号）
             deadline = time.monotonic() + self._max_seconds()
             for turn in range(5):  # max 5 turns
                 if time.monotonic() > deadline:
@@ -303,31 +292,37 @@ class AIWorker(QObject):
                     return
                 all_instructions.extend(instructions)
                 # Execute tools silently
-                before = _state_fingerprint()
                 results = InstructionParser.execute(instructions)
-                changed = _state_fingerprint() != before
-                wrote_data = wrote_data or changed
+                # ⭐ **命令自己的结果**（OK / ERROR）才是权威信号 —— 比"文件变了"准得多：
+                # `add_location` 也会改文件，但用户要的东西并没落库（bonsai 实测）。
+                pairs = list(zip(instructions, results, strict=False))
+                write_failures += [c for c, r in pairs
+                                   if _has_write_cmd([c]) and not str(r).startswith("OK")]
+                wrote_data = wrote_data or any(
+                    _has_write_cmd([c]) and str(r).startswith("OK") for c, r in pairs)
                 # Feed results back for next turn
                 msgs.append({"role": "assistant", "content": text})
                 results_text = "\n".join(results)
-                if not changed:
-                    # 给模型一条**事实**（不是指令）：命令跑了但世界没变
-                    results_text += ("\n[事实] 命令已执行，但**库存/日程没有任何变化**"
-                                     "（被拒或报错了）。")
+                if results and all(not str(r).startswith("OK") for r in results):
+                    # 给模型一条**事实**（不是指令）：命令跑了但一条都没成功
+                    results_text += ("\n[事实] 命令已执行，但**一条都没成功**（被拒或报错了），"
+                                     "库存/日程没有任何变化。")
                 msgs.append({"role": "user", "content": f"[工具执行结果]\n{results_text}"})
                 final_text = text
             # Max turns reached
             display = re.sub(r'```(?:sh|json)\s*.*?```', '', final_text, flags=re.DOTALL).strip()
-            self._finish(all_instructions, wrote_data, display)
+            self._finish(all_instructions, wrote_data, display, write_failures)
         # 边界捕获：本层已处理/记录，不允许异常向上逃逸（CODE_STANDARDS Q-I1）
         except Exception as e:  # noqa: BLE001
             self.error.emit(str(e))
 
-    def _finish(self, all_instructions: list, wrote_data: bool, display: str) -> None:
+    def _finish(self, all_instructions: list, wrote_data: bool, display: str,
+                write_failures: list | None = None) -> None:
         if all_instructions:
-            if not wrote_data and _has_write_cmd(all_instructions):
-                # ⭐ 汇报权**永远**归代码：写了命令却一点没变 → 必须告诉用户，
-                # 不管模型嘴上说什么（Agent Reliability §2.3；bonsai 实测正是这种）
+            if write_failures:
+                shown = "\n".join(f"  {c}" for c in write_failures[:5])
+                display += f"\n\n⚠ **这些命令没有生效**（已如实告知）：\n{shown}"
+            elif not wrote_data and _has_write_cmd(all_instructions):
                 display += ("\n\n⚠ **数据没有任何改动** —— 命令执行了但没生效"
                             "（可能被拒或报错），请重试或换个说法。")
             self.finished_with_instructions.emit(display or "已完成", all_instructions)

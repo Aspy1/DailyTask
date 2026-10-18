@@ -62,15 +62,13 @@ def test_continuation_nudge_cases() -> None:
     assert _continuation_nudge("请提供课程名称与周次", False) is None
 
 
-def test_state_fingerprint_tracks_real_changes(sandbox) -> None:
-    """⚠ 判定"有没有真的改动"必须看**数据**，不看模型的自述（Agent Reliability §4.3）。"""
-    from src.services.ai_service import _state_fingerprint
-    from tests.helpers import run
+def test_has_write_cmd_distinguishes_reads() -> None:
+    """判定"有没有写"只看命令名（纯查询不算）—— 这是"没生效要告诉用户"的前提。"""
+    from src.services.ai_service import _has_write_cmd
 
-    before = _state_fingerprint()
-    assert _state_fingerprint() == before, "没动数据 → 指纹不变"
-    run('add_item --name "指纹测试" --quantity 1')
-    assert _state_fingerprint() != before, "数据变了 → 指纹必须变"
+    assert _has_write_cmd(["python scripts/actions.py lookup_item --name x"]) is False
+    assert _has_write_cmd(["python scripts/actions.py add_item --name x"]) is True
+    assert _has_write_cmd([]) is False
 
 
 def test_finish_warns_when_claiming_without_data_change(qapp) -> None:
@@ -81,12 +79,18 @@ def test_finish_warns_when_claiming_without_data_change(qapp) -> None:
     seen: list[str] = []
     worker.finished_with_instructions.connect(lambda t, _i: seen.append(t))
 
-    worker._finish(["python x"], wrote_data=False, display="已记录：牙膏 1 瓶")
-    assert seen and "没有任何改动" in seen[-1], "说了没做要明确警告"
+    worker._finish(["python x"], wrote_data=False, display="已记录：牙膏 1 瓶",
+                   write_failures=["python scripts/actions.py add_item --name x"])
+    assert seen and "没有生效" in seen[-1], "命令失败要如实告知"
 
     seen.clear()
-    worker._finish(["python x"], wrote_data=True, display="已记录：牙膏 1 瓶")
-    assert seen and "没有任何改动" not in seen[-1], "真的写了就不该警告"
+    worker._finish(["python x"], wrote_data=False, display="已记录：牙膏 1 瓶")
+    assert seen and "没有任何改动" in seen[-1], "写了命令却没变也要警告"
+
+    seen.clear()
+    worker._finish(["python scripts/actions.py lookup_item --name x"], wrote_data=False,
+                   display="柜子2 里有：绿色洗面奶")
+    assert seen and "没有任何改动" not in seen[-1], "纯查询不该报警告"
 
 
 def test_nudge_when_model_claims_it_wrote_but_sent_no_command() -> None:

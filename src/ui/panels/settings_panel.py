@@ -53,6 +53,10 @@ PROVIDERS = {
         "model": "claude-sonnet-4-20250514", "key_placeholder": "sk-ant-...",
         "key_url": "https://console.anthropic.com",
     },
+    # 自定义端点：本地 / 自建 OpenAI 兼容服务（⚠ 端点必须以 `/v1` 结尾，少写会 404，
+    # 界面只表现为"AI 没反应"）。URL / 模型名由用户在设置页自己填。
+    "custom": {"name": "自定义端点（本地 / 自建）", "endpoint": "http://127.0.0.1:8000/v1",
+               "model": "", "key_placeholder": "按服务要求填，可留空", "key_url": ""},
     # OpenCode Go（订阅制）：OpenAI 兼容端点 + 订阅 key。
     # ⚠ 必须用 /inference/go/... 这个地址；免费模型在**按量付费**端点会被
     # 403 FreeTierError 拦下（"free tier can only be used from within OpenCode"）。
@@ -123,11 +127,6 @@ class SettingsPanel(QWidget):
         return lbl
 
     def _card(self) -> QFrame:
-        """设置卡：圆角与底色走卡片组件；**内边距由各行自己管**（故用 spacing_none）。
-
-        这样"设置卡长什么样"由 `cards.CARD_VARIANTS["panel"]` 一处决定，
-        不再是每个面板各写一段 QSS。
-        """
         return card("panel", pad="spacing_none")
 
     def _row(self, label: str, widget: QWidget, hint: QWidget | None = None) -> QWidget:
@@ -288,6 +287,10 @@ class SettingsPanel(QWidget):
     def _on_provider_changed(self) -> None:
         key = self._provider_combo.currentData()
         info = PROVIDERS.get(key, PROVIDERS["deepseek"])
+        if key == "custom":
+            self._endpoint_input.setText(self._settings.get("AI", "api_endpoint", "") or info["endpoint"])
+            self._model_combo.setEditText(self._settings.get("AI", "model", ""))
+            return
         self._endpoint_input.setText(info["endpoint"])
         self._api_key_input.setPlaceholderText(info["key_placeholder"])
         self._model_combo.clear()
