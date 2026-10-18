@@ -6,7 +6,6 @@ from datetime import date
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QDialog,
-    QDialogButtonBox,
     QFormLayout,
     QHBoxLayout,
     QLabel,
@@ -22,7 +21,7 @@ from src.i18n.loader import tr
 from src.services.data_manager import DataManager
 from src.ui.styles.cards import Card
 from src.ui.styles.theme import RADIUS, font, get_colors
-from src.ui.widgets.dialog_shell import cap_height, make_scrollable
+from src.ui.widgets.dialog_shell import action_row, cap_height, make_scrollable
 from src.ui.widgets.menu import (
     add_action,
     new_menu,
@@ -309,11 +308,8 @@ class ExamDialog(QDialog):
 
         layout.addLayout(form)
 
-        buttons = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
-        buttons.accepted.connect(self._ok)
-        buttons.rejected.connect(self.reject)
-        outer.addWidget(buttons)
+        outer.addWidget(action_row(tr("widget.dialog.btn_confirm"), self._ok,
+                                   on_cancel=self.reject))
         cap_height(self)
 
     def _ok(self) -> None:

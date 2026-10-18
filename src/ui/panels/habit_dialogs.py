@@ -8,7 +8,6 @@
 from PySide6.QtWidgets import (
     QCheckBox,
     QDialog,
-    QDialogButtonBox,
     QFormLayout,
     QHBoxLayout,
     QLabel,
@@ -23,7 +22,7 @@ from PySide6.QtWidgets import (
 from src.i18n.loader import tr
 from src.services.data_manager import DataManager
 from src.ui.styles.theme import get_colors
-from src.ui.widgets.dialog_shell import cap_height, make_scrollable
+from src.ui.widgets.dialog_shell import action_row, cap_height, make_scrollable
 from src.ui.widgets.rounded_button import RoundedButton
 from src.ui.widgets.rounded_input import RoundedComboBox, RoundedLineEdit
 
@@ -161,10 +160,8 @@ class HabitDialog(QDialog):
         lk_btns.addStretch()
         layout.addLayout(lk_btns)
 
-        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
-        buttons.accepted.connect(self._validate_and_accept)
-        buttons.rejected.connect(self.reject)
-        outer.addWidget(buttons)
+        outer.addWidget(action_row(tr("widget.dialog.btn_confirm"), self._validate_and_accept,
+                                   on_cancel=self.reject))
         cap_height(self)
 
     def _build_daily_widget(self, sched: dict, sched_type: str) -> QWidget:
@@ -286,10 +283,8 @@ class HabitDialog(QDialog):
                            delay=t.get('delay_hours', 24)))
         lst.itemDoubleClicked.connect(lambda: dialog.accept())
         dl.addWidget(lst)
-        btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
-        btns.accepted.connect(dialog.accept)
-        btns.rejected.connect(dialog.reject)
-        dl.addWidget(btns)
+        dl.addWidget(action_row(tr("widget.dialog.btn_confirm"), dialog.accept,
+                                on_cancel=dialog.reject))
         if dialog.exec() and lst.currentItem():
             idx = lst.currentRow()
             if 0 <= idx < len(templates):
@@ -344,10 +339,8 @@ class HabitDialog(QDialog):
         self._consume_spin.setValue(1)
         form.addRow(tr("panel.habit.label_consume"), self._consume_spin)
         layout.addLayout(form)
-        btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
-        btns.accepted.connect(dlg.accept)
-        btns.rejected.connect(dlg.reject)
-        layout.addWidget(btns)
+        layout.addWidget(action_row(tr("widget.dialog.btn_confirm"), dlg.accept,
+                                    on_cancel=dlg.reject))
         if dlg.exec() and lst.currentItem():
             idx = lst.currentRow()
             if 0 <= idx < len(items):
@@ -481,10 +474,8 @@ class _AttachedTaskDialog(QDialog):
         lk_btns.addStretch()
         layout.addLayout(lk_btns)
 
-        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
-        buttons.accepted.connect(self._ok)
-        buttons.rejected.connect(self.reject)
-        layout.addWidget(buttons)
+        layout.addWidget(action_row(tr("widget.dialog.btn_confirm"), self._ok,
+                                    on_cancel=self.reject))
 
     def _ok(self) -> None:
         if not self._name.text().strip():

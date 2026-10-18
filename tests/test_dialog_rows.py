@@ -73,6 +73,22 @@ def test_action_row_danger_uses_red_fill(qapp) -> None:
     assert c["fg_on_fill"] in primary.styleSheet()
 
 
+def test_dialog_shell_button_row_follows_q_h11(qapp) -> None:
+    """⚠ 渲染截图实测：`QDialogButtonBox` 在 Windows 布局下把「确定」放在**左**，
+    且渲染成扁平文字按钮 —— 违反 `Q-H11`。外壳现在走 `action_row`。"""
+    from src.ui.widgets.dialog_shell import DialogShell
+
+    dlg = DialogShell(None, "测试")
+    dlg.show()
+    qapp.processEvents()
+
+    buttons = dlg.buttons.findChildren(QPushButton)
+    assert [b.text() for b in buttons] == ["取消", "确定"]
+    assert buttons[0].x() < buttons[1].x(), "取消必须在主操作左边"
+    # ⚠ 不断言 styleSheet 字符串：`RoundedButton` 首次绘制时会**吸收并清空** QSS
+    # （见 design/INDEX.md §5），样式由 `action_row` 的工厂测试单独守。
+
+
 def test_no_ad_hoc_row_or_button_row_implementations_left() -> None:
     """`src/` 里不许再出现**自己造行**的 helper —— 统一走 `dialog_shell`。
 

@@ -15,7 +15,6 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QDateTimeEdit,
     QDialog,
-    QDialogButtonBox,
     QHBoxLayout,
     QInputDialog,
     QLabel,
@@ -27,7 +26,7 @@ from PySide6.QtWidgets import (
 from src.i18n.loader import tr
 from src.models.inventory import days_until
 from src.ui.styles.theme import get_colors
-from src.ui.widgets.dialog_shell import DialogShell, form_row
+from src.ui.widgets.dialog_shell import DialogShell, action_row, form_row
 from src.ui.widgets.rounded_button import RoundedButton
 from src.ui.widgets.rounded_input import RoundedLineEdit
 
@@ -117,10 +116,8 @@ def email_reminder_dialog(parent, dm, item: dict) -> None:
     dt.setDateTime(datetime.now() + timedelta(days=3))
     dt.setDisplayFormat("yyyy-MM-dd HH:mm")
     layout.addWidget(dt)
-    btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
-    btns.accepted.connect(dlg.accept)
-    btns.rejected.connect(dlg.reject)
-    layout.addWidget(btns)
+    layout.addWidget(action_row(tr("widget.dialog.btn_confirm"), dlg.accept,
+                                on_cancel=dlg.reject))
     if not dlg.exec():
         return                       # 取消 → 什么都不写，也**不报成功**（审查 F4 / P2）
     dm.daily_logs.add_reminder("inventory", item.get("name", ""),

@@ -4,7 +4,6 @@ from datetime import datetime
 
 from PySide6.QtWidgets import (
     QDialog,
-    QDialogButtonBox,
     QFormLayout,
     QGroupBox,
     QLabel,
@@ -15,6 +14,7 @@ from PySide6.QtWidgets import (
 from src.i18n.loader import tr
 from src.services.api_service import ApiService
 from src.ui.styles.theme import SIZE_BODY, font, get_colors
+from src.ui.widgets.dialog_shell import action_row
 from src.ui.widgets.rounded_button import RoundedButton
 from src.ui.widgets.rounded_input import RoundedLineEdit
 
@@ -127,10 +127,8 @@ class ApiTestDialog(QDialog):
         self._result_text.setMaximumHeight(150)
         layout.addWidget(self._result_text)
 
-        # 按钮
-        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok)
-        buttons.accepted.connect(self.accept)
-        layout.addWidget(buttons)
+        # 按钮（只有"确定" → 主操作在最右）
+        layout.addWidget(action_row(tr("widget.dialog.btn_confirm"), self.accept))
 
         # 连接信号
         self._api.weather_ready.connect(self._on_weather_result)

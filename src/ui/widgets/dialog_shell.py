@@ -17,7 +17,6 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QApplication,
     QDialog,
-    QDialogButtonBox,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -143,12 +142,13 @@ class DialogShell(QDialog):
         self.body = make_scrollable(outer)
 
         # `buttons=False` 给"自带按钮行"的弹窗用（比如学期弹窗只有关闭按钮）
-        self.buttons: QDialogButtonBox | None = None
+        self.buttons: QWidget | None = None
         if buttons:
-            self.buttons = QDialogButtonBox(
-                QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
-            self.buttons.accepted.connect(self.accept)
-            self.buttons.rejected.connect(self.reject)
+            # ⚠ **不用** `QDialogButtonBox`：Windows 布局把「确定」放在**左**（违反 Q-H11
+            # "取消在左、主操作在最右"），而且渲染成扁平文字按钮、不走主/次按钮工厂
+            # （2026-10-18 渲染截图实测）。
+            self.buttons = action_row(tr("widget.dialog.btn_confirm"), self.accept,
+                                      on_cancel=self.reject)
             outer.addWidget(self.buttons)
 
         self.setStyleSheet(dialog_qss())
