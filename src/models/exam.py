@@ -11,6 +11,10 @@ DEFAULT_EXAMS = {
     "exams": [],
 }
 
+# 考试的可写字段（**唯一清单**）—— `add_exam` / `update_exam` 都读它，不许各写一份 ✗。
+# 为什么：`inventory.py` 就是吃了这个亏（2026-10-19：两份白名单漂移 → 会员弹窗存不上 ✗）。
+EXAM_FIELDS = ("course_name", "exam_date", "scope", "location", "notes", "tags")
+
 
 logger = logging.getLogger(__name__)
 
@@ -37,24 +41,18 @@ class ExamModel(BaseJsonModel):
         while n in existing:
             n += 1
         eid = f"e_{n:03d}"
-        exam = {
-            "id": eid,
-            "course_name": data.get("course_name", ""),
-            "exam_date": data.get("exam_date", ""),
-            "scope": data.get("scope", ""),
-            "location": data.get("location", ""),
-            "notes": data.get("notes", ""),
-            "tags": data.get("tags", []),
-            "created_at": datetime.now().isoformat(),
-            "updated_at": datetime.now().isoformat(),
-        }
+        exam = {"id": eid}
+        for k in EXAM_FIELDS:
+            exam[k] = data.get(k, [] if k == "tags" else "")
+        exam["created_at"] = datetime.now().isoformat()
+        exam["updated_at"] = datetime.now().isoformat()
         exams.append(exam)
         return eid
 
     def update_exam(self, eid: str, data: dict) -> bool:
         for e in self.exams:
             if e["id"] == eid:
-                for k in ("course_name", "exam_date", "scope", "location", "notes", "tags"):
+                for k in EXAM_FIELDS:
                     if k in data:
                         e[k] = data[k]
                 e["updated_at"] = datetime.now().isoformat()
