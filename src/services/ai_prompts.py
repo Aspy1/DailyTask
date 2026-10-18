@@ -133,6 +133,10 @@ python scripts/actions.py need_restock
 - 说"快用完了 / 快吃完了 / 该买了 / 要补货"时 → **先 `lookup_item`**：有这件物品就
   `update_item --id … --min_qty N`（让它变成需购/不足）；没有就 `add_item`。
   **不要**用 `add_plan` 代替补货（那是日程计划，不是库存状态）。
+- ⚠ **先发命令，再说话**：这一轮要写数据就**这一轮**输出命令块，**不要**先写"我已记录…"
+  再等下一轮补命令（2026-10-18 真实数据实测：模型常说"已记录"却没发命令，数据没变 ✗）。
+- ⚠ **不要重复 add**：加之前先看上面库存清单里**有没有同名同位置**的 —— 有就
+  `update_item` 改数量，**不要**再加一条。
 - **移动 / 改位置**：`lookup_item` 查到之后**只能** `update_item --id … --location "新位置"`。
   **绝对不要**用 `add_item` 另造一条 —— 那会变成两条重复物品（2026-10-18 探针实测踩到 ✗）。
 - **查不到时不要替用户编**：用户说"我那几件 T 恤""我的猫粮"指的是**已有物品**，
@@ -252,3 +256,26 @@ python scripts/actions.py restore --name "expenses.json" --yes  # 仅用户明�
 - 若温度低于0°C，提醒"注意保暖"
 - 天气信息已在上下文中提供，直接引用即可
 """
+
+
+def item_extra(it: dict, unit: str = "") -> str:
+    """物品的**补充信息**（备注 / 分件 / 片级下限）—— 拼给系统提示词用。
+
+    为什么要补：库存摘要原来只有「[id] 名字 数量单位 [位置] - 状态 (标签)」，
+    **备注和分件阈值都不给模型看** —— 于是它看不到"手机盒里装着数据线"这类关系、
+    也不知道某件已经设了"剩 2 根提醒"（2026-10-18 真实数据轮发现的缺口）。
+    """
+    bits = []
+    if it.get("notes"):
+        bits.append(f"备注:{it['notes']}")
+    for ins in it.get("instances") or []:
+        tags = ins.get("tags") or []
+        part = tags[0] if tags else "?"
+        if ins.get("quantity") is not None:
+            part += f" {ins['quantity']}{unit}"
+        if ins.get("min_doses"):
+            part += f"(剩{ins['min_doses']}提醒)"
+        bits.append(f"分件:{part}")
+    if it.get("min_doses"):
+        bits.append(f"片级下限{it['min_doses']}")
+    return ("  " + " ".join(bits)) if bits else ""

@@ -202,6 +202,38 @@ def _run_case(svc, dm, settings, n: int, prompt: str, note: str,
 
 
 
+def _write_header(out: Path, settings, dm) -> None:
+    """写报告抬头（表 / 模型 / 方式 / 数据目录）。"""
+    mode = "真实 `data/`（**已备份**）" if dm.data_dir == DATA_DIR else f"沙箱 `{dm.data_dir}`"
+    out.write_text(
+        f"# α 用例逐条测试记录（{datetime.now():%Y-%m-%d %H:%M}）\n\n"
+        f"- 表：`D:\\360MoveData\\Users\\ASUS\\OneDrive\\Desktop\\新建 XLSX 工作表.xlsx`\n"
+        f"- 模型：`{settings.get('AI', 'model', '?')}`"
+        f"（provider=`{settings.get('AI', 'provider', '?')}`）\n"
+        f"- 方式：提示词**原样**喂入；用例之间**累积**同一条对话\n"
+        f"- 数据：{mode}\n\n"
+        "> 判定列留空，由我看过回复与 diff 后逐条填。\n\n---\n\n",
+        encoding="utf-8")
+
+
+def _prepare_real(args) -> None:
+    """`--real`：先把真实数据备份，再（可选）清空 inventory 的 items。"""
+    import shutil
+
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    backup = DATA_DIR / "backup" / f"alpha-real-{stamp}"
+    backup.mkdir(parents=True, exist_ok=True)
+    for name in ("inventory.json", "daily_logs.json"):
+        if (DATA_DIR / name).exists():
+            shutil.copy2(DATA_DIR / name, backup / name)
+    print(f"⚠ 真实模式：已备份 {backup}")
+    if args.clear:
+        dm = DataManager(DATA_DIR)
+        dm.inventory.data["items"] = []
+        dm.inventory.save()
+        print(f"⚠ 已清空 inventory items（位置清单保留 {len(dm.inventory.locations)} 个）")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--from", dest="start", type=int, default=1, help="从第 N 条开始")
@@ -223,22 +255,9 @@ def main() -> None:
 
     if args.real:
         # ⚠ 真实模式：AI 命令**真的写进 data/** —— 先备份（`data/backup/` 不进仓库）
-        import shutil
-
-        stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-        backup = DATA_DIR / "backup" / f"alpha-real-{stamp}"
-        backup.mkdir(parents=True, exist_ok=True)
-        for name in ("inventory.json", "daily_logs.json"):
-            if (DATA_DIR / name).exists():
-                shutil.copy2(DATA_DIR / name, backup / name)
         core.DATA = DATA_DIR
         dm = DataManager(DATA_DIR)
-        print(f"⚠ 真实模式：已备份 {backup}")
-        if args.clear:
-            inv = dm.inventory
-            inv.data["items"] = []
-            inv.save()
-            print(f"⚠ 已清空 inventory items（位置清单保留 {len(inv.locations)} 个）")
+        _prepare_real(args)
     else:
         core.DATA = sandbox
         dm = DataManager(sandbox)
@@ -255,15 +274,7 @@ def main() -> None:
         out = out.with_name(f"{out.stem}-{args.tag}{out.suffix}")
     out.parent.mkdir(parents=True, exist_ok=True)
     if args.start == 1 and not only:
-        out.write_text(
-            f"# α 用例逐条测试记录（{datetime.now():%Y-%m-%d %H:%M}）\n\n"
-            f"- 表：`D:\\360MoveData\\Users\\ASUS\\OneDrive\\Desktop\\新建 XLSX 工作表.xlsx`\n"
-            f"- 模型：`{settings.get('AI', 'model', '?')}`"
-            f"（provider=`{settings.get('AI', 'provider', '?')}`）\n"
-            f"- 方式：提示词**原样**喂入；用例之间**累积**同一条对话；命令在沙箱执行\n"
-            f"- 沙箱：`{sandbox}`（**未碰真实 `data/`**）\n\n"
-            "> 判定列留空，由我看过回复与 diff 后逐条填。\n\n---\n\n",
-            encoding="utf-8")
+        _write_header(out, settings, dm)
 
     history: list[dict] = []
     todo = [c for c in CASES if (c[0] in only if only else c[0] >= args.start)]

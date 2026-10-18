@@ -67,9 +67,12 @@ def test_nudge_when_model_claims_it_wrote_but_sent_no_command() -> None:
     nudge = _continuation_nudge("已记录：毛巾 2 条，放在晾衣架。", False)
     assert nudge, "声称已写入却没有命令 → 要要求它真的输出命令"
     assert "命令" in nudge
-    assert _continuation_nudge("已记录：毛巾 2 条。", False, empty_retries=1) is None, "只纠正一次"
+    assert _continuation_nudge("已记录：毛巾 2 条。", False, empty_retries=2) is None, "只纠正两次"
     # 前面几轮**已经写过数据**了 → 这句是正常的收尾说明，不该再纠正
     assert _continuation_nudge("已记录：毛巾 2 条。", False, 0, True) is None
+    # ⚠ 真实数据实测：先说"已记录"、被追问后改口"无需写入"，该记的**根本没落库**
+    assert _continuation_nudge("无需写入。", False), "一条都没执行就说无需写入 → 要追问"
+    assert _continuation_nudge("无需写入。", False, 0, True) is None, "已经写过就不用追问"
     # 正常的解释性回复不算"声称已写入"
     assert _continuation_nudge("衣柜左2 里是秋衣秋裤。", False) is None
     assert _claims_done("已记录：毛巾 2 条。") is True

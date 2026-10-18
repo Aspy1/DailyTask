@@ -11,7 +11,7 @@ from typing import Any, Protocol
 from PySide6.QtCore import QObject, QThread, Signal
 
 from src.services import deepseek, openmeteo
-from src.services.ai_prompts import SYSTEM_PROMPT_BASE
+from src.services.ai_prompts import SYSTEM_PROMPT_BASE, item_extra
 
 logger = logging.getLogger(__name__)
 
@@ -100,14 +100,8 @@ def _continuation_nudge(text: str, truncated: bool, empty_retries: int = 0,
                         wrote_data: bool = False) -> str | None:
     """该不该要求模型"继续"？需要时返回提示语，正常回复返回 None。
 
-    - **空回复**（0 字符）：多半是推理把输出预算吃光（`finish_reason=length`）
-      → 明确要求它直接输出命令、别长篇思考。**只重试一次**：连续两次都空说明是
-      模型/网关陷在思考里，再刷 5 轮只会让用户白等三分钟（2026-10-16 实测）。
-    - **被截断**（围栏没收尾）→ 要求分批继续。
-    - **声称"已记录"却没有命令** → 要求它真的输出命令（见 `_claims_done`）。
-
-    非空的普通文本回复**不**续跑：那可能是它在向用户提问（"请提供课表"），
-    硬续跑只会把问题刷成 5 遍。
+    空回复 / 被截断 / **声称写了却没命令** / **说"无需写入"却一条都没执行** 都要续跑；
+    非空的普通提问**不**续跑（否则会把问题刷 5 遍）。
     """
     if not text.strip():
         if empty_retries >= 1:
@@ -125,11 +119,17 @@ def _continuation_nudge(text: str, truncated: bool, empty_retries: int = 0,
         return ("[系统] 你的回复被输出上限截断了。请**分批**继续："
                 "每轮最多 8 条命令，先执行完这批再继续下一批。")
     if _claims_done(text) and not wrote_data:
-        # 声称"已记录"却没有命令 → 数据其实**没变**，用户以为记上了（2026-10-18 α 实测 ✗）
-        if empty_retries >= 1:
+        # 声称"已记录"却没有命令 → 数据其实**没变**（2026-10-18 α 实测 ✗）
+        if empty_retries >= 2:
             return None
-        return ("[系统] 你说已经记录了，但这一轮**没有任何命令**，数据不会变。请**直接**输出"
-                " ```sh 命令块；如果确实不需要写数据，就明确说\"无需写入\"。")
+        return ("[系统] 你说了\"已记录/已完成\"，但这一轮**没有任何命令** —— 数据不会变。请**立刻**"
+                "输出 ```sh 命令块（先发命令再说话）；只有之前真的执行过命令，才可以回\"无需写入\"。")
+    if "无需写入" in text and not wrote_data:
+        # ⚠ 真实数据实测：模型先说"已记录"、被追问后改口"无需写入"，该记的**根本没落库**
+        if empty_retries >= 2:
+            return None
+        return ("[系统] 你说\"无需写入\"，但**本次请求到现在一条命令都没执行过**。如果用户"
+                "这句话里有要记 / 要改的东西，请**立刻**输出 ```sh 命令块。")
     return None
 
 
@@ -392,7 +392,8 @@ def _inventory_prompt(inventory) -> str:
         tag_str = f" ({','.join(tags)})" if tags else ""
         status = inventory.effective_status(it)
         lines.append(f"  [{it['id']}] {it['name']} {it['quantity']}{it['unit']}"
-                     f"{loc_str} - {status}{tag_str}{_membership_note(it)}")
+                     f"{loc_str} - {status}{tag_str}{_membership_note(it)}"
+                     f"{item_extra(it, it.get('unit', ''))}")
     allowed = inventory.locations
     if allowed:
         lines.append(f"  【位置只能从这些里选】{'、'.join(allowed)}")

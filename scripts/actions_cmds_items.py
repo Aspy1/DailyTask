@@ -132,6 +132,18 @@ def cmd_add_item(args) -> None:
     data.setdefault("items", [])
     item = _new_item(gen_id(data["items"], "i"), args)
     item["location"] = _default_location(item, args)      # 没说位置 → 默认「学校」
+    # ⚠ **硬护栏**：同名 + 同位置 + 没有区分（备注/标签）→ 拒绝新增。
+    # 2026-10-18 真实数据实测：模型"补写前几轮欠的记录"时把已写过的又加了一遍 ✗
+    dup = next((it for it in data["items"]
+                if it["name"] == item["name"]
+                and it.get("location", "") == item.get("location", "")
+                and it.get("notes", "") == item.get("notes", "")
+                and (it.get("tags") or []) == (item.get("tags") or [])), None)
+    if dup:
+        print(f"ERROR 已有同名同位置且无区别的物品 {dup['id']}（{dup['name']} @{dup['location']}）："
+              f"要改数量用 update_item --id {dup['id']} --quantity N；"
+              f"确实是**另一件**就加 --notes 或 --tags 区分")
+        return
     _apply_membership(item, args)                         # 会员信息（有到期日就由它定状态）
     InventoryModel.sync_units(item)                       # 精确余量（片）= 盒数 × 每份含量
     item["status"] = InventoryModel.derive_status(item)   # 建好再推导（规则只写一份）
