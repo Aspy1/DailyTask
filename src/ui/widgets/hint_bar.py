@@ -1,49 +1,49 @@
-"""「今日提示」条：一行可点掉的提示（点掉只影响今天，**不写数据**）。
+"""「今日提示」条：可点掉的提示（点掉只影响今天，**不写数据**）。
 
-规则与设计见 `src/services/hints.py`。这里只负责画 + 记住"今天点掉了哪些"。
+规则与设计见 `src/services/hints.py`。
+
+**继承 `FlowGrid`**（自然宽度流式）而不是横排 —— 提示条会随数据变多
+（天气 + 该洗 + 预算 + 出门三条 = 可能 6 条 ✗），横排会把最后几条**挤出屏幕** ✗。
+2026-10-19 渲染实测：4 条就有一条被切掉 ✓ → 换成会**换行**的流式排布。
 """
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QHBoxLayout, QWidget
+from PySide6.QtWidgets import QWidget
 
+from src.services.hints import Hint, today_hints
 from src.ui.styles.theme import get_colors
+from src.ui.widgets.flow_grid import FlowGrid
 from src.ui.widgets.rounded_button import RoundedButton
 
 
-class HintBar(QWidget):
-    """把 `hints.Hint` 列表渲染成一行；没有（或全点掉了）就整条隐藏。
-
-    自己从 `data_dir` 读天气（派生缓存）—— 调用方只管 `refresh()`，不用管数据从哪来。
-    """
+class HintBar(FlowGrid):
+    """今天的提示（一行放不下就换行）；没有（或全点掉了）就整条隐藏。"""
 
     def __init__(self, data_dir=None, parent=None) -> None:
-        super().__init__(parent)
+        super().__init__(uniform=False, parent=parent)
         self._data_dir = data_dir
-        self._row = QHBoxLayout(self)
-        self._row.setContentsMargins(0, 0, 0, 0)
-        self._row.setSpacing(6)
+        self.setSpacing(6)
         self._dismissed: set[str] = set()
-        self._hints: list = []
+        self._hints: list[Hint] = []
 
     def refresh(self) -> None:
         """重新算一遍今天的提示并重画（换主题 / 数据变化都走这里）。"""
-        from src.services.hints import today_hints
-
         self.show_hints(today_hints(self._data_dir) if self._data_dir else [])
 
     def show_hints(self, hints: list) -> None:
-        """重画（已点掉的 key 不再出现）。每次调用都重画 —— 换主题也走这里。"""
+        """重画（已点掉的 key 不再出现）。"""
         self._hints = list(hints)
-        while self._row.count():
-            item = self._row.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
+        for child in list(self.children()):
+            if isinstance(child, QWidget):
+                child.setParent(None)
+                child.deleteLater()
         c = get_colors()
         shown = 0
         for hint in self._hints:
             if hint.key in self._dismissed:
                 continue
             chip = RoundedButton(f"{hint.text}   ✕")
+            chip.setParent(self)
             chip.setCursor(Qt.CursorShape.PointingHandCursor)
             chip.setStyleSheet(
                 f"QPushButton {{ background-color: {c['orange_tint']};"
@@ -51,9 +51,10 @@ class HintBar(QWidget):
                 f" padding: 4px 10px; font-size: 13px; }}"
                 f" QPushButton:hover {{ background-color: {c['orange_tint_weak']}; }}")
             chip.clicked.connect(lambda _checked=False, k=hint.key: self._dismiss(k))
-            self._row.addWidget(chip)
+            chip.show()
             shown += 1
-        self._row.addStretch()
+        self._layout_children()
+        self.update()
         self.setVisible(bool(shown))
 
     def _dismiss(self, key: str) -> None:

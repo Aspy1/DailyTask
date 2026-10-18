@@ -149,6 +149,11 @@ class _Renderer:
             view = self.mw._workspace._schedule_view
             view._set_mode("day")
             self.capture(f"{mode}-schedule")
+            # 「学习 / 生活」筛选的另外两档（只验"全部"会漏掉过滤逻辑 ✗）
+            for cat in ("study", "life"):
+                view._category_filter._pick(cat)
+                self.capture(f"{mode}-filter-{cat}")
+            view._category_filter._pick("all")
             view._set_mode("week")
             self.capture(f"{mode}-week")
             return
