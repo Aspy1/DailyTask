@@ -92,6 +92,18 @@ SEED_LOCATIONS = ("衣柜左1,衣柜左2,衣柜左3,衣柜左4,衣柜右1,衣柜
 # 模型反问时补的**中性**一句：不给新信息（不暗示"新建"也不暗示"改已有"），只让它把活干完
 NUDGE = "嗯，你先按我说的处理吧。"
 
+# 只读命令：只发了这些就说明**这一轮什么都没写**（多半是在反问）→ 也补一句让它继续
+READ_ONLY = {"lookup_item", "need_restock", "status"}
+
+
+def _wrote_something(commands: list[str]) -> bool:
+    """命令里有没有**写操作**（纯查询不算）。"""
+    for cmd in commands:
+        tail = cmd.split("actions.py", 1)[-1].strip().split()
+        if tail and tail[0] not in READ_ONLY:
+            return True
+    return False
+
 
 def _snapshot(root: Path) -> dict[str, str]:
     """把沙箱里所有 JSON 读成 `相对路径 -> 格式化文本`，用于前后 diff。
@@ -174,7 +186,7 @@ def _run_case(svc, dm, settings, n: int, prompt: str, note: str,
                                   [*history, {"role": "user", "content": prompt}])
     elapsed = time.monotonic() - started
     follow = ""
-    if not commands and not error and reply.strip():
+    if not _wrote_something(commands) and not error and reply.strip():
         # 模型在**反问**（应用的 `_continuation_nudge` 故意不硬续跑 —— 那是给用户的提问）。
         # 用例判定看**第一轮**；这里补一句中性话让流程走完，好让后面用例有累积上下文。
         r2, c2, e2 = _ask(svc, dm, settings, [
@@ -195,6 +207,8 @@ def main() -> None:
     parser.add_argument("--from", dest="start", type=int, default=1, help="从第 N 条开始")
     parser.add_argument("--only", type=int, default=0, help="只跑第 N 条")
     parser.add_argument("--out", default=str(DEFAULT_OUT), help="报告路径")
+    parser.add_argument("--tag", default="",
+                        help="报告文件名后缀（**别在命令行写中文**，会被编码吃掉）")
     args = parser.parse_args()
 
     settings = SettingsManager(DATA_DIR / "settings.ini")
@@ -211,6 +225,8 @@ def main() -> None:
     run_in_process(f'set_locations --values "{SEED_LOCATIONS}"')
 
     out = Path(args.out)
+    if args.tag:
+        out = out.with_name(f"{out.stem}-{args.tag}{out.suffix}")
     out.parent.mkdir(parents=True, exist_ok=True)
     if args.start == 1 and not args.only:
         out.write_text(

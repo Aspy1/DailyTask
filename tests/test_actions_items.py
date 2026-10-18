@@ -15,6 +15,15 @@ def _items(sandbox) -> list[dict]:
     return json.loads(path.read_text(encoding="utf-8"))["items"] if path.exists() else []
 
 
+def test_update_item_can_set_notes(sandbox) -> None:
+    """α 用例 25 实测暴露：`update_item` 没有 `--notes`，AI 想补"外侧"这类备注无路可走。"""
+    run('add_item --name "秋衣秋裤" --quantity 1 --location "衣柜左2"')
+    iid = _items(sandbox)[0]["id"]
+
+    assert run(f'update_item --id {iid} --notes "外面"').startswith("OK")
+    assert _items(sandbox)[0]["notes"] == "外面"
+
+
 def test_add_item_records_unit_and_doses(sandbox) -> None:
     """份数：`--unit` 说明单位、`--doses-per-unit` 说明一份里有多少小单位。"""
     assert run('add_item --name "布洛芬" --category "日常消耗品" --quantity 1 '

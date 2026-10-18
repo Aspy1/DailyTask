@@ -231,6 +231,7 @@ def _apply_item_updates(item: dict, args) -> None:
     group = getattr(args, "group", None)
     category = getattr(args, "category", None)
     location = getattr(args, "location", None)
+    notes = getattr(args, "notes", None)
     tags = getattr(args, "tags", None)
     if name:
         item["name"] = name
@@ -241,6 +242,8 @@ def _apply_item_updates(item: dict, args) -> None:
     _apply_item_quantity_fields(item, args)
     if location:
         item["location"] = canonical_location(location)   # 同义归一，词表不分叉
+    if notes is not None and notes != "":
+        item["notes"] = notes        # α 实测：模型想补"外侧"这类备注却没有入口（用例 25）
     if tags:
         item["tags"] = _split_tag_list(tags)
     _apply_membership(item, args)

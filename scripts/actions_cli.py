@@ -119,6 +119,7 @@ def _update_item_parser(sub) -> None:
     p.add_argument("--status", choices=["充足", "不足", "需购"])
     p.add_argument("--min_qty", type=int)
     p.add_argument("--location")
+    p.add_argument("--notes")
     p.add_argument("--tags")
     p.add_argument("--unit")
     p.add_argument("--doses-per-unit", type=int)
