@@ -156,8 +156,8 @@ class TaskPanel(QWidget):
         self._table.setSortingEnabled(False)
         self._table.horizontalHeader().setSortIndicatorShown(False)
         self._table.verticalHeader().setVisible(False)
-        self._table.verticalHeader().setDefaultSectionSize(48)  # tall rows for red text
-        self._table.verticalHeader().setMinimumSectionSize(40)
+        self._table.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)  # 行高按内容（原来固定 48 会裁掉换行标题 —— U6）
+        self._table.verticalHeader().setMinimumSectionSize(48)
         self._table.setWordWrap(True)
         self._table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
         self._table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
