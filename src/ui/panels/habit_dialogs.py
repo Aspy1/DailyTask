@@ -8,7 +8,6 @@
 from PySide6.QtWidgets import (
     QCheckBox,
     QDialog,
-    QFormLayout,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -22,7 +21,7 @@ from PySide6.QtWidgets import (
 from src.i18n.loader import tr
 from src.services.data_manager import DataManager
 from src.ui.styles.theme import get_colors
-from src.ui.widgets.dialog_shell import action_row, cap_height, make_scrollable
+from src.ui.widgets.dialog_shell import action_row, cap_height, form_row, make_scrollable
 from src.ui.widgets.rounded_button import RoundedButton
 from src.ui.widgets.rounded_input import RoundedComboBox, RoundedLineEdit
 
@@ -53,12 +52,9 @@ class HabitDialog(QDialog):
         layout.setSpacing(12)
         layout.setContentsMargins(24, 20, 24, 16)
 
-        form = QFormLayout()
-        form.setSpacing(10)
-
         self._name_input = QLineEdit(habit.get("name", "") if habit else "")
         self._name_input.setPlaceholderText(tr("panel.habit.placeholder_name"))
-        form.addRow(tr("panel.habit.label_name"), self._name_input)
+        layout.addWidget(form_row(tr("panel.habit.label_name"), self._name_input))
 
         # ── Schedule type ──
         sched = habit.get("schedule", {}) if habit else {}
@@ -90,7 +86,7 @@ class HabitDialog(QDialog):
         sched_row.addWidget(self._monthly_widget)
         sched_row.addStretch()
         self._on_sched_type_changed()
-        form.addRow(tr("panel.habit.label_schedule"), sched_row)
+        layout.addWidget(form_row(tr("panel.habit.label_schedule"), sched_row))
 
         # Duration
         self._duration = RoundedComboBox()
@@ -102,15 +98,13 @@ class HabitDialog(QDialog):
         dur_layout.addWidget(self._duration)
         dur_layout.addWidget(QLabel(tr("panel.habit.unit_minutes")))
         dur_layout.addStretch()
-        form.addRow(tr("panel.habit.label_duration"), dur_layout)
+        layout.addWidget(form_row(tr("panel.habit.label_duration"), dur_layout))
 
         # Reminder
         self._reminder_time = RoundedLineEdit()
         self._reminder_time.setPlaceholderText(tr("panel.habit.placeholder_reminder"))
         self._reminder_time.setText(habit.get("reminder_time", "") if habit else "")
-        form.addRow(tr("panel.habit.label_reminder"), self._reminder_time)
-
-        layout.addLayout(form)
+        layout.addWidget(form_row(tr("panel.habit.label_reminder"), self._reminder_time))
 
         # Attached tasks section
         sep = QLabel(tr("panel.habit.section_attached"))
@@ -333,12 +327,10 @@ class HabitDialog(QDialog):
                            qty=it['quantity']))
         lst.itemDoubleClicked.connect(dlg.accept)
         layout.addWidget(lst)
-        form = QFormLayout()
         self._consume_spin = QSpinBox()
         self._consume_spin.setRange(1,99)
         self._consume_spin.setValue(1)
-        form.addRow(tr("panel.habit.label_consume"), self._consume_spin)
-        layout.addLayout(form)
+        layout.addWidget(form_row(tr("panel.habit.label_consume"), self._consume_spin))
         layout.addWidget(action_row(tr("widget.dialog.btn_confirm"), dlg.accept,
                                     on_cancel=dlg.reject))
         if dlg.exec() and lst.currentItem():
@@ -418,10 +410,9 @@ class _AttachedTaskDialog(QDialog):
             }}
         """)
         layout = QVBoxLayout(self)
-        form = QFormLayout()
         self._name = RoundedLineEdit()
         self._name.setPlaceholderText(tr("panel.habit.placeholder_attached_name"))
-        form.addRow(tr("panel.habit.label_name"), self._name)
+        layout.addWidget(form_row(tr("panel.habit.label_name"), self._name))
 
         self._delay = RoundedComboBox()
         self._delay.setEditable(True)
@@ -433,7 +424,7 @@ class _AttachedTaskDialog(QDialog):
         delay_row.addWidget(self._delay)
         delay_row.addWidget(QLabel(tr("panel.habit.unit_hours")))
         delay_row.addStretch()
-        form.addRow(tr("panel.habit.label_delay"), delay_row)
+        layout.addWidget(form_row(tr("panel.habit.label_delay"), delay_row))
 
         self._duration = RoundedComboBox()
         self._duration.setEditable(True)
@@ -445,7 +436,7 @@ class _AttachedTaskDialog(QDialog):
         dur_row.addWidget(self._duration)
         dur_row.addWidget(QLabel(tr("panel.habit.unit_minutes")))
         dur_row.addStretch()
-        form.addRow(tr("panel.habit.label_duration"), dur_row)
+        layout.addWidget(form_row(tr("panel.habit.label_duration"), dur_row))
 
         save_tpl = RoundedButton(tr("panel.habit.btn_save_template"))
         save_tpl.setStyleSheet(f"""
@@ -453,8 +444,7 @@ class _AttachedTaskDialog(QDialog):
         """)
         self._save_template = False
         save_tpl.clicked.connect(lambda: setattr(self, '_save_template', True))
-        form.addRow(save_tpl)
-        layout.addLayout(form)
+        layout.addWidget(save_tpl)
 
         # ── Linked items ──
         sep2 = QLabel(tr("panel.habit.section_linked"))

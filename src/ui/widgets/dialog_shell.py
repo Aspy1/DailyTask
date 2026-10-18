@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
+    QLayout,
     QScrollArea,
     QVBoxLayout,
     QWidget,
@@ -76,16 +77,24 @@ def dialog_qss() -> str:
             f" border: 1px solid {c['border']}; font-size: 13px; }}")
 
 
-def form_row(label: str, field: QWidget, label_width: int = 88) -> QWidget:
+def form_row(label: str, field, label_width: int = 88) -> QWidget:
     """「标签 + 控件」一行 —— **唯一**的行工厂（`Q-H9`）。
 
     标签在**左**、固定宽度；控件占满余下宽度。标签样式由 `dialog_qss()` 的 `QLabel`
     规则统一决定，这里**不写内联样式** —— 否则又回到"每个弹窗各写一套"。
 
+    `field` 收 **QWidget 或 QLayout**（"下拉 + 单位文字"这类组合行传 QLayout，
+    这里套一层透明容器）—— 否则那几行只能退回 `QFormLayout`，统一就漏了。
+
     为什么要工厂：原来有 4 套各写各的 —— `semester_dialog._field_row`（标签左）、
     `inventory_dialogs._labeled_field`（标签**在上**）、`settings_panel._row`（固定 100 居中）、
     裸 `QFormLayout`（habit / exam / api_test）。并排看就不是一套东西（`Q-H9` 的原话）。
     """
+    if isinstance(field, QLayout):
+        holder = QWidget()
+        holder.setStyleSheet("background: transparent;")
+        holder.setLayout(field)
+        field = holder
     row = QWidget()
     row.setStyleSheet("background: transparent;")
     rl = QHBoxLayout(row)

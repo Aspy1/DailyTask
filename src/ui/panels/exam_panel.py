@@ -6,7 +6,6 @@ from datetime import date
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QDialog,
-    QFormLayout,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -21,7 +20,7 @@ from src.i18n.loader import tr
 from src.services.data_manager import DataManager
 from src.ui.styles.cards import Card
 from src.ui.styles.theme import RADIUS, font, get_colors
-from src.ui.widgets.dialog_shell import action_row, cap_height, make_scrollable
+from src.ui.widgets.dialog_shell import action_row, cap_height, form_row, make_scrollable
 from src.ui.widgets.menu import (
     add_action,
     new_menu,
@@ -283,30 +282,23 @@ class ExamDialog(QDialog):
         outer.setContentsMargins(24, 20, 24, 16)
         # 内容可滚动 + 限高（审查 U9）；⚠ 按钮行挂在 `outer` 上，不跟着内容滚
         layout = make_scrollable(outer)
-        form = QFormLayout()
-        form.setSpacing(10)
-
         self._course = QLineEdit(exam.get("course_name", "") if exam else "")
         self._course.setPlaceholderText(tr("panel.exam.placeholder_course"))
-        form.addRow(tr("panel.exam.label_course"), self._course)
-
         self._date = QLineEdit(exam.get("exam_date", "") if exam else "")
         self._date.setPlaceholderText("YYYY-MM-DD")
-        form.addRow(tr("panel.exam.label_date"), self._date)
-
         self._scope = QLineEdit(exam.get("scope", "") if exam else "")
         self._scope.setPlaceholderText(tr("panel.exam.placeholder_scope"))
-        form.addRow(tr("panel.exam.label_scope"), self._scope)
-
         self._location = QLineEdit(exam.get("location", "") if exam else "")
         self._location.setPlaceholderText(tr("panel.exam.placeholder_location"))
-        form.addRow(tr("panel.exam.label_location"), self._location)
-
         self._notes = QLineEdit(exam.get("notes", "") if exam else "")
         self._notes.setPlaceholderText(tr("panel.exam.placeholder_notes"))
-        form.addRow(tr("panel.exam.label_notes"), self._notes)
 
-        layout.addLayout(form)
+        for label_key, field in (("panel.exam.label_course", self._course),
+                                 ("panel.exam.label_date", self._date),
+                                 ("panel.exam.label_scope", self._scope),
+                                 ("panel.exam.label_location", self._location),
+                                 ("panel.exam.label_notes", self._notes)):
+            layout.addWidget(form_row(tr(label_key), field))
 
         outer.addWidget(action_row(tr("widget.dialog.btn_confirm"), self._ok,
                                    on_cancel=self.reject))

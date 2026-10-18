@@ -4,7 +4,6 @@ from datetime import datetime
 
 from PySide6.QtWidgets import (
     QDialog,
-    QFormLayout,
     QGroupBox,
     QLabel,
     QTextEdit,
@@ -14,7 +13,7 @@ from PySide6.QtWidgets import (
 from src.i18n.loader import tr
 from src.services.api_service import ApiService
 from src.ui.styles.theme import SIZE_BODY, font, get_colors
-from src.ui.widgets.dialog_shell import action_row
+from src.ui.widgets.dialog_shell import action_row, form_row
 from src.ui.widgets.rounded_button import RoundedButton
 from src.ui.widgets.rounded_input import RoundedLineEdit
 
@@ -83,37 +82,37 @@ class ApiTestDialog(QDialog):
 
         # 天气预报测试
         weather_group = QGroupBox(tr("dialog.api_test.group_weather"))
-        weather_layout = QFormLayout()
+        weather_layout = QVBoxLayout()
         weather_group.setLayout(weather_layout)
 
         self._lat_input = RoundedLineEdit()
         self._lat_input.setPlaceholderText(tr("dialog.api_test.placeholder_lat"))
         self._lat_input.setText("31")
-        weather_layout.addRow(tr("dialog.api_test.label_lat"), self._lat_input)
+        weather_layout.addWidget(form_row(tr("dialog.api_test.label_lat"), self._lat_input))
 
         self._lon_input = RoundedLineEdit()
         self._lon_input.setPlaceholderText(tr("dialog.api_test.placeholder_lon"))
         self._lon_input.setText("121")
-        weather_layout.addRow(tr("dialog.api_test.label_lon"), self._lon_input)
+        weather_layout.addWidget(form_row(tr("dialog.api_test.label_lon"), self._lon_input))
 
         self._weather_btn = RoundedButton(tr("dialog.api_test.btn_weather"))
         self._weather_btn.clicked.connect(self._test_weather)
-        weather_layout.addRow("", self._weather_btn)
+        weather_layout.addWidget(form_row("", self._weather_btn))
 
         layout.addWidget(weather_group)
 
         # DeepSeek 额度测试
         balance_group = QGroupBox(tr("dialog.api_test.group_balance"))
-        balance_layout = QFormLayout()
+        balance_layout = QVBoxLayout()
         balance_group.setLayout(balance_layout)
 
         self._api_key_input = RoundedLineEdit()
         self._api_key_input.setPlaceholderText("sk-...")
-        balance_layout.addRow(tr("dialog.api_test.label_api_key"), self._api_key_input)
+        balance_layout.addWidget(form_row(tr("dialog.api_test.label_api_key"), self._api_key_input))
 
         self._balance_btn = RoundedButton(tr("dialog.api_test.btn_balance"))
         self._balance_btn.clicked.connect(self._test_balance)
-        balance_layout.addRow("", self._balance_btn)
+        balance_layout.addWidget(form_row("", self._balance_btn))
 
         layout.addWidget(balance_group)
 

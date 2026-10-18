@@ -89,6 +89,20 @@ def test_dialog_shell_button_row_follows_q_h11(qapp) -> None:
     # （见 design/INDEX.md §5），样式由 `action_row` 的工厂测试单独守。
 
 
+def test_dialogs_do_not_use_qformlayout() -> None:
+    """`QFormLayout` 的标签宽度/行距自成一套 —— 弹窗一律走 `form_row`（`Q-H9`）。"""
+    hits = []
+    for path in sorted((ROOT / "src" / "ui").rglob("*.py")):
+        if "__pycache__" in path.parts:
+            continue
+        for lineno, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            # 只认"真的在用"：构造 `QFormLayout(` 或 import 列表里的 `QFormLayout,`
+            # （`dialog_shell` 的文档字符串里提到它是为了记录历史，不算）
+            if "QFormLayout(" in line or line.strip() == "QFormLayout,":
+                hits.append(f"{path.relative_to(ROOT)}:{lineno}: {line.strip()[:80]}")
+    assert not hits, "弹窗里还在用 QFormLayout（应改用 form_row）：\n" + "\n".join(hits)
+
+
 def test_no_ad_hoc_row_or_button_row_implementations_left() -> None:
     """`src/` 里不许再出现**自己造行**的 helper —— 统一走 `dialog_shell`。
 
