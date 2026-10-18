@@ -14,6 +14,7 @@ from pathlib import Path
 
 from PySide6.QtWidgets import QLabel
 
+from src.models.course import schedule_date
 from src.services.data_manager import DataManager
 from src.services.settings_manager import SettingsManager
 
@@ -21,7 +22,7 @@ ROOT = Path(__file__).resolve().parent.parent
 
 
 def _monday() -> date:
-    today = date.today()
+    today = schedule_date()
     return today - timedelta(days=today.isoweekday() - 1)
 
 
@@ -37,7 +38,7 @@ def test_statusbar_refreshes_on_data_changed(qapp, tmp_path) -> None:
         "id": "s", "start_date": _monday().isoformat(),
         "total_weeks": 16, "period_count": 5, "exam_weeks": 1}]
     dm.semesters._data["current_semester"] = "s"
-    dm.courses.add_course({"name": "今天的课", "day_of_week": date.today().isoweekday(),
+    dm.courses.add_course({"name": "今天的课", "day_of_week": schedule_date().isoweekday(),
                            "time_slots": [{"start": 1, "end": 1}]})
     dm.courses.save()
 
@@ -120,7 +121,7 @@ def test_habit_panel_shows_empty_hint(qapp, tmp_path) -> None:
     from src.ui.panels.habit_panel import HabitPanel
 
     dm = DataManager(tmp_path)
-    other_day = date.today().isoweekday() % 7 + 1      # 不是今天的星期
+    other_day = date.today().isoweekday() % 7 + 1      # 不是今天的星期（习惯面板按真实今天）
     dm.habits.add_habit({"name": "周六才做", "schedule": {"type": "weekly", "days": [other_day]}})
 
     panel = HabitPanel(dm)

@@ -8,6 +8,7 @@ from datetime import date, timedelta
 
 from PySide6.QtWidgets import QLabel
 
+from src.models.course import schedule_date
 from src.models.course_rules import conflicts_by_cell, find_conflicts, slots_of
 from src.services.data_manager import DataManager
 
@@ -22,7 +23,7 @@ def _course(name: str, day: int = 1, start: int = 1, end: int = 1,
 
 
 def _monday() -> date:
-    today = date.today()
+    today = schedule_date()
     return today - timedelta(days=today.isoweekday() - 1)
 
 
@@ -154,7 +155,7 @@ def test_day_view_warns_about_conflict(qapp, tmp_path) -> None:
     from src.ui.widgets.schedule_view import ScheduleView
 
     dm = _dm_with_semester(tmp_path)
-    today = date.today().isoweekday()
+    today = schedule_date().isoweekday()
     for name in ("选修A", "重修B"):
         dm.courses.add_course({"name": name, "day_of_week": today,
                                "time_slots": [{"start": 1, "end": 1}]})
@@ -169,7 +170,7 @@ def test_day_view_no_warning_without_conflict(qapp, tmp_path) -> None:
     from src.ui.widgets.schedule_view import ScheduleView
 
     dm = _dm_with_semester(tmp_path)
-    dm.courses.add_course({"name": "独占", "day_of_week": date.today().isoweekday(),
+    dm.courses.add_course({"name": "独占", "day_of_week": schedule_date().isoweekday(),
                            "time_slots": [{"start": 1, "end": 1}]})
     view = ScheduleView(dm)
     view._refresh()

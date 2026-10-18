@@ -12,6 +12,8 @@ from datetime import date, timedelta
 
 import pytest
 
+from src.models.course import schedule_date
+
 
 @pytest.fixture
 def env(tmp_path, qapp) -> tuple:
@@ -32,9 +34,14 @@ def env(tmp_path, qapp) -> tuple:
 
 
 def _add_exam(dm, name: str, days: int) -> None:
+    """⚠ 用 `schedule_date()`（**凌晨 1 点前算前一天**）—— 与生产代码同源。
+
+    用 `date.today()` 会在刚过午夜时差一天 → "14 天提醒"算成 15 天 ✗
+    （2026-10-19 00:30 实测：本地 5 个测试红，而 CI 跑 UTC 是绿的 ✗）。
+    """
     dm.exams.add_exam({
         "course_name": name,
-        "exam_date": (date.today() + timedelta(days=days)).isoformat(),
+        "exam_date": (schedule_date() + timedelta(days=days)).isoformat(),
     })
     dm.exams.save()
 
