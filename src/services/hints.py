@@ -77,8 +77,28 @@ def load_weather(data_dir: Path) -> tuple[dict, list]:
     return cache.get("now") or {}, cache.get("forecast") or []
 
 
+def budget_hints(data_dir: Path, items: list) -> list[Hint]:
+    """本月**预计超支** → 一条提示（C 类第 6 项，用例 16）。
+
+    算不出来的东西（分期金额 / 续费金额 / 补货价格）**不硬编** —— 见 `services/budget.py`。
+    """
+    from src.services.budget import forecast
+
+    data = read_json_safe(Path(data_dir) / "expenses.json")
+    result = forecast(data.get("records") or [],
+                      (data.get("budget") or {}).get("monthly") or 0, items)
+    if not result["over"]:
+        return []
+    return [Hint("budget.over",
+                 f"本月预计超支 ¥{result['projected'] - result['budget']:.0f}"
+                 f"（预计花 ¥{result['projected']:.0f} / 预算 ¥{result['budget']:.0f}）",
+                 "warn")]
+
+
 def today_hints(data_dir: Path) -> list[Hint]:
-    """今天该提示的东西：天气 + 该洗的衣物（后面继续往这里加规则）。"""
-    now, forecast = load_weather(data_dir)
+    """今天该提示的东西：天气 + 该洗的衣物 + 预算超支（继续往这里加规则）。"""
+    now, forecast_data = load_weather(data_dir)
     inventory = read_json_safe(Path(data_dir) / "inventory.json")
-    return weather_hints(now, forecast) + wash_hints(inventory.get("items") or [])
+    items = inventory.get("items") or []
+    return (weather_hints(now, forecast_data) + wash_hints(items)
+            + budget_hints(data_dir, items))
