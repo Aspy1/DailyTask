@@ -32,7 +32,7 @@ from src.ui.panels.inventory_dialogs import (
     email_reminder_dialog,
 )
 from src.ui.styles.cards import card as make_card
-from src.ui.styles.theme import FONT_CN, RADIUS, SIZE_SUBTITLE, SPACING, get_colors
+from src.ui.styles.theme import FONT_CN, RADIUS, SIZE_SUBTITLE, SPACING, get_colors, rgba
 from src.ui.widgets.menu import (
     add_action,
     add_separator,
@@ -520,7 +520,7 @@ class InventoryPanel(QWidget):
         badge = QLabel({"需购": "需购", "不足": "不足", "充足": "充足"}.get(status, status))
         badge.setFixedWidth(42)
         badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        badge.setStyleSheet(f"color: {bc}; font-size: 11px; font-weight: 600; background: {bc}18; border-radius: 10px; padding: 2px 0; border: none;")
+        badge.setStyleSheet(f"color: {bc}; font-size: 11px; font-weight: 600; background: {rgba(bc, 0.1)}; border-radius: 10px; padding: 2px 0; border: none;")
         hdr.addWidget(badge)
         cl.addLayout(hdr)
 
@@ -538,7 +538,7 @@ class InventoryPanel(QWidget):
             tag_row.setSpacing(4)
             for tag in tags:
                 t = QLabel(tag)
-                t.setStyleSheet(f"color: {c['accent_text']}; font-size: 10px; font-weight: 500; background: {c['accent']}18; border-radius: 8px; padding: 1px 8px; border: none;")
+                t.setStyleSheet(f"color: {c['accent_text']}; font-size: 10px; font-weight: 500; background: {rgba(c['accent'], 0.1)}; border-radius: 8px; padding: 1px 8px; border: none;")
                 tag_row.addWidget(t)
             tag_row.addStretch()
             cl.addLayout(tag_row)
@@ -624,14 +624,14 @@ class InventoryPanel(QWidget):
         if tags:
             for tag in tags:
                 t = QLabel(tag)
-                t.setStyleSheet(f"color: {c['accent_text']}; font-size: 10px; font-weight: 500; background: {c['accent']}18; border-radius: 8px; padding: 1px 8px; border: none;")
+                t.setStyleSheet(f"color: {c['accent_text']}; font-size: 10px; font-weight: 500; background: {rgba(c['accent'], 0.1)}; border-radius: 8px; padding: 1px 8px; border: none;")
                 cl.addWidget(t)
 
         # Status badge
         status = inst.get("status", "充足")
         bc = {"需购": c["red"], "不足": c["orange"], "充足": c["green"]}.get(status, c["green"])
         badge = QLabel({"需购": "需购", "不足": "不足", "充足": "充足"}.get(status, status))
-        badge.setStyleSheet(f"color: {bc}; font-size: 10px; font-weight: 600; background: {bc}18; border-radius: 8px; padding: 1px 6px; border: none;")
+        badge.setStyleSheet(f"color: {bc}; font-size: 10px; font-weight: 600; background: {rgba(bc, 0.1)}; border-radius: 8px; padding: 1px 6px; border: none;")
         cl.addWidget(badge)
 
         # Notes

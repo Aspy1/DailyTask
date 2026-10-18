@@ -142,11 +142,27 @@ def _theme_color_map(from_mode: str, to_mode: str) -> dict[str, str]:
     return mapping
 
 
-def _remap_qss(qss: str, mapping: dict[str, str]) -> str:
-    """把样式表里的旧色值换成新色值（大小写不敏感）。"""
+def rgba(color: str, alpha: float) -> str:
+    """把 `#RRGGBB` 加透明度 → `rgba(r, g, b, a)`。
+
+    ⚠ 别写 `f"{color}18"`：Qt 的 QSS 把 8 位十六进制当 **AARRGGBB**（不是 RRGGBBAA），
+    于是 `#B93B3B18` 被解释成"透明橄榄色"而不是"浅红"（审查 U4）。
+    """
+    col = qcolor(color)
+    return (f"rgba({col.red()}, {col.green()}, {col.blue()}, "
+            f"{max(0.0, min(1.0, alpha)):.3f})")
+
+
+def remap_colors(qss: str, mapping: dict[str, str]) -> str:
+    """把样式表里的旧主题色换成新主题色（大小写不敏感）。**公开**，`RoundedButton` 也用。"""
     for old_val, new_val in mapping.items():
         qss = re.sub(re.escape(old_val), new_val, qss, flags=re.IGNORECASE)
     return qss
+
+
+def _remap_qss(qss: str, mapping: dict[str, str]) -> str:
+    """把样式表里的旧色值换成新色值（大小写不敏感）。"""
+    return remap_colors(qss, mapping)
 
 
 def remap_stylesheets(app: QApplication, from_mode: str, to_mode: str) -> int:
@@ -165,6 +181,10 @@ def remap_stylesheets(app: QApplication, from_mode: str, to_mode: str) -> int:
         return 0
     changed = 0
     for widget in app.allWidgets():
+        # 自绘控件的底色**不在 styleSheet() 里**（被摘掉了）→ 让它们自己重算（审查 U1）
+        remap_own = getattr(widget, "remap_theme_colors", None)
+        if remap_own is not None and remap_own(mapping):
+            changed += 1
         qss = widget.styleSheet()
         if not qss:
             continue

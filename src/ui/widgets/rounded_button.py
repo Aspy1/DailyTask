@@ -13,13 +13,30 @@ QSS 的 `border-radius` 由 `QStyleSheetStyle` 绘制，**不开抗锯齿、也�
 import re
 from typing import Any
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QEvent, Qt
 from PySide6.QtGui import QColor, QPainter
 from PySide6.QtWidgets import QPushButton, QStyle, QStyleOptionButton
 
 from src.ui.styles.theme import RADIUS, get_colors, qcolor
+from src.ui.styles.theme import remap_colors as _remap_colors
 
 _DECL = r"(?:background(?:-color)?|border|border-radius)\s*:\s*[^;{}]+;?"
+
+# 伪状态的判定顺序（一个选择器可能同时带多个，如 `:hover:disabled`）
+_STATE_PRIORITY = ("disabled", "pressed", "checked", "hover")
+
+
+def _state_of(selector: str) -> str:
+    """从**选择器**里读出伪状态。
+
+    ⚠ 原来是从**声明块**里找 `:hover` —— 而正则把选择器丢掉了，于是每个块都落进
+    `normal`、后写的覆盖先写的（主按钮最后显示的是 disabled 灰、次级按钮长期用 pressed 色）。
+    审查 U1。
+    """
+    for state in _STATE_PRIORITY:
+        if f":{state}" in selector:
+            return state
+    return "normal"
 
 
 def _extract(qss: str) -> tuple[dict[str, QColor], QColor | None, int]:
@@ -28,17 +45,8 @@ def _extract(qss: str) -> tuple[dict[str, QColor], QColor | None, int]:
     border: QColor | None = None
     radius = RADIUS["radius_md"]
 
-    def _state(block: str) -> str:
-        if ":hover" in block:
-            return "hover"
-        if ":pressed" in block:
-            return "pressed"
-        if ":disabled" in block:
-            return "disabled"
-        return "normal"
-
-    for block in re.findall(r"QPushButton[^{]*\{([^}]*)\}", qss):
-        state = _state(block)
+    for selector, block in re.findall(r"(QPushButton[^{]*)\{([^}]*)\}", qss):
+        state = _state_of(selector)
         m = re.search(r"background(?:-color)?\s*:\s*([^;]+);", block)
         if m:
             colors[state] = qcolor(m.group(1))
@@ -67,12 +75,16 @@ class RoundedButton(QPushButton):
         self._border: QColor | None = None
         self._radius = RADIUS["radius_md"]
         self._absorbed = False
+        # 调用方给的**原始** QSS（带颜色）。自绘底色从这里读 ——
+        # `styleSheet()` 里那份已经被摘掉颜色了，换主题时靠它才能重算（审查 U1）
+        self._original_qss = ""
+        self._absorbing = False
 
     def _absorb_qss(self) -> None:
-        """把 QSS 里的背景/描边/圆角搬到自己身上（只做一次）。"""
+        """把 QSS 里的背景/描边/圆角搬到自己身上（**每次样式变化都要重做**）。"""
         if self._absorbed:
             return
-        qss = self.styleSheet()
+        qss = self._original_qss or self.styleSheet()
         if not qss:
             # ⚠ 首次 paint 可能发生在调用方 setStyleSheet 之前：
             # 这里**不能**锁死，否则之后永远不再吸收，QSS 底色会与自绘叠加（实测色偏深）
@@ -84,7 +96,33 @@ class RoundedButton(QPushButton):
         # 基底规则补上透明底（否则 QSS 仍会画方形底）
         cleaned = re.sub(r"(QPushButton\s*\{)", r"\1 background: transparent; border: none;",
                          cleaned, count=1)
-        self.setStyleSheet(cleaned)
+        self._absorbing = True          # 别把自己的这次 setStyleSheet 当成"外部换样式"
+        try:
+            self.setStyleSheet(cleaned)
+        finally:
+            self._absorbing = False
+
+    def changeEvent(self, event) -> None:
+        """样式表被换掉（含换主题的 `remap_stylesheets`）→ 作废缓存，下次 paint 重新吸收。"""
+        if event.type() == QEvent.Type.StyleChange and not self._absorbing:
+            self._original_qss = self.styleSheet()
+            self._absorbed = False
+        super().changeEvent(event)
+
+    def remap_theme_colors(self, mapping: dict[str, str]) -> bool:
+        """换主题时由 `theme.remap_stylesheets()` 调用。
+
+        ⚠ 为什么需要它：自绘底色**不在 `styleSheet()` 里**（已经被摘掉），
+        所以按样式表做色值替换根本碰不到它 —— 换主题后按钮还是旧底色（审查 U1）。
+        """
+        if not self._original_qss:
+            return False
+        new_qss = _remap_colors(self._original_qss, mapping)
+        if new_qss == self._original_qss:
+            return False
+        self._original_qss = new_qss
+        self._absorbed = False
+        return True
 
     def showEvent(self, event) -> None:
         self._absorb_qss()
@@ -98,6 +136,8 @@ class RoundedButton(QPushButton):
                 fill = self._bg.get("disabled", self._bg.get("normal", QColor(0, 0, 0, 0)))
             elif self.isDown():
                 fill = self._bg.get("pressed", self._bg.get("hover", self._bg["normal"]))
+            elif self.isChecked():
+                fill = self._bg.get("checked", self._bg.get("hover", self._bg["normal"]))
             elif self.underMouse():
                 fill = self._bg.get("hover", self._bg["normal"])
             else:
