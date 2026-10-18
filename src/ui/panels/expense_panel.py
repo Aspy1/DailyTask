@@ -24,7 +24,6 @@ from src.services.data_manager import DataManager
 from src.ui.styles.theme import (
     RADIUS,
     SIZE_BODY_S,
-    SIZE_SUBTITLE,
     combo_qss,
     font,
     get_colors,
@@ -67,7 +66,7 @@ class ExpensePanel(QWidget):
         bar_layout.setSpacing(8)
 
         title = QLabel(tr("panel.expense.title"))
-        title.setFont(font(SIZE_SUBTITLE))
+        title.setFont(font("pageTitle"))
         title.setStyleSheet("font-weight: 600; border: none;")
         bar_layout.addWidget(title)
         bar_layout.addStretch()

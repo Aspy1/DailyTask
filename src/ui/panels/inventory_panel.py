@@ -31,7 +31,7 @@ from src.ui.panels.inventory_dialogs import (
     email_reminder_dialog,
 )
 from src.ui.styles.cards import card as make_card
-from src.ui.styles.theme import RADIUS, SIZE_SUBTITLE, SPACING, font, get_colors, rgba
+from src.ui.styles.theme import RADIUS, SPACING, font, get_colors, rgba
 from src.ui.widgets.flow_grid import FlowGrid
 from src.ui.widgets.menu import (
     add_action,
@@ -98,7 +98,7 @@ class InventoryPanel(QWidget):
         bl.setSpacing(6)
 
         title = QLabel(tr("panel.inventory.title"))
-        title.setFont(font(SIZE_SUBTITLE))
+        title.setFont(font("pageTitle"))
         title.setStyleSheet(f"color: {c['fg_primary']}; font-weight: 600; border: none;")
         bl.addWidget(title)
 

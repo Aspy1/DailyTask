@@ -16,7 +16,7 @@ from src.i18n.loader import tr
 from src.services.data_manager import DataManager
 from src.ui.panels.habit_dialogs import HabitDialog
 from src.ui.styles.cards import Card
-from src.ui.styles.theme import SIZE_BODY, SIZE_SUBTITLE, font, get_colors
+from src.ui.styles.theme import SIZE_BODY, font, get_colors
 from src.ui.widgets.flow_grid import FlowGrid
 from src.ui.widgets.menu import (
     add_action,
@@ -251,7 +251,7 @@ class HabitPanel(QWidget):
         bar_layout = QHBoxLayout(bar)
         bar_layout.setContentsMargins(16, 8, 16, 8)
         title = QLabel(tr("panel.habit.title"))
-        title.setFont(font(SIZE_SUBTITLE))
+        title.setFont(font("pageTitle"))
         title.setStyleSheet("font-weight: 600; border: none;")
         bar_layout.addWidget(title)
         bar_layout.addStretch()

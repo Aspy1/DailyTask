@@ -35,6 +35,8 @@ SIZE_SUBTITLE = _TOKENS_DATA["sizes"]["SIZE_SUBTITLE"]
 SIZE_TITLE = _TOKENS_DATA["sizes"]["SIZE_TITLE"]
 SIZE_HEADING = _TOKENS_DATA["sizes"]["SIZE_HEADING"]
 SIZE_FAB = _TOKENS_DATA["sizes"]["SIZE_FAB"]
+# 文字角色：size + weight **成组**（审查 §3）。见 `role_font()`。
+TEXT_ROLES: dict = _TOKENS_DATA.get("text_roles", {})
 
 # ── 圆角刻度（radius_sm/md/lg/pill）──────────────
 RADIUS: dict = _TOKENS_DATA["radius"]
@@ -365,13 +367,26 @@ def apply_palette(app: QApplication, mode: str) -> None:
     app.setPalette(pal)
 
 
-def font(size: int, weight: int | QFont.Weight | None = None) -> QFont:
-    """按**像素**字号造字体 —— 与 QSS 的 `font-size: Npx` 同单位。
+def font(size: int | str, weight: int | QFont.Weight | None = None) -> QFont:
+    """造字体 —— 与 QSS 的 `font-size: Npx` **同单位**（像素）。
+
+    - `font(14)` / `font(14, 600)`：直接给像素字号
+    - `font("pageTitle")`：给**文字角色**（size + weight 成组，见 `text_roles`，审查 §3）
 
     ⚠ `QFont(family, size)` 的第二个参数是 **point**（本机 20pt ≈ 27 逻辑像素），
     而 QSS 用的是 px。两套单位混用会让"标题 / 标签 / 输入内容"比例不一致（审查 U5）——
-    这里统一走 `setPixelSize`，QSS 不用换算，调用点也只改这一行。
+    所以一律走 `setPixelSize`，调用点也只改这一行。
+
+    角色名写错 → 退回 `body` 并记一条警告（不抛：界面不该因为一个错字起不来）。
     """
+    if isinstance(size, str):
+        spec = TEXT_ROLES.get(size)
+        if spec is None:
+            logging.getLogger(__name__).warning("未知文字角色 %r，退回 body", size)
+            spec = TEXT_ROLES.get("body", {"size": SIZE_BODY, "weight": 400})
+        size = spec["size"]
+        if weight is None:
+            weight = spec.get("weight")
     f = QFont(FONT_CN)
     f.setPixelSize(int(size))
     if weight is not None:
@@ -395,7 +410,8 @@ def _install_qt_translations(app: QApplication) -> None:
         # ⚠ 必须留引用：translator 被回收后翻译就失效了（Qt 的经典坑）
         app._qt_translator = translator
     else:
-        logging.getLogger(__name__).warning("qt_zh_CN.qm 加载失败（%s）", path)
+        log = logging.getLogger(__name__)
+        log.warning("qt_zh_CN.qm 加载失败（%s）", path)
 
 
 def init_theme(app: QApplication, mode: str = "light") -> str:

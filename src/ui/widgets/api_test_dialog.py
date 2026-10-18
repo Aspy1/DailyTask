@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (
 
 from src.i18n.loader import tr
 from src.services.api_service import ApiService
-from src.ui.styles.theme import SIZE_BODY, SIZE_SUBTITLE, font, get_colors
+from src.ui.styles.theme import SIZE_BODY, font, get_colors
 from src.ui.widgets.rounded_button import RoundedButton
 from src.ui.widgets.rounded_input import RoundedLineEdit
 
@@ -78,7 +78,7 @@ class ApiTestDialog(QDialog):
 
         # 标题
         title = QLabel(tr("dialog.api_test.heading"))
-        title.setFont(font(SIZE_SUBTITLE, 600))
+        title.setFont(font("pageTitle"))
         layout.addWidget(title)
 
         # 天气预报测试

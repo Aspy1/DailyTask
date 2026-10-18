@@ -21,7 +21,7 @@ from PySide6.QtWidgets import (
 from src.i18n.loader import tr
 from src.services.data_manager import DataManager
 from src.ui.styles.cards import Card
-from src.ui.styles.theme import RADIUS, SIZE_SUBTITLE, font, get_colors
+from src.ui.styles.theme import RADIUS, font, get_colors
 from src.ui.widgets.dialog_shell import cap_height, make_scrollable
 from src.ui.widgets.menu import (
     add_action,
@@ -161,7 +161,7 @@ class ExamPanel(QWidget):
         bl.setSpacing(8)
 
         title = QLabel(tr("panel.exam.title"))
-        title.setFont(font(SIZE_SUBTITLE))
+        title.setFont(font("pageTitle"))
         title.setStyleSheet(f"color: {c['fg_primary']}; font-weight: 600; border: none;")
         bl.addWidget(title)
         bl.addStretch()

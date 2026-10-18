@@ -21,7 +21,7 @@ from src.services.data_manager import DataManager
 from src.ui.components.click_label import ClickLabel
 from src.ui.panels.course_panel import CoursePanel
 from src.ui.styles.cards import card
-from src.ui.styles.theme import SIZE_SUBTITLE, font, get_colors
+from src.ui.styles.theme import font, get_colors
 from src.ui.widgets.menu import (
     add_action,
     add_separator,
@@ -66,7 +66,7 @@ class ScheduleView(QWidget):
         bl.setSpacing(6)
 
         title = QLabel(tr("widget.schedule.title"))
-        title.setFont(font(SIZE_SUBTITLE))
+        title.setFont(font("pageTitle"))
         title.setStyleSheet("font-weight: 600; border: none;")
         bl.addWidget(title)
 

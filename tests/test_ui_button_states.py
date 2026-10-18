@@ -109,6 +109,22 @@ def test_markdown_escapes_user_html() -> None:
     assert "<b>粗</b>" in _md_to_html("**粗**")
 
 
+def test_text_roles_group_size_and_weight() -> None:
+    """⚠ 审查 §3：文字角色把 size + weight **成组**，调用点不再各挑一套。
+
+    原来每个页面自己写 `font(SIZE_X, 600)`，字号和字重是两处独立的决定 —— 迟早漂。
+    现在 `font()` 既收像素也收角色名（这样调用点只改一行、不用改导入）。
+    """
+    from src.ui.styles.theme import SIZE_BODY, SIZE_SUBTITLE, TEXT_ROLES, font
+
+    assert TEXT_ROLES, "tokens 里要有 text_roles"
+    assert font("pageTitle").pixelSize() == SIZE_SUBTITLE
+    assert font("body").pixelSize() == SIZE_BODY
+    assert font("pageTitle").weight() > font("body").weight(), "标题该更粗"
+    assert font("不存在的角色").pixelSize() == SIZE_BODY, "未知角色退回 body"
+    assert font(18, 700).pixelSize() == 18, "照样收像素字号"
+
+
 def test_px_baseline_guards_against_new_hardcoded_sizes() -> None:
     """⚠ 审查 §6.2：PX 存量登记在基线里，**只允许减少**。
 
