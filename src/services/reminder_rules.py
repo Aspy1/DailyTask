@@ -160,6 +160,57 @@ def balance_alerts(settings) -> list[str]:
 
 
 # ── 补货（「有什么」里需购 / 不足的物品）──────────────────────
+WATER_INTERVAL_MIN = 30
+DEFAULT_QUIET = (23 * 60, 7 * 60)          # 免打扰：23:00–07:00（跨零点）
+
+
+def _in_quiet(now: datetime, quiet: tuple[int, int]) -> bool:
+    """现在是否在免打扰时段（支持跨零点，例如 23:00–07:00）。"""
+    start, end = quiet
+    cur = now.hour * 60 + now.minute
+    return (cur >= start or cur < end) if start > end else (start <= cur < end)
+
+
+def parse_hhmm(value: str) -> int | None:
+    """把 "HH:MM" 解析为当天分钟数；格式非法返回 None。"""
+    try:
+        hh, mm = value.split(":")
+        return int(hh) * 60 + int(mm)
+    except ValueError:
+        return None
+
+
+def water_quiet_window(settings) -> tuple[int, int]:
+    """从设置读免打扰时段（`General/quiet_start` / `quiet_end`，默认 23:00–07:00）。"""
+
+    def _min(value: str, fallback: int) -> int:
+        try:
+            hh, mm = str(value).split(":")
+            return int(hh) * 60 + int(mm)
+        except (ValueError, AttributeError):
+            return fallback
+
+    return (_min(settings.get("General", "quiet_start", "23:00"), DEFAULT_QUIET[0]),
+            _min(settings.get("General", "quiet_end", "07:00"), DEFAULT_QUIET[1]))
+
+
+def water_reminder_due(now: datetime, last_sent: datetime | None,
+                       quiet: tuple[int, int] = DEFAULT_QUIET) -> bool:
+    """喝水 / 起身提醒该不该发（C 类第 8 项，`PLAN.md` P20）。
+
+    - 每 `WATER_INTERVAL_MIN` 分钟一次（**首次进来就发** ✓）
+    - **免打扰时段不发** ✓（P20 明确要求考虑）
+
+    ⚠ 这是**纯判定** —— 调用方（`ReminderService`）本来就每分钟 tick 一次，
+    所以不需要另开一个 30 分钟定时器 ✓（两个节拍会互相错位 ✗）。
+    """
+    if _in_quiet(now, quiet):
+        return False
+    if last_sent is None:
+        return True
+    return (now - last_sent) >= timedelta(minutes=WATER_INTERVAL_MIN)
+
+
 def restock_body(items: list[dict]) -> str:
     """需要补货的物品 → 一条提醒正文。
 

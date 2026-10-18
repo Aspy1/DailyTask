@@ -36,8 +36,11 @@ from src.services.reminder_rules import (
     ddl_reminder_body,
     ddl_reminder_due,
     expired_custom_reminder_ids,
+    parse_hhmm,
     pending_custom_reminders,
     restock_body,
+    water_quiet_window,
+    water_reminder_due,
 )
 
 logger = logging.getLogger(__name__)
@@ -84,6 +87,7 @@ class ReminderService(QObject):
         self._exam_emailed: dict[str, set[int]] = {}  # exam_id -> {days thresholds already sent}
         self._balance_notified_today = False
         self._custom_reminded: set[str] = set()   # custom reminder IDs already sent
+        self._water_last: datetime | None = None  # 上次喝水/起身提醒（C 类第 8 项）
 
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._check)
@@ -154,17 +158,14 @@ class ReminderService(QObject):
 
         # ── Habits: tray notification only ────────────────
         self._check_habits(now_str, early_str, now_minutes)
+        self._check_water(now)     # 喝水 / 起身（C 类第 8 项）：复用这个 tick，不另开定时器
 
-        # ── Attendance (会点名的课，开课前 30 分钟) ────────
         self._check_attendance(now)
 
-        # ── DDL email: within 6 hours ─────────────────────
         self._check_ddl_email(now)
 
-        # ── DDL 3-day reminder ────────────────────────────
         self._check_ddl_reminder()
 
-        # ── Exam email: 14/7/3 days ───────────────────────
         self._check_exam_email()
 
         # ── DDL red dot ───────────────────────────────────
@@ -213,21 +214,21 @@ class ReminderService(QObject):
                 continue
             if not self._dm.habits.is_active_today(h2["id"]):
                 continue
-            rt2_minutes = self._parse_hhmm(rt2)
+            rt2_minutes = parse_hhmm(rt2)
             if rt2_minutes is None:
                 continue
             if 0 <= rt2_minutes - now_minutes <= LOOKAHEAD_MINUTES:
                 batch.append(h2)
         return batch
 
-    @staticmethod
-    def _parse_hhmm(value: str) -> int | None:
-        """把 "HH:MM" 解析为当天分钟数；格式非法返回 None。"""
-        try:
-            hh, mm = value.split(":")
-            return int(hh) * 60 + int(mm)
-        except ValueError:
-            return None
+    def _check_water(self, now: datetime) -> None:
+        """喝水 / 起身提醒（C 类第 8 项）：复用每分钟的 tick 只做判定，**不另开定时器** ✓。"""
+        if not self._settings.get_bool("General", "water_reminder", True):
+            return
+        if not water_reminder_due(now, self._water_last, water_quiet_window(self._settings)):
+            return
+        self._water_last = now
+        self._notify("喝水 & 起身", "该喝口水、起来动一动了 💧")
 
     def _reset_notified_if_new_day(self, now: datetime) -> None:
         today_str = now.strftime("%Y-%m-%d")
