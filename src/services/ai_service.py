@@ -91,11 +91,14 @@ def _looks_like_tool_call(text: str) -> bool:
     return "invoke name=" in text or "<｜" in text or "｜>" in text
 
 
-def _state_fingerprint() -> str:
-    """**从磁盘**算「库存 + 日程」的指纹 —— 这一轮到底有没有**真的改动**。
+def _has_write_cmd(commands: list) -> bool:
+    """这批命令里有没有**写操作**（纯查询不算）。"""
+    names = [str(c).split("actions.py", 1)[-1].strip().split()[:1] for c in commands]
+    return any(n and n[0] not in ("lookup_item", "need_restock", "status") for n in names)
 
-    ⚠ 只看数据，不看模型的任何自述（Agent Reliability §4.3）。
-    """
+
+def _state_fingerprint() -> str:
+    """**从磁盘**算「库存 + 日程」的指纹 —— 这一轮到底有没有**真的改动**（不看模型怎么说）。"""
     import hashlib
     import json as _json
 
@@ -249,10 +252,7 @@ class AIWorker(QObject):
         self._settings = settings
 
     def _max_seconds(self) -> float:
-        """整次请求的**墙钟上限**（读 `AI.max_seconds`，默认 90s）。到点优雅收尾。
-
-        Agent Reliability §3.3：步数预算不约束时间，所以两种都要有。
-        """
+        """整次请求的**墙钟上限**（读 `AI.max_seconds`，默认 90s）。到点优雅收尾。"""
         raw = self._settings.get("AI", "max_seconds", "90") if self._settings else "90"
         try:
             return max(10.0, float(raw))
@@ -324,13 +324,12 @@ class AIWorker(QObject):
             self.error.emit(str(e))
 
     def _finish(self, all_instructions: list, wrote_data: bool, display: str) -> None:
-        """收尾：把结果发出去。**汇报权归代码** —— 模型说写了但数据没变就明确警告
-        （Agent Reliability §2.3 "the agent is also the reporter"）。
-        """
         if all_instructions:
-            if not wrote_data and _claims_done(display):
-                display += ("\n\n⚠ **数据没有任何改动** —— 上面那句是模型的自我描述，"
-                            "实际上没有落库（命令可能被拒或报错）。请重试或换个说法。")
+            if not wrote_data and _has_write_cmd(all_instructions):
+                # ⭐ 汇报权**永远**归代码：写了命令却一点没变 → 必须告诉用户，
+                # 不管模型嘴上说什么（Agent Reliability §2.3；bonsai 实测正是这种）
+                display += ("\n\n⚠ **数据没有任何改动** —— 命令执行了但没生效"
+                            "（可能被拒或报错），请重试或换个说法。")
             self.finished_with_instructions.emit(display or "已完成", all_instructions)
         elif display:
             self.finished.emit(display)
