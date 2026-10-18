@@ -68,6 +68,10 @@ def _seed(dm: DataManager) -> None:
         dm.courses.add_course({"name": name, "day_of_week": i + 1, "weeks": {"start": 1, "end": 16},
                                "time_slots": [{"start": 1 + i % 3, "end": 1 + i % 3,
                                                "location": "教学楼 A 区 501 多媒体教室"}]})
+    # 一门**周次超范围**的课（真实数据里就有）：学期对话框的"数据检查"要能点名到它 ✓
+    dm.courses.add_course({"name": "体育（第 18 周结课）", "day_of_week": 3,
+                           "weeks": {"start": 1, "end": 18},
+                           "time_slots": [{"start": 5, "end": 5, "location": "东操场"}]})
     for i, title in enumerate(["完成第三章习题", LONG_TASK, "复习课堂笔记"]):
         dm.tasks.add({"title": title, "course_name": "计算机系统结构",
                       "due_date": (today + timedelta(days=i)).isoformat() + "T22:00:00",
