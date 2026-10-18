@@ -92,11 +92,7 @@ def _looks_like_tool_call(text: str) -> bool:
 
 
 def _has_write_cmd(commands: list) -> bool:
-    """这批命令里有没有**用户可见的写操作**。
-
-    ⚠ `add_location` / `set_locations` 是**记账类**命令（为写物品做准备），不算效果 ——
-    否则"只加了位置、物品一件没落库"会被当成成功（bonsai 实测：17 个位置 vs 6 件物品 ✗）。
-    """
+    """这批命令里有没有**用户可见的写操作**（记账类不算）。"""
     names = [str(c).split("actions.py", 1)[-1].strip().split()[:1] for c in commands]
     skip = ("lookup_item", "need_restock", "status", "add_location", "set_locations")
     return any(n and n[0] not in skip for n in names)
@@ -112,9 +108,7 @@ def _claims_done(text: str) -> bool:
 
 def _continuation_nudge(text: str, truncated: bool, empty_retries: int = 0,
                         wrote_data: bool = False) -> str | None:
-    """该不该要求模型"继续"？需要时返回提示语，正常回复返回 None。
-
-    空回复 / 被截断 / **声称写了却没命令** / **说"无需写入"却一条都没执行** 都要续跑；
+    """该不该要求模型"继续"？空回复 / 截断 / 声称写了却没命令 / 说"无需写入"却一条没执行 → 续跑；
     非空的普通提问**不**续跑（否则会把问题刷 5 遍）。
     """
     if not text.strip():
@@ -267,8 +261,8 @@ class AIWorker(QObject):
             final_text = ""
             all_instructions = []  # collect across multi-turn agent loop
             max_tokens = self._max_tokens()
-            wrote_data = False     # **数据真的变了**才算（不是"发过命令"）
-            write_failures: list[str] = []   # 写命令里返回 ERROR 的（权威信号）
+            wrote_data, finished_normally = False, False   # 数据真的变了 / 模型自己收尾了
+            write_failures: list[str] = []                 # 写命令里返回 ERROR 的
             deadline = time.monotonic() + self._max_seconds()
             for turn in range(5):  # max 5 turns
                 if time.monotonic() > deadline:
@@ -285,15 +279,16 @@ class AIWorker(QObject):
                 # 生命周期日志：用户会盯着日志等结果（"怎么没有 200 OK"），
                 # 这里把"第几轮 / 耗时 / 是否疑似截断 / 解析出几条命令"都写清楚。
                 truncated = _looks_truncated(text)
+                instructions = InstructionParser.parse(text)
                 logger.info("AI turn %d: %.1fs | %d 字符 | 疑似截断=%s | 命令=%d",
                             turn + 1, time.monotonic() - started, len(text), truncated,
-                            len(InstructionParser.parse(text)))
-                instructions = InstructionParser.parse(text)
+                            len(instructions))
                 if not instructions:
                     if self._handle_no_instructions(text, truncated, msgs, turn,
                                                     all_instructions, wrote_data):
                         final_text = text
                         continue
+                    finished_normally = True     # 模型自己收尾了（不是被轮次/时限切断）
                     return
                 all_instructions.extend(instructions)
                 # Execute tools silently
@@ -305,7 +300,6 @@ class AIWorker(QObject):
                                    if _has_write_cmd([c]) and not str(r).startswith("OK")]
                 wrote_data = wrote_data or any(
                     _has_write_cmd([c]) and str(r).startswith("OK") for c, r in pairs)
-                # Feed results back for next turn
                 msgs.append({"role": "assistant", "content": text})
                 results_text = "\n".join(results)
                 if results and all(not str(r).startswith("OK") for r in results):
@@ -314,15 +308,20 @@ class AIWorker(QObject):
                                      "库存/日程没有任何变化。")
                 msgs.append({"role": "user", "content": f"[工具执行结果]\n{results_text}"})
                 final_text = text
-            # Max turns reached
             display = re.sub(r'```(?:sh|json)\s*.*?```', '', final_text, flags=re.DOTALL).strip()
-            self._finish(all_instructions, wrote_data, display, write_failures)
+            # 轮次/时限到了（模型还没自己收尾）→ 可能只做了一半
+            self._finish(all_instructions, wrote_data, display, write_failures,
+                         finished_normally)
         # 边界捕获：本层已处理/记录，不允许异常向上逃逸（CODE_STANDARDS Q-I1）
         except Exception as e:  # noqa: BLE001
             self.error.emit(str(e))
 
     def _finish(self, all_instructions: list, wrote_data: bool, display: str,
-                write_failures: list | None = None) -> None:
+                write_failures: list | None = None, finished_normally: bool = True) -> None:
+        if all_instructions and not finished_normally:
+            # ⚠ 研究 §2.2：部分完成是**常态** —— 必须上报，否则"十三件只记了一件"没人知道
+            display += ("\n\n⚠ **可能没记全** —— 到了轮次/时限上限才停。这条话里东西多的话，"
+                        "请核对一下；或者回一句\"继续\"让我接着记。")
         if write_failures:
             shown = "\n".join(f"  {c}" for c in write_failures[:5])
             display += f"\n\n⚠ **这些命令没有生效**（已如实告知）：\n{shown}"
