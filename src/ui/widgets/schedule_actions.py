@@ -71,6 +71,22 @@ def undo_arrange(parent, dm, before: dict | None, after: dict | None,
     return True
 
 
+def set_plan_category(dm, target_date, item: dict, category: str) -> bool:
+    """按内容匹配把当天的某条计划标成学习 / 生活；返回是否找到。
+
+    用户用例表第 13 条：规则给默认（`daily_log.plan_category`），**这里是他手动改**的入口
+    —— 改过就存下来，以后以存的为准。
+    """
+    date_str = target_date.isoformat()
+    for i, p in enumerate(dm.daily_logs.get_plans(date_str)):
+        if p == item.get("plan"):
+            dm.daily_logs.set_plan_category(date_str, i, category)
+            dm.daily_logs.save()
+            dm.data_changed.emit("plan")
+            return True
+    return False
+
+
 def has_email_reminder(dm, item_type: str, item_name: str, item_date: str) -> bool:
     """该条目是否已有自定义邮件提醒。"""
     return dm.daily_logs.find_reminder(item_type, item_name, item_date) is not None

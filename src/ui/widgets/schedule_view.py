@@ -29,7 +29,8 @@ from src.ui.widgets.menu import (
     show_at_cursor,
 )
 from src.ui.widgets.rounded_button import RoundedButton
-from src.ui.widgets.schedule_actions import plans_snapshot, undo_arrange
+from src.ui.widgets.schedule_actions import plans_snapshot, set_plan_category, undo_arrange
+from src.ui.widgets.schedule_filter import CategoryFilter, add_category_actions, visible
 
 logger = logging.getLogger(__name__)
 
@@ -82,28 +83,7 @@ class ScheduleView(QWidget):
 
         bl.addStretch()
 
-        # Undo + Save buttons (hidden until arrange done)
-        self._undo_btn = RoundedButton(tr("widget.schedule.btn_undo"))
-        self._undo_btn.setStyleSheet(f"""
-            QPushButton {{ background-color: {c['btn_danger_bg']}; color: {c['btn_danger_fg']};
-                border: 1px solid {c['btn_danger_border']}; border-radius: 8px;
-                padding: 3px 10px; font-size: 13px; font-weight: 600; }}
-            QPushButton:hover {{ background-color: {c['btn_danger_bg_hover']}; }}
-        """)
-        self._undo_btn.clicked.connect(self._undo_arrange)
-        self._undo_btn.hide()
-        bl.addWidget(self._undo_btn)
-
-        self._save_btn = RoundedButton(tr("widget.schedule.btn_save"))
-        self._save_btn.setStyleSheet(f"""
-            QPushButton {{ background-color: {c['btn_success_bg']}; color: {c['btn_success_fg']};
-                border: 1px solid {c['btn_success_border']}; border-radius: 8px;
-                padding: 3px 10px; font-size: 13px; font-weight: 600; }}
-            QPushButton:hover {{ background-color: {c['btn_success_bg_hover']}; }}
-        """)
-        self._save_btn.clicked.connect(self._save_arrange)
-        self._save_btn.hide()
-        bl.addWidget(self._save_btn)
+        self._build_action_row(bl, c)
 
         refresh_btn = RoundedButton(tr("widget.schedule.btn_refresh"))
         refresh_btn.setStyleSheet(f"""
@@ -186,6 +166,23 @@ class ScheduleView(QWidget):
         else:
             self._course_panel._refresh()
             self.course_table_requested.emit()
+
+    def _build_action_row(self, bl, c: dict) -> None:
+        """顶部按钮行：撤销 / 保存（安排完成后才显示）+ 学习·生活筛选。"""
+        for name, key, tone, slot in (("_undo_btn", "btn_undo", "danger", self._undo_arrange),
+                                      ("_save_btn", "btn_save", "success", self._save_arrange)):
+            btn = RoundedButton(tr(f"widget.schedule.{key}"))
+            btn.setStyleSheet(
+                f"QPushButton {{ background-color: {c[f'btn_{tone}_bg']};"
+                f" color: {c[f'btn_{tone}_fg']}; border: 1px solid {c[f'btn_{tone}_border']};"
+                f" border-radius: 8px; padding: 3px 10px; font-size: 13px; font-weight: 600; }}"
+                f" QPushButton:hover {{ background-color: {c[f'btn_{tone}_bg_hover']}; }}")
+            btn.clicked.connect(slot)
+            btn.hide()
+            bl.addWidget(btn)
+            setattr(self, name, btn)
+        self._category_filter = CategoryFilter(lambda _k: self._refresh())
+        bl.addWidget(self._category_filter)
 
     def _style_mode_buttons(self) -> None:
         c = get_colors()
@@ -327,8 +324,9 @@ class ScheduleView(QWidget):
         return self._slot_for_minutes(now.hour * 60 + now.minute)
 
     def _build_slot_data(self, courses: list, plans: list, habits: list) -> dict[int, list[dict]]:
-        """把课程 / 计划 / 当日活跃习惯归入 1–6 时段。"""
         slot_data: dict[int, list[dict]] = {i: [] for i in range(1, 7)}
+        courses, plans, habits = ([x for x in xs if visible(self._category_filter.value, kind, x)]
+                                  for xs, kind in ((courses, "course"), (plans, "plan"), (habits, "habit")))
 
         for course in courses:
             self._add_course_to_slots(slot_data, course)
@@ -644,9 +642,9 @@ class ScheduleView(QWidget):
 
 
     def refresh_theme(self) -> None:
-        """Re-render the schedule to pick up new theme colors."""
         try:
             self._style_mode_buttons()
+            self._category_filter.refresh_theme()
             self._course_panel.refresh_theme()
             self._refresh(force=True)
         except Exception:
@@ -736,6 +734,8 @@ class ScheduleView(QWidget):
                        lambda checked=False: self._set_plan_done(item, True))
         add_action(menu, tr("widget.schedule.menu_remove"),
                    lambda checked=False: self._delete_plan_at(item))
+        add_category_actions(menu, item, lambda k: set_plan_category(
+            self._dm, self._target_date, item, k) and self._refresh())
         add_separator(menu)
         if self._has_email_reminder("plan", plan_name, plan_date):
             add_action(menu, tr("widget.schedule.menu_email_remove"),

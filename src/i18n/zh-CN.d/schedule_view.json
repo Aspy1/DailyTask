@@ -39,6 +39,11 @@
   "widget.schedule.menu_mark_done": "✓ 标记完成",
   "widget.schedule.menu_mark_undone": "○ 标记未完成",
   "widget.schedule.menu_remove": "✕ 移除",
+  "widget.schedule.filter_all": "全部",
+  "widget.schedule.filter_study": "学习",
+  "widget.schedule.filter_life": "生活",
+  "widget.schedule.menu_mark_study": "标记为学习",
+  "widget.schedule.menu_mark_life": "标记为生活",
   "widget.schedule.menu_postpone": "→ 推迟到明天",
   "widget.schedule.menu_cancel_today": "✕ 取消今天"
 }

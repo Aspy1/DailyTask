@@ -15,6 +15,27 @@ DEFAULT_DAILY_LOGS = {
 }
 
 
+STUDY, LIFE = "study", "life"
+
+
+def plan_category(plan: dict) -> str:
+    """这条计划算「学习」还是「生活」。
+
+    **规则给默认，用户可以覆盖**（用户用例表第 13 条："日程表界面有些拥挤了，
+    加功能区分学习和生活"）：不指望模型分类（它不可靠 ✗）。
+
+    - 用户**存过** `category` → 以存的为准（他改过就是最终答案）
+    - 带 `course_name`（课程备注）/ 课业类 `type` → **学习**
+    - 其余 → **生活**
+    """
+    stored = str(plan.get("category") or "")
+    if stored in (STUDY, LIFE):
+        return stored
+    if str(plan.get("course_name") or "").strip():
+        return STUDY
+    return STUDY if plan.get("type") in ("course", "course_note", "study") else LIFE
+
+
 class DailyLogModel(BaseJsonModel):
     def __init__(self, file_path: Path) -> None:
         super().__init__(file_path, DEFAULT_DAILY_LOGS)
@@ -74,6 +95,19 @@ class DailyLogModel(BaseJsonModel):
     def complete_plan(self, day: str, index: int) -> bool:
         """标记某天的第 `index` 条日程为完成（`set_plan_done` 的便捷形式）。"""
         return self.set_plan_done(day, index, True)
+
+    def set_plan_category(self, day: str, index: int, category: str) -> bool:
+        """把某天的第 `index` 条计划标成 `study` / `life`（幂等）。返回是否找到。
+
+        用户用例表第 13 条（"日程表界面有些拥挤了，加功能区分学习和生活"）：
+        **默认由规则推**（见 `plan_category`），用户可在右键菜单里改；改过的以存下来的为准。
+        字段**纯新增**（`category`）：老数据没有 = 按规则推。
+        """
+        day_plans = self._data.get("plans", {}).get(day, [])
+        if not (0 <= index < len(day_plans)):
+            return False
+        day_plans[index]["category"] = category
+        return True
 
     def delete_plan(self, day: str, index: int) -> bool:
         day_plans = self._data.get("plans", {}).get(day, [])
