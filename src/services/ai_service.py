@@ -15,6 +15,7 @@ from src.services.ai_loop_guards import (
     _claims_done,
     _continuation_nudge,
     _has_write_cmd,
+    cmds_key,
     repeat_nudge,
 )
 from src.services.ai_prompts import (
@@ -227,9 +228,9 @@ class AIWorker(QObject):
                 # 这里把"第几轮 / 耗时 / 是否疑似截断 / 解析出几条命令"都写清楚。
                 truncated = _looks_truncated(text)
                 instructions = InstructionParser.parse(text)
-                logger.info("AI turn %d: %.1fs | %d 字符 | 疑似截断=%s | 命令=%d",
+                logger.info("AI turn %d: %.1fs | %d 字符 | 疑似截断=%s | 命令=%d | 本批重复=%d",
                             turn + 1, time.monotonic() - started, len(text), truncated,
-                            len(instructions))
+                            len(instructions), seen_cmds.get(cmds_key(instructions), 0))
                 if not instructions:
                     if self._handle_no_instructions(text, truncated, msgs, turn,
                                                     all_instructions, wrote_data):
@@ -257,7 +258,7 @@ class AIWorker(QObject):
         """执行一批命令 → `(喂回对话的结果文本, 写命令成功数, 写命令失败列表)`。"""
         results = InstructionParser.execute(instructions)
         ok, bad = self._split_results(instructions, results)
-        ckey = "|".join(sorted(str(c).strip() for c in instructions))
+        ckey = cmds_key(instructions)
         seen_cmds[ckey] = seen_cmds.get(ckey, 0) + 1
         text = "\n".join(results)
         if results and not ok and not bad:
@@ -319,7 +320,9 @@ class AIWorker(QObject):
                             if m["role"] == "user" and "[系统]" in str(m["content"]))
         nudge = _continuation_nudge(text, truncated, empty_retries, wrote_data) if turn < 4 else None
         if nudge:
-            logger.warning("AI 第 %d 轮没有可执行命令，要求继续", turn + 1)
+            # §12.1：把**哪个护栏触发了**也记下来（"为什么这轮停了"排查时缺的就是这个字段）
+            logger.warning("AI 第 %d 轮没有可执行命令，要求继续：%s",
+                           turn + 1, nudge.split("：", 1)[0][:40])
             msgs.append({"role": "assistant", "content": text})
             msgs.append({"role": "user", "content": nudge})
             return True

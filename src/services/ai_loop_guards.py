@@ -38,6 +38,11 @@ def _has_write_cmd(commands: list) -> bool:
     skip = ("lookup_item", "need_restock", "status", "add_location", "set_locations")
     return any(n and n[0] not in skip for n in names)
 
+def cmds_key(commands: list) -> str:
+    """一批命令的**指纹**（排序后拼接）—— 用于"同一批命令重复了几次"的循环检测（§4）。"""
+    return "|".join(sorted(str(c).strip() for c in commands))
+
+
 def repeat_nudge(seen: dict, key: str, produced_effect: bool) -> str | None:
     """同一批命令**重复出现**且毫无效果 → 给模型一条事实（§4 分级响应：告知 → 收束）。
 
