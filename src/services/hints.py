@@ -12,6 +12,7 @@
 """
 
 from dataclasses import dataclass
+from datetime import date
 from pathlib import Path
 
 from src.services.weather_store import read_json_safe
@@ -68,6 +69,32 @@ def wash_hints(items: list) -> list[Hint]:
     return out
 
 
+def outing_hints(plans: list, courses: list, today: date | None = None) -> list[Hint]:
+    """**今天会出门吗**？会 → 出门前的三条提醒（`PLAN.md` P20）。
+
+    "出门"的口径（用户 P20 原话："上课也算出门"）：
+    今天**有课** ✓ 或 **有计划**（日程里排了东西）✓。
+
+    三条提示（都是**代码判断**，不让模型猜 ✓）：
+    1. 关键物品**归位**（用户口径：`右手架子上`）
+    2. **倒垃圾**（每天第一次出门时）
+    3. **给设备充电**（上课 / 出门前）
+    """
+    today = today or date.today()
+    weekday = today.isoweekday()          # 1=周一 … 7=周日
+    has_class = any(any(int(s.get("day", 0)) == weekday for s in (c.get("time_slots") or []))
+                    for c in courses or [])
+    has_plan = bool([p for p in plans or [] if str(p.get("title") or "").strip()])
+    if not (has_class or has_plan):
+        return []
+    why = "今天有课" if has_class else "今天有安排"
+    return [
+        Hint("outing.keys", f"{why} —— 出门前把钥匙串 / 卡包放回右手架子上 🔑", "info"),
+        Hint("outing.trash", "出门顺手带垃圾 🗑", "info"),
+        Hint("outing.charge", "出门前检查设备电量、带上充电宝 🔋", "info"),
+    ]
+
+
 def load_weather(data_dir: Path) -> tuple[dict, list]:
     """读天气派生缓存（`weather_cache.json`）→ `(当天, 预报列表)`。
 
@@ -96,9 +123,20 @@ def budget_hints(data_dir: Path, items: list) -> list[Hint]:
 
 
 def today_hints(data_dir: Path) -> list[Hint]:
-    """今天该提示的东西：天气 + 该洗的衣物 + 预算超支（继续往这里加规则）。"""
+    """今天该提示的东西：天气 + 该洗的衣物 + 预算超支 + 出门提醒（继续加规则）。"""
     now, forecast_data = load_weather(data_dir)
     inventory = read_json_safe(Path(data_dir) / "inventory.json")
     items = inventory.get("items") or []
+    logs = read_json_safe(Path(data_dir) / "daily_logs.json")
+    today = date.today().isoformat()
+    plans = (logs.get("plans") or {}).get(today) or []
     return (weather_hints(now, forecast_data) + wash_hints(items)
-            + budget_hints(data_dir, items))
+            + budget_hints(data_dir, items) + outing_hints(plans, _courses_today(data_dir)))
+
+
+def _courses_today(data_dir: Path) -> list:
+    """今天的课（课程按学期分文件存，用与生产同一套解析）。"""
+    from src.models import semester_paths
+
+    data = read_json_safe(semester_paths.resolve(Path(data_dir), "courses.json"))
+    return data.get("courses") or []
