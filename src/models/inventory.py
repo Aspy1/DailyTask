@@ -52,6 +52,19 @@ DEFAULT_INVENTORY = {
 logger = logging.getLogger(__name__)
 
 
+def apply_consume(item: dict, amount: int = 1) -> int:
+    """扣 `amount` 个小单位（片 / 次），写回 `remaining_doses` + `quantity`，返回剩余片数。
+
+    **唯一**的扣减算法：`InventoryModel.consume_doses()` 与 CLI 的 `consume` 命令都调它
+    （审查 §6 第 6 条：CLI 与 Model 不要各写一份消耗）。老算法用整除换算盒数，
+    1 盒 24 片用掉 1 片会变成 0 盒、**23 片凭空消失**（F1 / P1）。
+    """
+    left = max(0, InventoryModel.remaining_doses(item) - amount)
+    item["remaining_doses"] = left
+    InventoryModel.sync_units(item)
+    return left
+
+
 class InventoryModel(BaseJsonModel):
     def __init__(self, file_path: Path) -> None:
         super().__init__(file_path, DEFAULT_INVENTORY)
@@ -83,6 +96,44 @@ class InventoryModel(BaseJsonModel):
         免得"哪边算家"在多处各写一遍。
         """
         return SIDE_HOME if item.get("location") in HOME_LOCATIONS else SIDE_SCHOOL
+
+    @staticmethod
+    def remaining_doses(item: dict) -> int:
+        """总余量（**小单位**：片 / 次）—— 库存的**精确真值**。
+
+        ⚠ 老数据没有这个字段 → 用 `quantity × doses_per_unit` 现算（自愈，不写盘）。
+
+        为什么必须有它：原来 `consume` 用整除把余量换回"盒"，1 盒 24 片用掉 1 片 →
+        `23 // 24 = 0` 盒，**23 片凭空消失**（审查 F1 / P1）。
+        """
+        stored = item.get("remaining_doses")
+        if isinstance(stored, int) and stored >= 0:
+            return stored
+        return int(item.get("quantity", 0)) * (item.get("doses_per_unit", 1) or 1)
+
+    @staticmethod
+    def sync_units(item: dict) -> None:
+        """把精确余量换算回展示用的 `quantity`（盒数）；不足一盒时为 0。
+
+        余量**不丢** —— 散片仍记在 `remaining_doses` 里（盒数只是展示换算）。
+        """
+        dpu = item.get("doses_per_unit", 1) or 1
+        item["remaining_doses"] = InventoryModel.remaining_doses(item)
+        item["quantity"] = item["remaining_doses"] // dpu
+
+    def consume_doses(self, iid: str, amount: int = 1) -> int | None:
+        """扣 `amount` 个**小单位**（片 / 次），返回剩余片数；找不到返回 `None`。
+
+        **唯一**的扣减实现：CLI（`consume`）、界面、习惯扣减都走这里
+        —— 审查 §6 第 6 条："CLI 与 Model 不要复制库存消耗"。
+        """
+        for it in self.items:
+            if it["id"] == iid:
+                left = apply_consume(it, amount)
+                it["status"] = self.derive_status(it)
+                it["updated_at"] = datetime.now().isoformat()
+                return left
+        return None
 
     @property
     def need_restock(self) -> list[dict]:
@@ -129,6 +180,7 @@ class InventoryModel(BaseJsonModel):
             "unit": "件",
             "status": data.get("status") or self.derive_status(data),
             "min_quantity": data.get("min_quantity", 1),
+            "remaining_doses": int(data.get("quantity", 1)) * (data.get("doses_per_unit", 1) or 1),
             "location": data.get("location", ""),
             "notes": data.get("notes", ""),
             "tags": data.get("tags", []),
@@ -170,15 +222,18 @@ class InventoryModel(BaseJsonModel):
 
     @staticmethod
     def _quantity_status(item: dict) -> str:
-        """按数量 / 片级下限给状态（原有规则，一个字没改）。"""
-        quantity = item.get("quantity", 1)
-        if quantity <= 0:
+        """按余量 / 片级下限 / 单位级下限给状态。
+
+        ⚠ 顺序要紧：**先看余量是否为 0**，而且要用**精确余量**比 ——
+        一盒用剩 23 片时 `quantity`（盒数）是 0，先判盒数就会误报"需购"（F1 的连带）。
+        """
+        left = InventoryModel.remaining_doses(item)
+        if left <= 0:
             return "需购"
         min_doses = item.get("min_doses", 0) or 0
         if min_doses > 0:
-            doses = quantity * (item.get("doses_per_unit", 1) or 1)
-            return "不足" if doses < min_doses else "充足"
-        return "不足" if quantity < item.get("min_quantity", 1) else "充足"
+            return "不足" if left < min_doses else "充足"
+        return "不足" if item.get("quantity", 1) < item.get("min_quantity", 1) else "充足"
 
     @staticmethod
     def membership_of(item: dict) -> dict:
@@ -216,6 +271,11 @@ class InventoryModel(BaseJsonModel):
                     if k in data:
                         it[k] = data[k]
                 it["updated_at"] = datetime.now().isoformat()
+                # 数量 / 每份含量变了 → 由它们重算**精确余量**（用户填的 `quantity` 是盒数）
+                if "quantity" in data or "doses_per_unit" in data:
+                    dpu = it.get("doses_per_unit", 1) or 1
+                    it["remaining_doses"] = int(it.get("quantity", 0)) * dpu
+                self.sync_units(it)
                 # 状态自动推导（`ignore_low_stock` 的物品跳过 —— 那是显式豁免）。
                 # ⚠ 现在**也会回到"充足"**：补货之后不该还挂着"需购"（原来不清）
                 if not it.get("ignore_low_stock"):
@@ -232,24 +292,13 @@ class InventoryModel(BaseJsonModel):
         return False
 
     def consume(self, iid: str, amount: int = 1) -> bool:
-        """Consume N doses. Returns True if item still has stock."""
-        for it in self.items:
-            if it["id"] == iid:
-                dpu = it.get("doses_per_unit", 1)
-                total_doses = it["quantity"] * dpu
-                total_doses -= amount
-                it["quantity"] = max(0, total_doses // dpu)
-                it["status"] = self.derive_status(it)
-                if not it.get("ignore_low_stock"):
-                    it["updated_at"] = __import__("datetime").datetime.now().isoformat()
-                return it["quantity"] > 0
-        return False
+        """Consume N doses. Returns True if item still has stock.
 
-    def remaining_doses(self, iid: str) -> int:
-        for it in self.items:
-            if it["id"] == iid:
-                return it["quantity"] * it.get("doses_per_unit", 1)
-        return 0
+        ⚠ 保留这个方法只是为了兼容老调用点；真正的扣减逻辑在 `consume_doses()`
+        （审查 §6：不要在 Model 与 CLI 各写一份消耗算法）。
+        """
+        left = self.consume_doses(iid, amount)
+        return bool(left)
 
     @property
     def locations(self) -> list[str]:

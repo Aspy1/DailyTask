@@ -371,14 +371,16 @@ class ReminderService(QObject):
         self._settings.save()
 
     def _check_restock(self) -> None:
-        """有"需购/不足"的物品 → 邮件 + 托盘（每天最多一次；幂等，随便谁调都不重复）。"""
+        """有"需购/不足"的物品 → 邮件 + 托盘（每天最多一次）。
+
+        ⚠ **没缺货就不记日期**（F3）：原来无条件写，导致"先检查没缺货、稍后归零"被跳过。
+        """
         today_str = datetime.now().strftime("%Y-%m-%d")
-        if self._settings.get("Inventory", "last_restock_notify_date",
-                              fallback="") == today_str:
+        if self._settings.get("Inventory", "last_restock_notify_date", fallback="") == today_str:
             return
-        items = self._dm.inventory.need_restock      # 属性（不是方法）
-        if items:
-            self._notify("该补货了", restock_body(items), email=True, subject="补货提醒")
+        if not (items := self._dm.inventory.need_restock):
+            return                                       # 没缺货 → 不消耗今天的提醒机会（F3）
+        self._notify("该补货了", restock_body(items), email=True, subject="补货提醒")
         self._settings.set("Inventory", "last_restock_notify_date", today_str)
         self._settings.save()
 

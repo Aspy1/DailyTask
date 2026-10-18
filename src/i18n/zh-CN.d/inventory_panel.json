@@ -66,5 +66,7 @@
   "panel.inventory.dialog_email_title": "邮件提醒 - {name}",
   "panel.inventory.label_email_prompt": "为「{name}」设置补货提醒",
   "panel.inventory.msg_reminder_set_title": "已设置",
-  "panel.inventory.msg_reminder_set": "已设置补货提醒"
+  "panel.inventory.msg_reminder_set": "已设置补货提醒",
+  "panel.inventory.msg_reminder_failed_title": "没保存成功",
+  "panel.inventory.msg_reminder_failed": "保存被拒（数据被其它程序改过），提醒**没有**设置成功。请重试。"
 }

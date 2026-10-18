@@ -148,6 +148,71 @@ def test_lookup_filters_by_location_category_and_restock(sandbox) -> None:
     assert "FOUND 3" in run("lookup_item"), "不带条件 = 列出全部"
 
 
+def test_consume_keeps_the_partial_box(sandbox) -> None:
+    """⚠ P1 回归：1 盒 24 片用掉 1 片 → **23 片**，不是"0 盒"（审查 F1）。
+
+    老算法 `(1*24 - 1) // 24 = 0` 把 23 片凭空丢了。
+    """
+    run('add_item --name "布洛芬" --quantity 1 --unit "盒" '
+        '--doses-per-unit 24 --min-doses 5')
+    iid = _items(sandbox)[0]["id"]
+
+    out = run(f"consume --id {iid} --amount 1")
+    item = _items(sandbox)[0]
+    assert item["remaining_doses"] == 23, out
+    assert item["quantity"] == 0, "不足一盒时盒数是 0（只做展示换算）"
+    assert item["status"] == "充足", "23 片还在 5 片下限之上"
+
+
+def test_consume_walks_down_and_reports_status(sandbox) -> None:
+    """连续扣减 24 → 19 → 4 → 0，状态跟着下限走（审查要求的边界）。"""
+    run('add_item --name "布洛芬" --quantity 1 --unit "盒" '
+        '--doses-per-unit 24 --min-doses 5')
+    iid = _items(sandbox)[0]["id"]
+
+    for amount, left, status in [(5, 19, "充足"), (15, 4, "不足"), (4, 0, "需购")]:
+        run(f"consume --id {iid} --amount {amount}")
+        item = _items(sandbox)[0]
+        assert item["remaining_doses"] == left, item
+        assert item["status"] == status, item
+
+
+def test_consume_more_than_left_floors_at_zero(sandbox) -> None:
+    """超量扣减 → 停在 0，不会变负数。"""
+    run('add_item --name "布洛芬" --quantity 1 --unit "盒" --doses-per-unit 24')
+    iid = _items(sandbox)[0]["id"]
+
+    run(f"consume --id {iid} --amount 100")
+    item = _items(sandbox)[0]
+    assert item["remaining_doses"] == 0 and item["quantity"] == 0
+    assert item["status"] == "需购"
+
+
+def test_partial_box_is_not_reported_as_need_buy(sandbox) -> None:
+    """⚠ 连带回归：一盒用剩 23 片时 `quantity` 是 0，**不能**因此判成"需购"。"""
+    run('add_item --name "布洛芬" --quantity 1 --unit "盒" '
+        '--doses-per-unit 24 --min-doses 5')
+    iid = _items(sandbox)[0]["id"]
+    run(f"consume --id {iid} --amount 1")
+
+    assert "布洛芬" not in run("need_restock"), "还有 23 片，不该进补货列表"
+
+
+def test_model_and_cli_share_one_consume_algorithm(tmp_path) -> None:
+    """CLI 与模型**共用**同一个扣减实现（审查 §6：不许各写一份消耗）。"""
+    from src.models.inventory import InventoryModel, apply_consume
+
+    item = {"id": "i_001", "quantity": 1, "doses_per_unit": 24, "min_doses": 5}
+    assert apply_consume(item, 1) == 23
+    assert item["quantity"] == 0
+
+    m = InventoryModel(tmp_path / "inventory.json")
+    m.data["items"] = [{"id": "i_001", "quantity": 1, "doses_per_unit": 24,
+                        "min_doses": 5, "remaining_doses": 24}]
+    assert m.consume_doses("i_001", 1) == 23
+    assert m.items[0]["quantity"] == 0
+
+
 # ── 归属：位置就是归属（学校 / 家）────────────────────────────
 
 def test_add_item_defaults_location_to_school(sandbox) -> None:

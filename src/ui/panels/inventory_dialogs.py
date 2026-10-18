@@ -127,11 +127,16 @@ def email_reminder_dialog(parent, dm, item: dict) -> None:
     btns.accepted.connect(dlg.accept)
     btns.rejected.connect(dlg.reject)
     layout.addWidget(btns)
-    if dlg.exec():
-        dm.daily_logs.add_reminder("inventory", item.get("name", ""),
-                                   datetime.now().strftime("%Y-%m-%d"),
-                                   dt.dateTime().toPython().isoformat())
-    dm.daily_logs.save()
+    if not dlg.exec():
+        return                       # 取消 → 什么都不写，也**不报成功**（审查 F4 / P2）
+    dm.daily_logs.add_reminder("inventory", item.get("name", ""),
+                               datetime.now().strftime("%Y-%m-%d"),
+                               dt.dateTime().toPython().isoformat())
+    if not dm.daily_logs.save():
+        # 保存被拒（磁盘被别人改过）→ 同样不许报成功
+        QMessageBox.warning(parent, tr("panel.inventory.msg_reminder_failed_title"),
+                            tr("panel.inventory.msg_reminder_failed"))
+        return
     QMessageBox.information(parent, tr("panel.inventory.msg_reminder_set_title"),
                             tr("panel.inventory.msg_reminder_set"))
 

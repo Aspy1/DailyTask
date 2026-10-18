@@ -13,7 +13,7 @@ from scripts.actions_core import (
     now_iso,
     save,
 )
-from src.models.inventory import DEFAULT_LOCATION, SIDE_SCHOOL, InventoryModel
+from src.models.inventory import DEFAULT_LOCATION, SIDE_SCHOOL, InventoryModel, apply_consume
 
 # `--membership` 允许的键（用户名 / 到期日 / 自动续费 / 续费月数）。
 # **手机号不在这里** —— 它不进 `inventory.json`（见 `models/membership_contacts.py`）。
@@ -127,6 +127,7 @@ def cmd_add_item(args) -> None:
     item = _new_item(gen_id(data["items"], "i"), args)
     item["location"] = _default_location(item, args)      # 没说位置 → 默认「学校」
     _apply_membership(item, args)                         # 会员信息（有到期日就由它定状态）
+    InventoryModel.sync_units(item)                       # 精确余量（片）= 盒数 × 每份含量
     item["status"] = InventoryModel.derive_status(item)   # 建好再推导（规则只写一份）
     added_loc = _ensure_location(data, item["location"])
     data["items"].append(item)
@@ -151,25 +152,35 @@ def cmd_set_locations(args) -> None:
 
 
 def cmd_consume(args) -> None:
-    """消耗 N 份（默认 1）：按 `doses_per_unit` 扣减 + 重算状态。
+    """消耗 N 个**小单位**（默认 1）：扣精确余量 + 重算状态。
 
-    "用掉一瓶洗手液" → `consume --id i_003`，不必先查数量再手算（原来只能
-    `lookup_item` 查完再 `update_item --quantity N-1`）。
+    "用掉一瓶洗手液" → `consume --id i_003`。扣减算法与模型共用
+    （`inventory.apply_consume`）—— 老实现两边各写一份，且用整除把散片丢掉（F1 / P1）。
     """
     data = load("inventory.json")
     amount = args.amount or 1
     for it in data.get("items", []):
         if it["id"] != args.id:
             continue
-        dpu = it.get("doses_per_unit", 1) or 1
-        it["quantity"] = max(0, (it.get("quantity", 0) * dpu - amount) // dpu)
+        apply_consume(it, amount)
         it["status"] = InventoryModel.derive_status(it)
         it["updated_at"] = now_iso()
         save("inventory.json", data)
-        print(f"OK consume {args.id} | 剩 {it['quantity']}{it.get('unit', '件')}"
-              f"（{it['status']}）")
+        print(f"OK consume {args.id} | 剩 {it['remaining_doses']} "
+              f"（{it['quantity']}{it.get('unit', '件')} · {it['status']}）")
         return
     raise ActionError(f"没有 id 为 {args.id} 的物品 —— 先用 lookup_item 查一下")
+
+def _sync_remainder(item: dict, recompute: bool) -> None:
+    """同步**精确余量**（片）：`recompute` 时按用户填的**盒数**重算，否则只做展示换算。
+
+    抽出来是为了压 `_apply_item_quantity_fields` 的圈复杂度（加了分支就到 C(11)，RADON 拦下）。
+    """
+    if recompute:
+        dpu = item.get("doses_per_unit", 1) or 1
+        item["remaining_doses"] = int(item.get("quantity", 0)) * dpu
+    InventoryModel.sync_units(item)
+
 
 def _apply_item_quantity_fields(item: dict, args) -> None:
     """数量/单位/状态/下限：仅当显式传值才覆盖。
@@ -199,6 +210,8 @@ def _apply_item_quantity_fields(item: dict, args) -> None:
         item["doses_per_unit"] = dpu
     if instances is not None:
         item["instances"] = _parse_instances(instances)
+    # 用户填的 `quantity` 是**盒数** → 显式改了数量/每份含量时重算精确余量（片）
+    _sync_remainder(item, quantity is not None or dpu is not None)
 
 
 def _split_tag_list(tags: str) -> list[str]:
