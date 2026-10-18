@@ -80,6 +80,10 @@ def _add_routine_parsers(sub) -> None:
     p.add_argument("--date", required=True)
     p.add_argument("--index", type=int, required=True)
 
+    p = sub.add_parser("complete_plan", help="把某条计划标记为完成")
+    p.add_argument("--date", required=True)
+    p.add_argument("--index", type=int, required=True)
+
 
 def _add_item_parsers(sub) -> None:
     """有什么（库存物品）。"""

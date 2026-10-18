@@ -238,6 +238,24 @@ def cmd_replace_plans(args) -> None:
     save("daily_logs.json", data)
     print(f"OK replace_plans {date_str} | {len(new_plans)} items")
 
+def cmd_complete_plan(args) -> None:
+    """把某天的第 `index` 条日程标记为完成（用户用例表第 10 条）。
+
+    日程清单在系统提示词里带方括号序号；"我做完了 X / 收拾完了" → 找到那条 → 这里标记完成。
+    若同时涉及物品（"收拾完扑克牌了"），AI 另外调 `update_item` 更新物品。
+    """
+    date_str = parse_date(args.date) if args.date else date.today().isoformat()
+    data = load("daily_logs.json")
+    plans = data.get("plans", {}).get(date_str, [])
+    idx = args.index
+    if not (0 <= idx < len(plans)):
+        print(f"ERROR plan index out of range: {idx}（{date_str} 共 {len(plans)} 条）")
+        return
+    plans[idx]["done"] = True
+    plans[idx]["completed_at"] = now_iso()
+    save("daily_logs.json", data)
+    print(f"OK complete_plan {date_str}[{idx}] | {plans[idx].get('title', '')}")
+
 def cmd_delete_plan(args) -> None:
     date_str = parse_date(args.date) if args.date else date.today().isoformat()
     idx = args.index
@@ -669,7 +687,7 @@ HANDLERS = {
     "add_task": cmd_add_task, "complete_task": cmd_complete_task,
     "add_exam": cmd_add_exam, "add_habit": cmd_add_habit,
     "log_habit": cmd_log_habit, "add_plan": cmd_add_plan,
-    "replace_plans": cmd_replace_plans, "delete_plan": cmd_delete_plan,
+    "replace_plans": cmd_replace_plans, "delete_plan": cmd_delete_plan, "complete_plan": cmd_complete_plan,
     "add_course": cmd_add_course, "delete_course": cmd_delete_course,
     "update_course": cmd_update_course,
     "add_item": cmd_add_item, "update_item": cmd_update_item,

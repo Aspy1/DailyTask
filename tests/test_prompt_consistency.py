@@ -26,7 +26,7 @@ ADVERTISED = sorted(set(re.findall(r"scripts/actions\.py\s+([a-z_]+)", SYSTEM_PR
 # 24 条已实现的命令（README v0.9.0 + 2026-10-16 记账/备份扩展 + update_course + consume）。
 IMPLEMENTED = [
     "add_task", "complete_task", "add_exam", "add_habit", "log_habit",
-    "add_plan", "replace_plans", "delete_plan",
+    "add_plan", "replace_plans", "delete_plan", "complete_plan",
     "add_course", "update_course", "delete_course",
     "add_item", "update_item", "delete_item", "consume", "set_locations",
     "add_location", "need_restock", "lookup_item",

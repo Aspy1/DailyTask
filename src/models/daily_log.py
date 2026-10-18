@@ -53,6 +53,19 @@ class DailyLogModel(BaseJsonModel):
     def get_today_plans(self) -> list[dict]:
         return self.get_plans()
 
+    def complete_plan(self, day: str, index: int) -> bool:
+        """把某天的第 `index` 条日程标记为完成（幂等）。返回是否找到。
+
+        用户用例表第 10 条："我收拾完扑克牌了" → 标记日程完成（物品由 AI 另调
+        `update_item`）。字段**纯新增**（`done` / `completed_at`）：老数据没有 = 未完成。
+        """
+        day_plans = self._data.get("plans", {}).get(day, [])
+        if not (0 <= index < len(day_plans)):
+            return False
+        day_plans[index]["done"] = True
+        day_plans[index]["completed_at"] = date.today().isoformat()
+        return True
+
     def delete_plan(self, day: str, index: int) -> bool:
         day_plans = self._data.get("plans", {}).get(day, [])
         if 0 <= index < len(day_plans):

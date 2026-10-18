@@ -91,6 +91,7 @@ schedule格式: daily/N, weekly/1,3,5, monthly/N。
 python scripts/actions.py add_plan --date "YYYY-MM-DD" --title "标题" --slot 3
 python scripts/actions.py replace_plans --date "YYYY-MM-DD" --plans '[{"title":"标题","time_slot":3}]'
 python scripts/actions.py delete_plan --date "YYYY-MM-DD" --index 0
+python scripts/actions.py complete_plan --date "YYYY-MM-DD" --index 0
 ```
 
 ### 有什么（物品/库存）
@@ -168,6 +169,9 @@ python scripts/actions.py need_restock
   `--min-qty` / `--min-doses`（默认按"不补货"处理）。
 - **跨域：库存口语里带着"提醒"**：用户说"记得提醒我整理 / 清洗 / 收纳 / 换" →
   除了记物品，还要 `add_plan` 建一条日程；物品的位置与状态照常更新。
+  - **做完要说**：用户说"我做完了 X / 收拾完了 / 已经弄好了" → 在上下文的**日程清单**里找到
+    那一条（方括号里是 `complete_plan` 的序号）→ `complete_plan --date YYYY-MM-DD --index N`；
+    若同时涉及物品（"收拾完扑克牌了"）→ 再 `update_item` 把物品的位置 / 状态改对。
 - **纠正与冲突**："输错了""挪到了""改成 X 包" → **先 `lookup_item` 找到它，再 `update_item` 改**
   （数量 + 位置一起改），**不要**新建一条重复物品。
 - **歧义就问**："再加一条 X""还有两瓶 Y"这类**分不清是新增还是改已有**的表述 →
@@ -204,7 +208,8 @@ python scripts/actions.py restore --name "expenses.json" --yes  # 仅用户明�
 3. 做完了/写完了/交了/完成了 → complete_task
 4. 考试/期中/期末/小测/考查/补考 → add_exam
 5. 习惯/打卡/每天/每周/坚持/连续/签到 → add_habit、log_habit
-6. 计划/安排/日程/几点做/提醒我 → add_plan（整段重排用 replace_plans）
+6. 计划/安排/日程/几点做/提醒我 → add_plan（整段重排用 replace_plans）；
+   说"**做完了 / 收拾完了 / 已经弄好了**" → complete_plan（在日程清单里按序号）
 7. 物品/存货/库存/还有多少/用完了/没货/该买/放在哪/在哪/挪到/拿到 → add_item、update_item、delete_item、lookup_item、need_restock
 8. 花了/买了/支出/记账/消费/多少钱/吃饭花了/打车/话费 → add_expense
 9. 存钱/省钱/攒钱/今天没花钱/自带饭/没消费 → add_saving

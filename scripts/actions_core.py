@@ -561,7 +561,7 @@ ALLOWED_OPTIONS: dict[str, set[str]] = {
     "log_habit": {"id"},
     "add_plan": {"date", "title", "slot", "type", "course", "note"},
     "replace_plans": {"date", "plans"},
-    "delete_plan": {"date", "index"},
+    "delete_plan": {"date", "index"}, "complete_plan": {"date", "index"},
     "add_course": {"name", "day", "weeks", "slots", "location", "teacher", "parity"},
     "delete_course": {"id"},
     "update_course": {"id", "name", "day", "weeks", "slots", "location",
@@ -636,6 +636,7 @@ SPECS: dict[str, dict] = {
         "required": ("date", "index"),
         "date": ("date",), "index": ("int", 0, 100),
     },
+    "complete_plan": {"required": ("date", "index"), "date": ("date",), "index": ("int", 0, 100)},
     "add_course": {
         "required": ("name", "day"),
         "name": ("text", MAX_TITLE), "day": ("int", 1, 7),
