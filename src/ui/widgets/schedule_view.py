@@ -85,10 +85,10 @@ class ScheduleView(QWidget):
         # Undo + Save buttons (hidden until arrange done)
         self._undo_btn = RoundedButton(tr("widget.schedule.btn_undo"))
         self._undo_btn.setStyleSheet(f"""
-            QPushButton {{ background-color: {c['red']}30; color: {c['red']};
-                border: 1px solid {c['red']}60; border-radius: 8px;
+            QPushButton {{ background-color: {c['btn_danger_bg']}; color: {c['btn_danger_fg']};
+                border: 1px solid {c['btn_danger_border']}; border-radius: 8px;
                 padding: 3px 10px; font-size: 13px; font-weight: 600; }}
-            QPushButton:hover {{ background-color: {c['red']}50; }}
+            QPushButton:hover {{ background-color: {c['btn_danger_bg_hover']}; }}
         """)
         self._undo_btn.clicked.connect(self._undo_arrange)
         self._undo_btn.hide()
@@ -96,10 +96,10 @@ class ScheduleView(QWidget):
 
         self._save_btn = RoundedButton(tr("widget.schedule.btn_save"))
         self._save_btn.setStyleSheet(f"""
-            QPushButton {{ background-color: {c['green']}30; color: {c['green']};
-                border: 1px solid {c['green']}60; border-radius: 8px;
+            QPushButton {{ background-color: {c['btn_success_bg']}; color: {c['btn_success_fg']};
+                border: 1px solid {c['btn_success_border']}; border-radius: 8px;
                 padding: 3px 10px; font-size: 13px; font-weight: 600; }}
-            QPushButton:hover {{ background-color: {c['green']}50; }}
+            QPushButton:hover {{ background-color: {c['btn_success_bg_hover']}; }}
         """)
         self._save_btn.clicked.connect(self._save_arrange)
         self._save_btn.hide()
