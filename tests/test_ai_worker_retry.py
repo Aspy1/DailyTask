@@ -63,11 +63,12 @@ def test_continuation_nudge_cases() -> None:
 
 
 def test_has_write_cmd_distinguishes_reads() -> None:
-    """判定"有没有写"只看命令名（纯查询不算）—— 这是"没生效要告诉用户"的前提。"""
+    """判定"有没有写"只看命令名；⚠ 记账类（add_location）不算用户可见效果。"""
     from src.services.ai_service import _has_write_cmd
 
     assert _has_write_cmd(["python scripts/actions.py lookup_item --name x"]) is False
     assert _has_write_cmd(["python scripts/actions.py add_item --name x"]) is True
+    assert _has_write_cmd(["python scripts/actions.py add_location --name 柜子1"]) is False
     assert _has_write_cmd([]) is False
 
 

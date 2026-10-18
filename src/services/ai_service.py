@@ -92,9 +92,14 @@ def _looks_like_tool_call(text: str) -> bool:
 
 
 def _has_write_cmd(commands: list) -> bool:
-    """这批命令里有没有**写操作**（纯查询不算）。"""
+    """这批命令里有没有**用户可见的写操作**。
+
+    ⚠ `add_location` / `set_locations` 是**记账类**命令（为写物品做准备），不算效果 ——
+    否则"只加了位置、物品一件没落库"会被当成成功（bonsai 实测：17 个位置 vs 6 件物品 ✗）。
+    """
     names = [str(c).split("actions.py", 1)[-1].strip().split()[:1] for c in commands]
-    return any(n and n[0] not in ("lookup_item", "need_restock", "status") for n in names)
+    skip = ("lookup_item", "need_restock", "status", "add_location", "set_locations")
+    return any(n and n[0] not in skip for n in names)
 
 
 def _claims_done(text: str) -> bool:
