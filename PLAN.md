@@ -147,7 +147,9 @@
   1. 记账汇总卡此前用**显示文字**当 `objectName`（`sum_本月支出`）再按文字查找 →
      改为按**稳定键**（`sum_month`），`test_ui_wiring` 同步；
   2. 三处"按按钮文案判断高亮"的启发式（`txt in ("添加", ...)`）中，记账面板已改为 `tr()` 比较；
-     任务/考试面板的同类启发式**仍是待办**（见下方"仍待裁决"）。
+     任务/考试面板的同类启发式 —— **已全部清掉** ✓，并有守卫
+     （`tests/test_ui_style_coupling.py::test_no_style_decided_by_button_text` ✓）。
+     正确做法：创建时 `theme.mark_accent_button(btn)` 打属性，刷新时 `theme.is_accent_button(btn)` ✓。
 - **顺手清掉**：`main_window` 两处传给 `on_arrange_done(success=True, msg)` 的中文字符串
   在成功分支**根本不会被使用**（死字符串）→ 改为 `""`。
 
@@ -185,6 +187,8 @@
 
 - 记账之外的"按按钮文案判断高亮"（`task_panel` / `exam_panel` / `inventory_panel`）→ 建议统一改为
   按 `objectName` 或动态属性判断（现在是改文案就会静默失效的脆弱耦合）。
+  —— **已完成** ✓：三处启发式全清掉，改用 `theme.mark_accent_button()` / `is_accent_button()`
+  动态属性；守卫 `tests/test_ui_style_coupling.py`（2026-10-19 核对，PLAN 这行此前是过时的 ✗）。
 - `inventory` 的"状态值直接渲染"（`充足/需购/不足`）→ 若要入语言包，需先加"状态→键"映射。
 - i18n 剩余 106 处中若还有你认为是界面文字的，告诉我具体位置，我补键。
 
