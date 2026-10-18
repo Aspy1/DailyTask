@@ -254,15 +254,9 @@ class AIWorker(QObject):
             self.error.emit(str(e))
 
     def _run_commands(self, instructions: list, seen_cmds: dict) -> tuple[str, int, list]:
-        """执行一批命令 → `(喂回对话的结果文本, 写命令成功数, 写命令失败列表)`。
-
-        ⭐ **命令自己的结果（OK / ERROR）才是权威信号** —— 比"文件变了"准得多：
-        `add_location` 也会改文件，但用户要的东西并没落库（bonsai 实测 17 位置 / 6 物品）。
-        """
+        """执行一批命令 → `(喂回对话的结果文本, 写命令成功数, 写命令失败列表)`。"""
         results = InstructionParser.execute(instructions)
-        pairs = list(zip(instructions, results, strict=False))
-        bad = [c for c, r in pairs if _has_write_cmd([c]) and not str(r).startswith("OK")]
-        ok = [c for c, r in pairs if _has_write_cmd([c]) and str(r).startswith("OK")]
+        ok, bad = self._split_results(instructions, results)
         ckey = "|".join(sorted(str(c).strip() for c in instructions))
         seen_cmds[ckey] = seen_cmds.get(ckey, 0) + 1
         text = "\n".join(results)
@@ -271,34 +265,48 @@ class AIWorker(QObject):
             text += ("\n[事实] 命令已执行，但**一条都没成功**（被拒或报错了），"
                      "库存/日程没有任何变化。")
         note = repeat_nudge(seen_cmds, ckey, bool(ok))
-        if note:
-            text += "\n" + note
-        return text, len(ok), bad
+        return (text + "\n" + note) if note else text, len(ok), bad
+
+    @staticmethod
+    def _split_results(instructions: list, results: list) -> tuple[list, list]:
+        """按**命令自己的结果**（OK / ERROR）分写命令的成功与失败（记账/查询不算）。"""
+        pairs = list(zip(instructions, results, strict=False))
+        ok = [c for c, r in pairs if _has_write_cmd([c]) and str(r).startswith("OK")]
+        bad = [c for c, r in pairs if _has_write_cmd([c]) and not str(r).startswith("OK")]
+        return ok, bad
 
     def _finish(self, all_instructions: list, wrote_data: bool, display: str,
                 write_failures: list | None = None, finished_normally: bool = True,
                 ok_count: int = 0) -> None:
-        """收尾。**汇报权归代码**（§2.3）+ **量化覆盖**（§9.3：要说"12/15 成功"，不是"有些失败"）。"""
-        write_failures = write_failures or []
-        total = ok_count + len(write_failures)
-        if write_failures:
-            shown = "\n".join(f"  {c}" for c in write_failures[:5])
-            display += (f"\n\n⚠ **{len(write_failures)}/{total} 条写命令没有生效**：\n{shown}")
-        elif all_instructions and not finished_normally:
-            # §2.2：部分完成是**常态** —— 必须上报，否则"十三件只记了一件"没人知道
-            display += (f"\n\n⚠ **可能没记全** —— 到了轮次/时限上限才停。本次执行 "
-                        f"{len(all_instructions)} 条命令、其中写命令成功 {ok_count} 条；"
-                        f"这条话里东西多的话请核对，或回一句\"继续\"让我接着记。")
-        elif not wrote_data and (_has_write_cmd(all_instructions) or _claims_done(display)):
-            # ① 写了命令但没生效 ② **一条命令都没发却说做了**
-            display += ("\n\n⚠ **数据没有任何改动** —— 命令没生效，或本轮压根没执行任何命令"
-                        "（上面那句是模型的自我描述）。请重试或换个说法。")
+        """收尾：**汇报权归代码**（§2.3）+ **量化覆盖**（§9.3），见 `_status_note`。"""
+        display += self._status_note(all_instructions, wrote_data, ok_count,
+                                     write_failures or [], finished_normally, display)
         if all_instructions:
             self.finished_with_instructions.emit(display or "已完成", all_instructions)
         elif display:
             self.finished.emit(display)
         else:
             self.error.emit(_EMPTY_REPLY_NOTE)
+
+    @staticmethod
+    def _status_note(all_instructions: list, wrote_data: bool, ok_count: int,
+                     write_failures: list, finished_normally: bool, display: str) -> str:
+        """给用户看的告警文案（没有问题时返回空串）。
+
+        ⚠ **不许挂在模型的措辞上**：判定只用**命令自己的结果**与**是否被切断**。
+        """
+        total = ok_count + len(write_failures)
+        if write_failures:
+            shown = "\n".join(f"  {c}" for c in write_failures[:5])
+            return f"\n\n⚠ **{len(write_failures)}/{total} 条写命令没有生效**：\n{shown}"
+        if all_instructions and not finished_normally:
+            return (f"\n\n⚠ **可能没记全** —— 到了轮次/时限上限才停。本次执行 "
+                    f"{len(all_instructions)} 条命令、其中写命令成功 {ok_count} 条；"
+                    f"这条话里东西多的话请核对，或回一句\"继续\"让我接着记。")
+        if not wrote_data and (_has_write_cmd(all_instructions) or _claims_done(display)):
+            return ("\n\n⚠ **数据没有任何改动** —— 命令没生效，或本轮压根没执行任何命令"
+                    "（上面那句是模型的自我描述）。请重试或换个说法。")
+        return ""
 
     def _handle_no_instructions(self, text: str, truncated: bool, msgs: list,
                                 turn: int, all_instructions: list,

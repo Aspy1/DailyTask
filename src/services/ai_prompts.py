@@ -269,8 +269,22 @@ python scripts/actions.py restore --name "expenses.json" --yes  # 仅用户明�
 """
 
 
+def _instance_bits(it: dict, unit: str) -> list[str]:
+    """`instances` 各件的摘要（"分件:Type-C 2根(剩1提醒)"）。"""
+    out = []
+    for ins in it.get("instances") or []:
+        tags = ins.get("tags") or []
+        part = tags[0] if tags else "?"
+        if ins.get("quantity") is not None:
+            part += f" {ins['quantity']}{unit}"
+        if ins.get("min_doses"):
+            part += f"(剩{ins['min_doses']}提醒)"
+        out.append(f"分件:{part}")
+    return out
+
+
 def item_extra(it: dict, unit: str = "") -> str:
-    """物品的**补充信息**（备注 / 分件 / 片级下限）—— 拼给系统提示词用。
+    """物品的**补充信息**（备注 / 分件 / 阈值 / 到期 / 衣物）—— 拼给系统提示词用。
 
     为什么要补：库存摘要原来只有「[id] 名字 数量单位 [位置] - 状态 (标签)」，
     **备注和分件阈值都不给模型看** —— 于是它看不到"手机盒里装着数据线"这类关系、
@@ -279,22 +293,13 @@ def item_extra(it: dict, unit: str = "") -> str:
     bits = []
     if it.get("notes"):
         bits.append(f"备注:{it['notes']}")
-    for ins in it.get("instances") or []:
-        tags = ins.get("tags") or []
-        part = tags[0] if tags else "?"
-        if ins.get("quantity") is not None:
-            part += f" {ins['quantity']}{unit}"
-        if ins.get("min_doses"):
-            part += f"(剩{ins['min_doses']}提醒)"
-        bits.append(f"分件:{part}")
-    if it.get("min_doses"):
-        bits.append(f"片级下限{it['min_doses']}")
-    if it.get("runs_out_on"):
-        bits.append(f"预计用完:{it['runs_out_on']}")
+    bits += _instance_bits(it, unit)
+    for key, label in (("min_doses", "片级下限"), ("runs_out_on", "预计用完"),
+                       ("expires_on", "保质期到")):
+        if it.get(key):
+            bits.append(f"{label}:{it[key]}")
     if it.get("needs_wash"):
         bits.append("该洗了")
-    if it.get("expires_on"):
-        bits.append(f"保质期到:{it['expires_on']}")
     return ("  " + " ".join(bits)) if bits else ""
 
 

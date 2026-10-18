@@ -69,27 +69,35 @@ def wash_hints(items: list) -> list[Hint]:
     return out
 
 
+def _has_class_on(courses: list, weekday: int) -> bool:
+    """今天有没有课（`time_slots` 里带这个星期几）—— "上课也算出门"（P20）。"""
+    days = [int(s.get("day", 0)) for course in courses or []
+            for s in (course.get("time_slots") or [])]
+    return weekday in days
+
+
+def _outing_reason(plans: list, courses: list, today: date) -> str | None:
+    """今天会不会出门？返回**原因**（"今天有课" / "今天有安排"）或 `None`（不出门）。"""
+    if _has_class_on(courses, today.isoweekday()):        # 1=周一 … 7=周日
+        return "今天有课"
+    if [p for p in plans or [] if str(p.get("title") or "").strip()]:
+        return "今天有安排"
+    return None
+
+
 def outing_hints(plans: list, courses: list, today: date | None = None) -> list[Hint]:
     """**今天会出门吗**？会 → 出门前的三条提醒（`PLAN.md` P20）。
 
-    "出门"的口径（用户 P20 原话："上课也算出门"）：
-    今天**有课** ✓ 或 **有计划**（日程里排了东西）✓。
-
-    三条提示（都是**代码判断**，不让模型猜 ✓）：
+    三条都是**代码判断**，不让模型猜 ✓：
     1. 关键物品**归位**（用户口径：`右手架子上`）
     2. **倒垃圾**（每天第一次出门时）
     3. **给设备充电**（上课 / 出门前）
     """
-    today = today or date.today()
-    weekday = today.isoweekday()          # 1=周一 … 7=周日
-    has_class = any(any(int(s.get("day", 0)) == weekday for s in (c.get("time_slots") or []))
-                    for c in courses or [])
-    has_plan = bool([p for p in plans or [] if str(p.get("title") or "").strip()])
-    if not (has_class or has_plan):
+    reason = _outing_reason(plans, courses, today or date.today())
+    if not reason:
         return []
-    why = "今天有课" if has_class else "今天有安排"
     return [
-        Hint("outing.keys", f"{why} —— 出门前把钥匙串 / 卡包放回右手架子上 🔑", "info"),
+        Hint("outing.keys", f"{reason} —— 出门前把钥匙串 / 卡包放回右手架子上 🔑", "info"),
         Hint("outing.trash", "出门顺手带垃圾 🗑", "info"),
         Hint("outing.charge", "出门前检查设备电量、带上充电宝 🔋", "info"),
     ]

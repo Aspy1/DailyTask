@@ -257,6 +257,35 @@ def _prepare_real(args) -> None:
         print(f"⚠ 已清空 inventory items（位置清单保留 {len(dm.inventory.locations)} 个）")
 
 
+def _run_all(svc, dm, settings, todo: list, out: Path) -> None:
+    """逐条跑 + **追加**写报告（`main` 的循环体搬出来，降复杂度）。"""
+    history: list[dict] = []
+    for n, prompt, note in todo:
+        print(f"\n── [{n}] {prompt[:60]}", flush=True)
+        section, reply = _run_case(svc, dm, settings, n, prompt, note, history)
+        history += [{"role": "user", "content": prompt},
+                    {"role": "assistant", "content": reply}]
+        with out.open("a", encoding="utf-8") as f:
+            f.write(section + "\n---\n\n")
+        print(f"   已写入报告（回复 {len(reply)} 字）", flush=True)
+
+
+def _setup(args, settings, sandbox: Path) -> tuple:
+    """准备 `core.DATA` / `DataManager` / `AIService`（真实模式 vs 沙箱）。"""
+    import scripts.actions_core as core
+    from scripts.actions import run_in_process
+
+    if args.real:
+        core.DATA = DATA_DIR
+        dm = DataManager(DATA_DIR)
+        _prepare_real(args)
+    else:
+        core.DATA = sandbox
+        dm = DataManager(sandbox)
+        run_in_process(f'set_locations --values "{SEED_LOCATIONS}"')
+    return dm, AIService(settings, dm)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--from", dest="start", type=int, default=1, help="从第 N 条开始")
@@ -280,40 +309,15 @@ def main() -> None:
     if args.endpoint:
         _override_endpoint(settings, args)
     sandbox = Path(tempfile.mkdtemp(prefix="ai_alpha_"))
-    import scripts.actions_core as core
-
-    if args.real:
-        # ⚠ 真实模式：AI 命令**真的写进 data/** —— 先备份（`data/backup/` 不进仓库）
-        core.DATA = DATA_DIR
-        dm = DataManager(DATA_DIR)
-        _prepare_real(args)
-    else:
-        core.DATA = sandbox
-        dm = DataManager(sandbox)
-    svc = AIService(settings, dm)
-
-    from scripts.actions import run_in_process
-
-    if not args.real:
-        run_in_process(f'set_locations --values "{SEED_LOCATIONS}"')
+    dm, svc = _setup(args, settings, sandbox)
 
     only = {int(x) for x in str(args.only).split(",") if x.strip()}
     out = _resolve_out(args)
     if args.start == 1 and not only:
         _write_header(out, settings, dm)
 
-    history: list[dict] = []
     todo = [c for c in CASES if (c[0] in only if only else c[0] >= args.start)]
-    print(f"沙箱：{sandbox}\n模型：{settings.get('AI', 'model', '?')}\n待跑 {len(todo)} 条")
-
-    for n, prompt, note in todo:
-        print(f"\n── [{n}] {prompt[:60]}", flush=True)
-        section, reply = _run_case(svc, dm, settings, n, prompt, note, history)
-        history += [{"role": "user", "content": prompt},
-                    {"role": "assistant", "content": reply}]
-        with out.open("a", encoding="utf-8") as f:
-            f.write(section + "\n---\n\n")
-        print(f"   已写入报告（回复 {len(reply)} 字）", flush=True)
+    _run_all(svc, dm, settings, todo, out)
 
     print(f"\n报告：{out}")
 

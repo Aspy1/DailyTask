@@ -78,16 +78,20 @@ def _continuation_nudge(text: str, truncated: bool, empty_retries: int = 0,
     if truncated:
         return ("[系统] 你的回复被输出上限截断了。请**分批**继续："
                 "每轮最多 8 条命令，先执行完这批再继续下一批。")
-    if _claims_done(text) and not wrote_data:
-        # 声称"已记录"却没有命令 → 数据其实**没变**（2026-10-18 α 实测 ✗）
-        if empty_retries >= 2:
-            return None
+    return _claim_nudge(text, empty_retries, wrote_data)
+
+
+def _claim_nudge(text: str, empty_retries: int, wrote_data: bool) -> str | None:
+    """**声称写了却没命令** / **说"无需写入"却一条没执行** → 要求它真的输出命令。
+
+    两种都只纠正两次（再刷就是模型/网关的问题，别让用户白等）。
+    """
+    if empty_retries >= 2 or wrote_data:
+        return None
+    if _claims_done(text):
         return ("[系统] 你说了\"已记录/已完成\"，但这一轮**没有任何命令** —— 数据不会变。请**立刻**"
                 "输出 ```sh 命令块（先发命令再说话）；只有之前真的执行过命令，才可以回\"无需写入\"。")
-    if "无需写入" in text and not wrote_data:
-        # ⚠ 真实数据实测：模型先说"已记录"、被追问后改口"无需写入"，该记的**根本没落库**
-        if empty_retries >= 2:
-            return None
+    if "无需写入" in text:
         return ("[系统] 你说\"无需写入\"，但**本次请求到现在一条命令都没执行过**。如果用户"
                 "这句话里有要记 / 要改的东西，请**立刻**输出 ```sh 命令块。")
     return None
