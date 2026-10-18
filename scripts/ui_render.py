@@ -22,6 +22,7 @@
 """
 
 import argparse
+import json
 import os
 import sys
 import tempfile
@@ -121,6 +122,10 @@ class _Renderer:
         # 假 key（运行时拼，避免源码里出现像密钥的字面量）—— 让状态显示"已配置"，
         # 与真实环境一致
         settings.set("AI", "api_key", "sk-" + "render" + "0" * 24)
+        # 天气派生缓存：没有它「今日提示」条整条隐藏（截图里看不到）
+        (sandbox / "weather_cache.json").write_text(
+            json.dumps({"now": {"weathercode": 61, "temp": 8, "text": "小雨"},
+                        "forecast": []}, ensure_ascii=False), encoding="utf-8")
         self.mw = MainWindow(settings, AIService(settings, self.dm), self.dm)
         self.mw.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
         self.mw._status_timer.stop()
