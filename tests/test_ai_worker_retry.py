@@ -14,7 +14,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from helpers import read_json, run
 
-from src.services.ai_service import AIWorker, _continuation_nudge, _looks_truncated
+from src.services.ai_service import (
+    AIWorker,
+    _claims_done,
+    _continuation_nudge,
+    _looks_truncated,
+)
 
 TASK_CMD = 'python scripts/actions.py add_task --title "背包问题" --due 2026-10-20'
 
@@ -55,6 +60,20 @@ def test_continuation_nudge_cases() -> None:
     assert _continuation_nudge("```sh\ncmd", True), "截断要分批继续"
     # 正常提问（模型在要信息）**不**续跑，否则会把问题刷 5 遍
     assert _continuation_nudge("请提供课程名称与周次", False) is None
+
+
+def test_nudge_when_model_claims_it_wrote_but_sent_no_command() -> None:
+    """α 实测：模型只说"已记录：毛巾 2 条…"却一条命令都没发 → 数据其实没变 ✗。"""
+    nudge = _continuation_nudge("已记录：毛巾 2 条，放在晾衣架。", False)
+    assert nudge, "声称已写入却没有命令 → 要要求它真的输出命令"
+    assert "命令" in nudge
+    assert _continuation_nudge("已记录：毛巾 2 条。", False, empty_retries=1) is None, "只纠正一次"
+    # 前面几轮**已经写过数据**了 → 这句是正常的收尾说明，不该再纠正
+    assert _continuation_nudge("已记录：毛巾 2 条。", False, 0, True) is None
+    # 正常的解释性回复不算"声称已写入"
+    assert _continuation_nudge("衣柜左2 里是秋衣秋裤。", False) is None
+    assert _claims_done("已记录：毛巾 2 条。") is True
+    assert _claims_done("衣柜左2 里是秋衣秋裤。") is False
 
 
 def test_looks_truncated_only_counts_fences() -> None:

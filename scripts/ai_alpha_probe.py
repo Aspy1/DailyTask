@@ -205,7 +205,8 @@ def _run_case(svc, dm, settings, n: int, prompt: str, note: str,
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--from", dest="start", type=int, default=1, help="从第 N 条开始")
-    parser.add_argument("--only", type=int, default=0, help="只跑第 N 条")
+    parser.add_argument("--only", default="",
+                        help="只跑第 N 条（可逗号分隔多个，如 2,3,5）")
     parser.add_argument("--out", default=str(DEFAULT_OUT), help="报告路径")
     parser.add_argument("--tag", default="",
                         help="报告文件名后缀（**别在命令行写中文**，会被编码吃掉）")
@@ -224,11 +225,12 @@ def main() -> None:
 
     run_in_process(f'set_locations --values "{SEED_LOCATIONS}"')
 
+    only = {int(x) for x in str(args.only).split(",") if x.strip()}
     out = Path(args.out)
     if args.tag:
         out = out.with_name(f"{out.stem}-{args.tag}{out.suffix}")
     out.parent.mkdir(parents=True, exist_ok=True)
-    if args.start == 1 and not args.only:
+    if args.start == 1 and not only:
         out.write_text(
             f"# α 用例逐条测试记录（{datetime.now():%Y-%m-%d %H:%M}）\n\n"
             f"- 表：`D:\\360MoveData\\Users\\ASUS\\OneDrive\\Desktop\\新建 XLSX 工作表.xlsx`\n"
@@ -240,7 +242,7 @@ def main() -> None:
             encoding="utf-8")
 
     history: list[dict] = []
-    todo = [c for c in CASES if (c[0] == args.only if args.only else c[0] >= args.start)]
+    todo = [c for c in CASES if (c[0] in only if only else c[0] >= args.start)]
     print(f"沙箱：{sandbox}\n模型：{settings.get('AI', 'model', '?')}\n待跑 {len(todo)} 条")
 
     for n, prompt, note in todo:

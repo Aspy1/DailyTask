@@ -88,13 +88,23 @@ def _looks_like_tool_call(text: str) -> bool:
     return "invoke name=" in text or "<｜" in text or "｜>" in text
 
 
-def _continuation_nudge(text: str, truncated: bool, empty_retries: int = 0) -> str | None:
+def _claims_done(text: str) -> bool:
+    """模型是不是在**声称已经写入**（"已记录 / 已录入 / 已更新"…）。
+
+    2026-10-18 α 实测：模型有时只说"已记录：毛巾 2 条…"却**一条命令都没发** —— 数据其实没变 ✗。
+    """
+    return any(m in text for m in ("已记录", "已录入", "已更新", "已加入", "已新增", "已保存"))
+
+
+def _continuation_nudge(text: str, truncated: bool, empty_retries: int = 0,
+                        wrote_data: bool = False) -> str | None:
     """该不该要求模型"继续"？需要时返回提示语，正常回复返回 None。
 
     - **空回复**（0 字符）：多半是推理把输出预算吃光（`finish_reason=length`）
       → 明确要求它直接输出命令、别长篇思考。**只重试一次**：连续两次都空说明是
       模型/网关陷在思考里，再刷 5 轮只会让用户白等三分钟（2026-10-16 实测）。
     - **被截断**（围栏没收尾）→ 要求分批继续。
+    - **声称"已记录"却没有命令** → 要求它真的输出命令（见 `_claims_done`）。
 
     非空的普通文本回复**不**续跑：那可能是它在向用户提问（"请提供课表"），
     硬续跑只会把问题刷成 5 遍。
@@ -114,6 +124,12 @@ def _continuation_nudge(text: str, truncated: bool, empty_retries: int = 0) -> s
     if truncated:
         return ("[系统] 你的回复被输出上限截断了。请**分批**继续："
                 "每轮最多 8 条命令，先执行完这批再继续下一批。")
+    if _claims_done(text) and not wrote_data:
+        # 声称"已记录"却没有命令 → 数据其实**没变**，用户以为记上了（2026-10-18 α 实测 ✗）
+        if empty_retries >= 1:
+            return None
+        return ("[系统] 你说已经记录了，但这一轮**没有任何命令**，数据不会变。请**直接**输出"
+                " ```sh 命令块；如果确实不需要写数据，就明确说\"无需写入\"。")
     return None
 
 
@@ -279,7 +295,8 @@ class AIWorker(QObject):
         """这一轮没有可执行命令：要么要求模型继续（返回 True），要么收尾（返回 False）。"""
         empty_retries = sum(1 for m in msgs
                             if m["role"] == "user" and "[系统]" in str(m["content"]))
-        nudge = _continuation_nudge(text, truncated, empty_retries) if turn < 4 else None
+        wrote = bool(all_instructions)
+        nudge = _continuation_nudge(text, truncated, empty_retries, wrote) if turn < 4 else None
         if nudge:
             logger.warning("AI 第 %d 轮没有可执行命令，要求继续", turn + 1)
             msgs.append({"role": "assistant", "content": text})
