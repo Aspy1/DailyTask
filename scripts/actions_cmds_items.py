@@ -19,6 +19,7 @@ from src.models.inventory import (
     InventoryModel,
     apply_consume,
     canonical_location,
+    runs_out_date,
 )
 
 # `--membership` 允许的键（用户名 / 到期日 / 自动续费 / 续费月数）。
@@ -70,6 +71,20 @@ def _new_item_units(args) -> dict:
         "tags": _split_tag_list(getattr(args, "tags", "") or ""),
         "instances": _parse_instances(getattr(args, "instances", None)),
     }
+
+
+def _apply_runs_out(item: dict, args) -> None:
+    """「预估用完日」：`--runs-out-months N`（**代码算日期**）或 `--runs-out YYYY-MM-DD`。
+
+    用户用例表第 7/8 条（"估算大约还能用半年 / 预估还能用一个月"）—— 日期算术交给代码，
+    不让模型做（它做日期算术必错）。
+    """
+    months = getattr(args, "runs_out_months", None)
+    explicit = (getattr(args, "runs_out", None) or "").strip()
+    if months is not None:
+        item["runs_out_on"] = runs_out_date(int(months))
+    elif explicit:
+        item["runs_out_on"] = explicit
 
 
 def _new_item(iid: str, args) -> dict:
@@ -132,6 +147,7 @@ def cmd_add_item(args) -> None:
     data.setdefault("items", [])
     item = _new_item(gen_id(data["items"], "i"), args)
     item["location"] = _default_location(item, args)      # 没说位置 → 默认「学校」
+    _apply_runs_out(item, args)                           # 「还能用半年」→ 算成日期
     # ⚠ **硬护栏**：同名 + 同位置 + 没有区分（备注/标签）→ 拒绝新增。
     # 2026-10-18 真实数据实测：模型"补写前几轮欠的记录"时把已写过的又加了一遍 ✗
     dup = next((it for it in data["items"]
@@ -252,6 +268,7 @@ def _apply_item_updates(item: dict, args) -> None:
     if category:
         item["category"] = category
     _apply_item_quantity_fields(item, args)
+    _apply_runs_out(item, args)
     if location:
         item["location"] = canonical_location(location)   # 同义归一，词表不分叉
     if notes is not None and notes != "":

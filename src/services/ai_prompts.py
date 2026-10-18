@@ -178,6 +178,9 @@ python scripts/actions.py need_restock
     —— 少算一点会早点提醒补货，比多算安全（2026-10-18 α 实测：模型把"1 包多"记成 2 包 ✗）
 - **没说补货就不设阈值**：用户**没提**"要补货 / 提醒我买 / 快用完了" → **不要**自作主张给
   `--min-qty` / `--min-doses`（默认按"不补货"处理）。
+- **按时间估算补货**：用户说"估算大约还能用**半年** / 预估还能用**一个月**" →
+  用 `--runs-out-months N`（半年 → `6`、一个月 → `1`；代码会算成日期），
+  **不要**只写进备注 —— 这样到点会自动变成"不足 / 需购"并进补货提醒。
 - **跨域：库存口语里带着"提醒"**：用户说"记得提醒我整理 / 清洗 / 收纳 / 换" →
   除了记物品，还要 `add_plan` 建一条日程；物品的位置与状态照常更新。
   - **做完要说**：用户说"我做完了 X / 收拾完了 / 已经弄好了" → 在上下文的**日程清单**里找到
@@ -278,6 +281,8 @@ def item_extra(it: dict, unit: str = "") -> str:
         bits.append(f"分件:{part}")
     if it.get("min_doses"):
         bits.append(f"片级下限{it['min_doses']}")
+    if it.get("runs_out_on"):
+        bits.append(f"预计用完:{it['runs_out_on']}")
     return ("  " + " ".join(bits)) if bits else ""
 
 

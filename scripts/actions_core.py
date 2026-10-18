@@ -1,13 +1,9 @@
 """数据操作的**核心层**：读写、备份、参数校验、日期与课程名匹配。
 
-被 `scripts/actions.py`（命令层）与测试共用。这里是「AI 不直接写 JSON」这条
-红线的落点：
-
-- `load()`  —— 文件损坏**明说**，绝不当作空数据继续写（否则等于清空用户数据）；
-- `save()`  —— 结构守卫 → 写前备份 → 写 `.tmp` → 回读自检 → `os.replace` 原子替换；
-- `_validate_args()` —— 非法参数**抛 ActionError 且不写任何文件**；
-- 备份落在 `data/backup/actions/`（在 .gitignore 内，不会被 GitSync 推到 GitHub），
-  用户可用 `list_backups` / `restore --name X --yes` 手动回滚。
+被 `scripts/actions.py`（命令层）与测试共用。这里是「AI 不直接写 JSON」这条红线的落点：
+`load()` 文件损坏**明说**（绝不当作空数据继续写）、`save()` 结构守卫 + 写前备份 +
+`.tmp` + 回读自检 + 原子替换、`_validate_args()` 非法参数**抛错且不写任何文件**。
+备份落在 `data/backup/actions/`（在 .gitignore 内），可用 `restore --name X --yes` 回滚。
 """
 
 import json
@@ -567,9 +563,11 @@ ALLOWED_OPTIONS: dict[str, set[str]] = {
     "update_course": {"id", "name", "day", "weeks", "slots", "location",
                       "teacher", "parity"},
     "add_item": {"name", "category", "quantity", "min_qty", "min_doses", "location", "notes", "group",
-                 "tags", "status", "unit", "doses_per_unit", "instances", "membership"},
+                 "tags", "status", "unit", "doses_per_unit", "instances", "membership", "runs_out",
+                 "runs_out_months"},
     "update_item": {"id", "name", "group", "category", "quantity", "status", "min_qty", "min_doses",
-                    "location", "tags", "unit", "doses_per_unit", "instances", "membership", "notes"},
+                    "location", "tags", "unit", "doses_per_unit", "instances", "membership", "notes",
+                    "runs_out", "runs_out_months"},
     "consume": {"id", "amount"},
     "set_locations": {"values"},
     "delete_item": {"id"},
@@ -675,7 +673,8 @@ SPECS: dict[str, dict] = {
         "tags": ("text", MAX_NOTE),
         "unit": ("text", MAX_TEXT), "doses_per_unit": ("int_opt", 1, MAX_QUANTITY),
         "min_doses": ("int_opt", 0, MAX_QUANTITY),
-        "instances": ("text", MAX_JSON),
+        "instances": ("text", MAX_JSON), "runs_out": ("text", MAX_TEXT),
+        "runs_out_months": ("int_opt", 1, 600),
     },
     "consume": {"required": ("id",), "id": ("id",),
                 "amount": ("int_opt", 1, MAX_QUANTITY)},

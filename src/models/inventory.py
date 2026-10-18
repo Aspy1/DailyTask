@@ -1,7 +1,7 @@
 """Inventory model — personal item library."""
 
 import logging
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 from src.models.base import BaseJsonModel
@@ -50,6 +50,16 @@ DEFAULT_INVENTORY = {
 
 
 logger = logging.getLogger(__name__)
+
+
+def runs_out_date(months: int, today: date | None = None) -> str:
+    """今天 + `months` 个月 → `YYYY-MM-DD`（**按 30 天/月近似**，够用且不引第三方库）。
+
+    给"还能用半年 / 预估还能用一个月"用：**代码算日期**，不让模型做算术
+    （用户用例表第 7/8 条）。
+    """
+    base = today or date.today()
+    return (base + timedelta(days=int(months) * 30)).isoformat()
 
 
 def apply_consume(item: dict, amount: int = 1) -> int:
@@ -229,6 +239,7 @@ class InventoryModel(BaseJsonModel):
         任意一种剩 2 根就提醒我补货"）。
         """
         status = (InventoryModel._membership_status(item, today)
+                  or InventoryModel._runs_out_status(item, today)
                   or InventoryModel._quantity_status(item))
         for inst in item.get("instances") or []:
             if isinstance(inst, dict):
@@ -256,6 +267,21 @@ class InventoryModel(BaseJsonModel):
         """会员按到期日给状态；没有到期日（或日期解析不了）→ `None`，交给数量规则。"""
         expires_on = str(InventoryModel.membership_of(item).get("expires_on") or "")
         days = days_until(expires_on, today)
+        if days is None:
+            return None
+        if days < 0:
+            return "需购"
+        return "不足" if days <= RENEW_WARNING_DAYS else "充足"
+
+    @staticmethod
+    def _runs_out_status(item: dict, today: date | None = None) -> str | None:
+        """**预估用完日**（`runs_out_on`）驱动状态 —— 形状与会员到期日**完全一致**。
+
+        用户用例表第 7/8 条："估算大约还能用半年 / 预估还能用一个月"。
+        日期由**命令面**用 `--runs-out-months N` 算好存进来（**不让模型做日期算术**）。
+        没有这个字段（或解析不了）→ `None`，交给数量规则。
+        """
+        days = days_until(str(item.get("runs_out_on") or ""), today)
         if days is None:
             return None
         if days < 0:
