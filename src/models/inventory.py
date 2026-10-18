@@ -65,6 +65,24 @@ def apply_consume(item: dict, amount: int = 1) -> int:
     return left
 
 
+# 位置**同义说法**归一（用户用例表）：不同说法指同一个位置。
+# ⚠ **只归一真正的同义词** —— 用户明确要求"衣柜 ≠ 柜子"，所以**不做**模糊/子串匹配。
+# ⚠ 「外侧 / 外面 / 外边」按用户口径是**位置的位置**，写进 `notes`；这里归一它，
+#    是为了让"搜外面"也能找到 notes 里写着"外侧"的东西（见 `lookup_item`）。
+LOCATION_ALIASES = {
+    "桌子": "桌面",
+    "外面": "外侧", "外边": "外侧",
+    # 用户口径：衣柜没说哪一侧一律算**左**
+    "衣柜1": "衣柜左1", "衣柜2": "衣柜左2", "衣柜3": "衣柜左3", "衣柜4": "衣柜左4",
+}
+
+
+def canonical_location(name: str) -> str:
+    """把位置的同义说法归一到规范名（未知说法原样返回）。"""
+    value = (name or "").strip()
+    return LOCATION_ALIASES.get(value, value)
+
+
 class InventoryModel(BaseJsonModel):
     def __init__(self, file_path: Path) -> None:
         super().__init__(file_path, DEFAULT_INVENTORY)

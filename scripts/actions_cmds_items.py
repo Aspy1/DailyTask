@@ -13,7 +13,13 @@ from scripts.actions_core import (
     now_iso,
     save,
 )
-from src.models.inventory import DEFAULT_LOCATION, SIDE_SCHOOL, InventoryModel, apply_consume
+from src.models.inventory import (
+    DEFAULT_LOCATION,
+    SIDE_SCHOOL,
+    InventoryModel,
+    apply_consume,
+    canonical_location,
+)
 
 # `--membership` 允许的键（用户名 / 到期日 / 自动续费 / 续费月数）。
 # **手机号不在这里** —— 它不进 `inventory.json`（见 `models/membership_contacts.py`）。
@@ -29,7 +35,7 @@ def _default_location(item: dict, args) -> str:
     """
     explicit = (getattr(args, "location", None) or "").strip()
     if explicit:
-        return explicit
+        return canonical_location(explicit)   # 同义归一：说"桌子"存"桌面"
     if (item.get("category") or "") == "虚拟品类":
         return ""
     return DEFAULT_LOCATION
@@ -234,7 +240,7 @@ def _apply_item_updates(item: dict, args) -> None:
         item["category"] = category
     _apply_item_quantity_fields(item, args)
     if location:
-        item["location"] = location
+        item["location"] = canonical_location(location)   # 同义归一，词表不分叉
     if tags:
         item["tags"] = _split_tag_list(tags)
     _apply_membership(item, args)
@@ -332,9 +338,11 @@ def _item_line(it: dict) -> str:
 def _ensure_location(data: dict, location: str) -> str | None:
     """位置必须来自清单；不在就**自动加进去**（用户允许 AI 自行添加）。
 
+    ⚠ 先过**同义归一**（`canonical_location`）：用户说"桌子"时登记的是"桌面"，
+    词表不会因为换个说法就多一条（用户用例表第 12/24 条）。
     返回新加的位置名（没新增则 None），供命令回执里说明。
     """
-    name = (location or "").strip()
+    name = canonical_location(location)
     if not name:
         return None
     locs = data.setdefault("locations", [])
@@ -347,7 +355,7 @@ def _ensure_location(data: dict, location: str) -> str | None:
 def cmd_add_location(args) -> None:
     """给位置清单**追加**一个（不替换原有；整份替换用 `set_locations`）。"""
     data = load("inventory.json")
-    name = (getattr(args, "name", "") or "").strip()
+    name = canonical_location((getattr(args, "name", "") or "").strip())
     added = _ensure_location(data, name)
     save("inventory.json", data)
     print(f"OK add_location {name}" if added else f"OK add_location {name}（已存在）")
@@ -374,7 +382,11 @@ def _lookup_filters(args) -> list:
         or it["name"].lower() in raw["name"].lower(),
         "category": lambda it: it.get("category", "") == raw["category"],
         "tag": lambda it: raw["tag"] in (it.get("tags") or []),
-        "location": lambda it: it.get("location", "") == raw["location"],
+        # 位置：先**同义归一**再比；另外也匹配 `notes` —— 「外侧 / 最里面」这类
+        # "位置的位置"按用户口径写进了 notes（用例表第 24 条："搜外面能找到"）
+        "location": lambda it: canonical_location(raw["location"])
+        in (canonical_location(it.get("location", "")),)
+        or canonical_location(raw["location"]) in it.get("notes", ""),
     }
     active = [checks[k] for k in checks if raw[k]]
     if str(getattr(args, "restock", None) or "").strip() == "yes":
