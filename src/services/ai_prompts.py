@@ -138,7 +138,10 @@ python scripts/actions.py need_restock
 - 消耗（"用掉一瓶洗手液"）用 `consume`，**不要**手算 `--quantity`。
 - **数据集（本地 / 家）**：换季寄回家的东西放在**家**那一边。上下文会标出"当前数据集"，
   不写 `--dataset` 就是当前这一边。
-  - "寄回家 / 放家里 / 收起来" → `update_item --id … --dataset home`
+  - ⚠ `--dataset home` **只用于用户明确要把东西寄回 / 收起来**（"寄回家""拿回老家""过季收起来"）。
+    用户说"**家里**有 3 提抽纸"这类**日常描述**指的是**手边**（本地）→ **不要**用 `--dataset home`
+    （2026-10-18 探针实测：模型把"家里抽纸"记成了家数据集 ✗）
+  - "寄回家 / 拿回去 / 收起来" → `update_item --id … --dataset home`
   - "寄回来 / 拿回来" → `update_item --id … --dataset local`
   - 这是**改归属**，**不要**删了再建（`delete_item` + `add_item` 会丢历史、还可能变成两条）
   - 家那一边**不写** `--location`（家里一律只表示"在家"，写位置会被拒绝）
