@@ -106,6 +106,8 @@ def _add_item_parsers(sub) -> None:
     p.add_argument("--runs-out-months", type=int, help="还能用 N 个月（代码算日期）")
     p.add_argument("--worn-days", type=int, help="这件穿了 N 天（代码算起始日）")
     p.add_argument("--needs-wash", choices=["yes", "no"], help="该洗了？yes/no")
+    p.add_argument("--expires", help="保质期到期日 YYYY-MM-DD（药品临期换新）")
+    p.add_argument("--remind-before", type=int, help="到期前 N 天提醒（默认 7）")
     p.add_argument("--membership",
                    help='会员信息 JSON（虚拟品类）：{"username":"x","expires_on":"2027-03-15",'
                         '"auto_renew":true,"renew_months":12}；手机号**不放这里**')
@@ -128,6 +130,8 @@ def _update_item_parser(sub) -> None:
     p.add_argument("--runs-out-months", type=int, help="还能用 N 个月（代码算日期）")
     p.add_argument("--worn-days", type=int, help="这件穿了 N 天（代码算起始日）")
     p.add_argument("--needs-wash", choices=["yes", "no"], help="该洗了？yes/no")
+    p.add_argument("--expires", help="保质期到期日 YYYY-MM-DD（药品临期换新）")
+    p.add_argument("--remind-before", type=int, help="到期前 N 天提醒（默认 7）")
     p.add_argument("--tags")
     p.add_argument("--unit")
     p.add_argument("--doses-per-unit", type=int)

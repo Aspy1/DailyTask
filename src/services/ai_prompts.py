@@ -243,6 +243,9 @@ python scripts/actions.py restore --name "expenses.json" --yes  # 仅用户明�
   说"**我洗好了 / 洗完了**" → `update_item --id … --needs-wash no`；
   说"**这件我穿了 N 天**" → `--worn-days N`（**代码会算起始日**，你不用算）。
   该洗的会自动出现在日程界面顶部提示里 —— 不用你再建日程。
+- **药品保质期（常备药）**（C 类第 5 项）：说"这盒药**保质期到 2027-03** / 明年 3 月到期" →
+  `--expires YYYY-MM-DD`；说"**提前一个月提醒我换**" → `--remind-before 30`（默认 7 天）。
+  ⚠ **别用 `--runs-out` 记保质期** —— 那是"用完要补货"，这是"**临期要换新**"，两回事。
 7. 物品/存货/库存/还有多少/用完了/没货/该买/放在哪/在哪/挪到/拿到 → add_item、update_item、delete_item、lookup_item、need_restock
 8. 花了/买了/支出/记账/消费/多少钱/吃饭花了/打车/话费 → add_expense
 9. 存钱/省钱/攒钱/今天没花钱/自带饭/没消费 → add_saving
@@ -290,6 +293,8 @@ def item_extra(it: dict, unit: str = "") -> str:
         bits.append(f"预计用完:{it['runs_out_on']}")
     if it.get("needs_wash"):
         bits.append("该洗了")
+    if it.get("expires_on"):
+        bits.append(f"保质期到:{it['expires_on']}")
     return ("  " + " ".join(bits)) if bits else ""
 
 

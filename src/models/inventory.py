@@ -269,6 +269,7 @@ class InventoryModel(BaseJsonModel):
         任意一种剩 2 根就提醒我补货"）。
         """
         status = (InventoryModel._membership_status(item, today)
+                  or InventoryModel._expiry_status(item, today)
                   or InventoryModel._runs_out_status(item, today)
                   or InventoryModel._quantity_status(item))
         for inst in item.get("instances") or []:
@@ -317,6 +318,24 @@ class InventoryModel(BaseJsonModel):
         if days < 0:
             return "需购"
         return "不足" if days <= RENEW_WARNING_DAYS else "充足"
+
+    @staticmethod
+    def _expiry_status(item: dict, today: date | None = None) -> str | None:
+        """**保质期**（`expires_on`）驱动状态 —— 药品临期换新用（C 类第 5 项）。
+
+        ⚠ `PLAN.md` P20 原来写的是"到保质期的 **3/4** 时提醒"，但**我们只有到期日、
+        没有生产日期**，这个比例**算不出来** ✗。所以老实做成"**到期前 N 天**"
+        （`remind_before_days`，默认 7），比假装精确更诚实。
+
+        与 `runs_out_on` 的区别：那是"用完要补货"，这是"临期要换新" —— 机制相同，语义不同。
+        """
+        days = days_until(str(item.get("expires_on") or ""), today)
+        if days is None:
+            return None
+        if days < 0:
+            return "需购"
+        lead = item.get("remind_before_days") or RENEW_WARNING_DAYS
+        return "不足" if days <= int(lead) else "充足"
 
     @staticmethod
     def _quantity_status(item: dict) -> str:

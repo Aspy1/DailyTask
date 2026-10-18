@@ -88,6 +88,19 @@ def _apply_runs_out(item: dict, args) -> None:
         item["runs_out_on"] = explicit
 
 
+def _apply_expiry(item: dict, args) -> None:
+    """保质期（C 类第 5 项）：`--expires YYYY-MM-DD` + `--remind-before N`（到期前 N 天提醒）。
+
+    ⚠ 不实现"保质期的 3/4"—— 只有到期日、没有生产日期，算不出来 ✗（见 P20 的说明）。
+    """
+    explicit = (getattr(args, "expires", None) or "").strip()
+    if explicit:
+        item["expires_on"] = explicit
+    lead = getattr(args, "remind_before", None)
+    if lead is not None:
+        item["remind_before_days"] = int(lead)
+
+
 def _apply_wash(item: dict, args) -> None:
     """衣物状态（用户用例表第 13/22 条）：`--worn-days N`（**代码算起始日**）+
     `--needs-wash yes|no`（"换来用了" → yes；"洗好了" → no）。"""
@@ -160,6 +173,7 @@ def cmd_add_item(args) -> None:
     item = _new_item(gen_id(data["items"], "i"), args)
     item["location"] = _default_location(item, args)      # 没说位置 → 默认「学校」
     _apply_runs_out(item, args)                           # 「还能用半年」→ 算成日期
+    _apply_expiry(item, args)                             # 药品保质期（到期前 N 天提醒）
     _apply_wash(item, args)                               # 衣物：穿了几天 / 该洗了
     # ⚠ **硬护栏**：同名 + 同位置 + 没有区分（备注/标签）→ 拒绝新增。
     # 2026-10-18 真实数据实测：模型"补写前几轮欠的记录"时把已写过的又加了一遍 ✗
@@ -282,6 +296,7 @@ def _apply_item_updates(item: dict, args) -> None:
         item["category"] = category
     _apply_item_quantity_fields(item, args)
     _apply_runs_out(item, args)
+    _apply_expiry(item, args)
     _apply_wash(item, args)
     if location:
         item["location"] = canonical_location(location)   # 同义归一，词表不分叉
