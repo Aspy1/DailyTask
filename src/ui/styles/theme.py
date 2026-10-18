@@ -60,6 +60,7 @@ BTN_W_SM = CONTROLS["button_width_sm"]
 TOGGLE_W = CONTROLS["toggle_width"]
 TOGGLE_H = CONTROLS["toggle_height"]
 FAB = CONTROLS["fab"]
+CIRCLE_BADGE = CONTROLS["circle_badge"]
 
 
 def size_small_button(btn, min_width: int = BTN_W_SM) -> None:

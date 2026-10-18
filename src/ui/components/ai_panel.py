@@ -26,6 +26,8 @@ def _md_to_html(text: str) -> str:
     ⚠ 先 `html.escape` 再做 markdown：否则用户正文里的 `<b>` 会被 Qt 当标签渲染（审查 U3）。
     ⚠ 代码块用成对的 `code_bg`/`code_fg`：`code_bg` 是深色，正文色不能继承（审查 U8，
     浅色主题下正文/代码底只有 1.32:1）。
+    ⚠ 项目符号**不用** `<ul>/<li>`：Qt 给列表项加的块间距很大，回复看着像被拉开
+    （2026-10-18 用户反馈"行间距过大"）→ 直接用 `•` 拼 `<br>`；空行也折叠掉，同理。
     """
     colors = get_colors()
     code_bg, code_fg = colors["code_bg"], colors["code_fg"]
@@ -35,24 +37,13 @@ def _md_to_html(text: str) -> str:
     text = re.sub(r'`([^`\n]+?)`',
                   fr'<code style="background:{code_bg};color:{code_fg};padding:1px 4px;'
                   fr'border-radius: 4px;">\1</code>', text)
-    # Bullet points: lines starting with - or • become <li>
-    lines = text.split('\n')
-    in_list = False
     out = []
-    for line in lines:
+    for line in text.split('\n'):
         stripped = line.strip()
         if stripped.startswith('- ') or stripped.startswith('• '):
-            if not in_list:
-                out.append('<ul style="margin:2px 0;padding-left:16px;">')
-                in_list = True
-            out.append(f'<li>{stripped[2:]}</li>')
-        else:
-            if in_list:
-                out.append('</ul>')
-                in_list = False
-            out.append(line)
-    if in_list:
-        out.append('</ul>')
+            out.append(f'•&nbsp;{stripped[2:]}')
+        elif stripped:
+            out.append(stripped)      # 空行丢掉：靠 `margin-bottom` 分隔消息就够了
     return '<br>'.join(out)
 
 

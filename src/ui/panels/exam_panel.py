@@ -19,7 +19,7 @@ from PySide6.QtWidgets import (
 from src.i18n.loader import tr
 from src.services.data_manager import DataManager
 from src.ui.styles.cards import Card
-from src.ui.styles.theme import RADIUS, font, get_colors
+from src.ui.styles.theme import CIRCLE_BADGE, font, get_colors
 from src.ui.widgets.dialog_shell import action_row, cap_height, form_row, make_scrollable
 from src.ui.widgets.menu import (
     add_action,
@@ -97,25 +97,32 @@ class _ExamCard(Card):
 
     @staticmethod
     def _make_badge(days_left: int, c: dict) -> QLabel:
-        """左侧倒计时徽章。"""
-        badge = QLabel()
-        badge.setFixedSize(52, 52)
-        badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        """左侧倒计时徽章（**圆形**）。
+
+        ⚠ 圆角必须取直径的**一半**：原来用 `radius_pill`（999），Qt 会把它画成
+        **圆角方块**而不是圆（2026-10-18 用户看渲染图发现的）。
+        """
         if days_left < 0:
-            badge.setText(tr("panel.exam.badge_past"))
-            badge.setStyleSheet(f"color: {c['fg_hint']}; font-size: 11px; font-weight: 600; background: {c['bg_input']}; border-radius: {RADIUS['radius_pill']}px;")
+            text, fg, bg, weight = tr("panel.exam.badge_past"), c["fg_hint"], c["bg_input"], 600
         elif days_left == 0:
-            badge.setText(tr("panel.exam.badge_today"))
-            badge.setStyleSheet(f"color: {c['fg_on_fill']}; font-size: 13px; font-weight: 700; background: {c['red_fill']}; border-radius: {RADIUS['radius_pill']}px;")
+            text, fg, bg, weight = (tr("panel.exam.badge_today"),
+                                    c["fg_on_fill"], c["red_fill"], 700)
         elif days_left <= 7:
-            badge.setText(tr("panel.exam.badge_days_left", days=days_left))
-            badge.setStyleSheet(f"color: {c['fg_on_fill']}; font-size: 13px; font-weight: 700; background: {c['red_fill']}; border-radius: {RADIUS['radius_pill']}px;")
+            text, fg, bg, weight = (tr("panel.exam.badge_days_left", days=days_left),
+                                    c["fg_on_fill"], c["red_fill"], 700)
         elif days_left <= 15:
-            badge.setText(tr("panel.exam.badge_days_left", days=days_left))
-            badge.setStyleSheet(f"color: {c['fg_on_fill']}; font-size: 13px; font-weight: 700; background: {c['orange_fill']}; border-radius: {RADIUS['radius_pill']}px;")
+            text, fg, bg, weight = (tr("panel.exam.badge_days_left", days=days_left),
+                                    c["fg_on_fill"], c["orange_fill"], 700)
         else:
-            badge.setText(tr("panel.exam.badge_days_left", days=days_left))
-            badge.setStyleSheet(f"color: {c['fg_secondary']}; font-size: 13px; font-weight: 600; background: {c['bg_input']}; border-radius: 26px;")
+            text, fg, bg, weight = (tr("panel.exam.badge_days_left", days=days_left),
+                                    c["fg_secondary"], c["bg_input"], 600)
+
+        badge = QLabel(text)
+        badge.setFixedSize(CIRCLE_BADGE, CIRCLE_BADGE)
+        badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        badge.setStyleSheet(
+            f"color: {fg}; font-size: 13px; font-weight: {weight};"
+            f" background: {bg}; border-radius: {CIRCLE_BADGE // 2}px;")
         return badge
 
     @staticmethod

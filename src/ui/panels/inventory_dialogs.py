@@ -25,7 +25,7 @@ from PySide6.QtWidgets import (
 
 from src.i18n.loader import tr
 from src.models.inventory import days_until
-from src.ui.styles.theme import get_colors
+from src.ui.styles.theme import RADIUS, get_colors
 from src.ui.widgets.dialog_shell import DialogShell, action_row, form_row
 from src.ui.widgets.rounded_button import RoundedButton
 from src.ui.widgets.rounded_input import RoundedLineEdit
@@ -62,10 +62,17 @@ def edit_tags_dialog(parent, dm, item: dict) -> bool:
     dlg = DialogShell(parent, tr("panel.inventory.dialog_edit_tags_title",
                                  name=item.get('name', '')))
     layout = dlg.body
+    c = get_colors()
 
     tag_list = QListWidget()
     for t in item.get("tags", []):
         tag_list.addItem(t)
+    # 每项给一层**统一的淡底**并把行距收紧：全局 `QListWidget::item` 是 8px 12px 内边距、
+    # 没有底色 → 三项之间又高又分不清（2026-10-18 用户看渲染图反馈）
+    tag_list.setStyleSheet(
+        f"QListWidget::item {{ background-color: {c['item_bg']};"
+        f" border-radius: {RADIUS['radius_sm']}px; padding: 2px 10px; margin: 2px 0; }}"
+        f" QListWidget::item:selected {{ background-color: {c['accent_bg']}; }}")
     layout.addWidget(QLabel(tr("panel.inventory.label_current_tags")))
     layout.addWidget(tag_list)
 

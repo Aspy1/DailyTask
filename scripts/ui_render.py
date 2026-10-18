@@ -159,9 +159,13 @@ class _Renderer:
         self.mw._on_ai_toggle(True)
         if mode == "light":
             self.mw._ai_panel.append_message("user", "请帮我整理今天的日程，保留晚上的休息时间。")
+            # ⚠ 这里只放**像真的**回复：之前我编了一句 `使用 lookup_item … 查询物品。`，
+            # 用户看截图时以为产品真的会输出这种无关提示（2026-10-18 反馈）✗
             self.mw._ai_panel.append_message(
-                "ai", "已经整理完成。\n- 先完成课程实验\n- 然后复习英语\n"
-                      "使用 `lookup_item --name 维生素片` 查询物品。")
+                "ai", "已经把今天的三件事排好了，晚上的休息时间留着没排：\n"
+                      "- 第 2 节：完成课程实验\n"
+                      "- 第 4 节：复习英语\n"
+                      "想调整时段直接说一声就行。")
         self.mw.resize(*NARROW)
         for key in ("expenses", "settings", "inventory"):
             self.mw._workspace.switch_to(key)

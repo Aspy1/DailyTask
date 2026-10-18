@@ -245,7 +245,7 @@ class Sidebar(QWidget):
             QPushButton {{
                 background: transparent; border: none;
                 color: {color}; font-size: 12px; {weight}
-                text-align: left; padding: 8px 16px;
+                text-align: center; padding: 8px 16px;
             }}
             QPushButton:hover {{ color: {c['accent_text']}; }}
         """

@@ -92,6 +92,7 @@
 | `code_bg` | `#3a3a40` | `#3a3a40` | 行内代码块背景（AI 回复/API 测试） |
 | `code_fg` | `#F0EDE6` | `#F0EDE6` | 行内代码块文字（code_bg 是深色，两套主题都用浅字，别再继承正文色） |
 | `focus_ring` | `#8C5F24` | `#D9AE58` | 焦点环 / 焦点描边（键盘可达性；每模式取**最显眼**的强调色变体） |
+| `item_bg` | `rgba(0,0,0,0.04)` | `rgba(255,255,255,0.06)` | 列表项 / 标签的**中性淡底**（两模式都要看得见；`bg_elevated` 在浅色下与 `bg_input` 同色，不能用来区分） |
 <!-- TOKENS:colors:END -->
 
 > 「用途」列来自 `tokens.json` 的 `color_notes`。

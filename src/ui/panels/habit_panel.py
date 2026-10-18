@@ -98,7 +98,7 @@ class _HabitCard(Card):
             padding: 2px 10px; border-radius: 4px;
             background-color: {tag_bg}; border: none;
         """)
-        row1.addWidget(tag)
+        row1.addWidget(tag, 0, Qt.AlignmentFlag.AlignTop)
         layout.addLayout(row1)
 
         # Row 2: description
