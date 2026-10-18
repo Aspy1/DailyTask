@@ -22,6 +22,7 @@ from src.i18n.loader import tr
 from src.services.data_manager import DataManager
 from src.ui.styles.cards import Card
 from src.ui.styles.theme import RADIUS, SIZE_SUBTITLE, font, get_colors
+from src.ui.widgets.dialog_shell import cap_height, make_scrollable
 from src.ui.widgets.menu import (
     add_action,
     new_menu,
@@ -278,9 +279,11 @@ class ExamDialog(QDialog):
             }}
         """)
 
-        layout = QVBoxLayout(self)
-        layout.setSpacing(12)
-        layout.setContentsMargins(24, 20, 24, 16)
+        outer = QVBoxLayout(self)
+        outer.setSpacing(12)
+        outer.setContentsMargins(24, 20, 24, 16)
+        # 内容可滚动 + 限高（审查 U9）；⚠ 按钮行挂在 `outer` 上，不跟着内容滚
+        layout = make_scrollable(outer)
         form = QFormLayout()
         form.setSpacing(10)
 
@@ -310,7 +313,8 @@ class ExamDialog(QDialog):
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         buttons.accepted.connect(self._ok)
         buttons.rejected.connect(self.reject)
-        layout.addWidget(buttons)
+        outer.addWidget(buttons)
+        cap_height(self)
 
     def _ok(self) -> None:
         if not self._course.text().strip():
