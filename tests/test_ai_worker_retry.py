@@ -79,6 +79,7 @@ def test_finish_warns_when_claiming_without_data_change(qapp) -> None:
     worker = AIWorker(None, "m", "", [], None, None)
     seen: list[str] = []
     worker.finished_with_instructions.connect(lambda t, _i: seen.append(t))
+    worker.finished.connect(seen.append)      # 无命令时走这条
 
     worker._finish(["python x"], wrote_data=False, display="已记录：牙膏 1 瓶",
                    write_failures=["python scripts/actions.py add_item --name x"])
@@ -87,6 +88,10 @@ def test_finish_warns_when_claiming_without_data_change(qapp) -> None:
     seen.clear()
     worker._finish(["python x"], wrote_data=False, display="已记录：牙膏 1 瓶")
     assert seen and "没有任何改动" in seen[-1], "写了命令却没变也要警告"
+
+    seen.clear()
+    worker._finish([], wrote_data=False, display="已完成：扑克牌已收拾好")
+    assert seen and "没有任何改动" in seen[-1], "一条命令都没发却说做了，也要警告"
 
     seen.clear()
     worker._finish(["python scripts/actions.py lookup_item --name x"], wrote_data=False,

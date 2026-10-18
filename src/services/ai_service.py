@@ -107,7 +107,7 @@ def _claims_done(text: str) -> bool:
 
     2026-10-18 α 实测：模型有时只说"已记录：毛巾 2 条…"却**一条命令都没发** —— 数据其实没变 ✗。
     """
-    return any(m in text for m in ("已记录", "已录入", "已更新", "已加入", "已新增", "已保存"))
+    return any(m in text for m in ("已记录", "已录入", "已更新", "已加入", "已新增", "已保存", "已完成"))
 
 
 def _continuation_nudge(text: str, truncated: bool, empty_retries: int = 0,
@@ -323,13 +323,15 @@ class AIWorker(QObject):
 
     def _finish(self, all_instructions: list, wrote_data: bool, display: str,
                 write_failures: list | None = None) -> None:
+        if write_failures:
+            shown = "\n".join(f"  {c}" for c in write_failures[:5])
+            display += f"\n\n⚠ **这些命令没有生效**（已如实告知）：\n{shown}"
+        elif not wrote_data and (_has_write_cmd(all_instructions)
+                                 or _claims_done(display)):
+            # 两种情况都要告诉用户：① 写了命令但没生效 ② **一条命令都没发却说做了**
+            display += ("\n\n⚠ **数据没有任何改动** —— 命令没生效，或本轮压根没执行任何命令"
+                        "（上面那句是模型的自我描述）。请重试或换个说法。")
         if all_instructions:
-            if write_failures:
-                shown = "\n".join(f"  {c}" for c in write_failures[:5])
-                display += f"\n\n⚠ **这些命令没有生效**（已如实告知）：\n{shown}"
-            elif not wrote_data and _has_write_cmd(all_instructions):
-                display += ("\n\n⚠ **数据没有任何改动** —— 命令执行了但没生效"
-                            "（可能被拒或报错），请重试或换个说法。")
             self.finished_with_instructions.emit(display or "已完成", all_instructions)
         elif display:
             self.finished.emit(display)
