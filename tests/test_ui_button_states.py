@@ -109,6 +109,46 @@ def test_markdown_escapes_user_html() -> None:
     assert "<b>粗</b>" in _md_to_html("**粗**")
 
 
+def test_instance_thresholds_use_or_semantics() -> None:
+    """⚠ 用户用例表第 4 条：分件阈值是 **or** —— 任意一件到下限，整条就告急。
+
+    "0.5 的笔芯还有 12 根、0.4 的还有 4 根，任意一种剩 2 根时提醒我补货"。
+    """
+    from src.models.inventory import InventoryModel
+
+    item = {"id": "i_001", "name": "笔芯", "quantity": 16, "min_quantity": 1,
+            "instances": [{"tags": ["0.5"], "quantity": 12, "min_doses": 2},
+                          {"tags": ["0.4"], "quantity": 4, "min_doses": 2}]}
+    assert InventoryModel.derive_status(item) == "充足", "12 / 4 都在下限之上"
+
+    item["instances"][1]["quantity"] = 2
+    assert InventoryModel.derive_status(item) == "不足", "任意一件告急 → 整条告急"
+
+    item["instances"][1]["quantity"] = 0
+    assert InventoryModel.derive_status(item) == "需购"
+
+
+def test_instance_without_quantity_follows_the_item() -> None:
+    """没写数量的件跟整条一致（老数据/普通 instances 不受影响）。"""
+    from src.models.inventory import InventoryModel
+
+    item = {"id": "i_001", "name": "充电线", "quantity": 2, "min_quantity": 1,
+            "instances": [{"tags": ["Type-C"]}, {"tags": ["Lightning"]}]}
+    assert InventoryModel.derive_status(item) == "充足"
+
+    item["quantity"] = 0
+    assert InventoryModel.derive_status(item) == "需购"
+
+
+def test_instance_remainder_does_not_leak_from_the_item() -> None:
+    """⚠ 单件算状态时不能被整条的 `remaining_doses` 串味。"""
+    from src.models.inventory import InventoryModel
+
+    item = {"id": "i_001", "name": "笔芯", "quantity": 1, "remaining_doses": 99,
+            "instances": [{"tags": ["0.5"], "quantity": 1, "min_doses": 2}]}
+    assert InventoryModel.derive_status(item) == "不足", "按单件自己的 1 算，不是整条的 99"
+
+
 def test_control_specs_live_in_tokens() -> None:
     """⚠ 审查 §3：控件规格（高度 / 尺寸）要在 **tokens** 里，不是散在代码里。
 

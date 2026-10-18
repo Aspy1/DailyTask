@@ -205,9 +205,33 @@ class InventoryModel(BaseJsonModel):
         否则充足。两个下限同时给了**以片级为准**（`quantity × doses_per_unit < min_doses`）
         —— 它才对应"剩不到 5 片就提醒我买"（2026-10-18 探针发现的单位错位：
         `--min_qty 5` 是"5 盒"，与用户说的"5 片"差 24 倍）。
+
+        **分件阈值（or 语义）**：`instances` 里某一"件"自己带了 `quantity` 就按它自己的下限
+        算，**任意一件**告急 → 整条告急（用户用例表第 4 条："0.5 的笔芯 12 根、0.4 的 4 根，
+        任意一种剩 2 根就提醒我补货"）。
         """
-        return (InventoryModel._membership_status(item, today)
-                or InventoryModel._quantity_status(item))
+        status = (InventoryModel._membership_status(item, today)
+                  or InventoryModel._quantity_status(item))
+        for inst in item.get("instances") or []:
+            if isinstance(inst, dict):
+                status = InventoryModel._worse(status,
+                                               InventoryModel.instance_status(inst, item))
+        return status
+
+    @staticmethod
+    def instance_status(instance: dict, item: dict) -> str:
+        """**单件**的状态：它自己带了 `quantity` 就按它算（可覆盖整条的下限），否则跟整条一致。"""
+        if instance.get("quantity") is None:
+            return InventoryModel._quantity_status(item)
+        merged = {**item, **instance}
+        merged.pop("remaining_doses", None)   # ⚠ 整条的余量别串到单件上
+        return InventoryModel._quantity_status(merged)
+
+    @staticmethod
+    def _worse(a: str, b: str) -> str:
+        """取更严重的状态（需购 > 不足 > 充足）—— 分件阈值是 **or** 语义。"""
+        order = {"充足": 0, "不足": 1, "需购": 2}
+        return a if order.get(a, 0) >= order.get(b, 0) else b
 
     @staticmethod
     def _membership_status(item: dict, today: date | None = None) -> str | None:
@@ -226,13 +250,17 @@ class InventoryModel(BaseJsonModel):
 
         ⚠ 顺序要紧：**先看余量是否为 0**，而且要用**精确余量**比 ——
         一盒用剩 23 片时 `quantity`（盒数）是 0，先判盒数就会误报"需购"（F1 的连带）。
+
+        ⚠ 两个下限的**边界不同**（跟着用户说法走，用户用例表）：
+        - `min_doses`（片级）："剩 **2 根时**提醒我补货" → **到 2 就算不足**（`<=`）
+        - `min_quantity`（单位级）："剩**不到** 2 盒" → **低于**才算不足（`<`）
         """
         left = InventoryModel.remaining_doses(item)
         if left <= 0:
             return "需购"
         min_doses = item.get("min_doses", 0) or 0
         if min_doses > 0:
-            return "不足" if left < min_doses else "充足"
+            return "不足" if left <= min_doses else "充足"
         return "不足" if item.get("quantity", 1) < item.get("min_quantity", 1) else "充足"
 
     @staticmethod

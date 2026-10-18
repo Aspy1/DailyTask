@@ -121,6 +121,10 @@ python scripts/actions.py need_restock
   一份里还有更小单位时用 `--doses-per-unit`（"1 盒 24 片" → `--quantity 1 --doses-per-unit 24`）。
 - **同类物品不同特征**：一条物品 + `--instances`（JSON 数组），**不要**拆成两条无关物品。
   例：两条充电线 → `--name "充电线" --quantity 2 --instances '[{"tags":["Type-C"]},{"tags":["Lightning"]}]'`。
+  - **分件阈值（or 语义）**：某件自己还有数量/下限时，把 `quantity` / `min_doses` /
+    `min_quantity` 写进**那一件**里 —— **任意一件**到下限就提醒补货（`--quantity` 写总数）。
+    例："0.5 的笔芯 12 根、0.4 的 4 根，任意一种剩 2 根就提醒我补货" →
+    `--name "笔芯" --quantity 16 --instances '[{"tags":["0.5"],"quantity":12,"min_doses":2},{"tags":["0.4"],"quantity":4,"min_doses":2}]'`
 - **补货阈值分两级**：`--min_qty N` 是**与 `--unit` 同单位**的下限（"剩不到 2 盒"）；
   说"剩不到 N **片/包**"这种**小单位**时用 `--min-doses N`
   （"1 盒 24 片，剩不到 5 片" → `--doses-per-unit 24 --min-doses 5`）。
