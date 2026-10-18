@@ -18,7 +18,12 @@ ROOT = Path(__file__).resolve().parent.parent
 
 
 def test_no_ui_token_violations() -> None:
+    """存量（QSS 的 PX / 代码里的固定尺寸字面量）走**基线**，这里只拦**新增**（审查 §6.2）。"""
+    from scripts.check_ui_tokens import _load_px_baseline
+
     names, value_to_name = load_tokens()
+    baseline = _load_px_baseline()
+    exempt = {"SIZE-LIT"} if "size_lit" in baseline else set()
     problems: list[str] = []
     for f in (ROOT / "src").rglob("*.py"):
         if f.name in SKIP_FILES or any(s in f.parts for s in SKIP_DIRS):
@@ -29,6 +34,8 @@ def test_no_ui_token_violations() -> None:
             if masked[i - 1]:
                 continue
             for kind, frag, _hint in check_line(line, names, value_to_name, False):
+                if kind in exempt:
+                    continue
                 problems.append(f"{f.relative_to(ROOT)}:{i} [{kind}] {frag}")
     assert not problems, "UI 令牌违规:\n" + "\n".join(problems[:20])
 

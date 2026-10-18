@@ -35,6 +35,9 @@ RE_RGB = re.compile(r"\brgba?\(\s*\d[^)]*\)")   # 必须紧跟数字：`rgba({x}
 RE_ISSUE_REF = re.compile(r"(?:ERRORS|ERR|条目|问题|issue)\s*#\d+\b", re.IGNORECASE)
 RE_QSS_CLASS = re.compile(r"(?<![\w.])(_?[A-Z][A-Za-z0-9_]*)\s*\{\{")
 RE_PX = re.compile(r"font-size:\s*(\d+)px")
+# 固定尺寸里写死的像素（`setFixedHeight(36)` / `setFixedSize(44, 24)`）——
+# 应改用 tokens 的 `controls`（审查 §6.2："另检查当前盲区"）
+RE_SIZE_LIT = re.compile(r"set(?:Fixed|Minimum|Maximum)(?:Height|Width|Size)\(\s*(\d+)")
 RE_SUBSCRIPT = re.compile(r"\[['\"]([a-z][a-z0-9_]{2,})['\"]\]")
 RE_QFONT = re.compile(r"QFont\(")
 
@@ -162,6 +165,10 @@ def check_line(line: str, names: set[str], value_to_name: dict[str, str], check_
         for m in RE_PX.finditer(line):
             findings.append(("PX", m.group(0), "→ 用 SIZE_* 常量"))
 
+    # 固定尺寸字面量：**始终检查**（它的存量走基线，不靠 `--check-px` 开关）
+    for m in RE_SIZE_LIT.finditer(line):
+        findings.append(("SIZE-LIT", m.group(0), "→ 用 tokens 的 controls 规格"))
+
     findings += _find_token_name_findings(line, names)
     return findings
 
@@ -273,18 +280,19 @@ def _baseline_path() -> Path:
     return Path(__file__).resolve().parent / "ui_tokens_baseline.json"
 
 
-def _load_px_baseline() -> int | None:
-    """已登记的 PX 存量（**只允许减少**）。文件不存在 / 读不出来 → None（不豁免）。"""
+def _load_px_baseline() -> dict:
+    """已登记的存量台账（`px` / `size_lit`，**只允许减少**）。读不出来 → 空 dict（不豁免）。"""
     try:
-        return int(json.loads(_baseline_path().read_text(encoding="utf-8"))["px"])
-    except (OSError, ValueError, KeyError, TypeError):
-        return None
+        data = json.loads(_baseline_path().read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {}
+    except (OSError, ValueError):
+        return {}
 
 
-def _write_px_baseline(count: int) -> None:
+def _write_px_baseline(counts: dict) -> None:
     _baseline_path().write_text(
-        json.dumps({"_note": "UI 令牌门禁的 PX 存量台账：只防新增，改完重写。",
-                    "px": count}, ensure_ascii=False, indent=2) + "\n",
+        json.dumps({"_note": "UI 令牌门禁的存量台账：只防新增，改完重写。",
+                    **counts}, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8")
 
 
@@ -302,19 +310,24 @@ def main() -> None:
     _print_summary(len(files), total, by_kind, per_file)
 
     if args.write_px_baseline:
-        _write_px_baseline(by_kind.get("PX", 0))
-        print(f"已写入 PX 基线：{by_kind.get('PX', 0)} 处")
+        counts = {"px": by_kind.get("PX", 0), "size_lit": by_kind.get("SIZE-LIT", 0)}
+        _write_px_baseline(counts)
+        print(f"已写入存量基线：{counts}")
         return
 
-    # PX 存量走基线（审查 §6.2：现存债务逐项登记、只允许减少）；
-    # 其余违规（硬编码颜色）必须为 0 —— `--strict` 照样拦。
+    # 存量走基线（审查 §6.2：现存债务逐项登记、只允许减少）；
+    # 其余违规（硬编码颜色 / 类名选择器）必须为 0 —— `--strict` 照样拦。
     px = by_kind.get("PX", 0)
-    base = _load_px_baseline()
-    if args.strict and base is not None and px > base:
-        print(f"\n✗ PX 违规 {px} 处 > 基线 {base} 处 —— 只允许减少"
-              f"（确实要改基线用 --write-px-baseline）")
+    size_lit = by_kind.get("SIZE-LIT", 0)
+    baseline = _load_px_baseline()
+    over = [f"{key}={count} > 基线 {baseline[key]}"
+            for key, count in (("px", px), ("size_lit", size_lit))
+            if key in baseline and count > baseline[key]]
+    if args.strict and over:
+        print("\n✗ 存量超标（只允许减少）：" + "；".join(over)
+              + "\n（确实要改基线用 --write-px-baseline）")
         raise SystemExit(1)
-    if args.strict and (total - px):
+    if args.strict and (total - px - size_lit):
         raise SystemExit(1)
 
 

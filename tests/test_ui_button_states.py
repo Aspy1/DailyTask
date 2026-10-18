@@ -138,11 +138,11 @@ def test_text_roles_group_size_and_weight() -> None:
     assert font(18, 700).pixelSize() == 18, "照样收像素字号"
 
 
-def test_px_baseline_guards_against_new_hardcoded_sizes() -> None:
-    """⚠ 审查 §6.2：PX 存量登记在基线里，**只允许减少**。
+def test_ui_token_baseline_guards_against_new_debt() -> None:
+    """⚠ 审查 §6.2：存量（QSS 的 PX + 代码里的固定尺寸字面量）登记在基线里，**只允许减少**。
 
-    改少了要重写基线（`--write-px-baseline`）；改多了 CI 会拦（`--strict --check-px`）。
-    这里断言当前数不超基线 —— 顺带保证基线文件本身没被误删/写坏。
+    改少了要重写基线（`--write-px-baseline`）；改多了 CI 会拦
+    （`SIZE-LIT` 是**始终检查**的，不受 `--check-px` 开关影响）。
     """
     from scripts.check_ui_tokens import (
         _collect_files,
@@ -153,11 +153,13 @@ def test_px_baseline_guards_against_new_hardcoded_sizes() -> None:
 
     names, value_to_name = load_tokens()
     _, by_kind, _ = _scan_files(_collect_files(["src"]), names, value_to_name, True)
-    base = _load_px_baseline()
+    baseline = _load_px_baseline()
 
-    assert base is not None, "PX 基线文件丢了（scripts/ui_tokens_baseline.json）"
-    assert by_kind.get("PX", 0) <= base, (
-        f"PX 违规涨到 {by_kind.get('PX')} 处（基线 {base}）—— 新增了硬编码字号")
+    assert baseline, "基线文件丢了（scripts/ui_tokens_baseline.json）"
+    for key, kind in (("px", "PX"), ("size_lit", "SIZE-LIT")):
+        assert by_kind.get(kind, 0) <= baseline.get(key, 0), (
+            f"{kind} 涨到 {by_kind.get(kind)}（基线 {baseline.get(key)}）"
+            f" —— 新增了硬编码尺寸")
 
 
 def test_dialog_shell_caps_height_and_scrolls(qapp) -> None:
