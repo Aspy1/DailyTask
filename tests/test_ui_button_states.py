@@ -109,6 +109,28 @@ def test_markdown_escapes_user_html() -> None:
     assert "<b>粗</b>" in _md_to_html("**粗**")
 
 
+def test_px_baseline_guards_against_new_hardcoded_sizes() -> None:
+    """⚠ 审查 §6.2：PX 存量登记在基线里，**只允许减少**。
+
+    改少了要重写基线（`--write-px-baseline`）；改多了 CI 会拦（`--strict --check-px`）。
+    这里断言当前数不超基线 —— 顺带保证基线文件本身没被误删/写坏。
+    """
+    from scripts.check_ui_tokens import (
+        _collect_files,
+        _load_px_baseline,
+        _scan_files,
+        load_tokens,
+    )
+
+    names, value_to_name = load_tokens()
+    _, by_kind, _ = _scan_files(_collect_files(["src"]), names, value_to_name, True)
+    base = _load_px_baseline()
+
+    assert base is not None, "PX 基线文件丢了（scripts/ui_tokens_baseline.json）"
+    assert by_kind.get("PX", 0) <= base, (
+        f"PX 违规涨到 {by_kind.get('PX')} 处（基线 {base}）—— 新增了硬编码字号")
+
+
 def test_dialog_shell_caps_height_and_scrolls(qapp) -> None:
     """⚠ U9 回归：长弹窗要**限高 + 中间滚动**，否则屏幕不够高时底部按钮够不着。"""
     from PySide6.QtWidgets import QScrollArea

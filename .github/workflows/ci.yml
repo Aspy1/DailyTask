@@ -49,7 +49,7 @@ jobs:
         run: python -m ruff check src scripts plugins tests
 
       - name: UI 令牌合规
-        run: python scripts/check_ui_tokens.py --strict
+        run: python scripts/check_ui_tokens.py --strict --check-px
 
       # 规范里"能自动检查"的部分（尺寸/静默吞异常/ID 生成/令牌命名/i18n 计数/
       # 顶层目录/密钥入库 + vulture + radon）；存量债走 scripts/quality_baseline.json

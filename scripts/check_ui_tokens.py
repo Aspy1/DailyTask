@@ -171,6 +171,8 @@ def _parse_args() -> argparse.Namespace:
     ap.add_argument("paths", nargs="*", default=["src"], help="要检查的路径（默认 src）")
     ap.add_argument("--strict", action="store_true", help="有违规时返回退出码 1")
     ap.add_argument("--check-px", action="store_true", help="同时检查 font-size 的 Npx")
+    ap.add_argument("--write-px-baseline", action="store_true",
+                    help="把当前 PX 违规数写成基线（存量台账，只允许减少）")
     return ap.parse_args()
 
 
@@ -267,9 +269,30 @@ def _force_utf8_stdout() -> None:
             stream.reconfigure(encoding="utf-8", errors="replace")
 
 
+def _baseline_path() -> Path:
+    return Path(__file__).resolve().parent / "ui_tokens_baseline.json"
+
+
+def _load_px_baseline() -> int | None:
+    """已登记的 PX 存量（**只允许减少**）。文件不存在 / 读不出来 → None（不豁免）。"""
+    try:
+        return int(json.loads(_baseline_path().read_text(encoding="utf-8"))["px"])
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+
+
+def _write_px_baseline(count: int) -> None:
+    _baseline_path().write_text(
+        json.dumps({"_note": "UI 令牌门禁的 PX 存量台账：只防新增，改完重写。",
+                    "px": count}, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8")
+
+
 def main() -> None:
     _force_utf8_stdout()
     args = _parse_args()
+    if args.write_px_baseline:
+        args.check_px = True          # ⚠ 写基线必须真的扫 PX，否则会记成 0
 
     names, value_to_name = load_tokens()
 
@@ -278,7 +301,20 @@ def main() -> None:
     total, by_kind, per_file = _scan_files(files, names, value_to_name, args.check_px)
     _print_summary(len(files), total, by_kind, per_file)
 
-    if args.strict and total:
+    if args.write_px_baseline:
+        _write_px_baseline(by_kind.get("PX", 0))
+        print(f"已写入 PX 基线：{by_kind.get('PX', 0)} 处")
+        return
+
+    # PX 存量走基线（审查 §6.2：现存债务逐项登记、只允许减少）；
+    # 其余违规（硬编码颜色）必须为 0 —— `--strict` 照样拦。
+    px = by_kind.get("PX", 0)
+    base = _load_px_baseline()
+    if args.strict and base is not None and px > base:
+        print(f"\n✗ PX 违规 {px} 处 > 基线 {base} 处 —— 只允许减少"
+              f"（确实要改基线用 --write-px-baseline）")
+        raise SystemExit(1)
+    if args.strict and (total - px):
         raise SystemExit(1)
 
 
