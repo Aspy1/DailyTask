@@ -1,4 +1,6 @@
 {
   "widget.toggle": "开关",
-  "widget.toggle_hint": "空格或回车切换"
+  "widget.toggle_hint": "空格或回车切换",
+  "widget.dialog.btn_cancel": "取消",
+  "widget.dialog.btn_confirm": "确定"
 }

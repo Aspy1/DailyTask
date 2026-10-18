@@ -27,7 +27,7 @@ from PySide6.QtWidgets import (
 from src.i18n.loader import tr
 from src.models.inventory import days_until
 from src.ui.styles.theme import get_colors
-from src.ui.widgets.dialog_shell import DialogShell
+from src.ui.widgets.dialog_shell import DialogShell, form_row
 from src.ui.widgets.rounded_button import RoundedButton
 from src.ui.widgets.rounded_input import RoundedLineEdit
 
@@ -136,13 +136,16 @@ def email_reminder_dialog(parent, dm, item: dict) -> None:
 
 
 def _labeled_field(layout, label_key: str, initial: str, hint: str = "") -> RoundedLineEdit:
-    """"标签 + 输入框"一行（输入框走自绘的 `RoundedLineEdit`，不手写 QSS）。"""
-    layout.addWidget(QLabel(tr(label_key)))
+    """"标签 + 输入框"一行（行工厂见 `dialog_shell.form_row`，`Q-H9`）。
+
+    ⚠ 原来这里是"标签在**上**、输入框在下"，与其它弹窗的"标签在左"不是一套东西；
+    现在统一走工厂。
+    """
     edit = RoundedLineEdit()
     edit.setText(initial)
     if hint:
         edit.setPlaceholderText(hint)
-    layout.addWidget(edit)
+    layout.addWidget(form_row(tr(label_key), edit))
     return edit
 
 

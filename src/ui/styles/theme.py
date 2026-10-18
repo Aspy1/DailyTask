@@ -574,6 +574,20 @@ def btn_primary_qss() -> str:
     """
 
 
+def btn_danger_qss() -> str:
+    """危险操作按钮（删除 / 清空）：`red_fill` 填充 + `fg_on_fill` 文字（`Q-H11`）。"""
+    c = get_colors()
+    return f"""
+        QPushButton {{
+            background-color: {c['red_fill']}; color: {c['fg_on_fill']}; border: none;
+            border-radius: 8px; padding: 8px 12px; font-size: {SIZE_BODY_S}px; font-weight: 500;
+        }}
+        QPushButton:hover {{ background-color: {c['red']}; }}
+        QPushButton:pressed {{ background-color: {c['red']}; }}
+        QPushButton:disabled {{ background-color: {c['fg_disabled']}; color: {c['fg_on_fill']}; }}
+    """
+
+
 def btn_secondary_qss() -> str:
     """次按钮样式 - 透明背景 + 边框"""
     c = get_colors()

@@ -13,17 +13,27 @@
 `body` 是 `QVBoxLayout`，内容装在 `QScrollArea` 里；按钮行在外壳上，永远可见。
 """
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QApplication,
     QDialog,
     QDialogButtonBox,
     QFrame,
+    QHBoxLayout,
+    QLabel,
     QScrollArea,
     QVBoxLayout,
     QWidget,
 )
 
-from src.ui.styles.theme import get_colors
+from src.i18n.loader import tr
+from src.ui.styles.theme import (
+    btn_danger_qss,
+    btn_primary_qss,
+    btn_secondary_qss,
+    get_colors,
+)
+from src.ui.widgets.rounded_button import RoundedButton
 
 # 弹窗最高占可用屏幕高度的比例（留出标题栏与任务栏的余量）
 MAX_HEIGHT_RATIO = 0.85
@@ -65,6 +75,56 @@ def dialog_qss() -> str:
             f" background: transparent; border: none; }}"
             f" QListWidget {{ background-color: {c['bg_input']}; color: {c['fg_primary']};"
             f" border: 1px solid {c['border']}; font-size: 13px; }}")
+
+
+def form_row(label: str, field: QWidget, label_width: int = 88) -> QWidget:
+    """「标签 + 控件」一行 —— **唯一**的行工厂（`Q-H9`）。
+
+    标签在**左**、固定宽度；控件占满余下宽度。标签样式由 `dialog_qss()` 的 `QLabel`
+    规则统一决定，这里**不写内联样式** —— 否则又回到"每个弹窗各写一套"。
+
+    为什么要工厂：原来有 4 套各写各的 —— `semester_dialog._field_row`（标签左）、
+    `inventory_dialogs._labeled_field`（标签**在上**）、`settings_panel._row`（固定 100 居中）、
+    裸 `QFormLayout`（habit / exam / api_test）。并排看就不是一套东西（`Q-H9` 的原话）。
+    """
+    row = QWidget()
+    row.setStyleSheet("background: transparent;")
+    rl = QHBoxLayout(row)
+    rl.setContentsMargins(0, 0, 0, 0)
+    rl.setSpacing(8)
+    lbl = QLabel(label)
+    lbl.setMinimumWidth(label_width)
+    lbl.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+    rl.addWidget(lbl)
+    rl.addWidget(field, 1)
+    return row
+
+
+def action_row(primary_text: str, on_primary, *, cancel_text: str = "",
+               on_cancel=None, danger: bool = False) -> QWidget:
+    """弹窗底部按钮行 —— **唯一**的按钮行工厂（`Q-H11`）。
+
+    - 顺序：**取消在左、主操作在最右**；文案必须是中文动词（缺省走 i18n）
+    - 主操作走 `btn_primary_qss()`；`danger=True`（删除 / 清空）走 `btn_danger_qss()`
+    - `on_cancel` 缺省不接（调用方一般传 `dialog.reject`）
+    """
+    row = QWidget()
+    row.setStyleSheet("background: transparent;")
+    rl = QHBoxLayout(row)
+    rl.setContentsMargins(0, 0, 0, 0)
+    rl.addStretch()
+
+    cancel = RoundedButton(cancel_text or tr("widget.dialog.btn_cancel"))
+    cancel.setStyleSheet(btn_secondary_qss())
+    if on_cancel is not None:
+        cancel.clicked.connect(lambda _checked=False: on_cancel())
+    rl.addWidget(cancel)
+
+    primary = RoundedButton(primary_text)
+    primary.setStyleSheet(btn_danger_qss() if danger else btn_primary_qss())
+    primary.clicked.connect(lambda _checked=False: on_primary())
+    rl.addWidget(primary)
+    return row
 
 
 class DialogShell(QDialog):

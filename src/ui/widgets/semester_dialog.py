@@ -35,7 +35,7 @@ from src.models.semester import (
 from src.services.data_manager import DataManager
 from src.ui.components.semester_text import issue_text, semester_state_text
 from src.ui.styles.theme import FIELD_H, SIZE_BODY_L, SIZE_BODY_S, get_colors
-from src.ui.widgets.dialog_shell import cap_height, dialog_qss, make_scrollable
+from src.ui.widgets.dialog_shell import cap_height, dialog_qss, form_row, make_scrollable
 from src.ui.widgets.rounded_button import RoundedButton
 from src.ui.widgets.rounded_input import RoundedLineEdit
 
@@ -115,7 +115,7 @@ class SemesterDialog(QDialog):
             ("dialog.semester.label_exam_weeks", self._exam_input),
             ("dialog.semester.label_periods", self._periods_input),
         ):
-            layout.addLayout(self._field_row(tr(label_key), widget))
+            layout.addWidget(form_row(tr(label_key), widget))
 
         hint = QLabel(tr("dialog.semester.hint_season"))
         hint.setWordWrap(True)
@@ -144,16 +144,6 @@ class SemesterDialog(QDialog):
         label.setStyleSheet(
             f"font-size: {SIZE_BODY_L}px; font-weight: 600; margin-top: 4px;")
         return label
-
-    @staticmethod
-    def _field_row(text: str, widget) -> QHBoxLayout:
-        row = QHBoxLayout()
-        row.setSpacing(8)
-        label = QLabel(text)
-        label.setMinimumWidth(88)
-        row.addWidget(label)
-        row.addWidget(widget, stretch=1)
-        return row
 
     # ── 数据 ────────────────────────────────────────────────
     def _refresh(self) -> None:

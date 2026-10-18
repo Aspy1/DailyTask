@@ -15,7 +15,6 @@ from PySide6.QtCore import QLocale
 from PySide6.QtWidgets import (
     QDateTimeEdit,
     QDialog,
-    QHBoxLayout,
     QLabel,
     QMessageBox,
     QVBoxLayout,
@@ -23,7 +22,7 @@ from PySide6.QtWidgets import (
 
 from src.i18n.loader import tr
 from src.ui.styles.theme import get_colors
-from src.ui.widgets.rounded_button import RoundedButton
+from src.ui.widgets.dialog_shell import action_row
 
 logger = logging.getLogger(__name__)
 
@@ -143,7 +142,8 @@ def add_email_reminder_dialog(dm, parent, item_type: str, item_name: str,
     dt.setDisplayFormat("yyyy-MM-dd HH:mm")
     layout.addWidget(dt)
 
-    layout.addLayout(_dialog_buttons(dlg, c))
+    layout.addWidget(action_row(tr("widget.schedule.btn_confirm"), dlg.accept,
+                                on_cancel=dlg.reject))
 
     if dlg.exec() == QDialog.DialogCode.Accepted:
         selected = dt.dateTime().toPython()
@@ -166,20 +166,3 @@ def _default_notify_datetime(item_date: str) -> datetime:
     except ValueError:
         logger.debug("默认提醒时间解析失败: %s", item_date, exc_info=True)
     return default
-
-
-def _dialog_buttons(dlg, c: dict) -> QHBoxLayout:
-    """取消 / 确定按钮行。"""
-    row = QHBoxLayout()
-    row.addStretch()
-    cancel = RoundedButton(tr("widget.schedule.btn_cancel"))
-    cancel.setStyleSheet(f"""
-        QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
-            border-radius: 8px; padding: 6px 18px; font-size: 13px; }}
-    """)
-    cancel.clicked.connect(dlg.reject)
-    row.addWidget(cancel)
-    confirm = RoundedButton(tr("widget.schedule.btn_confirm"))
-    confirm.clicked.connect(dlg.accept)
-    row.addWidget(confirm)
-    return row
