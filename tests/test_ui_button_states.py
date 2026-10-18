@@ -86,6 +86,36 @@ def test_markdown_escapes_user_html() -> None:
     assert "<b>粗</b>" in _md_to_html("**粗**")
 
 
+def test_habit_card_grows_instead_of_clipping(qapp) -> None:
+    """⚠ U6 回归：习惯卡是**最小**高度（原来固定 135 → 长标题/多标签被硬裁）。"""
+    from src.ui.panels.habit_panel import CARD_MIN_HEIGHT, _HabitCard
+
+    card = _HabitCard({"id": "h1", "name": "很长很长很长的习惯名字" * 4,
+                       "schedule": {"type": "daily"}}, active=True, done=False)
+    assert card.minimumHeight() == CARD_MIN_HEIGHT
+    assert card.maximumHeight() > CARD_MIN_HEIGHT, "不能再是固定高度"
+
+
+def test_flow_grid_divides_available_width(qapp) -> None:
+    """⚠ U6 回归：流式网格按可用宽度**均分**（原来每项固定宽 → 右侧留一大片空白）。"""
+    from PySide6.QtWidgets import QWidget
+
+    from src.ui.widgets.flow_grid import FlowGrid
+
+    grid = FlowGrid(min_item_width=200)
+    grid.resize(900, 400)
+    for _ in range(3):
+        child = QWidget(grid)
+        child.setMinimumHeight(100)
+        child.show()
+    grid._layout_children()
+
+    kids = [c for c in grid.children() if isinstance(c, QWidget)]
+    widths = {c.width() for c in kids}
+    assert len(widths) == 1, "同一行应等宽"
+    assert widths.pop() > 200, "余宽要摊开，不是每项固定 200"
+
+
 def test_toggle_switch_is_keyboard_operable(qapp) -> None:
     """⚠ U7 回归：开关不能只有鼠标路径（原来是 `QWidget` + 默认 `NoFocus`）。
 

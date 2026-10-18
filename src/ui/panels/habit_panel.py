@@ -2,7 +2,7 @@
 
 import logging
 
-from PySide6.QtCore import QRect, QSize, Qt, Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
     QDialog,
@@ -24,6 +24,7 @@ from src.i18n.loader import tr
 from src.services.data_manager import DataManager
 from src.ui.styles.cards import Card
 from src.ui.styles.theme import SIZE_BODY, SIZE_SUBTITLE, font, get_colors
+from src.ui.widgets.flow_grid import FlowGrid
 from src.ui.widgets.menu import (
     add_action,
     new_menu,
@@ -33,7 +34,8 @@ from src.ui.widgets.rounded_button import RoundedButton
 from src.ui.widgets.rounded_input import RoundedComboBox, RoundedLineEdit
 
 CARD_MIN_WIDTH = 210
-CARD_HEIGHT = 135
+# **最小**高度（不是固定高度）：内容多就长高，不再一律截到 135（审查 U6）
+CARD_MIN_HEIGHT = 135
 
 
 logger = logging.getLogger(__name__)
@@ -59,8 +61,9 @@ class _HabitCard(Card):
 
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setMinimumWidth(CARD_MIN_WIDTH)
-        self.setFixedHeight(CARD_HEIGHT)
-        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        # ⚠ 原为 `setFixedHeight(CARD_HEIGHT)`：长标题/多标签会被硬裁掉（审查 U6）
+        self.setMinimumHeight(CARD_MIN_HEIGHT)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
         # 识别钩子（不再是 QSS 选择器 —— 样式由 Card 自绘）：测试与验收脚本按它找习惯卡
         self.setObjectName("habitCard")
 
@@ -86,6 +89,8 @@ class _HabitCard(Card):
         row1.setSpacing(8)
         name_lbl = QLabel(habit.get("name", ""))
         name_lbl.setFont(font(SIZE_BODY))
+        name_lbl.setWordWrap(True)                    # 长标题换行，不再被挤掉（U6）
+        name_lbl.setToolTip(habit.get("name", ""))    # 超长时给完整内容（U6）
         name_lbl.setStyleSheet(
             f"font-weight: 600; color: {name_fg}; border: none; background: transparent;")
         row1.addWidget(name_lbl)
@@ -236,48 +241,6 @@ def _build_description(habit: dict, is_daily: bool, is_weekly: bool) -> str:
         parts.append(" · ".join(names))
     return "  ·  ".join(parts) if parts else ""
 
-class _FlowGrid(QWidget):
-    """Simple flow layout — arranges children in rows, re-wrapping on resize."""
-
-    def __init__(self, parent=None) -> None:
-        super().__init__(parent)
-        self._spacing = 12
-
-    def setSpacing(self, s: int) -> None:
-        self._spacing = s
-
-    def sizeHint(self) -> QSize:
-        return QSize(400, 200)
-
-    def minimumSizeHint(self) -> QSize:
-        return QSize(200, 200)
-
-    def resizeEvent(self, ev) -> None:
-        super().resizeEvent(ev)
-        self._layout_children()
-
-    def _layout_children(self) -> None:
-        w = self.width()
-        x = 0
-        y = 0
-        row_h = 0
-        for child in self.children():
-            if not isinstance(child, QWidget) or child.isHidden():
-                continue
-            cw = child.minimumWidth()
-            ch = child.height()
-            if x > 0 and x + cw > w:
-                x = 0
-                y += row_h + self._spacing
-                row_h = 0
-            child.setGeometry(QRect(x, y, max(cw, CARD_MIN_WIDTH), ch))
-            child.show()
-            x += max(cw, CARD_MIN_WIDTH) + self._spacing
-            row_h = max(row_h, ch)
-        self.setMinimumHeight(y + row_h + self._spacing)
-        self.updateGeometry()
-
-
 class HabitPanel(QWidget):
     habit_logged = Signal(str, bool)
 
@@ -311,7 +274,7 @@ class HabitPanel(QWidget):
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setStyleSheet("QScrollArea { background: transparent; border: none; }")
-        self._grid = _FlowGrid()
+        self._grid = FlowGrid(CARD_MIN_WIDTH)
         self._grid.setSpacing(12)
         scroll.setWidget(self._grid)
         layout.addWidget(scroll, stretch=1)
