@@ -217,6 +217,10 @@ def remap_stylesheets(app: QApplication, from_mode: str, to_mode: str) -> int:
         return 0
     changed = 0
     for widget in app.allWidgets():
+        # ⚠ 长会话里会累积"Python 包装器还在、C++ 对象已销毁"的控件，直接碰它们可能**崩进程**
+        # （access violation，不是 Python 异常，try/except 拦不住）—— 与 `_RoundedFrameFixer` 同一套保护
+        if not isValid(widget):
+            continue
         # 自绘控件的底色**不在 styleSheet() 里**（被摘掉了）→ 让它们自己重算（审查 U1）
         remap_own = getattr(widget, "remap_theme_colors", None)
         if remap_own is not None and remap_own(maps):

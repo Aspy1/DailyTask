@@ -32,7 +32,8 @@ MAX_HEIGHT_RATIO = 0.85
 class DialogShell(QDialog):
     """带滚动内容的弹窗外壳。调用方只往 `body` 加内容。"""
 
-    def __init__(self, parent=None, title: str = "", min_width: int = 360) -> None:
+    def __init__(self, parent=None, title: str = "", min_width: int = 360,
+                 buttons: bool = True) -> None:
         super().__init__(parent)
         self.setWindowTitle(title)
         self.setMinimumWidth(min_width)
@@ -40,6 +41,7 @@ class DialogShell(QDialog):
         outer = QVBoxLayout(self)
         outer.setContentsMargins(20, 16, 20, 16)
         outer.setSpacing(10)
+        self._outer = outer
 
         self._scroll = QScrollArea()
         self._scroll.setWidgetResizable(True)
@@ -52,14 +54,21 @@ class DialogShell(QDialog):
         self._scroll.setWidget(content)
         outer.addWidget(self._scroll, 1)
 
-        self.buttons = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
-        self.buttons.accepted.connect(self.accept)
-        self.buttons.rejected.connect(self.reject)
-        outer.addWidget(self.buttons)
+        # `buttons=False` 给"自带按钮行"的弹窗用（比如学期弹窗只有关闭按钮）
+        self.buttons: QDialogButtonBox | None = None
+        if buttons:
+            self.buttons = QDialogButtonBox(
+                QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+            self.buttons.accepted.connect(self.accept)
+            self.buttons.rejected.connect(self.reject)
+            outer.addWidget(self.buttons)
 
         self._apply_style()
         self._cap_height()
+
+    def add_action_row(self, widget: QWidget) -> None:
+        """挂一行**自定义**按钮：固定在外壳底部（不在滚动区里，永远可见）。"""
+        self._outer.addWidget(widget)
 
     def _apply_style(self) -> None:
         """弹窗样式**只有这一处**（原来每个弹窗各写一份内联 QSS）。"""
