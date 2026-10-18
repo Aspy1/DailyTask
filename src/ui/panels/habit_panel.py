@@ -16,7 +16,7 @@ from src.i18n.loader import tr
 from src.services.data_manager import DataManager
 from src.ui.panels.habit_dialogs import HabitDialog
 from src.ui.styles.cards import Card
-from src.ui.styles.theme import SIZE_BODY, font, get_colors
+from src.ui.styles.theme import FAB, SIZE_BODY, font, get_colors
 from src.ui.widgets.flow_grid import FlowGrid
 from src.ui.widgets.menu import (
     add_action,
@@ -274,7 +274,7 @@ class HabitPanel(QWidget):
         # Floating + button
         c = get_colors()
         self._fab = RoundedButton("+", self)
-        self._fab.setFixedSize(48, 48)
+        self._fab.setFixedSize(FAB, FAB)
         self._fab.setStyleSheet(f"""
             QPushButton {{ background-color: {c['accent']}; color: {c['fg_on_fill']}; border: none;
                 border-radius: 24px; font-size: 24px; font-weight: 600; }}

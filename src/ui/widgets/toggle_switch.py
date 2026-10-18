@@ -5,7 +5,7 @@ from PySide6.QtGui import QColor, QPainter, QPen
 from PySide6.QtWidgets import QWidget
 
 from src.i18n.loader import tr
-from src.ui.styles.theme import get_colors
+from src.ui.styles.theme import TOGGLE_H, TOGGLE_W, get_colors
 
 
 class ToggleSwitch(QWidget):
@@ -22,7 +22,7 @@ class ToggleSwitch(QWidget):
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self._checked = False
-        self.setFixedSize(44, 24)
+        self.setFixedSize(TOGGLE_W, TOGGLE_H)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)          # ⚠ 可 Tab 到（U7）
         self.setAccessibleName(tr("widget.toggle"))

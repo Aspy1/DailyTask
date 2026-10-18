@@ -46,13 +46,20 @@ RADIUS: dict = _TOKENS_DATA["radius"]
 # `setContentsMargins(...)` 里（6/7/10/14/28 这种脱网格值也混在里面）。
 SPACING: dict = _TOKENS_DATA["spacing"]
 
+# 控件规格（审查 §3）：输入框 / 按钮 / 开关 / 浮动按钮的统一尺寸。
+# **值在 `design/tokens.json` 的 `controls`** —— 此前它们是硬编码在这里的（FIELD_H = 34 …）。
+CONTROLS: dict = _TOKENS_DATA["controls"]
 # 输入类控件统一高度（一行一个字段；高度不一致会让文字被裁）
-FIELD_H = 34
+FIELD_H = CONTROLS["field_height"]
 
 # 小按钮（设置/记账面板的「保存」「测试」「添加」这类）：**固定高 + 最小宽**。
 # 不要固定宽 —— 文案换语言或变长就会被裁（此前 72/80/56/70 几个宽度都是手工调出来的）
-BTN_H_SM = 30
-BTN_W_SM = 72
+BTN_H_SM = CONTROLS["button_height_sm"]
+BTN_W_SM = CONTROLS["button_width_sm"]
+# 开关与浮动按钮的规格（原来散在 ToggleSwitch / habit_panel 里）
+TOGGLE_W = CONTROLS["toggle_width"]
+TOGGLE_H = CONTROLS["toggle_height"]
+FAB = CONTROLS["fab"]
 
 
 def size_small_button(btn, min_width: int = BTN_W_SM) -> None:

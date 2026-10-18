@@ -109,6 +109,19 @@ def test_markdown_escapes_user_html() -> None:
     assert "<b>粗</b>" in _md_to_html("**粗**")
 
 
+def test_control_specs_live_in_tokens() -> None:
+    """⚠ 审查 §3：控件规格（高度 / 尺寸）要在 **tokens** 里，不是散在代码里。
+
+    原来 `FIELD_H = 34` / `BTN_H_SM = 30` 是硬编码在 `theme.py` 的。
+    """
+    from src.ui.styles.theme import CONTROLS, FIELD_H
+
+    assert CONTROLS, "tokens 里要有 controls 段"
+    assert FIELD_H == CONTROLS["field_height"] == 34
+    for key in ("button_height_sm", "button_width_sm", "toggle_width", "toggle_height", "fab"):
+        assert key in CONTROLS, f"controls 缺 {key}"
+
+
 def test_text_roles_group_size_and_weight() -> None:
     """⚠ 审查 §3：文字角色把 size + weight **成组**，调用点不再各挑一套。
 
