@@ -99,6 +99,12 @@ SAMPLES: list[tuple[str, str, list[dict], object]] = [
      _unchanged([{"name": "牙膏"}])),
     ("位置·清单外新增", "把抹布放在厨房水槽下面", [],
      lambda it: _has(it, "抹布", location_has="厨房")),
+    ("数据集·寄回家", "换季了，把羽绒服寄回家放着",
+     [{"name": "羽绒服", "quantity": 2, "min_quantity": 1, "dataset": "local"}],
+     lambda it: _has(it, "羽绒服", dataset="home")),
+    ("数据集·寄回来", "天冷了，把羽绒服从家里寄回来",
+     [{"name": "羽绒服", "quantity": 2, "min_quantity": 1, "dataset": "home"}],
+     lambda it: _has(it, "羽绒服", dataset="local")),
     ("边界·不存在的东西", "把不存在的东西挪到车库", [], _unchanged([])),
     ("边界·模糊表述", "衣柜里那几件夏天 T 恤挪到收纳箱", [], _unchanged([])),
 ]
