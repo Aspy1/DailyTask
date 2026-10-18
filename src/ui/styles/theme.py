@@ -6,6 +6,7 @@ Tokens 的**单一真值**是 `design/tokens.json`（见 `design/INDEX.md` 与 C
 
 import contextlib
 import json
+import logging
 import re
 from pathlib import Path
 
@@ -374,9 +375,29 @@ def font(size: int, weight: int | QFont.Weight | None = None) -> QFont:
     return f
 
 
+def _install_qt_translations(app: QApplication) -> None:
+    """装 Qt 自带的中文翻译。
+
+    ⚠ 不装的话 `QDialogButtonBox` 会显示英文 **OK / Cancel**（审查 U9 实测）——
+    加载 `.qm` 比逐个 `setText` 干净：日历、上下文菜单等 Qt 内部字符串也一并中文化。
+    `.qm` 随 PySide6 分发（`PySide6/translations/qt_zh_CN.qm`）。
+    """
+    from PySide6.QtCore import QLibraryInfo, QTranslator
+
+    translator = QTranslator(app)
+    path = QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)
+    if translator.load("qt_zh_CN", path):
+        app.installTranslator(translator)
+        # ⚠ 必须留引用：translator 被回收后翻译就失效了（Qt 的经典坑）
+        app._qt_translator = translator
+    else:
+        logging.getLogger(__name__).warning("qt_zh_CN.qm 加载失败（%s）", path)
+
+
 def init_theme(app: QApplication, mode: str = "light") -> str:
     global FONT_CN, _current_mode, _color_cache
     configure_locale()          # 日期/数字控件必须用 ASCII 数字（本机 zh_HK 会出 CJK 数字）
+    _install_qt_translations(app)
     FONT_CN = _resolve_font()
     _current_mode = mode
     _color_cache = None

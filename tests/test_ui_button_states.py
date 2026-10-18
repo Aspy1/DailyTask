@@ -86,6 +86,50 @@ def test_markdown_escapes_user_html() -> None:
     assert "<b>粗</b>" in _md_to_html("**粗**")
 
 
+def test_toggle_switch_is_keyboard_operable(qapp) -> None:
+    """⚠ U7 回归：开关不能只有鼠标路径（原来是 `QWidget` + 默认 `NoFocus`）。
+
+    顺带钉住另一条：`setChecked()` 是程序性赋值，**不发** `toggled`
+    —— 否则"从数据刷新界面"会反过来触发写回（`R-008` 那类回环）。
+    """
+    from PySide6.QtCore import Qt
+    from PySide6.QtGui import QKeyEvent
+
+    from src.ui.widgets.toggle_switch import ToggleSwitch
+
+    sw = ToggleSwitch()
+    assert sw.focusPolicy() == Qt.FocusPolicy.StrongFocus, "Tab 必须能到"
+    assert sw.accessibleName(), "至少有个无障碍名字"
+
+    seen: list[bool] = []
+    sw.toggled.connect(seen.append)
+    sw.keyPressEvent(QKeyEvent(QKeyEvent.Type.KeyPress, Qt.Key.Key_Space,
+                               Qt.KeyboardModifier.NoModifier))
+    assert sw.isChecked() is True
+    assert seen == [True], "用户操作要发信号"
+
+    sw.setChecked(False)
+    assert seen == [True], "程序性 setChecked 不该发信号"
+
+
+def test_qt_standard_buttons_are_localized(qapp) -> None:
+    """⚠ U9 回归：`QDialogButtonBox` 的 OK/Cancel 必须是中文。
+
+    原来没装 Qt 自带翻译 → 习惯/考试/标签/邮件弹窗底部是英文 OK / Cancel。
+    """
+    from PySide6.QtWidgets import QApplication, QDialogButtonBox
+
+    from src.ui.styles import theme
+
+    theme.init_theme(QApplication.instance())
+    box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok
+                           | QDialogButtonBox.StandardButton.Cancel)
+    for btn in (QDialogButtonBox.StandardButton.Ok, QDialogButtonBox.StandardButton.Cancel):
+        text = box.button(btn).text()
+        assert text not in ("OK", "Cancel"), f"还是英文：{text!r}"
+        assert any("\u4e00" <= ch <= "\u9fff" for ch in text), f"不是中文：{text!r}"
+
+
 def test_font_factory_uses_pixels_not_points() -> None:
     """⚠ U5 回归：令牌是**像素**，字体必须 `setPixelSize`。
 
