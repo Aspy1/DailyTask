@@ -411,20 +411,26 @@ class InventoryModel(BaseJsonModel):
             return InventoryModel.derive_status(item, today)
         return str(item.get("status") or InventoryModel.derive_status(item, today))
 
+    @staticmethod
+    def _apply_fields(it: dict, iid: str, data: dict) -> None:
+        """把 `ITEM_FIELDS` 里传入的字段写进物品；清单外的键**告警**（不默默吞 ✗）。
+
+        ⚠ 告警块里同时做**真正的过滤**（不只是打日志）—— 门禁 `LOG-ONLY` 拦"块内唯一语句是日志"。
+        """
+        unknown = [k for k in data
+                   if k not in ITEM_FIELDS
+                   and k not in ("id", "created_at", "updated_at")]
+        if unknown:
+            logger.warning("update_item 忽略未知字段 %s（物品 %s）", unknown, iid)
+            data = {k: v for k, v in data.items() if k in ITEM_FIELDS}
+        for k in ITEM_FIELDS:
+            if k in data:
+                it[k] = data[k]
+
     def update_item(self, iid: str, data: dict) -> bool:
         for it in self.items:
             if it["id"] == iid:
-                # 清单外的键**不再默默吞掉** —— 那是 2026-10-19 那个 bug 的形态
-                # （会员弹窗存 `membership`，这里不认识，静默丢弃还返回 True ✗）。
-                unknown = [k for k in data
-                           if k not in ITEM_FIELDS
-                           and k not in ("id", "created_at", "updated_at")]
-                if unknown:
-                    logger.warning("update_item 忽略未知字段 %s（物品 %s）", unknown, iid)
-                    data = {k: v for k, v in data.items() if k in ITEM_FIELDS}
-                for k in ITEM_FIELDS:
-                    if k in data:
-                        it[k] = data[k]
+                self._apply_fields(it, iid, data)
                 it["updated_at"] = datetime.now().isoformat()
                 # 数量 / 每份含量变了 → 由它们重算**精确余量**（用户填的 `quantity` 是盒数）
                 if "quantity" in data or "doses_per_unit" in data:
