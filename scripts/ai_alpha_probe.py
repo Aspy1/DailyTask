@@ -210,6 +210,10 @@ def main() -> None:
     parser.add_argument("--out", default=str(DEFAULT_OUT), help="报告路径")
     parser.add_argument("--tag", default="",
                         help="报告文件名后缀（**别在命令行写中文**，会被编码吃掉）")
+    parser.add_argument("--real", action="store_true",
+                        help="⚠ 直接写**真实 data/**（先自动备份；AI 命令真的落库）")
+    parser.add_argument("--clear", action="store_true",
+                        help="跑之前清空 inventory 的 items（配合 --real 用；位置清单保留）")
     args = parser.parse_args()
 
     settings = SettingsManager(DATA_DIR / "settings.ini")
@@ -217,13 +221,33 @@ def main() -> None:
     sandbox = Path(tempfile.mkdtemp(prefix="ai_alpha_"))
     import scripts.actions_core as core
 
-    core.DATA = sandbox
-    dm = DataManager(sandbox)
+    if args.real:
+        # ⚠ 真实模式：AI 命令**真的写进 data/** —— 先备份（`data/backup/` 不进仓库）
+        import shutil
+
+        stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        backup = DATA_DIR / "backup" / f"alpha-real-{stamp}"
+        backup.mkdir(parents=True, exist_ok=True)
+        for name in ("inventory.json", "daily_logs.json"):
+            if (DATA_DIR / name).exists():
+                shutil.copy2(DATA_DIR / name, backup / name)
+        core.DATA = DATA_DIR
+        dm = DataManager(DATA_DIR)
+        print(f"⚠ 真实模式：已备份 {backup}")
+        if args.clear:
+            inv = dm.inventory
+            inv.data["items"] = []
+            inv.save()
+            print(f"⚠ 已清空 inventory items（位置清单保留 {len(inv.locations)} 个）")
+    else:
+        core.DATA = sandbox
+        dm = DataManager(sandbox)
     svc = AIService(settings, dm)
 
     from scripts.actions import run_in_process
 
-    run_in_process(f'set_locations --values "{SEED_LOCATIONS}"')
+    if not args.real:
+        run_in_process(f'set_locations --values "{SEED_LOCATIONS}"')
 
     only = {int(x) for x in str(args.only).split(",") if x.strip()}
     out = Path(args.out)
