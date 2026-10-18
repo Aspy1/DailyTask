@@ -96,6 +96,23 @@ def delete_plan_at(dm, target_date, item: dict) -> bool:
     return False
 
 
+def set_plan_done(dm, target_date, item: dict, done: bool) -> bool:
+    """按内容匹配把当天的某条计划标记为**已完成 / 未完成**；返回是否找到。
+
+    以前右键的「标记完成」直接**删掉**那条计划（看不出做过什么）。现在它是真的
+    打 `done` 标记，卡片上会显示成已完成（用户口径 2026-10-18）。
+    """
+    date_str = target_date.isoformat()
+    plans = dm.daily_logs.get_plans(date_str)
+    for i, p in enumerate(plans):
+        if p == item.get("plan"):
+            dm.daily_logs.set_plan_done(date_str, i, done)
+            dm.daily_logs.save()
+            dm.data_changed.emit("plan")
+            return True
+    return False
+
+
 def add_email_reminder_dialog(dm, parent, item_type: str, item_name: str,
                               item_date: str) -> None:
     """弹时间选择框，保存一条自定义邮件提醒。"""

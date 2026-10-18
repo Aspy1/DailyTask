@@ -231,144 +231,10 @@ class ScheduleView(QWidget):
     # ── Quick Arrange ──────────────────────────────────────
 
     def _build_snapshot(self, days: int = 1) -> str:
-        """构建供人与 AI 阅读的 N 天日程快照。"""
-        day_names = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
-        target = self._target_date
-        today = date.today()
-        lines = [
-            f"========== 日程快照: {days}天 (从{target.isoformat()}起) ==========",
-            "当前日期: " + today.isoformat(),
-            "",
-        ]
-        lines += self._snapshot_ddl_lines()
-        lines += self._snapshot_exam_lines(today)
+        """构建供人与 AI 阅读的 N 天日程快照（实现在 `schedule_snapshot`）。"""
+        from src.ui.widgets.schedule_snapshot import build_snapshot
 
-        period_count = self._dm.courses.get_period_count()
-        for d in range(days):
-            day = target + timedelta(days=d)
-            lines += self._snapshot_day_lines(day, day_names[day.weekday()], today, period_count)
-
-        lines += self._snapshot_instructions(days)
-        return "\n".join(lines)
-
-    def _snapshot_ddl_lines(self) -> list[str]:
-        """全局 DDL（各天共用）。"""
-        pending = self._dm.tasks.pending
-        out = [f"--- DDL/截止日期 (共{len(pending)}项, 不可移动的红线) ---"]
-        for t in pending:
-            due = t.get("due_date", "")[:16].replace("T", " ") if t.get("due_date") else "无截止"
-            course = t.get("course_name", "") or ""
-            c_str = f" [{course}]" if course else ""
-            out.append(f"  ● {t.get('title', '')}{c_str}  截止: {due}")
-        out.append("")
-        return out
-
-    def _snapshot_exam_lines(self, today) -> list[str]:
-        """未来考试列表（无则空）。"""
-        exams = getattr(self._dm, "exams", None)
-        if exams is None:
-            return []
-        upcoming = [e for e in exams.exams if e.get("exam_date", "") >= today.isoformat()]
-        if not upcoming:
-            return []
-        out = [f"--- 考试安排 (共{len(upcoming)}场) ---"]
-        for e in sorted(upcoming, key=lambda x: x.get("exam_date", "")):
-            scope = e.get("scope", "") or ""
-            scope_str = f"  范围: {scope}" if scope else ""
-            out.append(f"  📝 {e.get('course_name', '')}  {e.get('exam_date', '')}{scope_str}")
-        out.append("")
-        return out
-
-    def _snapshot_day_lines(self, day, day_name: str, today, period_count: int) -> list[str]:
-        """单天：课程 / 习惯 / 已有安排 / 空闲时段。"""
-        day_str = day.isoformat()
-        marker = " ★今天" if day == today else ""
-        lines = [f"========== {day_str} {day_name}{marker} =========="]
-
-        courses = self._dm.courses.get_courses_for_date(day)
-        lines += self._snapshot_course_lines(courses)
-
-        active = [h for h in self._dm.habits.habits if self._habit_active_on(h, day)]
-        lines += self._snapshot_habit_lines(active)
-        lines += self._snapshot_plan_lines(self._dm.daily_logs.get_plans(day_str))
-
-        lines.append(f"  空闲: {self._free_slots_text(courses, period_count)}")
-        lines.append("")
-        return lines
-
-    @staticmethod
-    def _snapshot_course_lines(courses: list[dict]) -> list[str]:
-        """单天课程块。"""
-        lines = [f"  课程({len(courses)}门):"]
-        for c in courses:
-            slot_strs = [f"第{s.get('start', '?')}-{s.get('end', '?')}节"
-                         for s in c.get("time_slots", [])]
-            loc = c.get("location", "") or ""
-            loc_str = f" @{loc}" if loc else ""
-            lines.append(f"    [{','.join(slot_strs)}] {c.get('name', '')}{loc_str}")
-        return lines
-
-    @staticmethod
-    def _snapshot_habit_lines(active: list[dict]) -> list[str]:
-        """单天习惯块（无则空）。"""
-        if not active:
-            return []
-        lines = [f"  习惯({len(active)}项):"]
-        for h in active:
-            rt = h.get("reminder_time", "") or ""
-            rt_str = f" @{rt}" if rt else ""
-            lines.append(f"    {h.get('name', '')}{rt_str} ({h.get('duration_minutes', 30)}分钟)")
-        return lines
-
-    @staticmethod
-    def _snapshot_plan_lines(plans: list[dict]) -> list[str]:
-        """单天已有安排块（无则提示(无)）。"""
-        if not plans:
-            return ["  已有安排: (无)"]
-        lines = [f"  已有安排({len(plans)}项):"]
-        for p in plans:
-            lines.append(f"    第{p.get('time_slot', '?')}节: {p.get('title', '')}")
-        return lines
-
-    @staticmethod
-    def _habit_active_on(habit: dict, day) -> bool:
-        sched = habit.get("schedule", {})
-        st = sched.get("type", "daily")
-        if st in ("daily", "interval"):
-            return True
-        if st == "weekly":
-            return (day.weekday() + 1) in sched.get("days", [])
-        return False
-
-    @staticmethod
-    def _free_slots_text(courses: list[dict], period_count: int) -> str:
-        occupied: set[int] = set()
-        for c in courses:
-            for s in c.get("time_slots", []):
-                occupied.update(range(s["start"], s["end"] + 1))
-        times = []
-        for p in range(1, period_count + 1):
-            if p in occupied:
-                continue
-            if p <= len(PERIOD_TIMES):
-                st_t, en_t = PERIOD_TIMES[p - 1]
-                times.append(f"第{p}节({st_t}-{en_t})")
-            else:
-                times.append(f"第{p}节")
-        return ", ".join(times) if times else "(无)"
-
-    @staticmethod
-    def _snapshot_instructions(days: int) -> list[str]:
-        return [
-            "========== 安排指令 ==========",
-            f"请为以上{days}天安排日程。规则：",
-            "1. 课程时段不可占用，DDL截止时间不可移动",
-            "2. 将习惯安排到对应日期的空闲时段",
-            "3. 根据DDL紧迫度，将任务分配到各天空闲时段（越临近截止越优先）",
-            "4. 如有考试，优先安排考前复习时间",
-            "5. 允许在上课时段安排自习任务",
-            "6. 用 ```sh 代码块输出 actions.py 命令（replace_plans / add_plan），不要用 JSON",
-        ]
+        return build_snapshot(self._dm, self._target_date, days)
 
 
     def _quick_arrange(self, days: int = 3) -> None:
@@ -499,6 +365,7 @@ class ScheduleView(QWidget):
                 "title": plan.get("title", ""),
                 "course_name": plan.get("course_name", ""),
                 "note": plan.get("note", ""),
+                "done": bool(plan.get("done")),
             })
 
     def _add_habit_to_slots(self, slot_data: dict[int, list[dict]], h: dict) -> None:
@@ -654,6 +521,7 @@ class ScheduleView(QWidget):
         return course_card
 
     def _create_plan_item(self, item: dict, c: dict) -> QWidget:
+        done = bool(item.get("done"))
         plan_card = card("item", pad="spacing_none", bg="accent_bg")
         plan_card.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         plan_card.customContextMenuRequested.connect(
@@ -661,15 +529,20 @@ class ScheduleView(QWidget):
         pcl = QVBoxLayout(plan_card)
         pcl.setContentsMargins(12, 8, 12, 8)
         pcl.setSpacing(4)
-        prefix = "📅" if item.get("plan_type") == "custom" else "🔄"
+        # 已完成：✅ 前缀 + 变灰 + 删除线（一眼看出"这条做过了"）
+        prefix = "✅" if done else ("📅" if item.get("plan_type") == "custom" else "🔄")
         title_lbl = QLabel(f"{prefix} {item['title']}")
-        title_lbl.setStyleSheet(f"color: {c['fg_primary']}; font-size: 13px; font-weight: 600;")
+        strike = " text-decoration: line-through;" if done else ""
+        title_lbl.setStyleSheet(
+            f"color: {c['fg_hint'] if done else c['fg_primary']};"
+            f" font-size: 13px; font-weight: 600;{strike}")
         title_lbl.setWordWrap(True)
         pcl.addWidget(title_lbl)
         note = item.get("note", "")
         if note:
             n = QLabel(note)
-            n.setStyleSheet(f"color: {c['fg_secondary']}; font-size: 13px;")
+            n.setStyleSheet(
+                f"color: {c['fg_hint'] if done else c['fg_secondary']}; font-size: 13px;")
             n.setWordWrap(True)
             pcl.addWidget(n)
         return plan_card
@@ -853,9 +726,16 @@ class ScheduleView(QWidget):
         menu = new_menu()
         plan_name = item.get("title", "")
         plan_date = self._target_date.isoformat()
-        # 「移除」与「标记完成」都按内容匹配删除该计划（保持原行为）
-        add_action(menu, tr("widget.schedule.menu_mark_done"), lambda checked=False: self._delete_plan_at(item))
-        add_action(menu, tr("widget.schedule.menu_remove"), lambda checked=False: self._delete_plan_at(item))
+        # 「标记完成」= 真的打 `done` 标记（以前是直接删掉，看不出做过什么）；
+        # 已完成的那条给「取消完成」。
+        if item.get("done"):
+            add_action(menu, tr("widget.schedule.menu_mark_undone"),
+                       lambda checked=False: self._set_plan_done(item, False))
+        else:
+            add_action(menu, tr("widget.schedule.menu_mark_done"),
+                       lambda checked=False: self._set_plan_done(item, True))
+        add_action(menu, tr("widget.schedule.menu_remove"),
+                   lambda checked=False: self._delete_plan_at(item))
         add_separator(menu)
         if self._has_email_reminder("plan", plan_name, plan_date):
             add_action(menu, tr("widget.schedule.menu_email_remove"),
@@ -870,6 +750,13 @@ class ScheduleView(QWidget):
         from src.ui.widgets.schedule_actions import delete_plan_at
 
         if delete_plan_at(self._dm, self._target_date, item):
+            self._refresh()
+
+    def _set_plan_done(self, item, done: bool) -> None:
+        """按内容匹配标记完成 / 取消完成并刷新（实现见 `schedule_actions`）。"""
+        from src.ui.widgets.schedule_actions import set_plan_done
+
+        if set_plan_done(self._dm, self._target_date, item, done):
             self._refresh()
 
     def _habit_menu(self, pos, item, widget) -> None:

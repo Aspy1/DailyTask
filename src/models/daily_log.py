@@ -53,18 +53,27 @@ class DailyLogModel(BaseJsonModel):
     def get_today_plans(self) -> list[dict]:
         return self.get_plans()
 
-    def complete_plan(self, day: str, index: int) -> bool:
-        """把某天的第 `index` 条日程标记为完成（幂等）。返回是否找到。
+    def set_plan_done(self, day: str, index: int, done: bool = True) -> bool:
+        """把某天的第 `index` 条日程标记为完成 / 未完成（幂等）。返回是否找到。
 
         用户用例表第 10 条："我收拾完扑克牌了" → 标记日程完成（物品由 AI 另调
         `update_item`）。字段**纯新增**（`done` / `completed_at`）：老数据没有 = 未完成。
+
+        取消完成时把 `completed_at` 一起去掉 —— 留着一个"完成时间"却说没完成是自相矛盾。
         """
         day_plans = self._data.get("plans", {}).get(day, [])
         if not (0 <= index < len(day_plans)):
             return False
-        day_plans[index]["done"] = True
-        day_plans[index]["completed_at"] = date.today().isoformat()
+        day_plans[index]["done"] = done
+        if done:
+            day_plans[index]["completed_at"] = date.today().isoformat()
+        else:
+            day_plans[index].pop("completed_at", None)
         return True
+
+    def complete_plan(self, day: str, index: int) -> bool:
+        """标记某天的第 `index` 条日程为完成（`set_plan_done` 的便捷形式）。"""
+        return self.set_plan_done(day, index, True)
 
     def delete_plan(self, day: str, index: int) -> bool:
         day_plans = self._data.get("plans", {}).get(day, [])
