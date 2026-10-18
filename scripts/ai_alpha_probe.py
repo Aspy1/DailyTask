@@ -202,6 +202,29 @@ def _run_case(svc, dm, settings, n: int, prompt: str, note: str,
 
 
 
+def _resolve_out(args) -> Path:
+    """报告路径（`--tag` 加后缀；中文后缀写在脚本里，别走命令行）。"""
+    out = Path(args.out)
+    if args.tag:
+        out = out.with_name(f"{out.stem}-{args.tag}{out.suffix}")
+    out.parent.mkdir(parents=True, exist_ok=True)
+    return out
+
+
+def _override_endpoint(settings, args) -> None:
+    """临时改用别的 OpenAI 兼容端点（**只改内存**，绝不写 `settings.ini`）。
+
+    key 从 `--key-file` 读（避免它出现在命令行 / 日志里）。
+    """
+    settings.set("AI", "provider", "deepseek")       # 走 OpenAI 兼容分支
+    settings.set("AI", "api_endpoint", args.endpoint)
+    settings.set("AI", "model", args.model_override or "bonsai")
+    if args.key_file:
+        settings.set("AI", "api_key",
+                     Path(args.key_file).read_text(encoding="utf-8").strip())
+    print(f"⚠ 临时端点：{args.endpoint}（只改内存，没写 settings.ini）")
+
+
 def _write_header(out: Path, settings, dm) -> None:
     """写报告抬头（表 / 模型 / 方式 / 数据目录）。"""
     mode = "真实 `data/`（**已备份**）" if dm.data_dir == DATA_DIR else f"沙箱 `{dm.data_dir}`"
@@ -246,10 +269,16 @@ def main() -> None:
                         help="⚠ 直接写**真实 data/**（先自动备份；AI 命令真的落库）")
     parser.add_argument("--clear", action="store_true",
                         help="跑之前清空 inventory 的 items（配合 --real 用；位置清单保留）")
+    parser.add_argument("--endpoint", default="",
+                        help="临时改用别的 OpenAI 兼容端点（只改内存）")
+    parser.add_argument("--model-override", default="", help="临时覆盖模型名")
+    parser.add_argument("--key-file", default="", help="从文件读 key（不进命令行/日志）")
     args = parser.parse_args()
 
     settings = SettingsManager(DATA_DIR / "settings.ini")
     settings.load()
+    if args.endpoint:
+        _override_endpoint(settings, args)
     sandbox = Path(tempfile.mkdtemp(prefix="ai_alpha_"))
     import scripts.actions_core as core
 
@@ -269,10 +298,7 @@ def main() -> None:
         run_in_process(f'set_locations --values "{SEED_LOCATIONS}"')
 
     only = {int(x) for x in str(args.only).split(",") if x.strip()}
-    out = Path(args.out)
-    if args.tag:
-        out = out.with_name(f"{out.stem}-{args.tag}{out.suffix}")
-    out.parent.mkdir(parents=True, exist_ok=True)
+    out = _resolve_out(args)
     if args.start == 1 and not only:
         _write_header(out, settings, dm)
 
