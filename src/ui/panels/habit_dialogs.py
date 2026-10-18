@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
 from src.i18n.loader import tr
 from src.services.data_manager import DataManager
 from src.ui.styles.theme import get_colors
+from src.ui.widgets.dialog_shell import cap_height, make_scrollable
 from src.ui.widgets.rounded_button import RoundedButton
 from src.ui.widgets.rounded_input import RoundedComboBox, RoundedLineEdit
 
@@ -40,17 +41,16 @@ class HabitDialog(QDialog):
         self.setWindowTitle(tr("panel.habit.dialog_title_edit") if editing
                             else tr("panel.habit.dialog_title_add"))
         self.setMinimumWidth(440)
-        self.setStyleSheet(f"""
-            QDialog {{ background-color: {c['bg_card']}; color: {c['fg_primary']}; }}
-            QLabel {{ color: {c['fg_primary']}; background: transparent; border: none; }}
-            QLineEdit, QComboBox {{
-                background-color: {c['bg_input']}; color: {c['fg_primary']};
-                border: 1px solid {c['border']}; padding: 5px 8px; font-size: 13px;
-            }}
-            QCheckBox {{ color: {c['fg_primary']}; spacing: 2px; }}
-        """)
+        self.setStyleSheet(
+            f"QDialog {{ background-color: {c['bg_card']}; color: {c['fg_primary']}; }}"
+            f" QLabel {{ color: {c['fg_primary']}; background: transparent; border: none; }}"
+            f" QLineEdit, QComboBox {{ background-color: {c['bg_input']}; color: {c['fg_primary']};"
+            f" border: 1px solid {c['border']}; padding: 5px 8px; font-size: 13px; }}"
+            f" QCheckBox {{ color: {c['fg_primary']}; spacing: 2px; }}")
 
-        layout = QVBoxLayout(self)
+        outer = QVBoxLayout(self)
+        # 内容可滚动 + 限高（审查 U9）；⚠ 按钮行挂在 `outer` 上，不跟着内容滚
+        layout = make_scrollable(outer)
         layout.setSpacing(12)
         layout.setContentsMargins(24, 20, 24, 16)
 
@@ -164,7 +164,8 @@ class HabitDialog(QDialog):
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         buttons.accepted.connect(self._validate_and_accept)
         buttons.rejected.connect(self.reject)
-        layout.addWidget(buttons)
+        outer.addWidget(buttons)
+        cap_height(self)
 
     def _build_daily_widget(self, sched: dict, sched_type: str) -> QWidget:
         """「每日/间隔」：每天次数控件。"""
