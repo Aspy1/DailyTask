@@ -119,15 +119,15 @@ class _HabitCard(Card):
                          c: dict) -> tuple[str, str, str]:
         """返回标签 (文本, 背景色, 前景色)。"""
         if done:
-            return tr("task.status.completed"), c["green"] + "20", c["green"]
+            return tr("task.status.completed"), c["green_tint"], c["green"]
         if not active:
             text = self._weekly_tag_text(sched) if is_weekly else _describe_schedule(sched)
             return text, "transparent", c["fg_hint"]
         if is_daily:
             streak = habit.get("streak", 0)
             if streak > 0:
-                return tr("panel.habit.tag_streak", n=streak), c["green"] + "20", c["green"]
-            return tr("panel.habit.tag_not_checked_in"), c["red"] + "18", c["red"]
+                return tr("panel.habit.tag_streak", n=streak), c["green_tint"], c["green"]
+            return tr("panel.habit.tag_not_checked_in"), c["red_tint"], c["red"]
         if is_weekly:
             return self._weekly_tag_text(sched), c["accent_bg"], c["accent"]
         return _describe_schedule(sched), c["accent_bg"], c["accent"]
