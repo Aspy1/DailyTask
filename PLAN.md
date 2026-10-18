@@ -607,6 +607,15 @@ execution`（`cc6a9e4`，2026-10-17）：`chat()` 不再把 `reasoning_content` 
 4. **清空重建**（用户看过测试结果并确认后再做）：整份备份到
    `%TEMP%\inventory_backup_before_reset\` → **先关应用** →
    用 `scripts/actions.py delete_item --id ...` 逐条删（R-002 的合法写入路径）
+5. **数据集（本地 / 家）**（2026-10-18 追加）：换季把部分衣物**寄回家**、来年再寄回，
+   所以要一份平行的存放清单。
+   - 归属写在物品的 `dataset`（`local`/`home`）+ 顶层 `current_dataset`；`locations[]` 收窄为
+     **本地**的位置词表（家不使用位置）
+   - `--dataset` 用在 `add_item` / `update_item` / `lookup_item`；**改 = 寄回家 / 寄回来**
+     （改归属字段，不删不建 → id 不变、不会丢件）
+   - 家那一边**不显示位置**、**不参与补货提醒**（用户口径）
+   - 界面：库存面板工具栏加切换按钮（照 `_cat_btn` 的做法）+ 右键"寄回家 / 寄回来"
+   - 详见 `dev-logs/2026-10-18-库存数据集切换.md`
 
 ---
 

@@ -8,12 +8,15 @@
    若改用嵌套 layout，`item.widget()` 是 None → 旧卡不会被删、会留在屏幕上。
 2. 刷新多次后卡片数不能累积（清卡确实生效）。
 
-面板只读 `dm.inventory` 的 `items` / `categories` / `all_tags`，所以用 stub 驱动即可。
+面板只读 `dm.inventory` 的 `items` / `categories` / `all_tags` / 数据集属性，所以用 stub 驱动即可。
+⚠ 2026-10-18：stub 里少写一个 `current_dataset` 就把测试打红了 → 现在**直接挂真模型**
+（`InventoryModel`），只把 `items` 塞进去，面板读什么它就得有什么。
 """
 
 from PySide6.QtCore import QCoreApplication, QEvent, QPoint
 from PySide6.QtWidgets import QWidget
 
+from src.models.inventory import InventoryModel
 from src.ui.styles.cards import Card
 from src.ui.styles.theme import SPACING
 
@@ -21,28 +24,18 @@ ITEM = {"id": "i_001", "name": "创可贴", "category": "药品", "group": "急�
         "quantity": 2, "status": "充足", "tags": ["急救"], "instances": []}
 
 
-class _StubInventory:
-    def __init__(self, items: list[dict]) -> None:
-        self.items = items
-
-    @property
-    def categories(self) -> list[str]:
-        return sorted({it.get("category", "其他") for it in self.items})
-
-    @property
-    def all_tags(self) -> list[str]:
-        return sorted({t for it in self.items for t in it.get("tags", [])})
-
-
 class _StubDataManager:
-    def __init__(self, items: list[dict]) -> None:
-        self.inventory = _StubInventory(items)
+    """面板只用到 `dm.inventory`；用**真模型**（只预置 `items`），避免读接口漂移。"""
+
+    def __init__(self, items: list[dict], tmp_path) -> None:
+        self.inventory = InventoryModel(tmp_path / "inventory.json")
+        self.inventory.data["items"] = items
 
 
-def _panel(qapp, items: list[dict]) -> QWidget:
+def _panel(qapp, items: list[dict], tmp_path) -> QWidget:
     from src.ui.panels.inventory_panel import InventoryPanel
 
-    panel = InventoryPanel(_StubDataManager(items))
+    panel = InventoryPanel(_StubDataManager(items, tmp_path))
     panel.resize(420, 600)
     panel.show()
     qapp.processEvents()
@@ -54,8 +47,8 @@ def _flush_deletes() -> None:
     QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
 
 
-def test_refresh_does_not_accumulate_cards(qapp) -> None:
-    panel = _panel(qapp, [ITEM])
+def test_refresh_does_not_accumulate_cards(qapp, tmp_path) -> None:
+    panel = _panel(qapp, [ITEM], tmp_path)
     first = len(panel.findChildren(Card))
     assert first > 0, "分类视图至少应渲染出一张卡片"
 
@@ -66,8 +59,8 @@ def test_refresh_does_not_accumulate_cards(qapp) -> None:
     assert len(panel.findChildren(Card)) == first, "刷新不应累积旧卡片"
 
 
-def test_instance_cards_are_indented_via_wrapper(qapp) -> None:
-    panel = _panel(qapp, [ITEM])
+def test_instance_cards_are_indented_via_wrapper(qapp, tmp_path) -> None:
+    panel = _panel(qapp, [ITEM], tmp_path)
     # 直接摆到"组视图 + 已展开"，省去逐级点击
     panel._current_category = "药品"
     panel._current_group = "急救"

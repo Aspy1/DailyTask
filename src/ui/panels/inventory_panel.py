@@ -5,11 +5,8 @@ from typing import ClassVar
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
-    QDialog,
-    QDialogButtonBox,
     QHBoxLayout,
     QLabel,
-    QListWidget,
     QMessageBox,
     QScrollArea,
     QSizePolicy,
@@ -18,9 +15,11 @@ from PySide6.QtWidgets import (
 )
 
 from src.i18n.loader import tr
+from src.models.inventory import InventoryModel
 from src.services.data_manager import DataManager
 
 # 面板里"每张卡"的局部变量就叫 `card` → 工厂用**别名**导入，避免同名遮蔽（ERRORS #047）
+from src.ui.panels.inventory_dialogs import edit_tags_dialog, email_reminder_dialog
 from src.ui.styles.cards import card as make_card
 from src.ui.styles.theme import FONT_CN, RADIUS, SIZE_SUBTITLE, SPACING, get_colors
 from src.ui.widgets.menu import (
@@ -31,7 +30,6 @@ from src.ui.widgets.menu import (
     show_below,
 )
 from src.ui.widgets.rounded_button import RoundedButton
-from src.ui.widgets.rounded_input import RoundedLineEdit
 
 PAGE_SIZE = 8
 
@@ -53,44 +51,7 @@ class InventoryPanel(QWidget):
         layout.setSpacing(0)
 
         # === Breadcrumb (hidden in category view) ===
-        self._breadcrumb = QWidget()
-        bc_layout = QHBoxLayout(self._breadcrumb)
-        bc_layout.setContentsMargins(16, 4, 16, 4)
-        bc_layout.setSpacing(4)
-
-        self._back_btn = RoundedButton("←")
-        self._back_btn.setStyleSheet(f"QPushButton {{ background: transparent; color: {c['accent_text']}; border: none; padding: 2px 6px; font-size: 13px; font-weight: 600; }} QPushButton:hover {{ color: {c['fg_primary']}; }}")
-        self._back_btn.clicked.connect(self._go_back)
-        bc_layout.addWidget(self._back_btn)
-
-        self._bc_cat = RoundedButton()
-        self._bc_cat.setStyleSheet(f"QPushButton {{ background: {c['bg_elevated']}; color: {c['fg_primary']}; border: none; border-radius: 4px; padding: 2px 8px; font-size: 12px; }} QPushButton:hover {{ background: {c['accent_bg']}; }}")
-        self._bc_cat.clicked.connect(lambda: self._navigate_to(1))
-        self._bc_cat.hide()
-        bc_layout.addWidget(self._bc_cat)
-
-        self._bc_sep1 = QLabel("›")
-        self._bc_sep1.setStyleSheet(f"color: {c['fg_hint']}; font-size: 13px; border: none;")
-        self._bc_sep1.hide()
-        bc_layout.addWidget(self._bc_sep1)
-
-        self._bc_group = RoundedButton()
-        self._bc_group.setStyleSheet(f"QPushButton {{ background: {c['bg_elevated']}; color: {c['fg_primary']}; border: none; border-radius: 4px; padding: 2px 8px; font-size: 12px; }} QPushButton:hover {{ background: {c['accent_bg']}; }}")
-        self._bc_group.clicked.connect(lambda: self._navigate_to(2))
-        self._bc_group.hide()
-        bc_layout.addWidget(self._bc_group)
-
-        self._bc_sep2 = QLabel("›")
-        self._bc_sep2.setStyleSheet(f"color: {c['fg_hint']}; font-size: 13px; border: none;")
-        self._bc_sep2.hide()
-        bc_layout.addWidget(self._bc_sep2)
-
-        self._bc_item = QLabel()
-        self._bc_item.setStyleSheet(f"color: {c['fg_secondary']}; font-size: 12px; border: none;")
-        self._bc_item.hide()
-        bc_layout.addWidget(self._bc_item)
-        bc_layout.addStretch()
-        layout.addWidget(self._breadcrumb)
+        layout.addWidget(self._build_breadcrumb())
 
         # === Toolbar ===
         bar = QWidget()
@@ -106,6 +67,13 @@ class InventoryPanel(QWidget):
         bl.addWidget(title)
 
         bl.addStretch()
+
+        # 数据集（本地 / 家）：换季把衣物寄回家、来年寄回。照 `_cat_btn` / `_tag_btn`
+        # 的现成做法（标签显示当前值、点开菜单选），不另建一套控件。
+        self._ds_btn = RoundedButton(self._dataset_label())
+        self._ds_btn.setStyleSheet(self._btn_qss())
+        self._ds_btn.clicked.connect(self._show_dataset_menu)
+        bl.addWidget(self._ds_btn)
 
         self._cat_btn = RoundedButton(tr("panel.inventory.filter_all_categories"))
         self._cat_btn.setStyleSheet(self._btn_qss())
@@ -158,9 +126,87 @@ class InventoryPanel(QWidget):
         layout.addWidget(footer)
         self._refresh()
 
+    def _build_breadcrumb(self) -> QWidget:
+        """面包屑（分类视图下隐藏）。
+
+        从 `__init__` 抽出来：那个函数原来 127 行，超「函数 ≤60」（`Q-A1`）。
+        """
+        c = get_colors()
+        self._breadcrumb = QWidget()
+        bc_layout = QHBoxLayout(self._breadcrumb)
+        bc_layout.setContentsMargins(16, 4, 16, 4)
+        bc_layout.setSpacing(4)
+
+        self._back_btn = RoundedButton("←")
+        self._back_btn.setStyleSheet(f"QPushButton {{ background: transparent; color: {c['accent_text']}; border: none; padding: 2px 6px; font-size: 13px; font-weight: 600; }} QPushButton:hover {{ color: {c['fg_primary']}; }}")
+        self._back_btn.clicked.connect(self._go_back)
+        bc_layout.addWidget(self._back_btn)
+
+        self._bc_cat = RoundedButton()
+        self._bc_cat.setStyleSheet(f"QPushButton {{ background: {c['bg_elevated']}; color: {c['fg_primary']}; border: none; border-radius: 4px; padding: 2px 8px; font-size: 12px; }} QPushButton:hover {{ background: {c['accent_bg']}; }}")
+        self._bc_cat.clicked.connect(lambda: self._navigate_to(1))
+        self._bc_cat.hide()
+        bc_layout.addWidget(self._bc_cat)
+
+        self._bc_sep1 = QLabel("›")
+        self._bc_sep1.setStyleSheet(f"color: {c['fg_hint']}; font-size: 13px; border: none;")
+        self._bc_sep1.hide()
+        bc_layout.addWidget(self._bc_sep1)
+
+        self._bc_group = RoundedButton()
+        self._bc_group.setStyleSheet(f"QPushButton {{ background: {c['bg_elevated']}; color: {c['fg_primary']}; border: none; border-radius: 4px; padding: 2px 8px; font-size: 12px; }} QPushButton:hover {{ background: {c['accent_bg']}; }}")
+        self._bc_group.clicked.connect(lambda: self._navigate_to(2))
+        self._bc_group.hide()
+        bc_layout.addWidget(self._bc_group)
+
+        self._bc_sep2 = QLabel("›")
+        self._bc_sep2.setStyleSheet(f"color: {c['fg_hint']}; font-size: 13px; border: none;")
+        self._bc_sep2.hide()
+        bc_layout.addWidget(self._bc_sep2)
+
+        self._bc_item = QLabel()
+        self._bc_item.setStyleSheet(f"color: {c['fg_secondary']}; font-size: 12px; border: none;")
+        self._bc_item.hide()
+        bc_layout.addWidget(self._bc_item)
+        bc_layout.addStretch()
+        return self._breadcrumb
+
     def _btn_qss(self) -> str:
         c = get_colors()
         return f"QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['fg_hint']}; border-radius: 8px; padding: 4px 12px; font-size: 13px; }} QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; color: {c['fg_secondary']}; }} QPushButton::menu-indicator {{ image: none; }}"
+
+    def _dataset_label(self) -> str:
+        """数据集按钮上的文字（按 i18n 取，代码里不出现中文 —— Q-N5）。"""
+        if self._dm.inventory.current_dataset == "home":
+            return tr("panel.inventory.dataset_home")
+        return tr("panel.inventory.dataset_local")
+
+    def _show_dataset_menu(self) -> None:
+        menu = new_menu(self)
+        for name, key in (("local", "panel.inventory.dataset_local"),
+                          ("home", "panel.inventory.dataset_home")):
+            add_action(menu, tr(key),
+                       lambda checked=False, n=name: self._apply_dataset(n))
+        show_below(menu, self._ds_btn)
+
+    def _apply_dataset(self, name: str) -> None:
+        """切换数据集。
+
+        写进**数据文件**（`current_dataset`）—— 界面与命令行读同一份，所以 AI 的
+        `add_item` 默认也落在你正在看的这一边（同 `semesters.json` 的 `current_semester`）。
+        切完要清掉一切"按视图"的状态（分类/标签筛选、分页、展开），否则会带着旧视图的空结果。
+        """
+        if not self._dm.inventory.set_dataset(name):
+            return
+        self._dm.inventory.save()
+        self._tag_filter = ""
+        self._expanded_items.clear()
+        self._cat_btn.setText(tr("panel.inventory.filter_all_categories"))
+        self._tag_btn.setText(tr("panel.inventory.filter_all_tags"))
+        self._dm.data_changed.emit("inventory")
+        # 复用现成的"回到顶层"逻辑（清分类/分组/筛选/分页并刷新）—— 不另写一遍 `"全部"`
+        # 字面量，否则 i18n 计数会再多一笔（Q-N5）
+        self._navigate_to(0)
 
     def _show_cat_filter(self) -> None:
         menu = new_menu(self)
@@ -205,7 +251,7 @@ class InventoryPanel(QWidget):
             self._refresh()
 
     def _get_filtered(self) -> list[dict]:
-        items = self._dm.inventory.items
+        items = self._dm.inventory.visible_items
         if self._cat_filter != "全部":
             items = [i for i in items if i.get("category") == self._cat_filter]
         if self._tag_filter:
@@ -265,6 +311,7 @@ class InventoryPanel(QWidget):
         self._refresh()
 
     def _refresh(self) -> None:
+        self._ds_btn.setText(self._dataset_label())   # 数据集可能被命令行 / 3s 轮询改过
         while self._card_layout.count() > 1:
             it = self._card_layout.takeAt(0)
             if it.widget():
@@ -283,11 +330,11 @@ class InventoryPanel(QWidget):
         self._update_breadcrumb()
 
         cats = self._dm.inventory.categories
-        total_items = len(self._dm.inventory.items)
+        total_items = len(self._dm.inventory.visible_items)
 
         from collections import Counter
         counts = Counter()
-        for it in self._dm.inventory.items:
+        for it in self._dm.inventory.visible_items:
             if self._tag_filter and self._tag_filter not in it.get("tags", []):
                 continue
             counts[it.get("category", "其他")] += 1
@@ -437,11 +484,9 @@ class InventoryPanel(QWidget):
         hdr.addWidget(badge)
         cl.addLayout(hdr)
 
-        parts = []
-        for k in ["location", "notes"]:
-            v = it.get(k, "")
-            if v:
-                parts.append(v)
+        # 家数据集不显示位置（用户口径）：只留备注
+        keys = ("notes",) if InventoryModel.dataset_of(it) == "home" else ("location", "notes")
+        parts = [v for k in keys if (v := it.get(k, ""))]
         if parts:
             detail = QLabel(" · ".join(parts))
             detail.setWordWrap(True)
@@ -467,7 +512,7 @@ class InventoryPanel(QWidget):
         """Level 2: expandable type cards with instance sub-cards."""
         self._update_breadcrumb()
 
-        items = [it for it in self._dm.inventory.items
+        items = [it for it in self._dm.inventory.visible_items
                  if it.get("category") == self._current_category
                  and it.get("group") == self._current_group]
         if self._tag_filter:
@@ -624,6 +669,16 @@ class InventoryPanel(QWidget):
                    else tr("panel.inventory.action_ignore_low_stock"),
                    lambda checked=False: self._quick_update(item["id"], {"ignore_low_stock": not ig}))
         add_separator(menu)
+        # 寄回家 / 寄回来：只对**真实条目**显示（实例卡片传进来的是合成 dict，
+        # 带 `parent_id`，按它的 id 操作会找不到条目）
+        if "parent_id" not in item:
+            if InventoryModel.dataset_of(item) == "home":
+                add_action(menu, tr("panel.inventory.action_send_back"),
+                           lambda checked=False: self._move_item(item["id"], "local"))
+            else:
+                add_action(menu, tr("panel.inventory.action_send_home"),
+                           lambda checked=False: self._move_item(item["id"], "home"))
+            add_separator(menu)
         add_action(menu, tr("panel.inventory.action_set_email_reminder"),
                    lambda checked=False: self._email_reminder(item))
         add_action(menu, tr("panel.inventory.action_edit_tags"),
@@ -639,6 +694,14 @@ class InventoryPanel(QWidget):
         self._dm.data_changed.emit("inventory")
         self._refresh()
 
+    def _move_item(self, iid: str, dataset: str) -> None:
+        """寄回家 / 寄回来：**改归属字段**，不是删了再建（id 不变、不会丢件）。"""
+        if not self._dm.inventory.move_item(iid, dataset):
+            return
+        self._dm.inventory.save()
+        self._dm.data_changed.emit("inventory")
+        self._refresh()
+
     def _delete_item(self, iid) -> None:
         name = next((it.get("name", iid) for it in self._dm.inventory.items if it["id"] == iid), iid)
         if QMessageBox.question(self, tr("panel.inventory.msg_confirm_delete_title"),
@@ -649,101 +712,14 @@ class InventoryPanel(QWidget):
             self._refresh()
 
     def _edit_tags(self, item: dict) -> None:
-        """Open dialog to add/remove/edit tags on an item."""
-        c = get_colors()
-        dlg = QDialog(self)
-        dlg.setWindowTitle(tr("panel.inventory.dialog_edit_tags_title", name=item.get('name', '')))
-        dlg.setMinimumWidth(360)
-        dlg.setStyleSheet(f"QDialog {{ background-color: {c['card_bg']}; }} QLabel {{ color: {c['fg_primary']}; font-size: 13px; background: transparent; border: none; }} QLineEdit {{ background-color: {c['bg_input']}; color: {c['fg_primary']}; border: 1px solid {c['border']}; padding: 6px 10px; font-size: 13px; }} QPushButton {{ background-color: {c['accent_bg']}; color: {c['fg_primary']}; border: none; border-radius: 4px; padding: 4px 12px; font-size: 12px; }} QPushButton:hover {{ background-color: {c['accent']}; color: {c['fg_on_fill']}; }}")
-        layout = QVBoxLayout(dlg)
-        layout.setSpacing(10)
-        layout.setContentsMargins(20, 16, 20, 16)
-
-        tag_list = QListWidget()
-        tag_list.setStyleSheet(f"QListWidget {{ background-color: {c['bg_input']}; color: {c['fg_primary']}; border: 1px solid {c['border']}; border-radius: 4px; font-size: 13px; }}")
-        tags = list(item.get("tags", []))
-        for t in tags:
-            tag_list.addItem(t)
-        layout.addWidget(QLabel(tr("panel.inventory.label_current_tags")))
-        layout.addWidget(tag_list)
-
-        # Double-click to edit
-        def edit_tag() -> None:
-            row = tag_list.currentRow()
-            if row >= 0:
-                old = tag_list.item(row).text()
-                new, ok = __import__('PySide6.QtWidgets').QInputDialog.getText(
-                    dlg, tr("panel.inventory.dialog_edit_tag_title"),
-                    tr("panel.inventory.label_tag_text"), text=old)
-                if ok and new.strip():
-                    tag_list.item(row).setText(new.strip())
-
-        tag_list.doubleClicked.connect(lambda _: edit_tag())
-
-        # Add new tag
-        add_row = QHBoxLayout()
-        self._tag_input = RoundedLineEdit()
-        self._tag_input.setPlaceholderText(tr("panel.inventory.placeholder_new_tag"))
-        add_row.addWidget(self._tag_input)
-        add_btn = RoundedButton(tr("panel.inventory.btn_add"))
-        add_row.addWidget(add_btn)
-        layout.addLayout(add_row)
-
-        def add_tag() -> None:
-            t = self._tag_input.text().strip()
-            if t and not any(tag_list.item(i).text() == t for i in range(tag_list.count())):
-                tag_list.addItem(t)
-                self._tag_input.clear()
-
-        add_btn.clicked.connect(add_tag)
-        self._tag_input.returnPressed.connect(add_tag)
-
-        # Remove selected
-        del_btn = RoundedButton(tr("panel.inventory.btn_delete_selected"))
-        del_btn.clicked.connect(lambda: tag_list.takeItem(tag_list.currentRow()) if tag_list.currentRow() >= 0 else None)
-        layout.addWidget(del_btn)
-
-        # OK / Cancel
-        btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
-        btns.accepted.connect(dlg.accept)
-        btns.rejected.connect(dlg.reject)
-        layout.addWidget(btns)
-
-        if dlg.exec():
-            new_tags = [tag_list.item(i).text() for i in range(tag_list.count())]
-            self._dm.inventory.update_item(item["id"], {"tags": new_tags})
-            self._dm.inventory.save()
+        """改标签（对话框在 `inventory_dialogs`，见那里的说明）。"""
+        if edit_tags_dialog(self, self._dm, item):
             self._dm.data_changed.emit("inventory")
             self._refresh()
 
-    def _email_reminder(self, item) -> None:
-        from datetime import datetime, timedelta
-
-        from PySide6.QtCore import QLocale
-        from PySide6.QtWidgets import QDateTimeEdit
-        c = get_colors()
-        dlg = QDialog(self)
-        dlg.setWindowTitle(tr("panel.inventory.dialog_email_title", name=item.get('name', '')))
-        dlg.setMinimumWidth(320)
-        dlg.setStyleSheet(f"QDialog {{ background-color: {c['card_bg']}; }} QLabel {{ color: {c['fg_primary']}; font-size: 13px; }}")
-        layout = QVBoxLayout(dlg)
-        layout.setSpacing(12)
-        layout.addWidget(QLabel(tr("panel.inventory.label_email_prompt", name=item.get('name', ''))))
-        dt = QDateTimeEdit()
-        dt.setLocale(QLocale(QLocale.Language.English, QLocale.Country.UnitedStates))
-        dt.setCalendarPopup(True)
-        dt.setDateTime(datetime.now() + timedelta(days=3))
-        dt.setDisplayFormat("yyyy-MM-dd HH:mm")
-        layout.addWidget(dt)
-        btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
-        btns.accepted.connect(dlg.accept)
-        btns.rejected.connect(dlg.reject)
-        layout.addWidget(btns)
-        if dlg.exec():
-            self._dm.daily_logs.add_reminder("inventory", item.get("name", ""), datetime.now().strftime("%Y-%m-%d"), dt.dateTime().toPython().isoformat())
-        self._dm.daily_logs.save()
-        QMessageBox.information(self, tr("panel.inventory.msg_reminder_set_title"),
-                                tr("panel.inventory.msg_reminder_set"))
+    def _email_reminder(self, item: dict) -> None:
+        """设补货邮件提醒（对话框在 `inventory_dialogs`）。"""
+        email_reminder_dialog(self, self._dm, item)
 
     def _restyle_chrome(self) -> None:
         """重刷面包屑/返回按钮（颜色在 __init__ 里写死）。"""

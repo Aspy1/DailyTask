@@ -345,19 +345,26 @@ class InstructionParser:
 
 
 def _inventory_prompt(inventory) -> str:
-    """物品清单 + 允许的位置清单（位置由 `set_locations` 维护，AI 只能从里面选）。"""
+    """**当前数据集**的物品清单 + 允许的位置清单（位置由 `set_locations` 维护，AI 只能从里面选）。
+
+    家数据集不使用位置（用户口径）—— 那边一律只表示"在家"；但**必须标出当前是哪一边**，
+    否则模型会把寄回家的东西当成手边的。
+    """
+    ds = inventory.current_dataset
     lines = []
-    for it in inventory.items:
+    for it in inventory.visible_items:
         loc = it.get("location", "")
-        loc_str = f" [{loc}]" if loc else ""
+        loc_str = f" [{loc}]" if loc and ds == "local" else ""
         tags = it.get("tags", [])
         tag_str = f" ({','.join(tags)})" if tags else ""
         lines.append(f"  [{it['id']}] {it['name']} {it['quantity']}{it['unit']}"
                      f"{loc_str} - {it['status']}{tag_str}")
-    allowed = inventory.locations
+    allowed = inventory.allowed_locations
     if allowed:
         lines.append(f"  【位置只能从这些里选】{'、'.join(allowed)}")
-    return chr(10).join(lines) or "  （无物品记录）"
+    head = ("  【当前数据集】家（寄回/存放，不使用位置）" if ds == "home"
+            else "  【当前数据集】本地（手边）")
+    return head + chr(10) + (chr(10).join(lines) or "  （无物品记录）")
 
 
 def _expense_prompt(expenses) -> str:
@@ -520,7 +527,7 @@ class AIService(QObject):
             len(self._dm.tasks.active),
             len(self._dm.habits.habits),
             len(self._dm.expenses.records),
-            len(self._dm.inventory.items),
+            len(self._dm.inventory.visible_items), self._dm.inventory.current_dataset,
             self._dm.expenses.budget.get("monthly", 0),
             int(weather_ts),  # 包含天气缓存时间戳
         )

@@ -13,7 +13,48 @@ from scripts.actions_core import (
     now_iso,
     save,
 )
-from src.models.inventory import InventoryModel
+from src.models.inventory import (
+    DATASETS,
+    DEFAULT_DATASET,
+    RESTOCK_DATASET,
+    InventoryModel,
+)
+
+
+def _requested_dataset(args) -> str:
+    """`--dataset` 的**显式**取值（没传 → 空串）。
+
+    取值合法性（`local` / `home` / `all`）由 `actions_core.SPECS` 在入口统一校验，
+    这里只负责"取出来"（两处各写一遍枚举就会漂移）。
+
+    ⚠ `update_item` 必须用这个（而不是 `_dataset_arg`）：没传时**不能**回退成
+    "当前数据集" —— 那会在用户正看着"家"的时候，把一条本地物品**误搬**到家里。
+    """
+    return str(getattr(args, "dataset", None) or "").strip()
+
+
+def _current_dataset(data) -> str:
+    """文件里的当前数据集（非法值归 `local`，与 `InventoryModel.current_dataset` 同口径）。"""
+    name = str(data.get("current_dataset") or DEFAULT_DATASET)
+    return name if name in DATASETS else DEFAULT_DATASET
+
+
+def _dataset_arg(args, data) -> str:
+    """`--dataset`：没传就用**当前数据集**（界面上切换的那一份，两个入口读同一份文件）。"""
+    return _requested_dataset(args) or _current_dataset(data)
+
+
+def _reject_home_location(dataset: str, args) -> None:
+    """家数据集不使用位置（用户口径）—— 同时传 `--location` 就是参数矛盾，拒绝。"""
+    if dataset == "home" and (getattr(args, "location", None) or "").strip():
+        raise ActionError(
+            "家数据集不使用位置（家里一律只表示「在家」）。去掉 --location，"
+            "或用 --dataset local 记到本地。")
+
+
+def _dataset_note(dataset: str) -> str:
+    """回执里的归属标注：本地是默认不写，家要写清楚（否则看起来像写进了本地）。"""
+    return " | 归属：家" if dataset == "home" else ""
 
 
 def _parse_instances(raw: str | None) -> list[dict]:
@@ -63,27 +104,32 @@ def _new_item(iid: str, args) -> dict:
 def cmd_add_item(args) -> None:
     data = load("inventory.json")
     data.setdefault("items", [])
+    data.setdefault("current_dataset", DEFAULT_DATASET)   # 命令行建出来的文件也显式带这个键
+    dataset = _dataset_arg(args, data)
+    _reject_home_location(dataset, args)
     item = _new_item(gen_id(data["items"], "i"), args)
+    item["dataset"] = dataset
     item["status"] = InventoryModel.derive_status(item)   # 建好再推导（规则只写一份）
-    added_loc = _ensure_location(data, item.get("location", ""))
+    added_loc = (_ensure_location(data, item.get("location", ""))
+                 if dataset == "local" else None)
     data["items"].append(item)
     save("inventory.json", data)
     note = f" | 新增位置 {added_loc}" if added_loc else ""
-    print(f"OK add_item {item['id']} | {args.name}{note}")
+    print(f"OK add_item {item['id']} | {args.name}{note}{_dataset_note(dataset)}")
 
 
 def cmd_set_locations(args) -> None:
-    """整份设置"允许的位置清单"（逗号分隔）。
+    """整份设置**本地数据集**的"允许位置清单"（逗号分隔）。
 
     位置是自由文本，但 AI 重建 / 整理时**只应从这份清单里选** —— 提示词会把清单带给它
-    （`AIService._build_inventory_list`）。例：
+    （`AIService._inventory_prompt`）。家数据集不使用位置，所以只有这一份词表。例：
     `set_locations --values "衣柜左1,衣柜左2,书架1"`
     """
     data = load("inventory.json")
     data["locations"] = InventoryModel.normalize_locations(
         _split_tag_list(getattr(args, "values", "") or ""))
     save("inventory.json", data)
-    print(f"OK set_locations | {len(data['locations'])} 个位置")
+    print(f"OK set_locations | {len(data['locations'])} 个位置（本地数据集）")
 
 
 def cmd_consume(args) -> None:
@@ -164,15 +210,24 @@ def _apply_item_updates(item: dict, args) -> None:
 
 def cmd_update_item(args) -> None:
     data = load("inventory.json")
+    target = _requested_dataset(args)          # 显式传了才动归属（寄回家 / 寄回来）
     for it in data.get("items", []):
         if it["id"] != args.id:
             continue
+        if target:
+            _reject_home_location(target, args)
         _apply_item_updates(it, args)
         it["updated_at"] = now_iso()
-        added_loc = _ensure_location(data, it.get("location", ""))
+        moved = ""
+        if target and target != InventoryModel.dataset_of(it):
+            # 寄回家 / 寄回来 = **改归属字段**，不是删了再建（id 不变，不会丢件）
+            it["dataset"] = target
+            moved = f" | 归属：{'家' if target == 'home' else '本地'}"
+        added_loc = (_ensure_location(data, it.get("location", ""))
+                     if InventoryModel.dataset_of(it) == "local" else None)
         save("inventory.json", data)
         note = f" | 新增位置 {added_loc}" if added_loc else ""
-        print(f"OK update_item {args.id}{note}")
+        print(f"OK update_item {args.id}{moved}{note}")
         return
     print(f"ERROR item not found: {args.id}")
 
@@ -190,15 +245,18 @@ def cmd_delete_item(args) -> None:
 
 
 def cmd_need_restock(args) -> None:
+    """要补货的东西 —— **只看本地数据集**（家里的东西在这儿买不了，提醒了也没用）。"""
     data = load("inventory.json")
-    needs = [it for it in data.get("items", []) if it.get("status") in ("需购", "不足")]
+    needs = [it for it in data.get("items", [])
+             if InventoryModel.dataset_of(it) == RESTOCK_DATASET
+             and it.get("status") in ("需购", "不足")]
     for it in needs:
         print(f"  [{it['id']}] {it['name']} ({it['quantity']}{it.get('unit','个')}) - {it['status']}")
     if not needs:
         print("无需购物品")
 
-def _item_line(it: dict) -> str:
-    """一行摘要：id 名称 数量单位 @位置 - 状态（附片数/阈值/各件数/标签）。"""
+def _item_extra(it: dict) -> str:
+    """括号里的补充信息：片数 / 下限 / 各件数 / 标签（没有就返回空串）。"""
     extra = []
     dpu = it.get("doses_per_unit", 1) or 1
     if dpu != 1:
@@ -211,10 +269,19 @@ def _item_line(it: dict) -> str:
         extra.append(f"{len(it['instances'])}件各自特征")
     if it.get("tags"):
         extra.append("/".join(it["tags"]))
-    tail = f" ({' · '.join(extra)})" if extra else ""
-    loc = f" @{it['location']}" if it.get("location") else ""
+    return f" ({' · '.join(extra)})" if extra else ""
+
+
+def _item_line(it: dict) -> str:
+    """一行摘要：id 名称 数量单位 @位置 - 状态（附片数/阈值/各件数/标签）。
+
+    家数据集**不显示位置**（用户口径），改标 `[家]` —— 否则跨数据集查找时分不清是哪边的。
+    """
+    ds = InventoryModel.dataset_of(it)
+    loc = f" @{it['location']}" if it.get("location") and ds == "local" else ""
+    tag = " [家]" if ds == "home" else ""
     return (f"  [{it['id']}] {it['name']} {it.get('quantity', 0)}{it.get('unit', '')}"
-            f"{loc} - {it.get('status', '')}{tail}")
+            f"{tag}{loc} - {it.get('status', '')}{_item_extra(it)}")
 
 
 def _ensure_location(data: dict, location: str) -> str | None:
@@ -233,12 +300,13 @@ def _ensure_location(data: dict, location: str) -> str | None:
 
 
 def cmd_add_location(args) -> None:
-    """给位置清单**追加**一个（不替换原有；整份替换用 `set_locations`）。"""
+    """给**本地数据集**的位置清单**追加**一个（不替换原有；整份替换用 `set_locations`）。"""
     data = load("inventory.json")
     name = (getattr(args, "name", "") or "").strip()
     added = _ensure_location(data, name)
     save("inventory.json", data)
-    print(f"OK add_location {name}" if added else f"OK add_location {name}（已存在）")
+    print(f"OK add_location {name}（本地数据集）" if added
+          else f"OK add_location {name}（已存在）")
 
 
 def _lookup_filters(args) -> list:
@@ -259,19 +327,27 @@ def _lookup_filters(args) -> list:
     }
     active = [checks[k] for k in checks if raw[k]]
     if str(getattr(args, "restock", None) or "").strip() == "yes":
-        active.append(lambda it: it.get("status") in ("需购", "不足"))
+        # 只看需补货的 —— 与 `need_restock` 同一口径：**补货只属于本地**
+        active.append(lambda it: InventoryModel.dataset_of(it) == RESTOCK_DATASET
+                      and it.get("status") in ("需购", "不足"))
     return active
 
 
 def cmd_lookup_item(args) -> None:
     """按**任意组合**的条件找物品：名字 / 分类 / 标签 / 位置 / 只列需补货。
 
-    不带条件 = 列出全部（"我都有什么"）。**只查不写** —— "先查后加"的两步流程照旧。
+    默认只查**当前数据集**（"我都有什么"问的是正在看的那一边）；`--dataset home`
+    查另一边，`--dataset all` 两边都查（跨数据集找一件东西时用）。家那边的条目会
+    带 `[家]` 标记、且不显示位置。
+
+    **只查不写** —— "先查后加"的两步流程照旧。
     """
     data = load("inventory.json")
+    scope = _dataset_arg(args, data)
+    pool = [it for it in data.get("items", [])
+            if scope == "all" or InventoryModel.dataset_of(it) == scope]
     filters = _lookup_filters(args)
-    matches = [it for it in data.get("items", [])
-               if all(f(it) for f in filters)]
+    matches = [it for it in pool if all(f(it) for f in filters)]
 
     if not matches:
         print("NOT_FOUND")

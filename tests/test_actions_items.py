@@ -146,3 +146,104 @@ def test_lookup_filters_by_location_category_and_restock(sandbox) -> None:
     assert "纸巾" in restock and "T恤" not in restock, "只看需补货的"
 
     assert "FOUND 3" in run("lookup_item"), "不带条件 = 列出全部"
+
+
+# ── 数据集（本地 / 家）───────────────────────────────────────
+
+def _set_current_dataset(sandbox, name: str) -> None:
+    """直接改文件里的"当前数据集"。
+
+    没有切换命令 —— 切换是**界面**的事（`inventory_panel` 的按钮），命令行只跟随它。
+    """
+    path = sandbox / "inventory.json"
+    data = json.loads(path.read_text(encoding="utf-8"))
+    data["current_dataset"] = name
+    path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def test_add_item_to_home_rejects_location(sandbox) -> None:
+    """家数据集不使用位置：同时给 `--location` 就是参数矛盾 → **拒绝且不写**（R-002）。"""
+    out = run('add_item --name "羽绒服" --dataset home --location "衣柜左1"')
+    assert out.startswith("ERROR")
+    assert _items(sandbox) == []
+
+
+def test_add_item_follows_current_dataset(sandbox) -> None:
+    """不写 `--dataset` 就落在**当前数据集** —— 与界面上看到的那一边一致。"""
+    run('add_item --name "T恤" --quantity 3')
+    _set_current_dataset(sandbox, "home")
+    run('add_item --name "羽绒服" --quantity 2')
+
+    assert [(it["name"], it["dataset"]) for it in _items(sandbox)] == [
+        ("T恤", "local"), ("羽绒服", "home")]
+
+
+def test_move_item_between_datasets_keeps_id_and_count(sandbox) -> None:
+    """寄回家 / 寄回来 = `update_item --dataset`，**不是**删了再建。"""
+    run('add_item --name "羽绒服" --quantity 2 --unit "件" --location "衣柜左1"')
+    iid = _items(sandbox)[0]["id"]
+
+    assert "归属：家" in run(f"update_item --id {iid} --dataset home")
+    assert [(it["id"], it["dataset"]) for it in _items(sandbox)] == [(iid, "home")]
+
+    assert "归属：本地" in run(f"update_item --id {iid} --dataset local")
+    assert [(it["id"], it["dataset"]) for it in _items(sandbox)] == [(iid, "local")]
+
+
+def test_update_without_dataset_does_not_move_anything(sandbox) -> None:
+    """⚠ 回归：只改数量**不能**把物品搬走。
+
+    早期实现里 `update_item` 的数据集回退成"当前数据集" —— 用户正看着"家"时改一条
+    本地物品的数量，就会被**误搬**到家里。
+    """
+    run('add_item --name "T恤" --quantity 3')
+    iid = _items(sandbox)[0]["id"]
+    _set_current_dataset(sandbox, "home")
+
+    run(f"update_item --id {iid} --quantity 5")
+
+    assert _items(sandbox)[0]["dataset"] == "local", "没传 --dataset 就不该动归属"
+
+
+def test_lookup_scopes_to_current_dataset_with_all_option(sandbox) -> None:
+    """查找默认只看当前数据集；`--dataset home` / `all` 看另一边 / 两边。"""
+    run('add_item --name "T恤" --quantity 3 --location "衣柜左1"')
+    run('add_item --name "羽绒服" --quantity 2 --dataset home')
+
+    current = run("lookup_item")
+    assert "T恤" in current and "羽绒服" not in current
+
+    home = run("lookup_item --dataset home")
+    assert "羽绒服" in home and "T恤" not in home
+    assert "[家]" in home, "家那一边要标出来（否则跨数据集查找时分不清）"
+    assert "@" not in home, "家不显示位置（用户口径）"
+
+    both = run("lookup_item --dataset all")
+    assert "T恤" in both and "羽绒服" in both
+
+
+def test_need_restock_ignores_home_items(sandbox) -> None:
+    """补货只看本地：家里的东西在这儿买不了（用户口径）。"""
+    run('add_item --name "本地纸巾" --quantity 0 --dataset local')
+    run('add_item --name "家里纸巾" --quantity 0 --dataset home')
+
+    out = run("need_restock")
+    assert "本地纸巾" in out and "家里纸巾" not in out
+    assert "家里纸巾" not in run("lookup_item --restock yes")
+
+
+def test_dataset_all_is_rejected_on_update(sandbox) -> None:
+    """`all` 只在查找里成立；写操作只接受一个确定的数据集。"""
+    run('add_item --name "T恤" --quantity 1')
+    iid = _items(sandbox)[0]["id"]
+    assert run(f"update_item --id {iid} --dataset all").startswith("ERROR")
+
+
+def test_home_item_does_not_register_location(sandbox) -> None:
+    """家那一边不碰位置词表（`locations` 是**本地**数据集的）。"""
+    run('set_locations --values "衣柜左1"')
+    run('add_item --name "羽绒服" --quantity 2 --dataset home')
+
+    data = json.loads((sandbox / "inventory.json").read_text(encoding="utf-8"))
+    assert data["locations"] == ["衣柜左1"], "家不该往位置词表里加东西"
+    assert data["items"][0]["location"] == ""
