@@ -72,6 +72,35 @@ def test_has_write_cmd_distinguishes_reads() -> None:
     assert _has_write_cmd([]) is False
 
 
+def test_repeat_nudge_ladder() -> None:
+    """⚠ §13.4 桩测试（**不经过模型**）：同一批命令重复且无效果 → 告知 → 收束。"""
+    from src.services.ai_loop_guards import repeat_nudge
+
+    assert repeat_nudge({"k": 1}, "k", False) is None, "第一次不算重复"
+    assert "已经执行过一次" in (repeat_nudge({"k": 2}, "k", False) or ""), "第二次要告知"
+    assert "不要再发它" in (repeat_nudge({"k": 3}, "k", False) or ""), "第三次要收束"
+    assert repeat_nudge({"k": 9}, "k", True) is None, "有效果就不该干预"
+
+
+def test_finish_reports_partial_completion_quantitatively(qapp) -> None:
+    """⚠ §9.3：部分完成要**量化**（"1/3 没生效"），不能是散文（"有些失败"）。"""
+    from src.services.ai_service import AIWorker
+
+    worker = AIWorker(None, "m", "", [], None, None)
+    seen: list[str] = []
+    worker.finished_with_instructions.connect(lambda t, _i: seen.append(t))
+
+    worker._finish(["c1", "c2", "c3"], wrote_data=False, display="记好了",
+                   write_failures=["c2"], ok_count=2, finished_normally=False)
+    assert seen and "1/3" in seen[-1], f"要说清几比几：{seen}"
+    assert "没有生效" in seen[-1]
+
+    seen.clear()
+    worker._finish(["c1"], wrote_data=False, display="记好了", ok_count=0,
+                   finished_normally=False)
+    assert seen and "可能没记全" in seen[-1], "被轮次/时限切断要说明"
+
+
 def test_finish_warns_when_claiming_without_data_change(qapp) -> None:
     """⭐ 汇报权归代码：模型说"已记录"但**数据没变** → 必须明确警告，不许像成功。"""
     from src.services.ai_service import AIWorker

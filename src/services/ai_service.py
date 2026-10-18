@@ -11,6 +11,12 @@ from typing import Any, Protocol
 from PySide6.QtCore import QObject, QThread, Signal
 
 from src.services import deepseek, openmeteo
+from src.services.ai_loop_guards import (
+    _claims_done,
+    _continuation_nudge,
+    _has_write_cmd,
+    repeat_nudge,
+)
 from src.services.ai_prompts import (
     SYSTEM_PROMPT_BASE,
     expense_prompt,
@@ -79,66 +85,6 @@ def _strip_code_blocks(text: str) -> str:
 # 服务层沿用既有做法直接 emit 文案（与 `self.error.emit(str(e))` 一致）。
 _EMPTY_REPLY_NOTE = ("模型没有返回可执行内容（推理可能占满了输出预算）。"
                      "请重试，或提高设置里的 AI.max_tokens。")
-
-
-def _looks_like_tool_call(text: str) -> bool:
-    """模型是否改用了"工具调用"格式（本项目**不解析**它）。
-
-    2026-10-18 探针实测：模型偶尔输出 `<｜｜DSML｜｜ invoke name="add_item">…<｜｜DSML｜｜ parameter …>`
-    —— `InstructionParser` 只认 ```sh 代码块，于是那一轮**什么都不做**（用户看起来就是
-    "AI 没反应"）。这里识别出来，好让上层明确纠正格式。
-    """
-    return "invoke name=" in text or "<｜" in text or "｜>" in text
-
-
-def _has_write_cmd(commands: list) -> bool:
-    """这批命令里有没有**用户可见的写操作**（记账类不算）。"""
-    names = [str(c).split("actions.py", 1)[-1].strip().split()[:1] for c in commands]
-    skip = ("lookup_item", "need_restock", "status", "add_location", "set_locations")
-    return any(n and n[0] not in skip for n in names)
-
-
-def _claims_done(text: str) -> bool:
-    """模型是不是在**声称已经写入**（"已记录 / 已录入 / 已更新"…）。
-
-    2026-10-18 α 实测：模型有时只说"已记录：毛巾 2 条…"却**一条命令都没发** —— 数据其实没变 ✗。
-    """
-    return any(m in text for m in ("已记录", "已录入", "已更新", "已加入", "已新增", "已保存", "已完成"))
-
-
-def _continuation_nudge(text: str, truncated: bool, empty_retries: int = 0,
-                        wrote_data: bool = False) -> str | None:
-    """该不该要求模型"继续"？空回复 / 截断 / 声称写了却没命令 / 说"无需写入"却一条没执行 → 续跑；
-    非空的普通提问**不**续跑（否则会把问题刷 5 遍）。
-    """
-    if not text.strip():
-        if empty_retries >= 1:
-            return None
-        return ("[系统] 你上一轮没有输出任何内容。请**直接**输出 ```sh 命令块"
-                "（每轮最多 8 条），不要长篇思考，也不要只解释。")
-    if _looks_like_tool_call(text):
-        # 模型改用了"工具调用"格式（`<｜｜DSML｜｜ invoke name=…>` 之类）→ 解析器认不出，
-        # 等于什么都没做。明确纠正格式，只纠正一次（2026-10-18 探针实测遇到）
-        if empty_retries >= 1:
-            return None
-        return ("[系统] 你用的是**工具调用格式**，本项目不解析它。请改用 ```sh 代码块，"
-                "每行一条 `python scripts/actions.py …` 命令。")
-    if truncated:
-        return ("[系统] 你的回复被输出上限截断了。请**分批**继续："
-                "每轮最多 8 条命令，先执行完这批再继续下一批。")
-    if _claims_done(text) and not wrote_data:
-        # 声称"已记录"却没有命令 → 数据其实**没变**（2026-10-18 α 实测 ✗）
-        if empty_retries >= 2:
-            return None
-        return ("[系统] 你说了\"已记录/已完成\"，但这一轮**没有任何命令** —— 数据不会变。请**立刻**"
-                "输出 ```sh 命令块（先发命令再说话）；只有之前真的执行过命令，才可以回\"无需写入\"。")
-    if "无需写入" in text and not wrote_data:
-        # ⚠ 真实数据实测：模型先说"已记录"、被追问后改口"无需写入"，该记的**根本没落库**
-        if empty_retries >= 2:
-            return None
-        return ("[系统] 你说\"无需写入\"，但**本次请求到现在一条命令都没执行过**。如果用户"
-                "这句话里有要记 / 要改的东西，请**立刻**输出 ```sh 命令块。")
-    return None
 
 
 def provider_headers(base_url: str) -> dict | None:
@@ -261,8 +207,9 @@ class AIWorker(QObject):
             final_text = ""
             all_instructions = []  # collect across multi-turn agent loop
             max_tokens = self._max_tokens()
-            wrote_data, finished_normally = False, False   # 数据真的变了 / 模型自己收尾了
+            wrote_data, finished_normally, ok_count = False, False, 0   # 见 _finish 的注释
             write_failures: list[str] = []                 # 写命令里返回 ERROR 的
+            seen_cmds: dict[str, int] = {}                 # 同一批命令重复了几次（§4 循环检测）
             deadline = time.monotonic() + self._max_seconds()
             for turn in range(5):  # max 5 turns
                 if time.monotonic() > deadline:
@@ -291,43 +238,59 @@ class AIWorker(QObject):
                     finished_normally = True     # 模型自己收尾了（不是被轮次/时限切断）
                     return
                 all_instructions.extend(instructions)
-                # Execute tools silently
-                results = InstructionParser.execute(instructions)
-                # ⭐ **命令自己的结果**（OK / ERROR）才是权威信号 —— 比"文件变了"准得多：
-                # `add_location` 也会改文件，但用户要的东西并没落库（bonsai 实测）。
-                pairs = list(zip(instructions, results, strict=False))
-                write_failures += [c for c, r in pairs
-                                   if _has_write_cmd([c]) and not str(r).startswith("OK")]
-                wrote_data = wrote_data or any(
-                    _has_write_cmd([c]) and str(r).startswith("OK") for c, r in pairs)
+                results_text, n_ok, bad = self._run_commands(instructions, seen_cmds)
+                ok_count += n_ok
+                write_failures += bad
+                wrote_data = wrote_data or n_ok > 0
                 msgs.append({"role": "assistant", "content": text})
-                results_text = "\n".join(results)
-                if results and all(not str(r).startswith("OK") for r in results):
-                    # 给模型一条**事实**（不是指令）：命令跑了但一条都没成功
-                    results_text += ("\n[事实] 命令已执行，但**一条都没成功**（被拒或报错了），"
-                                     "库存/日程没有任何变化。")
                 msgs.append({"role": "user", "content": f"[工具执行结果]\n{results_text}"})
                 final_text = text
             display = re.sub(r'```(?:sh|json)\s*.*?```', '', final_text, flags=re.DOTALL).strip()
             # 轮次/时限到了（模型还没自己收尾）→ 可能只做了一半
             self._finish(all_instructions, wrote_data, display, write_failures,
-                         finished_normally)
+                         finished_normally, ok_count)
         # 边界捕获：本层已处理/记录，不允许异常向上逃逸（CODE_STANDARDS Q-I1）
         except Exception as e:  # noqa: BLE001
             self.error.emit(str(e))
 
+    def _run_commands(self, instructions: list, seen_cmds: dict) -> tuple[str, int, list]:
+        """执行一批命令 → `(喂回对话的结果文本, 写命令成功数, 写命令失败列表)`。
+
+        ⭐ **命令自己的结果（OK / ERROR）才是权威信号** —— 比"文件变了"准得多：
+        `add_location` 也会改文件，但用户要的东西并没落库（bonsai 实测 17 位置 / 6 物品）。
+        """
+        results = InstructionParser.execute(instructions)
+        pairs = list(zip(instructions, results, strict=False))
+        bad = [c for c, r in pairs if _has_write_cmd([c]) and not str(r).startswith("OK")]
+        ok = [c for c, r in pairs if _has_write_cmd([c]) and str(r).startswith("OK")]
+        ckey = "|".join(sorted(str(c).strip() for c in instructions))
+        seen_cmds[ckey] = seen_cmds.get(ckey, 0) + 1
+        text = "\n".join(results)
+        if results and not ok and not bad:
+            # 给模型一条**事实**（不是指令）：命令跑了但一条都没成功
+            text += ("\n[事实] 命令已执行，但**一条都没成功**（被拒或报错了），"
+                     "库存/日程没有任何变化。")
+        note = repeat_nudge(seen_cmds, ckey, bool(ok))
+        if note:
+            text += "\n" + note
+        return text, len(ok), bad
+
     def _finish(self, all_instructions: list, wrote_data: bool, display: str,
-                write_failures: list | None = None, finished_normally: bool = True) -> None:
-        if all_instructions and not finished_normally:
-            # ⚠ 研究 §2.2：部分完成是**常态** —— 必须上报，否则"十三件只记了一件"没人知道
-            display += ("\n\n⚠ **可能没记全** —— 到了轮次/时限上限才停。这条话里东西多的话，"
-                        "请核对一下；或者回一句\"继续\"让我接着记。")
+                write_failures: list | None = None, finished_normally: bool = True,
+                ok_count: int = 0) -> None:
+        """收尾。**汇报权归代码**（§2.3）+ **量化覆盖**（§9.3：要说"12/15 成功"，不是"有些失败"）。"""
+        write_failures = write_failures or []
+        total = ok_count + len(write_failures)
         if write_failures:
             shown = "\n".join(f"  {c}" for c in write_failures[:5])
-            display += f"\n\n⚠ **这些命令没有生效**（已如实告知）：\n{shown}"
-        elif not wrote_data and (_has_write_cmd(all_instructions)
-                                 or _claims_done(display)):
-            # 两种情况都要告诉用户：① 写了命令但没生效 ② **一条命令都没发却说做了**
+            display += (f"\n\n⚠ **{len(write_failures)}/{total} 条写命令没有生效**：\n{shown}")
+        elif all_instructions and not finished_normally:
+            # §2.2：部分完成是**常态** —— 必须上报，否则"十三件只记了一件"没人知道
+            display += (f"\n\n⚠ **可能没记全** —— 到了轮次/时限上限才停。本次执行 "
+                        f"{len(all_instructions)} 条命令、其中写命令成功 {ok_count} 条；"
+                        f"这条话里东西多的话请核对，或回一句\"继续\"让我接着记。")
+        elif not wrote_data and (_has_write_cmd(all_instructions) or _claims_done(display)):
+            # ① 写了命令但没生效 ② **一条命令都没发却说做了**
             display += ("\n\n⚠ **数据没有任何改动** —— 命令没生效，或本轮压根没执行任何命令"
                         "（上面那句是模型的自我描述）。请重试或换个说法。")
         if all_instructions:
