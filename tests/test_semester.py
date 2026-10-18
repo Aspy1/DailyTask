@@ -78,6 +78,21 @@ def test_single_period_slot_is_valid() -> None:
         [{"day_of_week": 1, "time_slots": [{"start": 1, "end": 2}]}], 16, 5) == []
 
 
+def test_courses_out_of_week_range_names_the_courses() -> None:
+    """周次超范围要**点名**：光有问题码，用户面对 20 多门课找不到是哪门。
+
+    与 `validate_courses` 同源（共用 `_weeks_out_of_range`）——两者必须同时报/不报。
+    """
+    courses = [
+        {"name": "高数", "weeks": {"start": 1, "end": 18}},
+        {"name": "英语", "weeks": {"start": 1, "end": 16}},
+        {"id": "c3", "weeks": {"start": 1, "end": 99}},
+    ]
+    assert sem.courses_out_of_week_range(courses, 16) == ["高数", "c3"]
+    assert sem.courses_out_of_week_range(courses, None) == []       # 没学期就不判
+    assert sem.validate_courses(courses, 16, 5).count(sem.ISSUE_COURSE_WEEKS) == 2
+
+
 def test_validate_courses_flags_bad_rows() -> None:
     assert sem.validate_courses([{"weeks": {"start": 1, "end": 99}}], 20, 5) \
         == [sem.ISSUE_COURSE_WEEKS]

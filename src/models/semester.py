@@ -266,6 +266,20 @@ def validate_courses(courses: list[dict], total_weeks: int | None,
     return issues
 
 
+def courses_out_of_week_range(courses: list[dict], total_weeks: int | None) -> list[str]:
+    """周次超出学期的**课程名**（`ISSUE_COURSE_WEEKS` 的定位信息）。
+
+    为什么单独给名字：`validate_courses` 只回问题码（机器可读、好去重），但"有课程周次超范围"
+    这条**光看码没法动手**——用户面对 20 多门课找不到是哪门（2026-10-19 真实数据实测）。
+    判定与 `validate_courses` 共用 `_weeks_out_of_range`，**不另写一套**。
+    """
+    names: list[str] = []
+    for course in courses:
+        if _weeks_out_of_range(course, total_weeks):
+            names.append(str(course.get("name") or course.get("id") or "?"))
+    return names
+
+
 def _model_issues(semesters: list[dict], current_id: str, courses: list[dict]) -> list[str]:
     issues: list[str] = []
     ids = [str(s.get("id") or "") for s in semesters]

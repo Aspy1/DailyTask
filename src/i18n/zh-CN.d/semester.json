@@ -24,6 +24,7 @@
   "semester.issue.course_slots_invalid": "有课程的节次无效（空 / 起止颠倒 / 超出节次上限）",
 
   "dialog.semester.title": "学期管理",
+  "dialog.semester.issue_course_weeks_detail": "（{courses}，共 {count} 门）",
   "dialog.semester.section_current": "当前学期",
   "dialog.semester.section_switch": "切换当前学期",
   "dialog.semester.section_new": "新建学期",

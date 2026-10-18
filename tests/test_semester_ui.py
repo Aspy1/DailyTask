@@ -127,6 +127,20 @@ def test_state_text_covers_exam_week(qapp) -> None:
     assert semester_state_text(_status(sem.STATE_EXAM)) == "期末周"
 
 
+def test_dialog_issue_line_names_courses_out_of_week_range(qapp, tmp_path) -> None:
+    """数据检查里"周次超范围"必须点出**哪门课**（否则用户找不到是哪门）。"""
+    from src.ui.widgets.semester_dialog import SemesterDialog
+
+    dm = DataManager(tmp_path)
+    dm.courses.add_course({"name": "高数", "day_of_week": 1,
+                           "weeks": {"start": 1, "end": 99},
+                           "time_slots": [{"start": 1, "end": 2}]})
+    dialog = SemesterDialog(dm)
+    text = dialog._issues_label.text()
+    assert "高数" in text
+    assert "周次范围超出学期" in text
+
+
 # ── 口径一致：AI 提示词与邮件摘要 ───────────────────────────
 
 def test_ai_current_week_respects_current_semester(tmp_path) -> None:

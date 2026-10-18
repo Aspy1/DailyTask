@@ -25,11 +25,13 @@ from src.models.semester import (
     DEFAULT_EXAM_WEEKS,
     DEFAULT_PERIOD_COUNT,
     DEFAULT_TOTAL_WEEKS,
+    ISSUE_COURSE_WEEKS,
     MAX_EXAM_WEEKS,
     MAX_PERIOD_COUNT,
     MAX_TOTAL_WEEKS,
     MIN_PERIOD_COUNT,
     MIN_TOTAL_WEEKS,
+    courses_out_of_week_range,
     season_start_for,
 )
 from src.services.data_manager import DataManager
@@ -165,9 +167,9 @@ class SemesterDialog(QDialog):
         self._status_label.setText(text)
         self._status_label.setStyleSheet(
             f"color: {c['accent_text']}; font-size: {SIZE_BODY_S}px; font-weight: 600;")
-        self._render_issues(report)
+        self._render_issues(report, status)
 
-    def _render_issues(self, report: dict) -> None:
+    def _render_issues(self, report: dict, status: dict) -> None:
         """数据检查结果（合法性检测的用户出口）。"""
         c = get_colors()
         issues = list(report.get("model", []))
@@ -180,10 +182,25 @@ class SemesterDialog(QDialog):
             self._issues_label.setStyleSheet(
                 f"color: {c['fg_hint']}; font-size: {SIZE_BODY_S}px;")
             return
-        lines = [f"· {issue_text(code)}" for code in dict.fromkeys(issues)]
+        lines = []
+        for code in dict.fromkeys(issues):
+            lines.append(f"· {issue_text(code)}{self._issue_detail(code, status)}")
         self._issues_label.setText(
             tr("dialog.semester.section_issues") + "\n" + "\n".join(lines))
         self._issues_label.setStyleSheet(f"color: {c['red']}; font-size: {SIZE_BODY_S}px;")
+
+    def _issue_detail(self, code: str, status: dict) -> str:
+        """给"光看码没法动手"的问题补**定位信息**（哪门课）。
+
+        只对周次超范围这条做——它是本项目里唯一"有多个可能对象、必须点名"的检查。
+        """
+        if code != ISSUE_COURSE_WEEKS:
+            return ""
+        names = courses_out_of_week_range(self._dm.courses.courses, status.get("total_weeks"))
+        if not names:
+            return ""
+        shown = "、".join(names[:3]) + ("…" if len(names) > 3 else "")
+        return tr("dialog.semester.issue_course_weeks_detail", courses=shown, count=len(names))
 
     def _fill_switch_combo(self, courses) -> None:
         self._switch_combo.clear()
