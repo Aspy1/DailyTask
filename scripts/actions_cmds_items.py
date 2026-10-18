@@ -20,6 +20,7 @@ from src.models.inventory import (
     apply_consume,
     canonical_location,
     runs_out_date,
+    worn_since_date,
 )
 
 # `--membership` 允许的键（用户名 / 到期日 / 自动续费 / 续费月数）。
@@ -87,6 +88,17 @@ def _apply_runs_out(item: dict, args) -> None:
         item["runs_out_on"] = explicit
 
 
+def _apply_wash(item: dict, args) -> None:
+    """衣物状态（用户用例表第 13/22 条）：`--worn-days N`（**代码算起始日**）+
+    `--needs-wash yes|no`（"换来用了" → yes；"洗好了" → no）。"""
+    days = getattr(args, "worn_days", None)
+    if days is not None:
+        item["worn_since"] = worn_since_date(int(days))
+    wash = (getattr(args, "needs_wash", None) or "").strip().lower()
+    if wash in ("yes", "no"):
+        item["needs_wash"] = wash == "yes"
+
+
 def _new_item(iid: str, args) -> dict:
     """按命令行参数造一条物品记录（状态由 `derive_status` 统一推导，不在这里写）。"""
     return {
@@ -148,6 +160,7 @@ def cmd_add_item(args) -> None:
     item = _new_item(gen_id(data["items"], "i"), args)
     item["location"] = _default_location(item, args)      # 没说位置 → 默认「学校」
     _apply_runs_out(item, args)                           # 「还能用半年」→ 算成日期
+    _apply_wash(item, args)                               # 衣物：穿了几天 / 该洗了
     # ⚠ **硬护栏**：同名 + 同位置 + 没有区分（备注/标签）→ 拒绝新增。
     # 2026-10-18 真实数据实测：模型"补写前几轮欠的记录"时把已写过的又加了一遍 ✗
     dup = next((it for it in data["items"]
@@ -269,6 +282,7 @@ def _apply_item_updates(item: dict, args) -> None:
         item["category"] = category
     _apply_item_quantity_fields(item, args)
     _apply_runs_out(item, args)
+    _apply_wash(item, args)
     if location:
         item["location"] = canonical_location(location)   # 同义归一，词表不分叉
     if notes is not None and notes != "":

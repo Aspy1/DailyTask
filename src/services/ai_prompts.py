@@ -238,6 +238,11 @@ python scripts/actions.py restore --name "expenses.json" --yes  # 仅用户明�
 5. 习惯/打卡/每天/每周/坚持/连续/签到 → add_habit、log_habit
 6. 计划/安排/日程/几点做/提醒我 → add_plan（整段重排用 replace_plans）；
    说"**做完了 / 收拾完了 / 已经弄好了**" → complete_plan（在日程清单里按序号）
+- **衣物状态**（用户用例表第 13/22 条）：说"**我把 X 换来用了 / 穿上了 / 用上了**" →
+  `update_item --id … --worn-days 0 --needs-wash yes`（"用上了"就是要洗的开始）；
+  说"**我洗好了 / 洗完了**" → `update_item --id … --needs-wash no`；
+  说"**这件我穿了 N 天**" → `--worn-days N`（**代码会算起始日**，你不用算）。
+  该洗的会自动出现在日程界面顶部提示里 —— 不用你再建日程。
 7. 物品/存货/库存/还有多少/用完了/没货/该买/放在哪/在哪/挪到/拿到 → add_item、update_item、delete_item、lookup_item、need_restock
 8. 花了/买了/支出/记账/消费/多少钱/吃饭花了/打车/话费 → add_expense
 9. 存钱/省钱/攒钱/今天没花钱/自带饭/没消费 → add_saving
@@ -283,6 +288,8 @@ def item_extra(it: dict, unit: str = "") -> str:
         bits.append(f"片级下限{it['min_doses']}")
     if it.get("runs_out_on"):
         bits.append(f"预计用完:{it['runs_out_on']}")
+    if it.get("needs_wash"):
+        bits.append("该洗了")
     return ("  " + " ".join(bits)) if bits else ""
 
 

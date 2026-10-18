@@ -54,6 +54,20 @@ def weather_hints(now: dict | None, forecast: list | None = None) -> list[Hint]:
     return out
 
 
+def wash_hints(items: list) -> list[Hint]:
+    """该洗的衣物 → 一条条提示（用户用例表第 13/22 条）。
+
+    ⚠ 判断在 `inventory.needs_wash_now()` 里（显式标记 or 穿了够久）—— 这里只负责产出提示。
+    """
+    from src.models.inventory import needs_wash_now
+
+    out = []
+    for it in items or []:
+        if it.get("id") and needs_wash_now(it):
+            out.append(Hint(f"wash.{it['id']}", f"{it.get('name', '')} 该洗了 🧺", "info"))
+    return out
+
+
 def load_weather(data_dir: Path) -> tuple[dict, list]:
     """读天气派生缓存（`weather_cache.json`）→ `(当天, 预报列表)`。
 
@@ -64,6 +78,7 @@ def load_weather(data_dir: Path) -> tuple[dict, list]:
 
 
 def today_hints(data_dir: Path) -> list[Hint]:
-    """今天该提示的东西（目前只有天气规则；后面往这里加）。"""
+    """今天该提示的东西：天气 + 该洗的衣物（后面继续往这里加规则）。"""
     now, forecast = load_weather(data_dir)
-    return weather_hints(now, forecast)
+    inventory = read_json_safe(Path(data_dir) / "inventory.json")
+    return weather_hints(now, forecast) + wash_hints(inventory.get("items") or [])

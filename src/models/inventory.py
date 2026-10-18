@@ -52,6 +52,36 @@ DEFAULT_INVENTORY = {
 logger = logging.getLogger(__name__)
 
 
+def worn_since_date(days: int, today: date | None = None) -> str:
+    """`N` 天前 → `YYYY-MM-DD`（"这件我穿了 3 天了" → 起始日）。"""
+    return ((today or date.today()) - timedelta(days=int(days))).isoformat()
+
+
+def worn_days(item: dict, today: date | None = None) -> int | None:
+    """这件衣物**穿了几天**（从 `worn_since` 算）—— 没记返回 `None`。
+
+    ⚠ 刻意**不存计数器**：计数器要有人记得每天 +1（漏一天就错），而且跨天/跨设备必错 ✗。
+    存一个"从哪天开始穿"的日期，天数**每次算** ✓ —— 和 `runs_out_on` 同一个思路。
+    """
+    days = days_until(str(item.get("worn_since") or ""), today)
+    return None if days is None else -days
+
+
+def needs_wash_now(item: dict, today: date | None = None) -> bool:
+    """这件衣物现在**该不该洗**（用户用例表第 13/22 条）。
+
+    - 显式标了 `needs_wash` → 该洗 ✓（"我把那条床单换来用了"）
+    - 或穿了 ≥ `wash_after_days` 天 → 该洗 ✓（阈值可配，跟着"穿够几天就洗"走）
+    """
+    if item.get("needs_wash"):
+        return True
+    limit = item.get("wash_after_days")
+    if not limit:
+        return False
+    days = worn_days(item, today)
+    return days is not None and days >= int(limit)
+
+
 def runs_out_date(months: int, today: date | None = None) -> str:
     """今天 + `months` 个月 → `YYYY-MM-DD`（**按 30 天/月近似**，够用且不引第三方库）。
 
