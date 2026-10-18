@@ -56,18 +56,15 @@ def _tag_input_row(layout, tag_list) -> None:
 
 
 def edit_tags_dialog(parent, dm, item: dict) -> bool:
-    """改标签。返回 `True` = 改过了（调用方负责发信号并刷新）。"""
-    c = get_colors()
-    dlg = QDialog(parent)
-    dlg.setWindowTitle(tr("panel.inventory.dialog_edit_tags_title", name=item.get('name', '')))
-    dlg.setMinimumWidth(360)
-    dlg.setStyleSheet(f"QDialog {{ background-color: {c['card_bg']}; }} QLabel {{ color: {c['fg_primary']}; font-size: 13px; background: transparent; border: none; }} QLineEdit {{ background-color: {c['bg_input']}; color: {c['fg_primary']}; border: 1px solid {c['border']}; padding: 6px 10px; font-size: 13px; }} QPushButton {{ background-color: {c['accent_bg']}; color: {c['fg_primary']}; border: none; border-radius: 4px; padding: 4px 12px; font-size: 12px; }} QPushButton:hover {{ background-color: {c['accent']}; color: {c['fg_on_fill']}; }}")
-    layout = QVBoxLayout(dlg)
-    layout.setSpacing(10)
-    layout.setContentsMargins(20, 16, 20, 16)
+    """改标签。返回 `True` = 改过了（调用方负责发信号并刷新）。
+
+    走 `DialogShell`（审查 U9）：限高 + 中间滚动 + 底部按钮固定。
+    """
+    dlg = DialogShell(parent, tr("panel.inventory.dialog_edit_tags_title",
+                                 name=item.get('name', '')))
+    layout = dlg.body
 
     tag_list = QListWidget()
-    tag_list.setStyleSheet(f"QListWidget {{ background-color: {c['bg_input']}; color: {c['fg_primary']}; border: 1px solid {c['border']}; border-radius: 4px; font-size: 13px; }}")
     for t in item.get("tags", []):
         tag_list.addItem(t)
     layout.addWidget(QLabel(tr("panel.inventory.label_current_tags")))
@@ -91,11 +88,7 @@ def edit_tags_dialog(parent, dm, item: dict) -> bool:
     del_btn.clicked.connect(lambda: tag_list.takeItem(tag_list.currentRow())
                             if tag_list.currentRow() >= 0 else None)
     layout.addWidget(del_btn)
-
-    btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
-    btns.accepted.connect(dlg.accept)
-    btns.rejected.connect(dlg.reject)
-    layout.addWidget(btns)
+    layout.addStretch()
 
     if not dlg.exec():
         return False
