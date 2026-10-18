@@ -86,6 +86,23 @@ def test_markdown_escapes_user_html() -> None:
     assert "<b>粗</b>" in _md_to_html("**粗**")
 
 
+def test_course_table_columns_have_a_readable_minimum(qapp) -> None:
+    """⚠ U6 回归：周课表的列/行要有**下限**，窄窗口不能把名称/教室挤没。
+
+    原来横纵表头都是 `Stretch`、没有最小节宽 → 7 列可以被无限压缩。
+    """
+    from src.ui.widgets.course_table import DAY_COL_MIN_WIDTH, ROW_MIN_HEIGHT, CourseTable
+
+    table = CourseTable(period_count=5)
+    table.resize(300, 400)          # 故意很窄
+    qapp.processEvents()
+
+    widths = [table.columnWidth(c) for c in range(7)]
+    assert min(widths) >= DAY_COL_MIN_WIDTH, f"列被挤到 {widths}"
+    heights = [table.rowHeight(r) for r in range(5)]
+    assert min(heights) >= ROW_MIN_HEIGHT, f"行被挤到 {heights}"
+
+
 def test_habit_card_grows_instead_of_clipping(qapp) -> None:
     """⚠ U6 回归：习惯卡是**最小**高度（原来固定 135 → 长标题/多标签被硬裁）。"""
     from src.ui.panels.habit_panel import CARD_MIN_HEIGHT, _HabitCard

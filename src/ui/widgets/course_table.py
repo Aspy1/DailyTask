@@ -282,6 +282,12 @@ def _build_context_prompt(course: dict, action: str) -> str:
     )
 
 
+# 列 / 行下限（审查 U6）：窄窗口（或展开 AI 面板）不许把 7 列挤到看不清 ——
+# 保证"内容所需宽度"，装不下时由表格自己的滚动条接手。
+DAY_COL_MIN_WIDTH = 96
+ROW_MIN_HEIGHT = 56
+
+
 class CourseTable(QTableWidget):
     """Course grid. Emits signals for context menu actions."""
 
@@ -302,6 +308,11 @@ class CourseTable(QTableWidget):
 
         self.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        # ⚠ 列/行都要有**下限**（审查 U6）：原来只有 Stretch，窄窗口（或展开 AI 面板）时
+        # 7 列会被挤到看不清 —— 课程名换行后把教室等信息顶掉。
+        # 下限保证"内容所需宽度"，装不下时由表格自己的滚动条接手。
+        self.horizontalHeader().setMinimumSectionSize(DAY_COL_MIN_WIDTH)
+        self.verticalHeader().setMinimumSectionSize(ROW_MIN_HEIGHT)
         # 事项行按内容自适应高度（其它行均分）
         self.verticalHeader().setSectionResizeMode(
             self._marker_row, QHeaderView.ResizeMode.ResizeToContents)

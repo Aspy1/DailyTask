@@ -504,6 +504,7 @@ class InventoryPanel(QWidget):
         hdr = QHBoxLayout()
         hdr.setSpacing(8)
         name = QLabel(it.get("name", ""))
+        name.setWordWrap(True)          # 长物品名换行（完整显示，不再被挤掉 —— U6）
         name.setStyleSheet(f"color: {c['fg_primary']}; font-size: 14px; font-weight: 600; border: none; background: transparent;")
         hdr.addWidget(name)
         hdr.addStretch()
@@ -583,6 +584,7 @@ class InventoryPanel(QWidget):
         cl.addWidget(arrow)
 
         name = QLabel(it.get("name", ""))
+        name.setWordWrap(True)          # 长物品名换行（完整显示，不再被挤掉 —— U6）
         name.setStyleSheet(f"color: {c['fg_primary']}; font-size: 14px; font-weight: 600; border: none; background: transparent;")
         cl.addWidget(name)
         cl.addStretch()
