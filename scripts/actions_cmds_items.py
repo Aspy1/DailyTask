@@ -15,6 +15,10 @@ from scripts.actions_core import (
 )
 from src.models.inventory import DEFAULT_LOCATION, SIDE_SCHOOL, InventoryModel
 
+# `--membership` 允许的键（用户名 / 到期日 / 自动续费 / 续费月数）。
+# **手机号不在这里** —— 它不进 `inventory.json`（见 `models/membership_contacts.py`）。
+MEMBERSHIP_KEYS = ("username", "expires_on", "auto_renew", "renew_months")
+
 
 def _default_location(item: dict, args) -> str:
     """**没说位置时的默认归属**：学校（用户口径 2026-10-18）。
@@ -75,11 +79,54 @@ def _new_item(iid: str, args) -> dict:
     }
 
 
+def _parse_membership(raw: str | None) -> dict:
+    """`--membership` 传 JSON 对象（写法同 `--instances`）。
+
+    例：`{"username":"my_qq","expires_on":"2027-03-15","auto_renew":true,"renew_months":12}`
+
+    ⚠ **不要**在这里放手机号 —— `inventory.json` 会同步到 GitHub，手机号是私有的
+    （只在面板弹窗里录，见 `models/membership_contacts.py`）。写进来直接拒绝。
+    """
+    if not raw:
+        return {}
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError as e:
+        raise ActionError(f"--membership 不是合法 JSON：{e}") from e
+    if not isinstance(parsed, dict):
+        raise ActionError("--membership 必须是 JSON 对象")
+    if "phone" in parsed or "手机号" in parsed:
+        raise ActionError(
+            "手机号不能写进 inventory.json（它会同步到 GitHub）。"
+            "请在面板的会员弹窗里录，或放 data/private/memberships.json")
+    unknown = set(parsed) - set(MEMBERSHIP_KEYS)
+    if unknown:
+        raise ActionError(
+            f"--membership 只接受 {'、'.join(MEMBERSHIP_KEYS)}，收到 {sorted(unknown)}")
+    return parsed
+
+
+def _apply_membership(item: dict, args) -> None:
+    """把 `--membership` 写进物品（**整组替换**）；没传就什么都不做。
+
+    传空对象 `{}` = 清掉会员信息（键一并删掉，不留空壳）。
+    """
+    raw = getattr(args, "membership", None)
+    if raw is None or not str(raw).strip():
+        return
+    parsed = _parse_membership(raw)
+    if parsed:
+        item["membership"] = parsed
+    else:
+        item.pop("membership", None)
+
+
 def cmd_add_item(args) -> None:
     data = load("inventory.json")
     data.setdefault("items", [])
     item = _new_item(gen_id(data["items"], "i"), args)
     item["location"] = _default_location(item, args)      # 没说位置 → 默认「学校」
+    _apply_membership(item, args)                         # 会员信息（有到期日就由它定状态）
     item["status"] = InventoryModel.derive_status(item)   # 建好再推导（规则只写一份）
     added_loc = _ensure_location(data, item["location"])
     data["items"].append(item)
@@ -177,6 +224,7 @@ def _apply_item_updates(item: dict, args) -> None:
         item["location"] = location
     if tags:
         item["tags"] = _split_tag_list(tags)
+    _apply_membership(item, args)
 
 
 def cmd_update_item(args) -> None:
@@ -186,6 +234,10 @@ def cmd_update_item(args) -> None:
             continue
         _apply_item_updates(it, args)
         it["updated_at"] = now_iso()
+        # 状态：显式 `--status` 优先（用户手改的不能被覆盖）；否则重算
+        # （会员按到期日，其余按数量 —— 数量改了状态就该跟着变）
+        if not it.get("ignore_low_stock") and not getattr(args, "status", None):
+            it["status"] = InventoryModel.derive_status(it)
         added_loc = _ensure_location(data, it.get("location", ""))
         save("inventory.json", data)
         note = f" | 新增位置 {added_loc}" if added_loc else ""
@@ -207,18 +259,35 @@ def cmd_delete_item(args) -> None:
 
 
 def cmd_need_restock(args) -> None:
-    """要补货的东西 —— **只看学校那一侧**（家里的东西在这儿买不了，提醒了也没用）。"""
+    """要补货 / 续费的东西 —— **只看学校那一侧**（家里的东西在这儿买不了，提醒了也没用）。
+
+    状态**按当前日期重新推导**（会员的"需购"来自到期日，存下来的快照会过期）。
+    """
     data = load("inventory.json")
-    needs = [it for it in data.get("items", [])
-             if InventoryModel.side_of(it) == SIDE_SCHOOL
-             and it.get("status") in ("需购", "不足")]
+    needs = [it for it in data.get("items", []) if _needs_restock(it)]
     for it in needs:
         print(f"  [{it['id']}] {it['name']} ({it['quantity']}{it.get('unit','个')}) - {it['status']}")
     if not needs:
         print("无需购物品")
 
+def _membership_extra(it: dict) -> str:
+    """会员摘要（用户名 / 到期日 / 自动续费）；不是会员就空串。
+
+    ⚠ 这里**没有手机号** —— 它不进提示词（也不会进仓库）。
+    """
+    m = InventoryModel.membership_of(it)
+    if not m:
+        return ""
+    bits = [str(m["username"])] if m.get("username") else []
+    if m.get("expires_on"):
+        bits.append(f"{m['expires_on']} 到期")
+    if m.get("auto_renew"):
+        bits.append(f"自动续费{m.get('renew_months') or '?'}个月")
+    return "会员:" + "/".join(bits) if bits else ""
+
+
 def _item_extra(it: dict) -> str:
-    """括号里的补充信息：片数 / 下限 / 各件数 / 标签（没有就返回空串）。"""
+    """括号里的补充信息：片数 / 下限 / 各件数 / 标签 / 会员。"""
     extra = []
     dpu = it.get("doses_per_unit", 1) or 1
     if dpu != 1:
@@ -231,14 +300,20 @@ def _item_extra(it: dict) -> str:
         extra.append(f"{len(it['instances'])}件各自特征")
     if it.get("tags"):
         extra.append("/".join(it["tags"]))
+    member = _membership_extra(it)
+    if member:
+        extra.append(member)
     return f" ({' · '.join(extra)})" if extra else ""
 
 
 def _item_line(it: dict) -> str:
-    """一行摘要：id 名称 数量单位 @位置 - 状态（附片数/阈值/各件数/标签）。"""
+    """一行摘要：id 名称 数量单位 @位置 - 状态（附片数/阈值/各件数/标签/会员）。
+
+    状态**按当前日期重新推导** —— 会员的"需购"来自到期日，存下来的快照会过期。
+    """
     loc = f" @{it['location']}" if it.get("location") else ""
     return (f"  [{it['id']}] {it['name']} {it.get('quantity', 0)}{it.get('unit', '')}"
-            f"{loc} - {it.get('status', '')}{_item_extra(it)}")
+            f"{loc} - {InventoryModel.effective_status(it)}{_item_extra(it)}")
 
 
 def _ensure_location(data: dict, location: str) -> str | None:
@@ -265,6 +340,13 @@ def cmd_add_location(args) -> None:
     print(f"OK add_location {name}" if added else f"OK add_location {name}（已存在）")
 
 
+def _needs_restock(it: dict) -> bool:
+    """需购 / 不足（**按当前日期算**），且没被显式豁免 —— 与 `need_restock` 同一口径。"""
+    return (not it.get("ignore_low_stock")
+            and InventoryModel.side_of(it) == SIDE_SCHOOL
+            and InventoryModel.effective_status(it) in ("需购", "不足"))
+
+
 def _lookup_filters(args) -> list:
     """把**非空**的筛选条件变成一组判定函数（空条件不参与筛选）。
 
@@ -283,9 +365,8 @@ def _lookup_filters(args) -> list:
     }
     active = [checks[k] for k in checks if raw[k]]
     if str(getattr(args, "restock", None) or "").strip() == "yes":
-        # 只看需补货的 —— 与 `need_restock` 同一口径：**只看学校那一侧**
-        active.append(lambda it: InventoryModel.side_of(it) == SIDE_SCHOOL
-                      and it.get("status") in ("需购", "不足"))
+        # 只看需补货的 —— 与 `need_restock` 同一口径（学校侧 + 按当前日期重算状态）
+        active.append(_needs_restock)
     return active
 
 

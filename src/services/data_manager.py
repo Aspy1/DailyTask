@@ -25,6 +25,7 @@ from src.models.exam import ExamModel
 from src.models.expense import ExpenseModel
 from src.models.habit import HabitModel
 from src.models.inventory import InventoryModel
+from src.models.membership_contacts import MembershipContactsModel
 from src.models.semester import (
     DEFAULT_EXAM_WEEKS,
     DEFAULT_PERIOD_COUNT,
@@ -83,6 +84,10 @@ class DataManager(QObject):
         self.expenses = ExpenseModel(data_dir / "expenses.json")
         self.daily_logs = DailyLogModel(data_dir / "daily_logs.json")
         self.inventory = InventoryModel(data_dir / "inventory.json")
+        # 会员手机号：**私有**文件（不进仓库、不进 AI 提示词）——
+        # 见 `git_sync.PRIVATE_FILES` 与 `models/membership_contacts.py`
+        self.membership_contacts = MembershipContactsModel(
+            data_dir / "private" / "memberships.json")
         self.habits._inventory = self.inventory
         self._attach_conflict_hook()
         self._log_recoveries()
@@ -140,6 +145,7 @@ class DataManager(QObject):
             (self.habits, "habits"), (self.expenses, "expenses"),
             (self.daily_logs, "daily_logs"), (self.exams, "exams"),
             (self.inventory, "inventory"), (self.semesters, "semesters"),
+            (self.membership_contacts, "membership_contacts"),
         ]
 
     def reload_all(self) -> None:

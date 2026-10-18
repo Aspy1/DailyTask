@@ -380,6 +380,7 @@ def _normalize_due(raw: str) -> str | None:
 
 MAX_TITLE = 120
 MAX_TEXT = 80
+MAX_JSON = 500          # JSON 载荷参数（`--instances` / `--membership`）—— 80 字装不下
 MAX_NOTE = 500
 MAX_QUANTITY = 100000
 MAX_AMOUNT = 1_000_000
@@ -566,9 +567,9 @@ ALLOWED_OPTIONS: dict[str, set[str]] = {
     "update_course": {"id", "name", "day", "weeks", "slots", "location",
                       "teacher", "parity"},
     "add_item": {"name", "category", "quantity", "min_qty", "min_doses", "location", "notes", "group",
-                 "tags", "status", "unit", "doses_per_unit", "instances"},
+                 "tags", "status", "unit", "doses_per_unit", "instances", "membership"},
     "update_item": {"id", "name", "group", "category", "quantity", "status", "min_qty", "min_doses",
-                    "location", "tags", "unit", "doses_per_unit", "instances"},
+                    "location", "tags", "unit", "doses_per_unit", "instances", "membership"},
     "consume": {"id", "amount"},
     "set_locations": {"values"},
     "delete_item": {"id"},
@@ -653,18 +654,18 @@ SPECS: dict[str, dict] = {
     "add_item": {
         "required": ("name",),
         "name": ("text", MAX_TITLE), "category": ("text", MAX_TEXT),
-        "quantity": ("int_opt", 0, MAX_QUANTITY),
+        "quantity": ("int_opt", 0, MAX_QUANTITY), "membership": ("text", MAX_JSON),
         "min_qty": ("int_opt", 0, MAX_QUANTITY),
         "location": ("text", MAX_TEXT), "notes": ("text", MAX_NOTE),
         "group": ("text", MAX_TEXT), "tags": ("text", MAX_NOTE),
         "status": ("text", MAX_TEXT),          # CLI 接受但忽略（状态自动推导）
         "unit": ("text", MAX_TEXT), "doses_per_unit": ("int_opt", 1, MAX_QUANTITY),
         "min_doses": ("int_opt", 0, MAX_QUANTITY),   # 片级下限（0 = 不用）
-        "instances": ("text", MAX_TEXT),       # JSON 数组，handler 里解析
+        "instances": ("text", MAX_JSON),       # JSON 数组，handler 里解析
     },
     "update_item": {
         "required": ("id",), "id": ("id",),
-        "quantity": ("int_opt", 0, MAX_QUANTITY),
+        "quantity": ("int_opt", 0, MAX_QUANTITY), "membership": ("text", MAX_JSON),
         "min_qty": ("int_opt", 0, MAX_QUANTITY),
         "status": ("choice", ("充足", "不足", "需购")),
         "name": ("text", MAX_TITLE), "group": ("text", MAX_TEXT),
@@ -672,7 +673,7 @@ SPECS: dict[str, dict] = {
         "tags": ("text", MAX_NOTE),
         "unit": ("text", MAX_TEXT), "doses_per_unit": ("int_opt", 1, MAX_QUANTITY),
         "min_doses": ("int_opt", 0, MAX_QUANTITY),
-        "instances": ("text", MAX_TEXT),
+        "instances": ("text", MAX_JSON),
     },
     "consume": {"required": ("id",), "id": ("id",),
                 "amount": ("int_opt", 1, MAX_QUANTITY)},

@@ -18,6 +18,11 @@ DATA_FILES = ("daily_logs.json", "expenses.json", "habits.json",
               "inventory.json", "semesters.json")
 # 按学期的文件：整个目录 —— **不只当前学期**，旧学期的 courses/tasks/exams 也要同步
 DATA_DIRS = ("semesters",)
+# **故意不同步**的文件（私有：PII 级）。仍然登记在这里，因为
+# `tests/test_git_sync_scope.py` 要求"每个数据模型要么在同步清单里、要么在这里"，
+# 而且这里每一项都必须在 `.gitignore` 里（防止哪天手滑 `git add` 推进仓库）。
+# 路径相对 `data/`，与 DATA_FILES 同一口径。
+PRIVATE_FILES = ("private/memberships.json",)
 
 
 def build_sync_commands(data_rel: str, message: str) -> list[list[str]]:

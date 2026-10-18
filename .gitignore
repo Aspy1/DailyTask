@@ -5,6 +5,8 @@ data/archives/
 data/backup/
 data/settings.ini
 data/schedule_snapshot.txt
+# 私有（会员手机号等 PII）：不进仓库 —— 见 `git_sync.PRIVATE_FILES`
+data/private/
 # 派生 / 缓存（可自动重建）—— 2026-10-17 取消跟踪，见 PLAN.md P17 / 审查 #4
 data/weather_cache.json
 data/weather_stats.json

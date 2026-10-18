@@ -98,7 +98,14 @@ def _add_item_parsers(sub) -> None:
     p.add_argument("--doses-per-unit", type=int, default=None, help="每份含量（1 盒 24 片 → 24）")
     p.add_argument("--min-doses", type=int, default=None, help="片级下限（剩不到 N 片就标不足 → 触发补货）")
     p.add_argument("--instances", help='同类不同特征的各件，JSON 数组，如 [{"tags":["Type-C"]}]')
+    p.add_argument("--membership",
+                   help='会员信息 JSON（虚拟品类）：{"username":"x","expires_on":"2027-03-15",'
+                        '"auto_renew":true,"renew_months":12}；手机号**不放这里**')
+    _update_item_parser(sub)
 
+
+def _update_item_parser(sub) -> None:
+    """`update_item`（只改显式传入的字段；`--membership` 是**整组替换**）。"""
     p = sub.add_parser("update_item", help="更新物品")
     p.add_argument("--id", required=True)
     p.add_argument("--name")
@@ -113,6 +120,7 @@ def _add_item_parsers(sub) -> None:
     p.add_argument("--doses-per-unit", type=int)
     p.add_argument("--min-doses", type=int)
     p.add_argument("--instances", help="JSON 数组（整组替换）")
+    p.add_argument("--membership", help="会员信息 JSON（整组替换；空对象 = 清掉）")
 
     p = sub.add_parser("consume", help="消耗 N 份（按每份含量扣减 + 重算状态）")
     p.add_argument("--id", required=True)

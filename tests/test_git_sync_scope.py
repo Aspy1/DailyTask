@@ -20,6 +20,7 @@ from src.services.data_manager import DataManager
 from src.services.git_sync import (
     DATA_DIRS,
     DATA_FILES,
+    PRIVATE_FILES,
     _GitWorker,
     build_sync_commands,
     classify_sync,
@@ -29,14 +30,31 @@ from src.services.git_sync import (
 
 
 def test_manifest_covers_every_model(tmp_path, qapp) -> None:
-    """每个模型文件都要落在"数据目录 + 清单子目录"之内（目录级暂存才覆盖得到）。"""
+    """每个模型文件要么在**同步清单**里、要么在**私有清单**里（不能"谁都没登记"）。
+
+    漏登记比报错更糟：该同步的会**悄悄**不同步，该私有的会**悄悄**被推上 GitHub。
+    """
     dm = DataManager(tmp_path)
-    covered = set(DATA_FILES) | set(DATA_DIRS)
+    covered = set(DATA_FILES) | set(DATA_DIRS) | set(PRIVATE_FILES)
     for model, name in dm._models():
         rel = model.file_path.relative_to(tmp_path).as_posix()
         top = rel.split("/")[0]
         assert rel in covered or top in covered, (
-            f"{name}（{rel}）不在同步清单里 —— 加进 `git_sync.DATA_FILES`/`DATA_DIRS`")
+            f"{name}（{rel}）不在清单里 —— 该同步的加进 `git_sync.DATA_FILES`/`DATA_DIRS`，"
+            f"私有的加进 `PRIVATE_FILES`")
+
+
+def test_private_files_are_gitignored() -> None:
+    """私有清单里的每一项都必须被 `.gitignore` 挡住。
+
+    否则哪天一次 `git add -A` 就把手机号这类 PII 推进仓库了。
+    """
+    root = Path(__file__).resolve().parent.parent
+    ignored = (root / ".gitignore").read_text(encoding="utf-8")
+    for rel in PRIVATE_FILES:
+        top = rel.split("/")[0]
+        assert f"data/{top}/" in ignored or f"data/{rel}" in ignored, (
+            f"{rel} 没被 .gitignore 挡住 —— 这类私有数据会被推进仓库")
 
 
 def test_add_and_commit_are_scoped_to_data_dir() -> None:

@@ -1,7 +1,7 @@
 """Inventory model — personal item library."""
 
 import logging
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 
 from src.models.base import BaseJsonModel
@@ -18,6 +18,26 @@ HOME_LOCATION = "家"
 HOME_LOCATIONS = (HOME_LOCATION, "老家")
 SIDE_SCHOOL = "school"
 SIDE_HOME = "home"
+
+# 会员（虚拟品类）：绑定账号 → 记用户名 / 到期日 / 自动续费 / 续费月数。
+# ⚠ **手机号不进这个文件** —— 它会被同步到 GitHub（`git_sync.DATA_FILES`），
+#   手机号单独放 `data/private/memberships.json`（.gitignore + `git_sync.PRIVATE_FILES`），
+#   也不进 AI 提示词（见 `models/membership_contacts.py` 的说明）。
+MEMBERSHIP_CATEGORY = "虚拟品类"
+# 到期前多少天算"不足（要到期了）"。R-005：阈值只有这一处，改这里即可。
+RENEW_WARNING_DAYS = 7
+
+
+def days_until(expires_on: str, today: date | None = None) -> int | None:
+    """`expires_on`（`YYYY-MM-DD`）距今还有几天；空 / 解析不了 → `None`（**不猜**）。"""
+    if not expires_on:
+        return None
+    try:
+        target = date.fromisoformat(str(expires_on)[:10])
+    except ValueError:
+        logger.debug("membership.expires_on 解析失败：%r", expires_on)
+        return None
+    return (target - (today or date.today())).days
 
 DEFAULT_INVENTORY = {
     "_version": 1,
@@ -36,6 +56,19 @@ class InventoryModel(BaseJsonModel):
     def __init__(self, file_path: Path) -> None:
         super().__init__(file_path, DEFAULT_INVENTORY)
 
+    def load(self) -> dict:
+        """读盘后把**会员**的状态按当前日期重算一遍（其余物品保持存下来的值）。
+
+        会员的状态随时间变（到期日），存下来的 `status` 只是写入那一刻的快照。
+        ⚠ **只重算会员**：非会员的 `status` 可能是用户用 `--status` 手动改过的，
+        一刷新就被覆盖了（2026-10-18 被 `test_actions_smoke` 抓到的回归）。
+        """
+        data = super().load()
+        for it in self.items:
+            if InventoryModel.has_expiry(it) and not it.get("ignore_low_stock"):
+                it["status"] = InventoryModel.derive_status(it)
+        return data
+
     @property
     def items(self) -> list[dict]:
         """全部物品（两边都在内）—— 界面按 `side_of()` 分边显示。"""
@@ -53,14 +86,17 @@ class InventoryModel(BaseJsonModel):
 
     @property
     def need_restock(self) -> list[dict]:
-        """需要补货的物品 —— **只看学校那一侧**。
+        """需要补货 / 续费的物品 —— **只看学校那一侧**，且**按当前日期重新推导状态**。
 
         家里的东西在这儿买不了，提醒了也没用（用户口径 2026-10-18）。
+
+        ⚠ 必须用 `effective_status`（**重新推导**）：会员的"需购"来自**到期日**，而存下来的
+        `status` 是写入那一刻的快照 —— 应用开着几天不动，快照就过期了。
         """
         return [it for it in self.items
                 if self.side_of(it) == SIDE_SCHOOL
-                and it.get("status") in ("需购", "不足")
-                and not it.get("ignore_low_stock")]
+                and not it.get("ignore_low_stock")
+                and self.effective_status(it) in ("需购", "不足")]
 
     @property
     def categories(self) -> list[str]:
@@ -106,14 +142,35 @@ class InventoryModel(BaseJsonModel):
         return iid
 
     @staticmethod
-    def derive_status(item: dict) -> str:
-        """按**单位级**下限 `min_quantity` 与**片级**下限 `min_doses` 推导状态。
+    def derive_status(item: dict, today: date | None = None) -> str:
+        """推导状态：**会员按到期日**（有 `membership.expires_on` 时），其余按数量/片数。
 
-        规则（`CODE_STANDARDS` 单一真值）：`quantity <= 0` → 需购；低于下限 → 不足；
+        会员（用户口径 2026-10-18）：过期 → 需购（要续费）；`RENEW_WARNING_DAYS` 天内 →
+        不足（要到期了）；否则充足（有效）。**自动续费开着也照常按到期日算** ——
+        那个开关只是记着（你要知道它什么时候扣钱）。
+
+        其余物品（`CODE_STANDARDS` 单一真值）：`quantity <= 0` → 需购；低于下限 → 不足；
         否则充足。两个下限同时给了**以片级为准**（`quantity × doses_per_unit < min_doses`）
         —— 它才对应"剩不到 5 片就提醒我买"（2026-10-18 探针发现的单位错位：
         `--min_qty 5` 是"5 盒"，与用户说的"5 片"差 24 倍）。
         """
+        return (InventoryModel._membership_status(item, today)
+                or InventoryModel._quantity_status(item))
+
+    @staticmethod
+    def _membership_status(item: dict, today: date | None = None) -> str | None:
+        """会员按到期日给状态；没有到期日（或日期解析不了）→ `None`，交给数量规则。"""
+        expires_on = str(InventoryModel.membership_of(item).get("expires_on") or "")
+        days = days_until(expires_on, today)
+        if days is None:
+            return None
+        if days < 0:
+            return "需购"
+        return "不足" if days <= RENEW_WARNING_DAYS else "充足"
+
+    @staticmethod
+    def _quantity_status(item: dict) -> str:
+        """按数量 / 片级下限给状态（原有规则，一个字没改）。"""
         quantity = item.get("quantity", 1)
         if quantity <= 0:
             return "需购"
@@ -122,6 +179,33 @@ class InventoryModel(BaseJsonModel):
             doses = quantity * (item.get("doses_per_unit", 1) or 1)
             return "不足" if doses < min_doses else "充足"
         return "不足" if quantity < item.get("min_quantity", 1) else "充足"
+
+    @staticmethod
+    def membership_of(item: dict) -> dict:
+        """会员信息（用户名 / 到期日 / 自动续费 / 续费月数）；没有就空 dict。
+
+        ⚠ 这里**不含手机号** —— 手机号在 `MembershipContactsModel`（私有文件）。
+        """
+        value = item.get("membership")
+        return value if isinstance(value, dict) else {}
+
+    @staticmethod
+    def has_expiry(item: dict) -> bool:
+        """这条物品的状态由**到期日**决定吗（会员）。"""
+        return bool(InventoryModel.membership_of(item).get("expires_on"))
+
+    @staticmethod
+    def effective_status(item: dict, today: date | None = None) -> str:
+        """物品**当前**的状态（界面 / 提示词 / 补货都该用它，而不是裸读 `status`）。
+
+        - **会员（有到期日）**：按日期重算 —— 存下来的 `status` 是写入那一刻的快照，
+          应用开着几天不动就过期了（"该续费了"会漏掉）。
+        - **其余**：用存下来的 `status` —— 用户可能用 `--status` 手动改过，
+          不能被自动推导覆盖（2026-10-18 `test_actions_smoke` 抓到的回归）。
+        """
+        if InventoryModel.has_expiry(item):
+            return InventoryModel.derive_status(item, today)
+        return str(item.get("status") or InventoryModel.derive_status(item, today))
 
     def update_item(self, iid: str, data: dict) -> bool:
         for it in self.items:

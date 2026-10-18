@@ -191,6 +191,7 @@ data/
 │   ├── tasks.json                     该学期作业
 │   └── exams.json                     该学期考试
 ├── habits.json / expenses.json / inventory.json / daily_logs.json    跨学期共享
+├── private/memberships.json           会员手机号（**私有**：不进仓库、不进 AI 提示词）
 └── search_index.json / weather_*.json / scenes_meta.json             派生或遗留
 ```
 
@@ -222,6 +223,15 @@ data/
 > - 为什么不存 `dataset` 字段 / 不让模型判断"家里"指哪边：flash 模型中文不稳，靠它理解
 >   "家里"**必错**（2026-10-18 探针实测：把"家里抽纸"记成了寄回家的那批）——
 >   改成"抄位置"这种机械规则后，模型只需要会复制字符串
+> **会员（虚拟品类，2026-10-18）**：会员要和账号绑定 → item 里的 `membership`：
+> `{username, expires_on(YYYY-MM-DD), auto_renew(bool), renew_months(月数)}`。
+> - **到期日决定状态**：过期 → 需购（要续费）；`RENEW_WARNING_DAYS`（7）天内 → 不足（要到期了）；
+>   否则充足（有效）。**自动续费开着也照常按到期日算** —— 那个开关只是记着。
+> - 会员的状态**随时间变** → 读盘时重算（`InventoryModel.load()`）；界面 / 提示词 / 补货一律走
+>   `effective_status()`（**只对会员重算**，非会员保留手动 `--status` 的结果）
+> - ⚠ **手机号不在这个文件里**：单独放 `data/private/memberships.json`
+>   （`.gitignore` + `git_sync.PRIVATE_FILES` 双保险），**也不进 AI 提示词** ——
+>   进了提示词就等于发给模型服务商。手机号只在面板弹窗里录；`--membership` 里带手机号会被拒绝。
 | `settings.ini` `[Weather]` | — | `lat` `lon` | 天气位置（原「场景存档」已弃用，位置迁到此处；`scenes_meta.json` 为遗留文件，不再读取） |
 | `settings.ini` | — | `General` `AI` `Semester` `Window` `Backup` `Email` `Balance` `Weather` | 含密钥，**gitignore** |
 | `weather_cache.json` / `weather_stats.json` / `search_index.json` | — | 派生/缓存 | 易变，非权威 |

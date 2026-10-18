@@ -12,6 +12,7 @@ from datetime import datetime, timedelta
 
 from PySide6.QtCore import QLocale
 from PySide6.QtWidgets import (
+    QCheckBox,
     QDateTimeEdit,
     QDialog,
     QDialogButtonBox,
@@ -24,6 +25,7 @@ from PySide6.QtWidgets import (
 )
 
 from src.i18n.loader import tr
+from src.models.inventory import days_until
 from src.ui.styles.theme import get_colors
 from src.ui.widgets.rounded_button import RoundedButton
 from src.ui.widgets.rounded_input import RoundedLineEdit
@@ -132,3 +134,88 @@ def email_reminder_dialog(parent, dm, item: dict) -> None:
     dm.daily_logs.save()
     QMessageBox.information(parent, tr("panel.inventory.msg_reminder_set_title"),
                             tr("panel.inventory.msg_reminder_set"))
+
+
+def _labeled_field(layout, label_key: str, initial: str, hint: str = "") -> RoundedLineEdit:
+    """"标签 + 输入框"一行（输入框走自绘的 `RoundedLineEdit`，不手写 QSS）。"""
+    layout.addWidget(QLabel(tr(label_key)))
+    edit = RoundedLineEdit()
+    edit.setText(initial)
+    if hint:
+        edit.setPlaceholderText(hint)
+    layout.addWidget(edit)
+    return edit
+
+
+def _membership_from_form(user, expires, auto, months) -> dict:
+    """把会员弹窗里的输入收成 `membership` 字典（空字段就不写）。"""
+    membership: dict = {}
+    if user.text().strip():
+        membership["username"] = user.text().strip()
+    if expires.text().strip():
+        membership["expires_on"] = expires.text().strip()
+    if auto.isChecked():
+        membership["auto_renew"] = True
+    if months.text().strip().isdigit():
+        membership["renew_months"] = int(months.text().strip())
+    return membership
+
+
+def edit_membership_dialog(parent, dm, item: dict) -> bool:
+    """编辑会员信息（虚拟品类）。返回 `True` = 改过了。
+
+    ⚠ **手机号只在这里录**：它写进 `dm.membership_contacts`（私有文件 —— 不进仓库、
+    不进 AI 提示词）。用户名 / 到期日 / 自动续费 / 续费月数写进 `inventory.json`。
+    """
+    m = item.get("membership") or {}
+    c = get_colors()
+    dlg = QDialog(parent)
+    dlg.setWindowTitle(tr("panel.inventory.dialog_membership_title",
+                          name=item.get("name", "")))
+    dlg.setMinimumWidth(360)
+    dlg.setStyleSheet(
+        f"QDialog {{ background-color: {c['card_bg']}; }}"
+        f" QLabel {{ color: {c['fg_primary']}; font-size: 13px;"
+        f" background: transparent; border: none; }}")
+    layout = QVBoxLayout(dlg)
+    layout.setSpacing(6)
+    layout.setContentsMargins(20, 16, 20, 16)
+
+    user = _labeled_field(layout, "panel.inventory.membership_username",
+                          str(m.get("username") or ""))
+    expires = _labeled_field(layout, "panel.inventory.membership_expires_label",
+                             str(m.get("expires_on") or ""),
+                             tr("panel.inventory.membership_date_hint"))
+    auto = QCheckBox(tr("panel.inventory.membership_auto_renew_label"))
+    auto.setChecked(bool(m.get("auto_renew")))
+    layout.addWidget(auto)
+    months = _labeled_field(layout, "panel.inventory.membership_renew_months",
+                            str(m.get("renew_months") or ""), "12")
+    phone = _labeled_field(layout, "panel.inventory.membership_phone",
+                           dm.membership_contacts.phone_of(item["id"]))
+    hint = QLabel(tr("panel.inventory.membership_phone_hint"))
+    hint.setWordWrap(True)
+    layout.addWidget(hint)
+
+    btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok
+                            | QDialogButtonBox.StandardButton.Cancel)
+    btns.accepted.connect(dlg.accept)
+    btns.rejected.connect(dlg.reject)
+    layout.addWidget(btns)
+
+    if not dlg.exec():
+        return False
+    date_text = expires.text().strip()
+    if date_text and days_until(date_text) is None:
+        # 日期写错就别写进去 —— 解析不了的到期日会**静默**不参与状态（更难查）
+        QMessageBox.warning(parent,
+                            tr("panel.inventory.dialog_membership_title",
+                               name=item.get("name", "")),
+                            tr("panel.inventory.membership_bad_date"))
+        return False
+    membership = _membership_from_form(user, expires, auto, months)
+    dm.inventory.update_item(item["id"], {"membership": membership})
+    dm.inventory.save()
+    dm.membership_contacts.set_phone(item["id"], phone.text())
+    dm.membership_contacts.save()
+    return True

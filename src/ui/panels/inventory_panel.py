@@ -18,6 +18,7 @@ from src.i18n.loader import tr
 from src.models.inventory import (
     DEFAULT_LOCATION,
     HOME_LOCATION,
+    MEMBERSHIP_CATEGORY,
     SIDE_HOME,
     SIDE_SCHOOL,
     InventoryModel,
@@ -25,7 +26,11 @@ from src.models.inventory import (
 from src.services.data_manager import DataManager
 
 # 面板里"每张卡"的局部变量就叫 `card` → 工厂用**别名**导入，避免同名遮蔽（ERRORS #047）
-from src.ui.panels.inventory_dialogs import edit_tags_dialog, email_reminder_dialog
+from src.ui.panels.inventory_dialogs import (
+    edit_membership_dialog,
+    edit_tags_dialog,
+    email_reminder_dialog,
+)
 from src.ui.styles.cards import card as make_card
 from src.ui.styles.theme import FONT_CN, RADIUS, SIZE_SUBTITLE, SPACING, get_colors
 from src.ui.widgets.menu import (
@@ -38,6 +43,30 @@ from src.ui.widgets.menu import (
 from src.ui.widgets.rounded_button import RoundedButton
 
 PAGE_SIZE = 8
+
+
+def _membership_summary(it: dict) -> str:
+    """会员摘要（用户名 / 到期日 / 自动续费）—— 文本走 i18n，**手机号不显示**。"""
+    m = InventoryModel.membership_of(it)
+    if not m:
+        return ""
+    bits = [str(m["username"])] if m.get("username") else []
+    if m.get("expires_on"):
+        bits.append(tr("panel.inventory.membership_expires", date=m["expires_on"]))
+    if m.get("auto_renew"):
+        bits.append(tr("panel.inventory.membership_auto_renew"))
+    return " · ".join(bits)
+
+
+def _detail_parts(it: dict) -> list[str]:
+    """卡片第二行：位置 / 备注 / 会员摘要（家那一侧不显示位置）。
+
+    放在**类外**：`InventoryPanel` 的尺寸早就贴上上限（`Q-A1`），能挪出去的就挪。
+    """
+    keys = ("notes",) if InventoryModel.side_of(it) == SIDE_HOME else ("location", "notes")
+    parts = [v for k in keys if (v := it.get(k, ""))]
+    member = _membership_summary(it)
+    return [*parts, member] if member else parts
 
 
 class InventoryPanel(QWidget):
@@ -266,7 +295,8 @@ class InventoryPanel(QWidget):
         if self._tag_filter:
             items = [i for i in items if self._tag_filter in i.get("tags", [])]
         return sorted(items, key=lambda x: (
-            0 if x.get("status") == "需购" else 1 if x.get("status") == "不足" else 2,
+            0 if InventoryModel.effective_status(x) == "需购"
+            else 1 if InventoryModel.effective_status(x) == "不足" else 2,
             x.get("name", "")))
 
     def _navigate_to(self, level: int) -> None:
@@ -461,7 +491,7 @@ class InventoryPanel(QWidget):
 
     def _render_item_card(self, c: dict, it: dict) -> None:
         """Render an individual item card with status badge and context menu."""
-        status = it.get("status", "充足")
+        status = InventoryModel.effective_status(it)
         # 底色按状态取**令牌名**（此前是 `c["red"] + "10"` 这类派生色，绕过了令牌体系）
         bg_key = {"需购": "red_tint", "不足": "orange_tint"}.get(status, "bg_elevated")
         card = make_card("item", pad="spacing_none", bg=bg_key)
@@ -495,9 +525,7 @@ class InventoryPanel(QWidget):
         cl.addLayout(hdr)
 
         # 家那一侧不显示位置（用户口径）：那边的位置一律是"家"，显示出来是废话
-        keys = ("notes",) if InventoryModel.side_of(it) == SIDE_HOME \
-            else ("location", "notes")
-        parts = [v for k in keys if (v := it.get(k, ""))]
+        parts = _detail_parts(it)
         if parts:
             detail = QLabel(" · ".join(parts))
             detail.setWordWrap(True)
@@ -696,6 +724,11 @@ class InventoryPanel(QWidget):
                    lambda checked=False: self._email_reminder(item))
         add_action(menu, tr("panel.inventory.action_edit_tags"),
                    lambda checked=False: self._edit_tags(item))
+        # 会员（虚拟品类）：账号绑定信息（手机号只在这条弹窗里录）。
+        # 只对**真实条目**显示 —— 实例卡片传进来的是合成 dict（带 `parent_id`）。
+        if cat == MEMBERSHIP_CATEGORY and "parent_id" not in item:
+            add_action(menu, tr("panel.inventory.action_edit_membership"),
+                       lambda checked=False: self._edit_membership(item))
         if cat != "虚拟品类":
             add_action(menu, tr("panel.inventory.action_delete"),
                        lambda checked=False: self._delete_item(item["id"]))
@@ -723,6 +756,12 @@ class InventoryPanel(QWidget):
                                 tr("panel.inventory.msg_confirm_delete", name=name)) == QMessageBox.StandardButton.Yes:
             self._dm.inventory.delete_item(iid)
             self._dm.inventory.save()
+            self._dm.data_changed.emit("inventory")
+            self._refresh()
+
+    def _edit_membership(self, item: dict) -> None:
+        """编辑会员信息（对话框在 `inventory_dialogs`；手机号只在那里录）。"""
+        if edit_membership_dialog(self, self._dm, item):
             self._dm.data_changed.emit("inventory")
             self._refresh()
 
