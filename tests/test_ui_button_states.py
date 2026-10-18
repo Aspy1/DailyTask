@@ -149,9 +149,11 @@ def test_qt_standard_buttons_are_localized(qapp) -> None:
     """
     from PySide6.QtWidgets import QApplication, QDialogButtonBox
 
-    from src.ui.styles import theme
+    from src.ui.styles.theme import _install_qt_translations
 
-    theme.init_theme(QApplication.instance())
+    # ⚠ 只装翻译，**不要**再调 `init_theme()`：它会重装 QProxyStyle，
+    # 旧 style 在退出时被二次释放 → 进程崩在收尾（3.12 上实测到）
+    _install_qt_translations(QApplication.instance())
     box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok
                            | QDialogButtonBox.StandardButton.Cancel)
     for btn in (QDialogButtonBox.StandardButton.Ok, QDialogButtonBox.StandardButton.Cancel):
