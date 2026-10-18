@@ -232,6 +232,12 @@ data/
 > - ⚠ **手机号不在这个文件里**：单独放 `data/private/memberships.json`
 >   （`.gitignore` + `git_sync.PRIVATE_FILES` 双保险），**也不进 AI 提示词** ——
 >   进了提示词就等于发给模型服务商。手机号只在面板弹窗里录；`--membership` 里带手机号会被拒绝。
+> **物品的可写字段只有一份清单**（`inventory.ITEM_FIELDS`，2026-10-19）：`add_item` / `update_item`
+> 都读它，**不许各写一份**。原来两个方法各有一份白名单 ✗，后加的字段（`membership` /
+> `expires_on` / `runs_out_on` / `stock_target` / `worn_since` …）只加进了**命令路径**
+> （`scripts/actions_cmds_items.py` 直接改 dict，不经过模型）→ **会员弹窗填完到期日一保存就没了** ✗，
+> 而 `update_item` 仍返回 `True` 谎报成功。⚠ 命令路径的测试（`test_actions_*`）**全走 CLI**，
+> 覆盖不到模型的这两个方法 ✗ —— 这是它能潜伏这么久的原因。清单外的键现在会**告警**。
 | `settings.ini` `[Weather]` | — | `lat` `lon` | 天气位置（原「场景存档」已弃用，位置迁到此处；`scenes_meta.json` 为遗留文件，不再读取） |
 | `settings.ini` | — | `General` `AI` `Semester` `Window` `Backup` `Email` `Balance` `Weather` | 含密钥，**gitignore** |
 | `weather_cache.json` / `weather_stats.json` / `search_index.json` | — | 派生/缓存 | 易变，非权威 |

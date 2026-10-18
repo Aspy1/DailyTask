@@ -89,7 +89,10 @@ def _seed(dm: DataManager) -> None:
                                "min_quantity": 2, "location": "衣柜左侧第二层收纳盒",
                                "tags": ["常用", "带到学校", "Type-C"],
                                "notes": "用于测试长文字、标签和展开后的自适应高度。"})
-    dm.inventory.add_item({"name": "换季羽绒服", "category": "衣物", "quantity": 1, "location": "家"})
+    # 衣物：记了"从哪天开始穿" + "穿够几天该洗" → 触发"该洗"提示（提示条要压到**换行**才看得见 ✓）
+    dm.inventory.add_item({"name": "换季羽绒服", "category": "衣物", "quantity": 1, "location": "家",
+                           "worn_since": (today - timedelta(days=10)).isoformat(),
+                           "wash_after_days": 7})
     dm.inventory.add_item({"name": "QQ音乐会员", "category": "虚拟品类", "quantity": 1,
                            "membership": {"username": "my_qq", "expires_on": "2027-03-15",
                                           "auto_renew": True, "renew_months": 12}})

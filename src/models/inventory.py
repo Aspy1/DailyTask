@@ -27,6 +27,22 @@ MEMBERSHIP_CATEGORY = "虚拟品类"
 # 到期前多少天算"不足（要到期了）"。R-005：阈值只有这一处，改这里即可。
 RENEW_WARNING_DAYS = 7
 
+# 物品的**可写字段**（唯一清单）—— `add_item` / `update_item` 都读它，**不许各写一份** ✗。
+# ⚠ 2026-10-19 实测到的静默丢数据：两个方法原来各写一份白名单，后加的字段（`membership` /
+#   `expires_on` / `runs_out_on` / `stock_target` / `worn_*`）只加进了**命令路径**
+#   （`scripts/actions_cmds_items.py` 直接改 dict，不经这里），于是
+#   **会员弹窗填完到期日一保存就没了**（`update_item` 还返回 `True` 谎报成功 ✗✗）。
+#   → 加字段只改这一处；`update_item` 对清单外的键会**告警**（不再默默吞掉）。
+ITEM_FIELDS = (
+    "name", "category", "group", "quantity", "unit", "status",
+    "min_quantity", "min_doses", "location", "notes", "tags",
+    "instances", "ignore_low_stock", "doses_per_unit",
+    # 到期 / 常备量（C 类）
+    "membership", "expires_on", "runs_out_on", "remind_before_days", "stock_target",
+    # 衣物（C 类第 4 项）
+    "worn_since", "wash_after_days", "needs_wash",
+)
+
 
 def days_until(expires_on: str, today: date | None = None) -> int | None:
     """`expires_on`（`YYYY-MM-DD`）距今还有几天；空 / 解析不了 → `None`（**不猜**）。"""
@@ -248,6 +264,12 @@ class InventoryModel(BaseJsonModel):
             "created_at": datetime.now().isoformat(),
             "updated_at": datetime.now().isoformat(),
         }
+        # 上面只列了**有默认值**的字段；`ITEM_FIELDS` 里其余可写字段（`membership` /
+        # `expires_on` / `runs_out_on` / `stock_target` / `worn_since` …）原样带上
+        # —— 否则"带会员信息建一条"会**静默丢字段**（2026-10-19，见 `ITEM_FIELDS` 说明）。
+        for key, value in data.items():
+            if key in ITEM_FIELDS and key not in item:
+                item[key] = value
         items.append(item)
         return iid
 
@@ -392,9 +414,15 @@ class InventoryModel(BaseJsonModel):
     def update_item(self, iid: str, data: dict) -> bool:
         for it in self.items:
             if it["id"] == iid:
-                for k in ("name", "category", "group", "quantity", "unit", "status",
-                          "min_quantity", "min_doses", "location", "notes", "tags",
-                          "instances", "ignore_low_stock", "doses_per_unit"):
+                # 清单外的键**不再默默吞掉** —— 那是 2026-10-19 那个 bug 的形态
+                # （会员弹窗存 `membership`，这里不认识，静默丢弃还返回 True ✗）。
+                unknown = [k for k in data
+                           if k not in ITEM_FIELDS
+                           and k not in ("id", "created_at", "updated_at")]
+                if unknown:
+                    logger.warning("update_item 忽略未知字段 %s（物品 %s）", unknown, iid)
+                    data = {k: v for k, v in data.items() if k in ITEM_FIELDS}
+                for k in ITEM_FIELDS:
                     if k in data:
                         it[k] = data[k]
                 it["updated_at"] = datetime.now().isoformat()
