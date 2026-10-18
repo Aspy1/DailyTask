@@ -129,17 +129,33 @@ def elide_text(text: str, font: QFont, max_width: int) -> str:
     return metrics.elidedText(text, Qt.TextElideMode.ElideRight, max_width)
 
 
-def _theme_color_map(from_mode: str, to_mode: str) -> dict[str, str]:
-    """两个主题之间「同名 token 的色值」映射（只含颜色类 token）。"""
+def _theme_color_maps(from_mode: str, to_mode: str) -> tuple[dict[str, str], dict[str, str]]:
+    """两个主题之间的色值映射，**按用途分成两份**：(文字色, 填充色)。
+
+    ⚠ 按**色值**做键本身有损：浅色里 `accent` 与 `accent_text` 可能同色、深色里却不同 ——
+    这时只能靠**属性角色**消歧（`color:` 查文字映射、`background:`/`border:` 查填充映射）。
+    审查 U2 实测：浅色的 accent_text 被换成了深色的**填充**色 `#8F6E33`（应为 `#D9AE58`）。
+    """
     old, new = TOKENS.get(from_mode, {}), TOKENS.get(to_mode, {})
-    mapping: dict[str, str] = {}
+    text: dict[str, str] = {}
+    fill: dict[str, str] = {}
     for key, val in old.items():
-        if not isinstance(val, str) or not val.startswith(("#", "rgb")):
+        if not _is_color(val):
             continue
         new_val = new.get(key)
-        if isinstance(new_val, str) and new_val.startswith(("#", "rgb")) and new_val != val:
-            mapping[val] = new_val
-    return mapping
+        if not _is_color(new_val) or new_val == val:
+            continue
+        (text if _is_text_token(key) else fill).setdefault(val, new_val)
+    return text, fill
+
+
+def _is_color(value: object) -> bool:
+    return isinstance(value, str) and value.startswith(("#", "rgb"))
+
+
+def _is_text_token(key: str) -> bool:
+    """这个 token 是**文字色**吗（`fg_*` / `*_text`）—— 用来消解"两个 token 同色"的歧义。"""
+    return key.startswith("fg_") or key.endswith("_text")
 
 
 def rgba(color: str, alpha: float) -> str:
@@ -153,16 +169,35 @@ def rgba(color: str, alpha: float) -> str:
             f"{max(0.0, min(1.0, alpha)):.3f})")
 
 
-def remap_colors(qss: str, mapping: dict[str, str]) -> str:
-    """把样式表里的旧主题色换成新主题色（大小写不敏感）。**公开**，`RoundedButton` 也用。"""
-    for old_val, new_val in mapping.items():
-        qss = re.sub(re.escape(old_val), new_val, qss, flags=re.IGNORECASE)
-    return qss
+_DECL_RE = re.compile(r"(?P<prop>[a-zA-Z-]+)\s*:\s*(?P<value>[^;{}]+)")
 
 
-def _remap_qss(qss: str, mapping: dict[str, str]) -> str:
+def _is_fill_prop(prop: str) -> bool:
+    """这个属性画的是"填充"吗 —— 是则查填充映射，否则查文字映射（`color:` 等）。"""
+    return prop.startswith(("background", "border", "outline"))
+
+
+def remap_colors(qss: str, maps: tuple[dict[str, str], dict[str, str]]) -> str:
+    """按**属性角色**替换色值：`color:` 用文字映射，`background`/`border` 用填充映射。
+
+    逐条声明处理，而不是整串替换 —— 否则"同色不同用途"的两个 token 会换错（审查 U2）。
+    """
+    text_map, fill_map = maps
+
+    def _sub(m: re.Match) -> str:
+        prop, value = m.group("prop"), m.group("value")
+        table = fill_map if _is_fill_prop(prop) else text_map
+        out = value
+        for old_val, new_val in table.items():
+            out = re.sub(re.escape(old_val), new_val, out, flags=re.IGNORECASE)
+        return f"{prop}: {out}"
+
+    return _DECL_RE.sub(_sub, qss)
+
+
+def _remap_qss(qss: str, maps: tuple[dict[str, str], dict[str, str]]) -> str:
     """把样式表里的旧色值换成新色值（大小写不敏感）。"""
-    return remap_colors(qss, mapping)
+    return remap_colors(qss, maps)
 
 
 def remap_stylesheets(app: QApplication, from_mode: str, to_mode: str) -> int:
@@ -176,19 +211,19 @@ def remap_stylesheets(app: QApplication, from_mode: str, to_mode: str) -> int:
     遍历所有部件的样式表，把 from_mode 的色值替换为 to_mode 的同名 token 值。
     返回被改写的部件数（便于测试断言）。
     """
-    mapping = _theme_color_map(from_mode, to_mode)
-    if not mapping:
+    maps = _theme_color_maps(from_mode, to_mode)
+    if not maps[0] and not maps[1]:
         return 0
     changed = 0
     for widget in app.allWidgets():
         # 自绘控件的底色**不在 styleSheet() 里**（被摘掉了）→ 让它们自己重算（审查 U1）
         remap_own = getattr(widget, "remap_theme_colors", None)
-        if remap_own is not None and remap_own(mapping):
+        if remap_own is not None and remap_own(maps):
             changed += 1
         qss = widget.styleSheet()
         if not qss:
             continue
-        new_qss = _remap_qss(qss, mapping)
+        new_qss = _remap_qss(qss, maps)
         if new_qss != qss:
             widget.setStyleSheet(new_qss)
             changed += 1

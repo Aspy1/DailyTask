@@ -6,6 +6,8 @@
   **AARRGGBB**，`#B93B3B18` 会被解释成透明橄榄色，而不是浅红。
 """
 
+import pytest
+
 from src.ui.styles.theme import qcolor, rgba
 from src.ui.widgets.rounded_button import _extract, _state_of
 
@@ -45,3 +47,40 @@ def test_rgba_helper_is_not_hex_alpha_concatenation() -> None:
 def test_rgba_clamps_alpha() -> None:
     assert rgba("#000000", 5) == "rgba(0, 0, 0, 1.000)"
     assert rgba("#000000", -1) == "rgba(0, 0, 0, 0.000)"
+
+
+def _luminance(color: str) -> float:
+    """相对亮度（WCAG）—— 只看 `#RRGGBB`。"""
+    r, g, b = (int(color[i:i + 2], 16) / 255 for i in (1, 3, 5))
+
+    def _lin(c: float) -> float:
+        return c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4
+
+    return 0.2126 * _lin(r) + 0.7152 * _lin(g) + 0.0722 * _lin(b)
+
+
+def _contrast(fg: str, bg: str) -> float:
+    a, b = _luminance(fg), _luminance(bg)
+    lo, hi = min(a, b), max(a, b)
+    return (hi + 0.05) / (lo + 0.05)
+
+
+@pytest.mark.parametrize("mode", ["light", "dark"])
+def test_code_block_pair_has_enough_contrast(mode) -> None:
+    """⚠ U8 回归：`code_bg` 是深色，文字必须配 `code_fg`。
+
+    原来浅色主题的代码块继承正文色（深字 + 深底）→ 实测只有 1.32:1。
+    """
+    from src.ui.styles.theme import TOKENS
+
+    pair = TOKENS[mode]
+    ratio = _contrast(pair["code_fg"], pair["code_bg"])
+    assert ratio >= 4.5, f"{mode}: code_fg/code_bg 只有 {ratio:.2f}:1"
+
+
+def test_markdown_escapes_user_html() -> None:
+    """⚠ U3 的一半：用户正文里的 `<b>` 不能被当成标签渲染。"""
+    from src.ui.components.ai_panel import _md_to_html
+
+    assert "&lt;b&gt;" in _md_to_html("<b>不是标签</b>")
+    assert "<b>粗</b>" in _md_to_html("**粗**")

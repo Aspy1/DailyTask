@@ -109,7 +109,7 @@ class RoundedButton(QPushButton):
             self._absorbed = False
         super().changeEvent(event)
 
-    def remap_theme_colors(self, mapping: dict[str, str]) -> bool:
+    def remap_theme_colors(self, maps: tuple[dict[str, str], dict[str, str]]) -> bool:
         """换主题时由 `theme.remap_stylesheets()` 调用。
 
         ⚠ 为什么需要它：自绘底色**不在 `styleSheet()` 里**（已经被摘掉），
@@ -117,7 +117,7 @@ class RoundedButton(QPushButton):
         """
         if not self._original_qss:
             return False
-        new_qss = _remap_colors(self._original_qss, mapping)
+        new_qss = _remap_colors(self._original_qss, maps)
         if new_qss == self._original_qss:
             return False
         self._original_qss = new_qss

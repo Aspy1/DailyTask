@@ -1,5 +1,6 @@
 """Column 4: AI chat panel."""
 
+import html
 import re
 
 from PySide6.QtCore import Qt, Signal
@@ -20,11 +21,20 @@ from src.ui.widgets.rounded_button import RoundedButton
 
 
 def _md_to_html(text: str) -> str:
-    """Basic markdown to HTML: **bold**, *italic*, `code`, bullet lists."""
-    code_bg = get_colors()["code_bg"]
+    """Basic markdown to HTML: **bold**, *italic*, `code`, bullet lists.
+
+    ⚠ 先 `html.escape` 再做 markdown：否则用户正文里的 `<b>` 会被 Qt 当标签渲染（审查 U3）。
+    ⚠ 代码块用成对的 `code_bg`/`code_fg`：`code_bg` 是深色，正文色不能继承（审查 U8，
+    浅色主题下正文/代码底只有 1.32:1）。
+    """
+    colors = get_colors()
+    code_bg, code_fg = colors["code_bg"], colors["code_fg"]
+    text = html.escape(text)
     text = re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', text)
     text = re.sub(r'(?<!\*)\*([^*\n]+?)\*(?!\*)', r'<i>\1</i>', text)
-    text = re.sub(r'`([^`\n]+?)`', fr'<code style="background:{code_bg};padding:1px 4px;border-radius: 4px;">\1</code>', text)
+    text = re.sub(r'`([^`\n]+?)`',
+                  fr'<code style="background:{code_bg};color:{code_fg};padding:1px 4px;'
+                  fr'border-radius: 4px;">\1</code>', text)
     # Bullet points: lines starting with - or • become <li>
     lines = text.split('\n')
     in_list = False
