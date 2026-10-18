@@ -279,3 +279,57 @@ def item_extra(it: dict, unit: str = "") -> str:
     if it.get("min_doses"):
         bits.append(f"片级下限{it['min_doses']}")
     return ("  " + " ".join(bits)) if bits else ""
+
+
+def membership_note(item: dict) -> str:
+    """会员摘要（用户名 / 到期日 / 自动续费）—— **手机号绝不进这里**。
+
+    进了提示词就等于把手机号发给模型服务商；它在私有文件里，只能由用户自己在面板录。
+    """
+    m = item.get("membership") or {}
+    if not m:
+        return ""
+    bits = [str(m.get("username") or ""), str(m.get("expires_on") or "")]
+    if m.get("auto_renew"):
+        bits.append("自动续费")
+    return " 会员:" + "/".join(b for b in bits if b)
+
+
+def inventory_prompt(inventory) -> str:
+    """物品清单 + 允许的位置清单（位置由 `set_locations` 维护，AI 只能从里面选）。
+
+    位置**同时就是归属**：清单里的「家」= 寄回/存放那一侧（换季寄回家、来年寄回），
+    所以每条物品的位置都必须带出来。
+
+    ⚠ 会员只带**用户名 / 到期日 / 自动续费** —— **手机号绝不进这里**（它在私有文件里，
+    进了提示词就等于发给模型服务商）。
+    """
+    lines = []
+    for it in inventory.items:
+        loc = it.get("location", "")
+        loc_str = f" [{loc}]" if loc else ""
+        tags = it.get("tags", [])
+        tag_str = f" ({','.join(tags)})" if tags else ""
+        status = inventory.effective_status(it)
+        lines.append(f"  [{it['id']}] {it['name']} {it['quantity']}{it['unit']}"
+                     f"{loc_str} - {status}{tag_str}{membership_note(it)}"
+                     f"{item_extra(it, it.get('unit', ''))}")
+    allowed = inventory.locations
+    if allowed:
+        lines.append(f"  【位置只能从这些里选】{'、'.join(allowed)}")
+    return "\n".join(lines) or "  （无物品记录）"
+
+
+def expense_prompt(expenses) -> str:
+    """最近 20 条支出（拼给系统提示词）。"""
+    records = sorted(expenses.records, key=lambda r: r.get("date", ""), reverse=True)[:20]
+    if not records:
+        return "  （无支出记录）"
+    cat_names = {c["id"]: c["name"] for c in expenses.categories}
+    lines = []
+    for r in records:
+        cat = cat_names.get(r.get("category", ""), r.get("category", ""))
+        d = (r.get("date", "") or "")[:10]
+        lines.append(f"  [{r.get('id', '')}] {d} {cat} ¥{r.get('amount', 0):.1f} "
+                     f"{r.get('note', '')}")
+    return "\n".join(lines)

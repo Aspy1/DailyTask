@@ -11,7 +11,10 @@ from typing import Any, Protocol
 from PySide6.QtCore import QObject, QThread, Signal
 
 from src.services import deepseek, openmeteo
-from src.services.ai_prompts import SYSTEM_PROMPT_BASE, item_extra
+from src.services.ai_prompts import (
+    SYSTEM_PROMPT_BASE,
+    expense_prompt,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -86,6 +89,21 @@ def _looks_like_tool_call(text: str) -> bool:
     "AI 没反应"）。这里识别出来，好让上层明确纠正格式。
     """
     return "invoke name=" in text or "<｜" in text or "｜>" in text
+
+
+def _state_fingerprint() -> str:
+    """**从磁盘**算「库存 + 日程」的指纹 —— 这一轮到底有没有**真的改动**。
+
+    ⚠ 只看数据，不看模型的任何自述（Agent Reliability §4.3）。
+    """
+    import hashlib
+    import json as _json
+
+    import scripts.actions_core as core
+
+    blob = _json.dumps([core.load(n) for n in ("inventory.json", "daily_logs.json")],
+                       sort_keys=True, ensure_ascii=False, default=str)
+    return hashlib.sha256(blob.encode("utf-8")).hexdigest()
 
 
 def _claims_done(text: str) -> bool:
@@ -230,11 +248,19 @@ class AIWorker(QObject):
         self._dm = dm
         self._settings = settings
 
-    def _max_tokens(self) -> int:
-        """输出预算：读设置 `AI.max_tokens`（默认 8192）。
+    def _max_seconds(self) -> float:
+        """整次请求的**墙钟上限**（读 `AI.max_seconds`，默认 90s）。到点优雅收尾。
 
-        不能太小：这类模型会先花几百到上千 token **推理**，预算不够时
-        `finish_reason=length` 而 content 为空（2026-10-16 用户报"连续返回空内容"）。
+        Agent Reliability §3.3：步数预算不约束时间，所以两种都要有。
+        """
+        raw = self._settings.get("AI", "max_seconds", "90") if self._settings else "90"
+        try:
+            return max(10.0, float(raw))
+        except (TypeError, ValueError):
+            return 90.0
+
+    def _max_tokens(self) -> int:
+        """输出预算：读设置 `AI.max_tokens`（默认 8192）。太小会因推理占满而返回空内容。
         """
         raw = self._settings.get("AI", "max_tokens", "8192") if self._settings else "8192"
         try:
@@ -248,7 +274,12 @@ class AIWorker(QObject):
             final_text = ""
             all_instructions = []  # collect across multi-turn agent loop
             max_tokens = self._max_tokens()
+            wrote_data = False     # **数据真的变了**才算（不是"发过命令"）
+            deadline = time.monotonic() + self._max_seconds()
             for turn in range(5):  # max 5 turns
+                if time.monotonic() > deadline:
+                    logger.warning("AI 总时限到，优雅收尾（已执行 %d 条命令）", len(all_instructions))
+                    break
                 started = time.monotonic()
                 text = self._provider.chat(
                     system_prompt=self._system_prompt,
@@ -266,37 +297,56 @@ class AIWorker(QObject):
                 instructions = InstructionParser.parse(text)
                 if not instructions:
                     if self._handle_no_instructions(text, truncated, msgs, turn,
-                                                    all_instructions):
+                                                    all_instructions, wrote_data):
                         final_text = text
                         continue
                     return
                 all_instructions.extend(instructions)
                 # Execute tools silently
+                before = _state_fingerprint()
                 results = InstructionParser.execute(instructions)
+                changed = _state_fingerprint() != before
+                wrote_data = wrote_data or changed
                 # Feed results back for next turn
                 msgs.append({"role": "assistant", "content": text})
                 results_text = "\n".join(results)
+                if not changed:
+                    # 给模型一条**事实**（不是指令）：命令跑了但世界没变
+                    results_text += ("\n[事实] 命令已执行，但**库存/日程没有任何变化**"
+                                     "（被拒或报错了）。")
                 msgs.append({"role": "user", "content": f"[工具执行结果]\n{results_text}"})
                 final_text = text
             # Max turns reached
             display = re.sub(r'```(?:sh|json)\s*.*?```', '', final_text, flags=re.DOTALL).strip()
-            if all_instructions:
-                self.finished_with_instructions.emit(display or "已完成", all_instructions)
-            elif display:
-                self.finished.emit(display)
-            else:
-                self.error.emit(_EMPTY_REPLY_NOTE)
+            self._finish(all_instructions, wrote_data, display)
         # 边界捕获：本层已处理/记录，不允许异常向上逃逸（CODE_STANDARDS Q-I1）
         except Exception as e:  # noqa: BLE001
             self.error.emit(str(e))
 
+    def _finish(self, all_instructions: list, wrote_data: bool, display: str) -> None:
+        """收尾：把结果发出去。**汇报权归代码** —— 模型说写了但数据没变就明确警告
+        （Agent Reliability §2.3 "the agent is also the reporter"）。
+        """
+        if all_instructions:
+            if not wrote_data and _claims_done(display):
+                display += ("\n\n⚠ **数据没有任何改动** —— 上面那句是模型的自我描述，"
+                            "实际上没有落库（命令可能被拒或报错）。请重试或换个说法。")
+            self.finished_with_instructions.emit(display or "已完成", all_instructions)
+        elif display:
+            self.finished.emit(display)
+        else:
+            self.error.emit(_EMPTY_REPLY_NOTE)
+
     def _handle_no_instructions(self, text: str, truncated: bool, msgs: list,
-                                turn: int, all_instructions: list) -> bool:
-        """这一轮没有可执行命令：要么要求模型继续（返回 True），要么收尾（返回 False）。"""
+                                turn: int, all_instructions: list,
+                                wrote_data: bool = False) -> bool:
+        """这一轮没有可执行命令：要么要求模型继续（返回 True），要么收尾（返回 False）。
+
+        `wrote_data` = **数据是否真的变过**（不是"发过命令"），由调用方从磁盘指纹算出。
+        """
         empty_retries = sum(1 for m in msgs
                             if m["role"] == "user" and "[系统]" in str(m["content"]))
-        wrote = bool(all_instructions)
-        nudge = _continuation_nudge(text, truncated, empty_retries, wrote) if turn < 4 else None
+        nudge = _continuation_nudge(text, truncated, empty_retries, wrote_data) if turn < 4 else None
         if nudge:
             logger.warning("AI 第 %d 轮没有可执行命令，要求继续", turn + 1)
             msgs.append({"role": "assistant", "content": text})
@@ -321,13 +371,9 @@ class InstructionParser:
 
     @staticmethod
     def parse(text: str) -> list[str]:
-        """Extract shell commands from ```sh blocks.
-
-        **容忍被 `max_tokens` 截断的块**（没有收尾 ```）：此时仍把已经完整写出的
-        命令行交出去执行。理由：每行都要过 `actions.py` 的严格校验，非法行会被拒绝，
-        所以"执行完整行"比"整段丢弃"更安全也更有用。
-        （2026-10-16 实测：24 门课的导入回复被截断 → 旧实现一行都不执行，
-        也不告诉用户，用户看到的就是"AI 没反应"。）
+        """从 ```sh 块里抽命令。**容忍被截断的块**（围栏没收尾）—— 完整行仍交出去执行：
+        每行都过 `actions.py` 的严格校验，所以"执行完整行"比"整段丢弃"更安全
+        （2026-10-16：截断导致一行都不执行，用户看到"AI 没反应"）。
         """
         blocks = re.findall(r'```(?:sh|bash|shell|console|zsh)\s*\n?(.*?)(?:```|\Z)',
                             text, re.DOTALL)
@@ -361,58 +407,11 @@ class InstructionParser:
         return results
 
 
-def _membership_note(item: dict) -> str:
-    """会员摘要（用户名 / 到期日 / 自动续费）—— **手机号绝不进这里**。
-
-    进了提示词就等于把手机号发给模型服务商；它在私有文件里，只能由用户自己在面板录。
-    """
-    m = item.get("membership") or {}
-    if not m:
-        return ""
-    bits = [str(m.get("username") or ""), str(m.get("expires_on") or "")]
-    if m.get("auto_renew"):
-        bits.append("自动续费")
-    return " 会员:" + "/".join(b for b in bits if b)
-
-
 def _inventory_prompt(inventory) -> str:
-    """物品清单 + 允许的位置清单（位置由 `set_locations` 维护，AI 只能从里面选）。
+    """（已并入 `ai_prompts.inventory_prompt`。）"""
+    from src.services.ai_prompts import inventory_prompt
 
-    位置**同时就是归属**：清单里的「家」= 寄回/存放那一侧（换季寄回家、来年寄回），
-    所以每条物品的位置都必须带出来。
-
-    ⚠ 会员只带**用户名 / 到期日 / 自动续费** —— **手机号绝不进这里**（它在私有文件里，
-    进了提示词就等于发给模型服务商）。
-    """
-    lines = []
-    for it in inventory.items:
-        loc = it.get("location", "")
-        loc_str = f" [{loc}]" if loc else ""
-        tags = it.get("tags", [])
-        tag_str = f" ({','.join(tags)})" if tags else ""
-        status = inventory.effective_status(it)
-        lines.append(f"  [{it['id']}] {it['name']} {it['quantity']}{it['unit']}"
-                     f"{loc_str} - {status}{tag_str}{_membership_note(it)}"
-                     f"{item_extra(it, it.get('unit', ''))}")
-    allowed = inventory.locations
-    if allowed:
-        lines.append(f"  【位置只能从这些里选】{'、'.join(allowed)}")
-    return chr(10).join(lines) or "  （无物品记录）"
-
-
-def _expense_prompt(expenses) -> str:
-    """最近 20 条支出。"""
-    records = sorted(expenses.records, key=lambda r: r.get("date", ""), reverse=True)[:20]
-    if not records:
-        return "  （无支出记录）"
-    cat_names = {c["id"]: c["name"] for c in expenses.categories}
-    lines = []
-    for r in records:
-        cat = cat_names.get(r.get("category", ""), r.get("category", ""))
-        d = (r.get("date", "") or "")[:10]
-        lines.append(f"  [{r.get('id', '')}] {d} {cat} ¥{r.get('amount', 0):.1f} "
-                     f"{r.get('note', '')}")
-    return "\n".join(lines)
+    return inventory_prompt(inventory)
 
 
 class AIService(QObject):
@@ -672,7 +671,7 @@ class AIService(QObject):
 本月支出: ¥{self._dm.expenses.month_total():.2f} / 预算 ¥{self._dm.expenses.budget.get('monthly', 0):.0f}
 
 最近支出（按支出日期 date 字段排列，非记录时间）:
-{_expense_prompt(self._dm.expenses)}
+{expense_prompt(self._dm.expenses)}
 
 已有习惯（id 用于修改/推迟/取消）:
 {self._build_habit_list()}

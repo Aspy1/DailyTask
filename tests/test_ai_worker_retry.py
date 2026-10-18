@@ -62,6 +62,33 @@ def test_continuation_nudge_cases() -> None:
     assert _continuation_nudge("请提供课程名称与周次", False) is None
 
 
+def test_state_fingerprint_tracks_real_changes(sandbox) -> None:
+    """⚠ 判定"有没有真的改动"必须看**数据**，不看模型的自述（Agent Reliability §4.3）。"""
+    from src.services.ai_service import _state_fingerprint
+    from tests.helpers import run
+
+    before = _state_fingerprint()
+    assert _state_fingerprint() == before, "没动数据 → 指纹不变"
+    run('add_item --name "指纹测试" --quantity 1')
+    assert _state_fingerprint() != before, "数据变了 → 指纹必须变"
+
+
+def test_finish_warns_when_claiming_without_data_change(qapp) -> None:
+    """⭐ 汇报权归代码：模型说"已记录"但**数据没变** → 必须明确警告，不许像成功。"""
+    from src.services.ai_service import AIWorker
+
+    worker = AIWorker(None, "m", "", [], None, None)
+    seen: list[str] = []
+    worker.finished_with_instructions.connect(lambda t, _i: seen.append(t))
+
+    worker._finish(["python x"], wrote_data=False, display="已记录：牙膏 1 瓶")
+    assert seen and "没有任何改动" in seen[-1], "说了没做要明确警告"
+
+    seen.clear()
+    worker._finish(["python x"], wrote_data=True, display="已记录：牙膏 1 瓶")
+    assert seen and "没有任何改动" not in seen[-1], "真的写了就不该警告"
+
+
 def test_nudge_when_model_claims_it_wrote_but_sent_no_command() -> None:
     """α 实测：模型只说"已记录：毛巾 2 条…"却一条命令都没发 → 数据其实没变 ✗。"""
     nudge = _continuation_nudge("已记录：毛巾 2 条，放在晾衣架。", False)
