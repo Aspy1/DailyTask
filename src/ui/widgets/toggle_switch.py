@@ -70,6 +70,6 @@ class ToggleSwitch(QWidget):
         if self.hasFocus():
             # 焦点环：全局关掉了系统焦点框却没补，键盘用户看不到自己在哪（U7）
             painter.setBrush(Qt.BrushStyle.NoBrush)
-            painter.setPen(QPen(QColor(c["accent_text"]), 2))
+            painter.setPen(QPen(QColor(c["focus_ring"]), 2))
             painter.drawRoundedRect(1, 1, 42, 22, 11, 11)
         painter.end()

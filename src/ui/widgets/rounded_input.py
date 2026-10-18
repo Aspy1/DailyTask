@@ -26,7 +26,7 @@ class _RoundedField:
         c = get_colors()
         focused = self.hasFocus()  # type: ignore[attr-defined]
         fill = qcolor(c["input_bg"])
-        border = qcolor(c["accent"] if focused else c["border"])
+        border = qcolor(c["focus_ring"] if focused else c["border"])
         radius = RADIUS["radius_md"]
 
         painter = QPainter(self)  # type: ignore[arg-type]

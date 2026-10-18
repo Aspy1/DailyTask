@@ -91,6 +91,7 @@
 | `orange_tint_weak` | `rgba(158,87,31,0.03)` | `rgba(224,154,85,0.03)` | 中等警告底色 · 卡片极淡底（15 天内考试） |
 | `code_bg` | `#3a3a40` | `#3a3a40` | 行内代码块背景（AI 回复/API 测试） |
 | `code_fg` | `#F0EDE6` | `#F0EDE6` | 行内代码块文字（code_bg 是深色，两套主题都用浅字，别再继承正文色） |
+| `focus_ring` | `#8C5F24` | `#D9AE58` | 焦点环 / 焦点描边（键盘可达性；每模式取**最显眼**的强调色变体） |
 <!-- TOKENS:colors:END -->
 
 > 「用途」列来自 `tokens.json` 的 `color_notes`。

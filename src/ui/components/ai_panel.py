@@ -76,7 +76,7 @@ class _ChatInput(QTextEdit):
                 font-family: "Microsoft YaHei UI", "Consolas", sans-serif;
                 font-size: 14px;
             }}
-            QTextEdit:focus {{ border-color: {c['accent']}; }}
+            QTextEdit:focus {{ border-color: {c['focus_ring']}; }}
         """)
 
     def keyPressEvent(self, event: QKeyEvent) -> None:

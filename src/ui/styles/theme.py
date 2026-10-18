@@ -496,9 +496,9 @@ QListWidget::item:hover {{ background-color: {t["bg_hover"]}; }}
 
 /* ── Inputs ──────────────────────────────── */
 QTextEdit, QPlainTextEdit {{ background-color: {t["input_bg"]}; color: {t["fg_primary"]}; border: 1px solid {t["border"]}; border-radius: 4px; padding: 8px 12px; font-size: {SIZE_BODY}px; selection-background-color: {t["accent_bg"]}; }}
-QTextEdit:focus, QPlainTextEdit:focus {{ border-color: {t["accent"]}; }}
+QTextEdit:focus, QPlainTextEdit:focus {{ border-color: {t["focus_ring"]}; }}
 QLineEdit {{ background-color: {t["input_bg"]}; color: {t["fg_primary"]}; border: 1px solid {t["border"]}; border-radius: {RADIUS["radius_md"]}px; padding: 0 10px; font-size: {SIZE_BODY_S}px; min-height: {FIELD_H}px; }}
-QLineEdit:focus {{ border-color: {t["accent"]}; }}
+QLineEdit:focus {{ border-color: {t["focus_ring"]}; }}
 
 /* ── Scroll bars ─────────────────────────── */
 QScrollBar:vertical {{ background: transparent; width: 8px; margin: 4px 0; }}
@@ -527,7 +527,7 @@ QCheckBox::indicator:checked {{ background-color: {t["accent"]}; border-color: {
 /* ── Combo box ───────────────────────────── */
 QComboBox {{ background-color: {t["input_bg"]}; color: {t["fg_primary"]}; border: 1px solid {t["border"]}; border-radius: {RADIUS["radius_md"]}px; padding: 0 10px; font-size: {SIZE_BODY_S}px; min-height: {FIELD_H}px; }}
 QComboBox:hover {{ border-color: {t["border_strong"]}; }}
-QComboBox:focus {{ border-color: {t["accent"]}; }}
+QComboBox:focus {{ border-color: {t["focus_ring"]}; }}
 QComboBox::drop-down {{ border: none; width: 24px; }}
 QComboBox QAbstractItemView {{ background-color: {t["bg_elevated"]}; color: {t["fg_primary"]}; border: 1px solid {t["border_strong"]}; selection-background-color: {t["accent_bg"]}; outline: none; }}
 
@@ -689,7 +689,7 @@ def dialog_qss() -> str:
             color: {c['fg_primary']};
         }}
         QLineEdit:focus {{
-            border: 1px solid {c['accent']};
+            border: 1px solid {c['focus_ring']};
         }}
         QListWidget {{
             background-color: {c['bg_input']};
