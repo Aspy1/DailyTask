@@ -32,6 +32,7 @@ from src.ui.panels.inventory_dialogs import (
 )
 from src.ui.styles.cards import card as make_card
 from src.ui.styles.theme import RADIUS, SIZE_SUBTITLE, SPACING, font, get_colors, rgba
+from src.ui.widgets.flow_grid import FlowGrid
 from src.ui.widgets.menu import (
     add_action,
     add_separator,
@@ -534,14 +535,13 @@ class InventoryPanel(QWidget):
 
         tags = it.get("tags", [])
         if tags:
-            tag_row = QHBoxLayout()
-            tag_row.setSpacing(4)
+            # 标签宽窄不一 → 自然宽度流式（放不下就换行），不再用会溢出的 QHBoxLayout（U6）
+            tag_grid = FlowGrid(uniform=False)
             for tag in tags:
                 t = QLabel(tag)
                 t.setStyleSheet(f"color: {c['accent_text']}; font-size: 10px; font-weight: 500; background: {rgba(c['accent'], 0.1)}; border-radius: 8px; padding: 1px 8px; border: none;")
-                tag_row.addWidget(t)
-            tag_row.addStretch()
-            cl.addLayout(tag_row)
+                t.setParent(tag_grid)
+            cl.addWidget(tag_grid)
 
         card.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         card.customContextMenuRequested.connect(lambda _, i=it: self._context_menu(i))

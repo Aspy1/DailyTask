@@ -86,6 +86,40 @@ def test_markdown_escapes_user_html() -> None:
     assert "<b>粗</b>" in _md_to_html("**粗**")
 
 
+def test_flow_grid_reports_height_for_width(qapp) -> None:
+    """⚠ U6 回归：流式排布要能**按宽度报高度**，否则塞进 layout 会占固定高度。"""
+    from PySide6.QtWidgets import QWidget
+
+    from src.ui.widgets.flow_grid import FlowGrid
+
+    grid = FlowGrid(min_item_width=200)
+    assert grid.hasHeightForWidth() is True
+    for _ in range(3):
+        child = QWidget(grid)
+        child.setMinimumHeight(100)
+        child.show()
+
+    one_row = grid.heightForWidth(900)        # 3 项排得下
+    three_rows = grid.heightForWidth(200)     # 一行只放得下一个
+    assert three_rows > one_row, f"{three_rows} 应大于 {one_row}"
+
+
+def test_flow_grid_natural_width_mode_does_not_stretch(qapp) -> None:
+    """标签用**自然宽度**流式：宽窄不一，不该被拉伸成等宽。"""
+    from PySide6.QtWidgets import QLabel, QWidget
+
+    from src.ui.widgets.flow_grid import FlowGrid
+
+    grid = FlowGrid(uniform=False)
+    grid.resize(200, 100)
+    for text in ("短", "很长很长的标签文字"):
+        QLabel(text, grid).show()
+    grid._layout_children()
+
+    widths = [c.width() for c in grid.children() if isinstance(c, QWidget)]
+    assert len(set(widths)) > 1, f"自然宽度模式下不该等宽：{widths}"
+
+
 def test_course_table_columns_have_a_readable_minimum(qapp) -> None:
     """⚠ U6 回归：周课表的列/行要有**下限**，窄窗口不能把名称/教室挤没。
 
