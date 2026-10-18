@@ -5,8 +5,25 @@ on:
     branches: [master]
   pull_request:
   workflow_dispatch:
+  # 依赖漏洞审计**每周**跑一次（I-16）：新披露的 CVE 跟我们的提交无关，
+  # 只在 push 时跑就会"没人动代码 → 永远不检查" ✗。
+  schedule:
+    - cron: '0 3 * * 1'
 
 jobs:
+  # 依赖漏洞审计（I-16）：对着**锁文件**查已知 CVE（锁文件才是我们真正锁的版本 ✓）。
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: 装 pip-audit
+        run: python -m pip install "pip-audit>=2.10"
+      - name: 审计锁文件
+        run: python -m pip_audit -r requirements.lock.txt
+
   # 锁文件复现：只照 requirements.lock.txt 装一遍，验证"照着锁能装出可用环境"。
   # 2026-10-17 审查：CI 原来只装区间依赖（requirements-dev.txt），复现不了任何一次运行。
   lock-repro:

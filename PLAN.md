@@ -872,6 +872,11 @@ execution`（`cc6a9e4`，2026-10-17）：`chat()` 不再把 `reasoning_content` 
 - **I-14 版本号单一来源**：以 `pyproject.toml` 为准，`i18n` / `README` / 发行包名全部由它派生。
 - **I-15 性能基线门禁**：把启动时间、`schedule_view._refresh` 耗时记成基线，超阈值告警。
 - **I-16 依赖审计**：`pip-audit` + 定期升级（锁文件里 `openai 3.x` / `anthropic 1.x` 均未做真实调用验证）。
+  —— **审计已接**（2026-10-19）：`pip-audit>=2.10` 进 `requirements-dev.txt`；CI 加 **`audit` job**
+  （对着 `requirements.lock.txt` 查已知 CVE ✓）+ **每周一 03:00 的 schedule 触发** ✓
+  （只在 push 时跑 = "没人动代码就永远不检查" ✗）。
+  首次结果：**No known vulnerabilities found** ✓。
+  —— **`openai` / `anthropic` 的真实调用验证仍未做** ✗（要真 key ✗，等用户）
 
 > 以上 G/H/I 均为 `[待议]`，需你裁决采纳范围与优先级。
 

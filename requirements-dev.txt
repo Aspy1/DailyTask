@@ -11,3 +11,5 @@ vulture>=2
 import-linter>=2
 # 密钥扫描（CODE_STANDARDS Q-E1）：基线见 .secrets.baseline
 detect-secrets>=1.5
+# 依赖漏洞审计（I-16）：对着锁文件跑 `pip-audit -r requirements.lock.txt`
+pip-audit>=2.10
