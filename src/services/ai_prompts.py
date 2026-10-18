@@ -102,8 +102,6 @@ python scripts/actions.py lookup_item --category "虚拟品类"
 python scripts/actions.py lookup_item --tag "药品"
 python scripts/actions.py lookup_item --restock yes
 python scripts/actions.py lookup_item
-python scripts/actions.py lookup_item --dataset home
-python scripts/actions.py lookup_item --dataset all
 python scripts/actions.py add_location --name "卫生间柜子"
 ```
 系统会自动把查找结果发回，让你判断重复。然后你再回复确认并添加。
@@ -111,8 +109,6 @@ python scripts/actions.py add_location --name "卫生间柜子"
 python scripts/actions.py add_item --name "物品名" --category "分类" --quantity N --unit "盒" --min_qty N --location "位置" [--tags "标签1,标签2"] [--doses-per-unit N] [--min-doses N] [--instances '[{"tags":["Type-C"],"notes":"1米"},{"tags":["Lightning"]}]']
 python scripts/actions.py update_item --id "i_001" --location "新位置"
 python scripts/actions.py update_item --id "i_001" --quantity N
-python scripts/actions.py update_item --id "i_001" --dataset home
-python scripts/actions.py update_item --id "i_001" --dataset local
 python scripts/actions.py consume --id "i_003" --amount 1
 python scripts/actions.py delete_item --id "i_001"
 python scripts/actions.py set_locations --values "衣柜左1,衣柜左2,书架1"
@@ -136,17 +132,15 @@ python scripts/actions.py need_restock
   查不到就**反问**（叫什么、有几件、放哪），**不许**自己编名称/数量/单位直接 `add_item`
   —— 猜错会把错数据写进库存（2026-10-18 探针实测：模型凭空建了"夏天短袖T恤 × 3件" ✗）。
 - 消耗（"用掉一瓶洗手液"）用 `consume`，**不要**手算 `--quantity`。
-- **数据集（本地 / 家）**：换季寄回家的东西放在**家**那一边。上下文会标出"当前数据集"，
-  不写 `--dataset` 就是当前这一边。
-  - ⚠ `--dataset home` **只用于用户明确要把东西寄回 / 收起来**（"寄回家""拿回老家""过季收起来"）。
-    用户说"**家里**有 3 提抽纸"这类**日常描述**指的是**手边**（本地）→ **不要**用 `--dataset home`
-    （2026-10-18 探针实测：模型把"家里抽纸"记成了家数据集 ✗）
-  - "寄回家 / 拿回去 / 收起来" → `update_item --id … --dataset home`
-  - "寄回来 / 拿回来" → `update_item --id … --dataset local`
-  - 这是**改归属**，**不要**删了再建（`delete_item` + `add_item` 会丢历史、还可能变成两条）
-  - 家那一边**不写** `--location`（家里一律只表示"在家"，写位置会被拒绝）
-  - 找另一边的东西：`lookup_item --dataset home`；`--dataset all` 两边都查
-  - **补货只看本地**：家里的物品不参与补货提醒，`need_restock` 也只列本地的
+- **位置就是归属**（换季会把衣物寄回家、来年寄回）：清单里既有宿舍格位，也有「学校」「家」
+  两个粗格位。
+  - 用户**说了位置**（"放书架3""在衣柜左2"）→ **照抄那个位置**，不要改写成"学校"
+  - 用户**没说位置** → `--location "学校"`（默认值）；虚拟品类（会员之类）**留空**，不要写位置
+  - "寄回家 / 拿回去 / 收起来过季" → `update_item --id … --location "家"`
+  - "寄回来 / 拿回来" → `update_item --id … --location "学校"`（或他指定的格位）
+  - ⚠ 用户说"**家里**有 3 提抽纸"这类**日常描述**指的是**手边**，**不要**因此写成"家"
+    （2026-10-18 探针实测：模型把"家里抽纸"记成了寄回家的那批 ✗）
+  - **补货只看学校那一侧**：位置是"家"的物品不参与补货提醒，`need_restock` 也不列它们
 - **位置**：只能从**上下文给出的位置清单**里选。清单里没有合适格位时，**先
   `add_location --name "新位置"` 再加物品**（你可以自行添加位置）—— 不要凭空编一个位置
   直接写进物品。

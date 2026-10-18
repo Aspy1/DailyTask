@@ -15,7 +15,13 @@ from PySide6.QtWidgets import (
 )
 
 from src.i18n.loader import tr
-from src.models.inventory import InventoryModel
+from src.models.inventory import (
+    DEFAULT_LOCATION,
+    HOME_LOCATION,
+    SIDE_HOME,
+    SIDE_SCHOOL,
+    InventoryModel,
+)
 from src.services.data_manager import DataManager
 
 # 面板里"每张卡"的局部变量就叫 `card` → 工厂用**别名**导入，避免同名遮蔽（ERRORS #047）
@@ -44,6 +50,7 @@ class InventoryPanel(QWidget):
         self._cat_filter = "全部"
         self._tag_filter = ""
         self._page = 0
+        self._side = SIDE_SCHOOL   # 看哪一边（**视图状态**，不写数据文件）
         c = get_colors()
 
         layout = QVBoxLayout(self)
@@ -68,11 +75,11 @@ class InventoryPanel(QWidget):
 
         bl.addStretch()
 
-        # 数据集（本地 / 家）：换季把衣物寄回家、来年寄回。照 `_cat_btn` / `_tag_btn`
+        # 看哪一边（学校 / 家）：换季把衣物寄回家、来年寄回。照 `_cat_btn` / `_tag_btn`
         # 的现成做法（标签显示当前值、点开菜单选），不另建一套控件。
-        self._ds_btn = RoundedButton(self._dataset_label())
+        self._ds_btn = RoundedButton(self._side_label())
         self._ds_btn.setStyleSheet(self._btn_qss())
-        self._ds_btn.clicked.connect(self._show_dataset_menu)
+        self._ds_btn.clicked.connect(self._show_side_menu)
         bl.addWidget(self._ds_btn)
 
         self._cat_btn = RoundedButton(tr("panel.inventory.filter_all_categories"))
@@ -175,35 +182,37 @@ class InventoryPanel(QWidget):
         c = get_colors()
         return f"QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['fg_hint']}; border-radius: 8px; padding: 4px 12px; font-size: 13px; }} QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; color: {c['fg_secondary']}; }} QPushButton::menu-indicator {{ image: none; }}"
 
-    def _dataset_label(self) -> str:
-        """数据集按钮上的文字（按 i18n 取，代码里不出现中文 —— Q-N5）。"""
-        if self._dm.inventory.current_dataset == "home":
-            return tr("panel.inventory.dataset_home")
-        return tr("panel.inventory.dataset_local")
+    def _side_label(self) -> str:
+        """切换按钮上的文字：学校 / 家（按 i18n 取，代码里不出现中文 —— Q-N5）。"""
+        if self._side == SIDE_HOME:
+            return tr("panel.inventory.side_home")
+        return tr("panel.inventory.side_school")
 
-    def _show_dataset_menu(self) -> None:
+    def _side_items(self) -> list[dict]:
+        """当前这一边的物品（归属由**位置**推导，见 `InventoryModel.side_of`）。"""
+        return [it for it in self._dm.inventory.items
+                if InventoryModel.side_of(it) == self._side]
+
+    def _show_side_menu(self) -> None:
         menu = new_menu(self)
-        for name, key in (("local", "panel.inventory.dataset_local"),
-                          ("home", "panel.inventory.dataset_home")):
+        for side, key in ((SIDE_SCHOOL, "panel.inventory.side_school"),
+                          (SIDE_HOME, "panel.inventory.side_home")):
             add_action(menu, tr(key),
-                       lambda checked=False, n=name: self._apply_dataset(n))
+                       lambda checked=False, s=side: self._apply_side(s))
         show_below(menu, self._ds_btn)
 
-    def _apply_dataset(self, name: str) -> None:
-        """切换数据集。
+    def _apply_side(self, side: str) -> None:
+        """切换"看哪一边"（学校 / 家）。
 
-        写进**数据文件**（`current_dataset`）—— 界面与命令行读同一份，所以 AI 的
-        `add_item` 默认也落在你正在看的这一边（同 `semesters.json` 的 `current_semester`）。
-        切完要清掉一切"按视图"的状态（分类/标签筛选、分页、展开），否则会带着旧视图的空结果。
+        归属由**位置**推导，所以这只是**视图状态**：不写数据文件、不进 git 同步，
+        命令行那边也不需要知道（"没说位置就默认学校"是常量，不依赖界面）。
+        切完清掉一切"按视图"的状态（分类/标签筛选、分页、展开），否则会带着旧视图的空结果。
         """
-        if not self._dm.inventory.set_dataset(name):
-            return
-        self._dm.inventory.save()
+        self._side = side
         self._tag_filter = ""
         self._expanded_items.clear()
         self._cat_btn.setText(tr("panel.inventory.filter_all_categories"))
         self._tag_btn.setText(tr("panel.inventory.filter_all_tags"))
-        self._dm.data_changed.emit("inventory")
         # 复用现成的"回到顶层"逻辑（清分类/分组/筛选/分页并刷新）—— 不另写一遍 `"全部"`
         # 字面量，否则 i18n 计数会再多一笔（Q-N5）
         self._navigate_to(0)
@@ -251,7 +260,7 @@ class InventoryPanel(QWidget):
             self._refresh()
 
     def _get_filtered(self) -> list[dict]:
-        items = self._dm.inventory.visible_items
+        items = self._side_items()
         if self._cat_filter != "全部":
             items = [i for i in items if i.get("category") == self._cat_filter]
         if self._tag_filter:
@@ -311,7 +320,7 @@ class InventoryPanel(QWidget):
         self._refresh()
 
     def _refresh(self) -> None:
-        self._ds_btn.setText(self._dataset_label())   # 数据集可能被命令行 / 3s 轮询改过
+        self._ds_btn.setText(self._side_label())   # 视图状态在本对象里，改过就同步按钮
         while self._card_layout.count() > 1:
             it = self._card_layout.takeAt(0)
             if it.widget():
@@ -330,11 +339,12 @@ class InventoryPanel(QWidget):
         self._update_breadcrumb()
 
         cats = self._dm.inventory.categories
-        total_items = len(self._dm.inventory.visible_items)
+        side_items = self._side_items()
+        total_items = len(side_items)
 
         from collections import Counter
         counts = Counter()
-        for it in self._dm.inventory.visible_items:
+        for it in side_items:
             if self._tag_filter and self._tag_filter not in it.get("tags", []):
                 continue
             counts[it.get("category", "其他")] += 1
@@ -484,8 +494,9 @@ class InventoryPanel(QWidget):
         hdr.addWidget(badge)
         cl.addLayout(hdr)
 
-        # 家数据集不显示位置（用户口径）：只留备注
-        keys = ("notes",) if InventoryModel.dataset_of(it) == "home" else ("location", "notes")
+        # 家那一侧不显示位置（用户口径）：那边的位置一律是"家"，显示出来是废话
+        keys = ("notes",) if InventoryModel.side_of(it) == SIDE_HOME \
+            else ("location", "notes")
         parts = [v for k in keys if (v := it.get(k, ""))]
         if parts:
             detail = QLabel(" · ".join(parts))
@@ -512,7 +523,7 @@ class InventoryPanel(QWidget):
         """Level 2: expandable type cards with instance sub-cards."""
         self._update_breadcrumb()
 
-        items = [it for it in self._dm.inventory.visible_items
+        items = [it for it in self._side_items()
                  if it.get("category") == self._current_category
                  and it.get("group") == self._current_group]
         if self._tag_filter:
@@ -669,15 +680,17 @@ class InventoryPanel(QWidget):
                    else tr("panel.inventory.action_ignore_low_stock"),
                    lambda checked=False: self._quick_update(item["id"], {"ignore_low_stock": not ig}))
         add_separator(menu)
-        # 寄回家 / 寄回来：只对**真实条目**显示（实例卡片传进来的是合成 dict，
-        # 带 `parent_id`，按它的 id 操作会找不到条目）
+        # 寄回家 / 寄回来 = 改位置（位置就是归属）。只对**真实条目**显示 ——
+        # 实例卡片传进来的是合成 dict（带 `parent_id`），按它的 id 操作会找不到条目
         if "parent_id" not in item:
-            if InventoryModel.dataset_of(item) == "home":
+            if InventoryModel.side_of(item) == SIDE_HOME:
                 add_action(menu, tr("panel.inventory.action_send_back"),
-                           lambda checked=False: self._move_item(item["id"], "local"))
+                           lambda checked=False: self._set_location(
+                               item["id"], DEFAULT_LOCATION))
             else:
                 add_action(menu, tr("panel.inventory.action_send_home"),
-                           lambda checked=False: self._move_item(item["id"], "home"))
+                           lambda checked=False: self._set_location(
+                               item["id"], HOME_LOCATION))
             add_separator(menu)
         add_action(menu, tr("panel.inventory.action_set_email_reminder"),
                    lambda checked=False: self._email_reminder(item))
@@ -694,10 +707,12 @@ class InventoryPanel(QWidget):
         self._dm.data_changed.emit("inventory")
         self._refresh()
 
-    def _move_item(self, iid: str, dataset: str) -> None:
-        """寄回家 / 寄回来：**改归属字段**，不是删了再建（id 不变、不会丢件）。"""
-        if not self._dm.inventory.move_item(iid, dataset):
-            return
+    def _set_location(self, iid: str, location: str) -> None:
+        """把一条物品挪到某个位置（"寄回家 / 寄回来"就是这个 —— 位置就是归属）。
+
+        改的是 `location` 字段：id 不变、条数不变，不会出现"删了再建"那种丢件。
+        """
+        self._dm.inventory.update_item(iid, {"location": location})
         self._dm.inventory.save()
         self._dm.data_changed.emit("inventory")
         self._refresh()

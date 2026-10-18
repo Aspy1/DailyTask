@@ -6,26 +6,26 @@ from pathlib import Path
 
 from src.models.base import BaseJsonModel
 
-# 数据集（用户口径 2026-10-18）：换季时把部分衣物寄回家、来年再寄回，所以需要一个
-# **平行**的存放清单。
-#   local = 本地（手边，区分位置）
-#   home  = 家（寄回/存放，**不使用位置** —— 一律只表示"在家里"）
-# 归属写在每条物品的 `dataset` 上；当前数据集记在顶层 `current_dataset` ——
-# 界面与命令行读**同一份文件**，所以永远不会不一致（同 `semesters.json` 的 `current_semester`）。
-DATASETS = ("local", "home")
-DEFAULT_DATASET = "local"
-# 补货只属于本地：家里的东西在这儿买不了，提醒了也没用（用户口径 2026-10-18）
-RESTOCK_DATASET = "local"
+# 位置是**唯一的归属信号**（用户口径 2026-10-18）：换季把衣物寄回家、来年寄回，所以
+# "在哪一边"要能表达出来 —— 但**不单独存字段**，而是**由位置推导**：
+#   说了位置 → 就用那个位置；没说 → 默认「学校」。
+# 这样模型只需要会**抄位置**，不用去猜"家里"指哪边（flash 模型中文不稳，靠猜必错 ——
+# 2026-10-18 探针实测：它把"家里抽纸"记成了"寄回家的那批"）。
+DEFAULT_LOCATION = "学校"
+# 「家」那一侧的位置（`HOME_LOCATION` 是主格位，"老家"是同义写法）。**其余位置（宿舍格位、
+# "学校"、后来新增的）都算学校侧。** 判断"哪一边"只有这一处规则 —— 一律走 `side_of()`。
+HOME_LOCATION = "家"
+HOME_LOCATIONS = (HOME_LOCATION, "老家")
+SIDE_SCHOOL = "school"
+SIDE_HOME = "home"
 
 DEFAULT_INVENTORY = {
     "_version": 1,
-    "current_dataset": DEFAULT_DATASET,
     "items": [],
     "categories": ["日常消耗品", "数码电子", "衣物", "虚拟品类", "其他"],
-    # **本地数据集**的允许位置清单（用户定的固定格位）。位置本身仍是自由文本，但
-    # **AI 只应从这份清单里选** —— 提示词会把它带给模型（`AIService._inventory_prompt`）。
-    # 家数据集不使用位置，所以只有这一份词表。
-    "locations": [],
+    # 允许的位置清单（用户定的固定格位 + 「学校」「家」两个粗格位）。位置本身仍是自由文本，
+    # 但**AI 只应从这份清单里选** —— 提示词会把它带给模型（`AIService._inventory_prompt`）。
+    "locations": [DEFAULT_LOCATION, *HOME_LOCATIONS],
 }
 
 
@@ -38,60 +38,29 @@ class InventoryModel(BaseJsonModel):
 
     @property
     def items(self) -> list[dict]:
-        """**全部**物品（两个数据集都在内）。
-
-        ⚠ 别拿它做界面/AI 的展示 —— 用 `visible_items`。留全量是因为按 id 的增删改
-        （`update_item` / `delete_item` / `consume`）必须能跨数据集找到条目，
-        习惯面板挑关联物品时也不该受"当前在看哪一边"影响。
-        """
+        """全部物品（两边都在内）—— 界面按 `side_of()` 分边显示。"""
         return self._data.get("items", [])
 
-    # ── 数据集（本地 / 家）──────────────────────────────────────
-    @property
-    def current_dataset(self) -> str:
-        """当前数据集。非法值一律归 `local`（读侧防御；写入侧由命令层校验）。"""
-        name = str(self._data.get("current_dataset") or DEFAULT_DATASET)
-        return name if name in DATASETS else DEFAULT_DATASET
-
-    def set_dataset(self, name: str) -> bool:
-        """切换当前数据集；非法名字返回 `False`（不改数据）。"""
-        if name not in DATASETS:
-            return False
-        self._data["current_dataset"] = name
-        return True
-
+    # ── 归属（学校 / 家）：由**位置**推导，不存字段 ──────────────
     @staticmethod
-    def dataset_of(item: dict) -> str:
-        """这条物品属于哪个数据集：老数据没有该字段 → 本地。"""
-        name = str(item.get("dataset") or DEFAULT_DATASET)
-        return name if name in DATASETS else DEFAULT_DATASET
+    def side_of(item: dict) -> str:
+        """这条物品在**哪一边**：位置属于「家」那一侧 → `home`，否则 `school`。
 
-    @property
-    def visible_items(self) -> list[dict]:
-        """**当前数据集**里的物品（界面与 AI 提示词都用它）。"""
-        cur = self.current_dataset
-        return [it for it in self.items if self.dataset_of(it) == cur]
-
-    @property
-    def allowed_locations(self) -> list[str]:
-        """当前数据集**允许**的位置：家不使用位置（用户口径）→ 空。"""
-        return self.locations if self.current_dataset == "local" else []
-
-    def move_item(self, iid: str, dataset: str) -> bool:
-        """把一条物品换数据集（寄回家 / 寄回来）。
-
-        **改归属字段，不是删了再建** —— id 不变，所以不存在"删掉成功、新建失败"的丢件，
-        也不会因为两个数据集各自都有 `i_001` 而撞车。这正是选"归属字段"而非
-        "两个平行文件"的核心理由（见 `dev-logs/2026-10-18-库存数据集切换.md`）。
+        判断规则**只有这一处**（`HOME_LOCATIONS`）—— 界面切换、补货范围、命令回执都用它，
+        免得"哪边算家"在多处各写一遍。
         """
-        if dataset not in DATASETS:
-            return False
-        for it in self.items:
-            if it["id"] == iid:
-                it["dataset"] = dataset
-                it["updated_at"] = datetime.now().isoformat()
-                return True
-        return False
+        return SIDE_HOME if item.get("location") in HOME_LOCATIONS else SIDE_SCHOOL
+
+    @property
+    def need_restock(self) -> list[dict]:
+        """需要补货的物品 —— **只看学校那一侧**。
+
+        家里的东西在这儿买不了，提醒了也没用（用户口径 2026-10-18）。
+        """
+        return [it for it in self.items
+                if self.side_of(it) == SIDE_SCHOOL
+                and it.get("status") in ("需购", "不足")
+                and not it.get("ignore_low_stock")]
 
     @property
     def categories(self) -> list[str]:
@@ -117,7 +86,6 @@ class InventoryModel(BaseJsonModel):
         iid = f"i_{n:03d}"
         item = {
             "id": iid,
-            "dataset": data.get("dataset") or self.current_dataset,
             "name": data.get("name", ""),
             "category": data.get("category", "其他"),
             "group": data.get("group", ""),
@@ -200,20 +168,8 @@ class InventoryModel(BaseJsonModel):
         return 0
 
     @property
-    def need_restock(self) -> list[dict]:
-        """需要补货的物品 —— **只看本地数据集**。
-
-        家里的东西在这儿买不了，提醒了也没用（用户口径 2026-10-18）；所以这里**不看**
-        `current_dataset`，与"用户正在看哪一边"无关。
-        """
-        return [it for it in self.items
-                if self.dataset_of(it) == RESTOCK_DATASET
-                and it.get("status") in ("需购", "不足")
-                and not it.get("ignore_low_stock")]
-
-    @property
     def locations(self) -> list[str]:
-        """允许的位置清单（用户定的固定格位）；键缺失就补一份（老文件没有这个键）。"""
+        """允许的位置清单（用户定的固定格位 + 「学校」「家」）；键缺失就补一份（老文件没有）。"""
         locs = self._data.get("locations")
         if not locs:
             locs = list(DEFAULT_INVENTORY["locations"])
@@ -232,13 +188,12 @@ class InventoryModel(BaseJsonModel):
 
     @property
     def all_tags(self) -> list[str]:
-        """当前数据集的标签（界面标签筛选用；不该出现另一边的标签）。"""
         tags = set()
-        for it in self.visible_items:
+        for it in self.items:
             for t in it.get("tags", []):
                 tags.add(t)
         return sorted(tags)
 
     @property
     def stock_count(self) -> int:
-        return len([it for it in self.visible_items if it.get("status") == "充足"])
+        return len([it for it in self.items if it.get("status") == "充足"])

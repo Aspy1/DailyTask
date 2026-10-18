@@ -22,6 +22,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from src.models.inventory import InventoryModel
 from src.services.ai_service import AIService, AIWorker
 from src.services.data_manager import DataManager
 from src.services.settings_manager import SettingsManager
@@ -34,7 +35,8 @@ def _one(items: list[dict], name: str) -> dict | None:
 
 
 def _has(items: list[dict], name: str, **want: object) -> tuple[bool, str]:
-    """关键事实检查：`quantity` / `unit` / `status` / `instances`（条数）/ `location_has`。"""
+    """关键事实检查：`quantity` / `unit` / `status` / `instances`（条数）/
+    `location_has`（位置包含子串）/ `side`（学校 / 家，由位置推导）。"""
     it = _one(items, name)
     if it is None:
         return False, f"没找到「{name}」"
@@ -47,6 +49,8 @@ def _has(items: list[dict], name: str, **want: object) -> tuple[bool, str]:
             if expect not in got:
                 bad.append(f"位置={got!r} 不含 {expect!r}")
             continue
+        elif key == "side":
+            got = InventoryModel.side_of(it)
         else:
             got = it.get(key)
         if got != expect:
@@ -99,12 +103,12 @@ SAMPLES: list[tuple[str, str, list[dict], object]] = [
      _unchanged([{"name": "牙膏"}])),
     ("位置·清单外新增", "把抹布放在厨房水槽下面", [],
      lambda it: _has(it, "抹布", location_has="厨房")),
-    ("数据集·寄回家", "换季了，把羽绒服寄回家放着",
-     [{"name": "羽绒服", "quantity": 2, "min_quantity": 1, "dataset": "local"}],
-     lambda it: _has(it, "羽绒服", dataset="home")),
-    ("数据集·寄回来", "天冷了，把羽绒服从家里寄回来",
-     [{"name": "羽绒服", "quantity": 2, "min_quantity": 1, "dataset": "home"}],
-     lambda it: _has(it, "羽绒服", dataset="local")),
+    ("归属·寄回家", "换季了，把羽绒服寄回家放着",
+     [{"name": "羽绒服", "quantity": 2, "min_quantity": 1, "location": "衣柜左1"}],
+     lambda it: _has(it, "羽绒服", side="home")),
+    ("归属·寄回来", "天冷了，把羽绒服从家里寄回来",
+     [{"name": "羽绒服", "quantity": 2, "min_quantity": 1, "location": "家"}],
+     lambda it: _has(it, "羽绒服", side="school")),
     ("边界·不存在的东西", "把不存在的东西挪到车库", [], _unchanged([])),
     ("边界·模糊表述", "衣柜里那几件夏天 T 恤挪到收纳箱", [], _unchanged([])),
 ]
@@ -211,7 +215,7 @@ def main() -> None:
 
     print("位置清单:", run_in_process(
         'set_locations --values "衣柜左1,衣柜左2,衣柜左3,衣柜左4,衣柜右1,衣柜右2,'
-        '左侧抽屉,右侧抽屉,书架1,书架2,书架3,书架4"'))
+        '左侧抽屉,右侧抽屉,书架1,书架2,书架3,书架4,学校,家"'))
 
     print(f"沙箱：{sandbox}")
     print(f"模型：{settings.get('AI', 'model', '?')}"

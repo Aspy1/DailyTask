@@ -211,7 +211,17 @@ data/
 | `habits.json` | 2 | `habits[]` `attached_task_templates[]` `logs{date:{hid:{completed,completed_at,note}}}` | habit: `id,name,schedule{type(daily/weekly/monthly/interval),days[],value,times_per_day,start_date},duration_minutes,reminder_time,streak,longest_streak,postpone_until,canceled_on[]` |
 | `expenses.json` | 1 | `categories[{id,name}]` `budget{monthly,by_category}` `records[]` | record: `id,amount,date,category,note,created_at` |
 | `daily_logs.json` | 4 | `logs{}` `plans{date:[...]}` `savings{date:[...]}` `reminders[]` | plan: `title,time_slot(1-6),type(custom/course_note),note,course_name,created_at`；reminder: `id,item_type,item_name,item_date,notify_time` |
-| `inventory.json` | 1 | `items[]` `categories[]` `locations[]` `current_dataset` | item: `id,name,category,group,dataset(local/home),quantity,unit,status(充足/不足/需购),min_quantity,min_doses,doses_per_unit,location,notes,tags[],instances[],ignore_low_stock` |
+| `inventory.json` | 1 | `items[]` `categories[]` `locations[]` | item: `id,name,category,group,quantity,unit,status(充足/不足/需购),min_quantity,min_doses,doses_per_unit,location,notes,tags[],instances[],ignore_low_stock` |
+> **位置就是归属**（2026-10-18）：换季把部分衣物**寄回家**、来年寄回，所以"在哪一边"要能表达 ——
+> 但**不单独存字段**，一律由 `location` 推导（`InventoryModel.side_of()`）：位置是「家」→ 家侧，
+> 其余（宿舍格位 / 「学校」/ 空）→ 学校侧。
+> - 词表 `locations[]` = 宿舍格位 + **「学校」「家」**两个粗格位（由 `set_locations` 维护）
+> - **没说位置时默认「学校」**（虚拟品类如会员留空）—— 这条规则是**常量**，不依赖界面状态
+> - 界面的"看哪边"切换是**纯视图状态**（`InventoryPanel._side`），不写数据文件、不进同步
+> - **补货只看学校侧**（`need_restock` 与补货提醒都不列"家"那批）
+> - 为什么不存 `dataset` 字段 / 不让模型判断"家里"指哪边：flash 模型中文不稳，靠它理解
+>   "家里"**必错**（2026-10-18 探针实测：把"家里抽纸"记成了寄回家的那批）——
+>   改成"抄位置"这种机械规则后，模型只需要会复制字符串
 | `settings.ini` `[Weather]` | — | `lat` `lon` | 天气位置（原「场景存档」已弃用，位置迁到此处；`scenes_meta.json` 为遗留文件，不再读取） |
 | `settings.ini` | — | `General` `AI` `Semester` `Window` `Backup` `Email` `Balance` `Weather` | 含密钥，**gitignore** |
 | `weather_cache.json` / `weather_stats.json` / `search_index.json` | — | 派生/缓存 | 易变，非权威 |

@@ -86,7 +86,6 @@ def _add_item_parsers(sub) -> None:
     p = sub.add_parser("add_item", help="添加物品")
     p.add_argument("--name", required=True)
     p.add_argument("--category", default="其他")
-    p.add_argument("--dataset", choices=["local", "home"], help="归属数据集：local 本地（默认＝界面当前）/ home 家")
     # default=None：要能区分「没传」与「--quantity 0（已用完）」，否则 `or 1` 会把 0 记成 1 件（ERRORS #027）
     p.add_argument("--quantity", type=int, default=None)
     p.add_argument("--min_qty", type=int, default=1)
@@ -103,7 +102,6 @@ def _add_item_parsers(sub) -> None:
     p = sub.add_parser("update_item", help="更新物品")
     p.add_argument("--id", required=True)
     p.add_argument("--name")
-    p.add_argument("--dataset", choices=["local", "home"], help="改归属：home=寄回家 / local=寄回来（默认不改）")
     p.add_argument("--group")
     p.add_argument("--category")
     p.add_argument("--quantity", type=int)
@@ -126,9 +124,8 @@ def _add_item_parsers(sub) -> None:
     p = sub.add_parser("delete_item", help="删除物品")
     p.add_argument("--id", required=True)
 
-    p = sub.add_parser("lookup_item", help="按条件查找物品（不带条件=当前数据集全部）")
+    p = sub.add_parser("lookup_item", help="按条件查找物品（不带条件=列出全部）")
     p.add_argument("--name")
-    p.add_argument("--dataset", choices=["local", "home", "all"], help="查哪一边：默认＝当前数据集；all=两边都查")
     p.add_argument("--category")
     p.add_argument("--tag")
     p.add_argument("--location")
