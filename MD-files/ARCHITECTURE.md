@@ -4,7 +4,7 @@
 > 只写**代码表达不了的东西**（跨文件时序、不变量、为什么、外部契约）；函数签名/参数/字段结构不在此重复。
 > 相关文档：`AGENTS.md`（流程/环境）· `CODE_STANDARDS.md`（规范）· `PLAN.md`（计划/体检）· `ERRORS.md`（坑）。
 >
-> 最后更新：2026-10-15
+> 最后更新：2026-10-19
 
 ---
 
@@ -113,7 +113,7 @@ ui ──→ services ──→ models ──→ base(BaseJsonModel)
 
 | 线程载体 | 位置 | 职责 |
 |---|---|---|
-| `QThread` + `AIWorker` | `services/ai_service.py` | AI 请求 + Agent Loop（最多 5 轮）+ 执行指令 |
+| `QThread` + `AIWorker` | `services/ai_service.py` | AI 请求 + Agent Loop（最多 5 轮 **且总时长 ≤ `AI.max_seconds`=90s**）+ 执行指令 |
 | `QThread`(`WeatherWorker`) | `services/weather_service.py` | 和风天气 HTTP |
 | `QThread`(`_GitWorker`) | `services/git_sync.py` | `git add/commit/push` 子进程 |
 | `QThread`(`_ApiWorker`) | `services/api_service.py` | "API 测试"弹窗：委托 `openmeteo` / `deepseek` |
@@ -211,8 +211,8 @@ data/
 | `semesters/<id>/exams.json` | 1 | `exams[]` | exam: `id,course_name,exam_date,scope,location,notes,tags[],created_at,updated_at` |
 | `habits.json` | 2 | `habits[]` `attached_task_templates[]` `logs{date:{hid:{completed,completed_at,note}}}` | habit: `id,name,schedule{type(daily/weekly/monthly/interval),days[],value,times_per_day,start_date},duration_minutes,reminder_time,streak,longest_streak,postpone_until,canceled_on[]` |
 | `expenses.json` | 1 | `categories[{id,name}]` `budget{monthly,by_category}` `records[]` | record: `id,amount,date,category,note,created_at` |
-| `daily_logs.json` | 4 | `logs{}` `plans{date:[...]}` `savings{date:[...]}` `reminders[]` | plan: `title,time_slot(1-6),type(custom/course_note),note,course_name,created_at`；reminder: `id,item_type,item_name,item_date,notify_time` |
-| `inventory.json` | 1 | `items[]` `categories[]` `locations[]` | item: `id,name,category,group,quantity,unit,status(充足/不足/需购),min_quantity,min_doses,doses_per_unit,location,notes,tags[],instances[],ignore_low_stock` |
+| `daily_logs.json` | 4 | `logs{}` `plans{date:[...]}` `savings{date:[...]}` `reminders[]` | plan: `title,time_slot(1-6),type(custom/course_note),note,course_name,created_at`；**`category(study/life)`**（日程顶部的学习/生活筛选，视图状态 + 用户可改）、**`done`/`completed_at`**（2026-10-18 加）；reminder: `id,item_type,item_name,item_date,notify_time` |
+| `inventory.json` | 1 | `items[]` `categories[]` `locations[]` | item: `id,name,category,group,quantity,unit,status(充足/不足/需购),min_quantity,min_doses,doses_per_unit,location,notes,tags[],instances[],ignore_low_stock`；**到期类**：`membership{username,expires_on,auto_renew,renew_months}`、`runs_out_on`+`remind_before_days`（预计用完）、`expires_on`+`remind_before_days`（保质期）、**`stock_target`**（常备量，剩 1/4 提醒）；**衣物**：`worn_since`+`wash_after_days`+`needs_wash`（见 §11） |
 > **位置就是归属**（2026-10-18）：换季把部分衣物**寄回家**、来年寄回，所以"在哪一边"要能表达 ——
 > 但**不单独存字段**，一律由 `location` 推导（`InventoryModel.side_of()`）：位置是「家」→ 家侧，
 > 其余（宿舍格位 / 「学校」/ 空）→ 学校侧。
@@ -259,3 +259,69 @@ data/
 | ID 生成两套并存（`len()+1` / max+1） | `CODE_STANDARDS Q-A1`/`Q-E2`、`PLAN` |
 | 盲捕获/静默吞异常 | `CODE_STANDARDS §I`（UI 层已改成**逐处** `# noqa: BLE001` + 理由，不再整目录豁免）|
 | 测试覆盖率 / 门禁状态 | **不记数**：以 CI 与 `scripts/check_quality.py` 的实时输出为准（写进文档必漂）|
+
+## 11. 「今日提示」与到期/衣物判定（2026-10-18/19 新增）
+
+**一个概念，多个规则来源，两种消费者**——这些建议**全部由代码算**，不经过模型：
+
+```
+规则（services/hints.py，纯函数）                产出          消费者
+  weather_hints  天气 → 带伞/加衣/防暑        ┐
+  wash_hints     衣物该洗（needs_wash_now）   ├→ Hint ─→ ① 日程界面顶部「提示条」（可点掉）
+  budget_hints   本月预计超支（services/budget）│           ② 需要"每天一次"的走托盘 + 邮件
+  outing_hints   今天有课/有安排 → 出门三条   ┘
+```
+
+**三条不变量**：
+
+1. **不让模型判断"从数据推出来的建议"**——规则全在 `services/hints.py` 里写成纯函数（好测、
+   无网络、无 LLM）。模型只负责**执行用户的话**，不负责**替用户发现该做什么**。
+2. 提示是**视图状态**：点掉只影响今天这一次显示，**不写任何数据文件**（和"看哪一边"同类）。
+   `Hint.key` 是幂等键——同一条今天只出现一次。
+3. **提示条必须能换行**：`HintBar` 继承 `FlowGrid`（自然宽度流式）。提示会随数据变多
+   （天气 + 该洗 + 预算 + 出门 = 可能 6 条），横排会把最后几条**挤出屏幕**
+   （2026-10-19 渲染实测抓到，见 `dev-logs/2026-10-19-提示条不换行的bug.md`）。
+
+`hints.today_hints(data_dir)` 读**派生缓存与数据文件**（`weather_cache.json` / `inventory.json` /
+`expenses.json` / `daily_logs.json` / `courses.json`）——读不到就**不提示**，不报错。
+
+**到期/衣物的判定链**（`models/inventory.py:derive_status`，优先级从高到低）：
+会员到期 → 保质期到期 → 预计用完 → 数量阈值。前两类是**日期字段**（`runs_out_on` /
+`expires_on`），衣物是**日期 + 间隔**（`worn_since` + `wash_after_days`）——
+**都不存"还剩几天""穿了几天"这类计数器**（计数器会随"没开应用"而漂）。
+
+**提醒复用同一个 tick**：喝水提醒（`water_reminder_due`，免打扰 23:00–07:00）**不另开定时器**，
+挂在 `ReminderService` 每分钟的 tick 上判定。所有"每天最多一次"的推送（含补货）都受**总提醒开关**控制。
+
+## 12. AI Agent Loop 的可靠性契约（2026-10-18 重做）
+
+一次 AI 请求的实际流程（`AIWorker.run`）：
+
+```
+用户一句话
+  └→ 组装 system prompt + 快照 → 模型（第 1 轮）
+       └→ 模型回 JSON：{reply, commands[]}
+            └→ 代码逐条执行（scripts/actions.py）
+                 └→ 把**命令的结果**（OK / ERROR 原文）回喂给模型 → 第 2 轮 …
+                      └→ 直到：模型说结束 / 没有写命令 / 轮次或时间预算耗尽
+```
+
+**核心不变量：汇报权归代码。** 判断"做完了没有"**只看命令自己的结果**（`OK` / `ERROR`），
+**不看模型的措辞**——模型说"已完成"不算完成，只有命令返回 `OK` 才算。
+（α 测试实测：仅此一条，同一模型的落库量从 6 件 → 47 件。）
+
+配套的四条（`services/ai_loop_guards.py` + `ai_service.py`）：
+
+| 约定 | 做法 |
+|---|---|
+| **记账类命令不算用户可见效果** | `add_location` / `set_locations` 只是内部登记，不能拿来凑"我做了事" |
+| **部分完成是常态** | 被轮次/时限切断时必须**量化上报**（"执行 N 条、写命令成功 K 条"），不笼统说"部分完成" |
+| **重复阶梯** | 同一批命令重复出现时逐级加码提醒（`repeat_nudge`），不是无限重发同样的提示 |
+| **守护状态可诊断** | 每批记录 `本批重复=N` + 触发护栏时的首句，出问题能回看 |
+
+**提示不是安全机制**：写数据的强制点在 `scripts/actions.py`（同名同位置硬护栏），
+prompt 里的话只是"劝"，护栏才是"挡"。
+
+**反模式表进 CI**：`tests/test_agent_reliability_checklist.py` 把可机械化的自查项钉成测试
+（设计依据：`Agent Reliability Engineering Design Guide` §2.3/§4/§6.3/§9.3/§12.1/§13.4/§14）。
+α 逐条判定与病根见 `dev-logs/2026-10-18-α测试结论与处置.md`、`dev-logs/2026-10-18-AI可靠性-代码说了算.md`。
