@@ -347,10 +347,16 @@ class InventoryModel(BaseJsonModel):
         ⚠ 两个下限的**边界不同**（跟着用户说法走，用户用例表）：
         - `min_doses`（片级）："剩 **2 根时**提醒我补货" → **到 2 就算不足**（`<=`）
         - `min_quantity`（单位级）："剩**不到** 2 盒" → **低于**才算不足（`<`）
+        - `stock_target`（**常备量**，P20 的另一条路）："剩常备量的 **1/4** 时提醒"
+          → `left * 4 <= stock_target` 就算不足 ✓（它比 `min_quantity` 更好懂：
+          "低于多少提醒"和"应该常备多少"本来就是两件事 ✗）
         """
         left = InventoryModel.remaining_doses(item)
         if left <= 0:
             return "需购"
+        target = item.get("stock_target") or 0
+        if target > 0:
+            return "不足" if left * 4 <= int(target) else "充足"
         min_doses = item.get("min_doses", 0) or 0
         if min_doses > 0:
             return "不足" if left <= min_doses else "充足"

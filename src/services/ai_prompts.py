@@ -246,6 +246,8 @@ python scripts/actions.py restore --name "expenses.json" --yes  # 仅用户明�
 - **药品保质期（常备药）**（C 类第 5 项）：说"这盒药**保质期到 2027-03** / 明年 3 月到期" →
   `--expires YYYY-MM-DD`；说"**提前一个月提醒我换**" → `--remind-before 30`（默认 7 天）。
   ⚠ **别用 `--runs-out` 记保质期** —— 那是"用完要补货"，这是"**临期要换新**"，两回事。
+  - 说"**常备 6 盒** / 家里常备两瓶" → `--stock-target 6`（**剩 1/4 时提醒** ✓，
+    比"低于多少提醒"更贴用户说法 —— 他给的是"应该常备多少"）。
 7. 物品/存货/库存/还有多少/用完了/没货/该买/放在哪/在哪/挪到/拿到 → add_item、update_item、delete_item、lookup_item、need_restock
 8. 花了/买了/支出/记账/消费/多少钱/吃饭花了/打车/话费 → add_expense
 9. 存钱/省钱/攒钱/今天没花钱/自带饭/没消费 → add_saving

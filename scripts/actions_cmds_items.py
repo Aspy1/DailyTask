@@ -88,6 +88,13 @@ def _apply_runs_out(item: dict, args) -> None:
         item["runs_out_on"] = explicit
 
 
+def _apply_stock_target(item: dict, args) -> None:
+    """常备量（P20 的另一条路）：`--stock-target N` → 剩 ≤ N/4 就算不足 ✓。"""
+    target = getattr(args, "stock_target", None)
+    if target is not None:
+        item["stock_target"] = int(target)
+
+
 def _apply_expiry(item: dict, args) -> None:
     """保质期（C 类第 5 项）：`--expires YYYY-MM-DD` + `--remind-before N`（到期前 N 天提醒）。
 
@@ -174,6 +181,7 @@ def cmd_add_item(args) -> None:
     item["location"] = _default_location(item, args)      # 没说位置 → 默认「学校」
     _apply_runs_out(item, args)                           # 「还能用半年」→ 算成日期
     _apply_expiry(item, args)                             # 药品保质期（到期前 N 天提醒）
+    _apply_stock_target(item, args)                       # 常备量（剩 1/4 提醒）
     _apply_wash(item, args)                               # 衣物：穿了几天 / 该洗了
     # ⚠ **硬护栏**：同名 + 同位置 + 没有区分（备注/标签）→ 拒绝新增。
     # 2026-10-18 真实数据实测：模型"补写前几轮欠的记录"时把已写过的又加了一遍 ✗
@@ -297,6 +305,7 @@ def _apply_item_updates(item: dict, args) -> None:
     _apply_item_quantity_fields(item, args)
     _apply_runs_out(item, args)
     _apply_expiry(item, args)
+    _apply_stock_target(item, args)
     _apply_wash(item, args)
     if location:
         item["location"] = canonical_location(location)   # 同义归一，词表不分叉
