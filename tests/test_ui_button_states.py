@@ -86,6 +86,22 @@ def test_markdown_escapes_user_html() -> None:
     assert "<b>粗</b>" in _md_to_html("**粗**")
 
 
+def test_dialog_shell_caps_height_and_scrolls(qapp) -> None:
+    """⚠ U9 回归：长弹窗要**限高 + 中间滚动**，否则屏幕不够高时底部按钮够不着。"""
+    from PySide6.QtWidgets import QScrollArea
+
+    from src.ui.widgets.dialog_shell import MAX_HEIGHT_RATIO, DialogShell
+
+    dlg = DialogShell(title="测试", min_width=320)
+    assert dlg.findChild(QScrollArea) is not None, "内容区必须可滚动"
+    assert dlg.buttons is not None, "按钮行固定在外壳上"
+
+    screen = qapp.primaryScreen()
+    assert screen is not None
+    cap = int(screen.availableGeometry().height() * MAX_HEIGHT_RATIO)
+    assert dlg.maximumHeight() <= cap + 1, "必须限高"
+
+
 def test_flow_grid_reports_height_for_width(qapp) -> None:
     """⚠ U6 回归：流式排布要能**按宽度报高度**，否则塞进 layout 会占固定高度。"""
     from PySide6.QtWidgets import QWidget

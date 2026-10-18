@@ -27,6 +27,7 @@ from PySide6.QtWidgets import (
 from src.i18n.loader import tr
 from src.models.inventory import days_until
 from src.ui.styles.theme import get_colors
+from src.ui.widgets.dialog_shell import DialogShell
 from src.ui.widgets.rounded_button import RoundedButton
 from src.ui.widgets.rounded_input import RoundedLineEdit
 
@@ -171,20 +172,13 @@ def edit_membership_dialog(parent, dm, item: dict) -> bool:
 
     ⚠ **手机号只在这里录**：它写进 `dm.membership_contacts`（私有文件 —— 不进仓库、
     不进 AI 提示词）。用户名 / 到期日 / 自动续费 / 续费月数写进 `inventory.json`。
+
+    走 `DialogShell`（审查 U9）：限高 + 中间滚动 + 底部按钮固定。
     """
     m = item.get("membership") or {}
-    c = get_colors()
-    dlg = QDialog(parent)
-    dlg.setWindowTitle(tr("panel.inventory.dialog_membership_title",
-                          name=item.get("name", "")))
-    dlg.setMinimumWidth(360)
-    dlg.setStyleSheet(
-        f"QDialog {{ background-color: {c['card_bg']}; }}"
-        f" QLabel {{ color: {c['fg_primary']}; font-size: 13px;"
-        f" background: transparent; border: none; }}")
-    layout = QVBoxLayout(dlg)
-    layout.setSpacing(6)
-    layout.setContentsMargins(20, 16, 20, 16)
+    dlg = DialogShell(parent, tr("panel.inventory.dialog_membership_title",
+                                 name=item.get("name", "")))
+    layout = dlg.body
 
     user = _labeled_field(layout, "panel.inventory.membership_username",
                           str(m.get("username") or ""))
@@ -201,12 +195,7 @@ def edit_membership_dialog(parent, dm, item: dict) -> bool:
     hint = QLabel(tr("panel.inventory.membership_phone_hint"))
     hint.setWordWrap(True)
     layout.addWidget(hint)
-
-    btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok
-                            | QDialogButtonBox.StandardButton.Cancel)
-    btns.accepted.connect(dlg.accept)
-    btns.rejected.connect(dlg.reject)
-    layout.addWidget(btns)
+    layout.addStretch()
 
     if not dlg.exec():
         return False
