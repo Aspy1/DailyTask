@@ -3,7 +3,6 @@
 from typing import ClassVar
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
@@ -32,7 +31,7 @@ from src.ui.panels.inventory_dialogs import (
     email_reminder_dialog,
 )
 from src.ui.styles.cards import card as make_card
-from src.ui.styles.theme import FONT_CN, RADIUS, SIZE_SUBTITLE, SPACING, get_colors, rgba
+from src.ui.styles.theme import RADIUS, SIZE_SUBTITLE, SPACING, font, get_colors, rgba
 from src.ui.widgets.menu import (
     add_action,
     add_separator,
@@ -98,7 +97,7 @@ class InventoryPanel(QWidget):
         bl.setSpacing(6)
 
         title = QLabel(tr("panel.inventory.title"))
-        title.setFont(QFont(FONT_CN, SIZE_SUBTITLE))
+        title.setFont(font(SIZE_SUBTITLE))
         title.setStyleSheet(f"color: {c['fg_primary']}; font-weight: 600; border: none;")
         bl.addWidget(title)
 

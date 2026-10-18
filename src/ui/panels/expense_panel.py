@@ -4,7 +4,6 @@ import logging
 from datetime import date
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
@@ -23,11 +22,11 @@ from PySide6.QtWidgets import (
 from src.i18n.loader import tr
 from src.services.data_manager import DataManager
 from src.ui.styles.theme import (
-    FONT_CN,
     RADIUS,
     SIZE_BODY_S,
     SIZE_SUBTITLE,
     combo_qss,
+    font,
     get_colors,
     input_qss,
     is_accent_button,
@@ -68,7 +67,7 @@ class ExpensePanel(QWidget):
         bar_layout.setSpacing(8)
 
         title = QLabel(tr("panel.expense.title"))
-        title.setFont(QFont(FONT_CN, SIZE_SUBTITLE))
+        title.setFont(font(SIZE_SUBTITLE))
         title.setStyleSheet("font-weight: 600; border: none;")
         bar_layout.addWidget(title)
         bar_layout.addStretch()

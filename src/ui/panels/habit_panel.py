@@ -3,7 +3,6 @@
 import logging
 
 from PySide6.QtCore import QRect, QSize, Qt, Signal
-from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QCheckBox,
     QDialog,
@@ -24,7 +23,7 @@ from PySide6.QtWidgets import (
 from src.i18n.loader import tr
 from src.services.data_manager import DataManager
 from src.ui.styles.cards import Card
-from src.ui.styles.theme import FONT_CN, SIZE_BODY, SIZE_SUBTITLE, get_colors
+from src.ui.styles.theme import SIZE_BODY, SIZE_SUBTITLE, font, get_colors
 from src.ui.widgets.menu import (
     add_action,
     new_menu,
@@ -86,7 +85,7 @@ class _HabitCard(Card):
         row1 = QHBoxLayout()
         row1.setSpacing(8)
         name_lbl = QLabel(habit.get("name", ""))
-        name_lbl.setFont(QFont(FONT_CN, SIZE_BODY))
+        name_lbl.setFont(font(SIZE_BODY))
         name_lbl.setStyleSheet(
             f"font-weight: 600; color: {name_fg}; border: none; background: transparent;")
         row1.addWidget(name_lbl)
@@ -297,7 +296,7 @@ class HabitPanel(QWidget):
         bar_layout = QHBoxLayout(bar)
         bar_layout.setContentsMargins(16, 8, 16, 8)
         title = QLabel(tr("panel.habit.title"))
-        title.setFont(QFont(FONT_CN, SIZE_SUBTITLE))
+        title.setFont(font(SIZE_SUBTITLE))
         title.setStyleSheet("font-weight: 600; border: none;")
         bar_layout.addWidget(title)
         bar_layout.addStretch()

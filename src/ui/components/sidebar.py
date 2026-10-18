@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (
 )
 
 from src.i18n.loader import tr
-from src.ui.styles.theme import FONT_CN, SIZE_BODY_M, get_colors
+from src.ui.styles.theme import SIZE_BODY_M, font, get_colors
 from src.ui.widgets.rounded_button import RoundedButton
 
 
@@ -162,7 +162,7 @@ class Sidebar(QWidget):
         layout.setSpacing(0)
 
         self._title = QLabel(tr("app.name"))
-        self._title.setFont(QFont(FONT_CN, SIZE_BODY_M, QFont.Weight.Bold))
+        self._title.setFont(font(SIZE_BODY_M, QFont.Weight.Bold))
         layout.addWidget(self._title)
 
         func_section = SidebarSection("func", tr("sidebar.section.func"), [

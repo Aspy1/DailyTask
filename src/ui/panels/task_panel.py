@@ -4,7 +4,7 @@ import logging
 from datetime import date, timedelta
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QBrush, QColor, QFont
+from PySide6.QtGui import QBrush, QColor
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
@@ -21,7 +21,7 @@ from PySide6.QtWidgets import (
 
 from src.i18n.loader import tr
 from src.services.data_manager import DataManager
-from src.ui.styles.theme import FONT_CN, SIZE_SUBTITLE, get_colors
+from src.ui.styles.theme import SIZE_SUBTITLE, font, get_colors
 from src.ui.widgets.menu import (
     add_action,
     add_separator,
@@ -108,7 +108,7 @@ class TaskPanel(QWidget):
         bar_layout.setSpacing(8)
 
         title = QLabel(tr("panel.task.heading"))
-        title.setFont(QFont(FONT_CN, SIZE_SUBTITLE))
+        title.setFont(font(SIZE_SUBTITLE))
         title.setStyleSheet(f"color: {c['fg_primary']}; font-weight: 600; border: none;")
         bar_layout.addWidget(title)
 

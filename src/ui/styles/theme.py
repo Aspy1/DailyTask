@@ -360,15 +360,30 @@ def apply_palette(app: QApplication, mode: str) -> None:
     app.setPalette(pal)
 
 
+def font(size: int, weight: int | QFont.Weight | None = None) -> QFont:
+    """按**像素**字号造字体 —— 与 QSS 的 `font-size: Npx` 同单位。
+
+    ⚠ `QFont(family, size)` 的第二个参数是 **point**（本机 20pt ≈ 27 逻辑像素），
+    而 QSS 用的是 px。两套单位混用会让"标题 / 标签 / 输入内容"比例不一致（审查 U5）——
+    这里统一走 `setPixelSize`，QSS 不用换算，调用点也只改这一行。
+    """
+    f = QFont(FONT_CN)
+    f.setPixelSize(int(size))
+    if weight is not None:
+        f.setWeight(QFont.Weight(weight))
+    return f
+
+
 def init_theme(app: QApplication, mode: str = "light") -> str:
     global FONT_CN, _current_mode, _color_cache
     configure_locale()          # 日期/数字控件必须用 ASCII 数字（本机 zh_HK 会出 CJK 数字）
     FONT_CN = _resolve_font()
     _current_mode = mode
     _color_cache = None
-    font = QFont(FONT_CN, SIZE_BODY)
-    font.setHintingPreference(QFont.HintingPreference.PreferFullHinting)
-    app.setFont(font)
+    font_ = QFont(FONT_CN)
+    font_.setPixelSize(int(SIZE_BODY))          # ⚠ 用像素：QSS 也是 px（审查 U5）
+    font_.setHintingPreference(QFont.HintingPreference.PreferFullHinting)
+    app.setFont(font_)
 
     # Suppress focus rect dotted border on buttons
     from PySide6.QtWidgets import QProxyStyle, QStyle

@@ -5,7 +5,6 @@ import os as _os
 from datetime import date, datetime, timedelta
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
@@ -22,7 +21,7 @@ from src.services.data_manager import DataManager
 from src.ui.components.click_label import ClickLabel
 from src.ui.panels.course_panel import CoursePanel
 from src.ui.styles.cards import card
-from src.ui.styles.theme import FONT_CN, SIZE_SUBTITLE, get_colors
+from src.ui.styles.theme import SIZE_SUBTITLE, font, get_colors
 from src.ui.widgets.menu import (
     add_action,
     add_separator,
@@ -67,7 +66,7 @@ class ScheduleView(QWidget):
         bl.setSpacing(6)
 
         title = QLabel(tr("widget.schedule.title"))
-        title.setFont(QFont(FONT_CN, SIZE_SUBTITLE))
+        title.setFont(font(SIZE_SUBTITLE))
         title.setStyleSheet("font-weight: 600; border: none;")
         bl.addWidget(title)
 

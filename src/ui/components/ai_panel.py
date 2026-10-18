@@ -4,7 +4,7 @@ import html
 import re
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QFont, QKeyEvent
+from PySide6.QtGui import QKeyEvent
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
 )
 
 from src.i18n.loader import tr
-from src.ui.styles.theme import FONT_CN, SIZE_BODY_S, SIZE_CAPTION, get_colors
+from src.ui.styles.theme import SIZE_BODY_S, SIZE_CAPTION, font, get_colors
 from src.ui.widgets.rounded_button import RoundedButton
 
 
@@ -63,7 +63,7 @@ class _ChatInput(QTextEdit):
         super().__init__(parent)
         self.setMaximumHeight(72)
         self.setMinimumHeight(36)
-        self.setFont(QFont(FONT_CN, SIZE_CAPTION))
+        self.setFont(font(SIZE_CAPTION))
         self.setTabChangesFocus(True)
         c = get_colors()
         self.setStyleSheet(f"""
@@ -111,7 +111,7 @@ class AIPanel(QWidget):
         header_layout = QHBoxLayout(header)
         header_layout.setContentsMargins(12, 12, 12, 8)
         title = QLabel(tr("ai.title"))
-        title.setFont(QFont(FONT_CN, SIZE_BODY_S))
+        title.setFont(font(SIZE_BODY_S))
         title.setStyleSheet(f"font-weight: 600; color: {c['fg_primary']}; border: none;")
         header_layout.addWidget(title)
         header_layout.addStretch()
@@ -129,6 +129,8 @@ class AIPanel(QWidget):
             f"QScrollArea {{ background-color: {c['chat_bg']}; border: none; }}"
         )
 
+        # 消息按结构存（角色/正文/占位）：颜色烤进 HTML 会丢原文，换主题就没法重画（U3）
+        self._messages: list[dict] = []
         self._chat_label = QLabel()
         self._chat_label.setWordWrap(True)
         self._chat_label.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
@@ -158,15 +160,13 @@ class AIPanel(QWidget):
         self._send_btn = RoundedButton(tr("ai.send"))
         self._send_btn.setFixedSize(64, 36)
         self._send_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._send_btn.setStyleSheet(f"""
-            QPushButton {{
-                background-color: {c['accent']}; color: {c['fg_on_fill']}; border: none;
-                border-radius: 8px; font-weight: 600; font-size: 14px;
-            }}
-            QPushButton:hover {{ background-color: {c['accent_hover']}; }}
-            QPushButton:pressed {{ background-color: {c['accent_dim']}; }}
-            QPushButton:disabled {{ background-color: {c['fg_disabled']}; color: {c['fg_on_fill']}; }}
-        """)
+        self._send_btn.setStyleSheet(
+            f"QPushButton {{ background-color: {c['accent']}; color: {c['fg_on_fill']};"
+            f" border: none; border-radius: 8px; font-weight: 600; font-size: 14px; }}"
+            f" QPushButton:hover {{ background-color: {c['accent_hover']}; }}"
+            f" QPushButton:pressed {{ background-color: {c['accent_dim']}; }}"
+            f" QPushButton:disabled {{ background-color: {c['fg_disabled']};"
+            f" color: {c['fg_on_fill']}; }}")
         self._send_btn.clicked.connect(self._on_send)
         input_layout.addWidget(self._send_btn)
 
@@ -187,55 +187,42 @@ class AIPanel(QWidget):
         self.message_sent.emit(text)
 
     def append_message(self, role: str, text: str, is_placeholder: bool = False) -> None:
-        c = get_colors()
-        if role == "user":
-            bubble_bg = c["accent"]
-            bubble_fg = c["fg_on_fill"]
-            align = "right"
-            bubble_style = f'background-color:{bubble_bg};color:{bubble_fg};border-radius:12px;padding:8px 14px;'
-        elif is_placeholder:
-            bubble_bg = "transparent"
-            bubble_fg = c["fg_hint"]
-            align = "left"
-            bubble_style = f'color:{bubble_fg};padding:4px 0;border-left:2px solid {c["accent"]};padding-left:12px;font-style:italic;'
-        else:
-            bubble_bg = "transparent"
-            bubble_fg = c["fg_primary"]
-            align = "left"
-            bubble_style = f'color:{bubble_fg};padding:4px 0;border-left:2px solid {c["border"]};padding-left:12px;'
-            text = _md_to_html(text)
+        """追加一条消息（**存结构**，随后按当前主题整体重画）。
 
-        escaped = text.replace("\n", "<br>")
-        margin_dir = "margin-left" if align == "right" else "margin-right"
-        marker = "<!--ph-->" if is_placeholder else ""
-        msg = (
-            f'{marker}<div style="margin-bottom:12px;{margin_dir}:24px;">'
-            f'<div style="display:inline-block;max-width:100%;'
-            f'{bubble_style}font-size:13px;text-align:left;word-wrap:break-word;">'
-            f'{escaped}'
-            f'</div>'
-            f'</div>'
-        )
-        current = self._chat_label.text()
-        # Replace placeholder if real AI message arrives
+        ⚠ 原实现把颜色写进 HTML 再拼到 `QLabel` 上，原文就丢了 —— 换主题后历史消息
+        仍是旧配色（审查 U3）。现在原文留在 `self._messages` 里，`refresh_theme()` 能重画。
+        """
         if role == "ai" and not is_placeholder:
-            ph = "<!--ph-->"
-            if ph in current:
-                # Find and remove the placeholder block
-                idx_ph = current.rfind(ph)
-                # Find the end of this div block (next </div></div> pair)
-                end_ph = current.find("</div></div>", idx_ph)
-                if end_ph > 0:
-                    # Find the closing </div> (there might be nested divs in placeholder)
-                    # Simple: remove from <!--ph--> to next </div> after the block
-                    nest_end = current.find("</div></div>", end_ph + 13)
-                    if nest_end > 0:
-                        current = current[:idx_ph] + current[nest_end + 13:]
-                    else:
-                        current = current[:idx_ph] + current[end_ph + 13:]
-        self._chat_label.setText(current + msg)
+            # 真回复到了 → 先去掉"正在思考"的占位（原来是拿 `<!--ph-->` 做字符串手术）
+            self._messages = [m for m in self._messages if not m["placeholder"]]
+        self._messages.append({"role": role, "text": text, "placeholder": is_placeholder})
+        self._render_messages()
+
+    def _render_messages(self) -> None:
+        """按**当前主题**重画全部消息（追加与换主题都走这里）。"""
+        self._chat_label.setText("".join(self._message_html(m) for m in self._messages))
         sb = self._scroll.verticalScrollBar()
         sb.setValue(sb.maximum())
+
+    def _message_html(self, msg: dict) -> str:
+        """一条消息 → HTML。颜色**每次现取**，不缓存（否则换主题不生效）。"""
+        c = get_colors()
+        if msg["role"] == "user":
+            style = (f'background-color:{c["accent"]};color:{c["fg_on_fill"]};'
+                     f'border-radius:12px;padding:8px 14px;')
+            margin, body = "margin-left", html.escape(msg["text"])
+        elif msg["placeholder"]:
+            style = (f'color:{c["fg_hint"]};padding:4px 0;'
+                     f'border-left:2px solid {c["accent"]};padding-left:12px;font-style:italic;')
+            margin, body = "margin-right", html.escape(msg["text"])
+        else:
+            style = (f'color:{c["fg_primary"]};padding:4px 0;'
+                     f'border-left:2px solid {c["border"]};padding-left:12px;')
+            margin, body = "margin-right", _md_to_html(msg["text"])
+        return (f'<div style="margin-bottom:12px;{margin}:24px;">'
+                f'<div style="display:inline-block;max-width:100%;{style}'
+                f'font-size:13px;text-align:left;word-wrap:break-word;">'
+                f'{body}</div></div>').replace("\n", "<br>")
 
     def append_message_ai(self, text: str) -> None:
         self.append_message("ai", text)
@@ -274,4 +261,5 @@ class AIPanel(QWidget):
         self._chat_label.setStyleSheet(
             f"QLabel {{ background-color: {c['chat_bg']}; color: {c['fg_primary']}; padding: 8px; font-size: 14px; }}"
         )
+        self._render_messages()      # ⚠ 历史消息的配色写在 HTML 里 → 必须重画（审查 U3）
 

@@ -4,7 +4,7 @@ import logging
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QUrl
-from PySide6.QtGui import QDesktopServices, QFont
+from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -25,11 +25,11 @@ from src.services.settings_manager import SettingsManager
 from src.ui.styles.cards import card
 from src.ui.styles.theme import (
     FIELD_H,
-    FONT_CN,
     SIZE_BODY_L,
     SIZE_BODY_S,
     btn_secondary_qss,
     combo_qss,
+    font,
     get_colors,
     input_qss,
     size_small_button,
@@ -118,7 +118,7 @@ class SettingsPanel(QWidget):
     def _section_heading(self, title: str) -> QLabel:
         c = self._c()
         lbl = QLabel(title)
-        lbl.setFont(QFont(FONT_CN, SIZE_BODY_L))
+        lbl.setFont(font(SIZE_BODY_L))
         lbl.setStyleSheet(f"color: {c['section_heading']}; font-weight: 600; padding: 0 2px;")
         return lbl
 

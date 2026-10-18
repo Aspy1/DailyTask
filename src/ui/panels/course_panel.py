@@ -4,7 +4,6 @@ import logging
 from datetime import date, timedelta
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QInputDialog,
@@ -24,7 +23,7 @@ from src.models.semester import (
 )
 from src.services.data_manager import DataManager
 from src.ui.components.semester_text import semester_state_text
-from src.ui.styles.theme import FONT_CN, SIZE_BODY_S, get_colors
+from src.ui.styles.theme import SIZE_BODY_S, font, get_colors
 from src.ui.widgets.course_table import CourseTable
 from src.ui.widgets.rounded_button import RoundedButton
 from src.ui.widgets.semester_dialog import SemesterDialog
@@ -51,7 +50,7 @@ class CoursePanel(QWidget):
         bar_layout.setContentsMargins(16, 8, 16, 8)
 
         self._week_label = QLabel()
-        self._week_label.setFont(QFont(FONT_CN, SIZE_BODY_S))
+        self._week_label.setFont(font(SIZE_BODY_S))
         self._week_label.setStyleSheet("font-weight: 600; border: none;")
         bar_layout.addWidget(self._week_label)
 

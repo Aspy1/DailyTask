@@ -4,7 +4,6 @@ import logging
 from datetime import date
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QDialog,
     QHBoxLayout,
@@ -18,7 +17,7 @@ from PySide6.QtWidgets import (
 
 from src.i18n.loader import tr
 from src.services.data_manager import DataManager
-from src.ui.styles.theme import FONT_CN, SIZE_TITLE, get_colors
+from src.ui.styles.theme import SIZE_TITLE, font, get_colors
 from src.ui.widgets.rounded_button import RoundedButton
 
 logger = logging.getLogger(__name__)
@@ -47,7 +46,7 @@ class CourseDetailDialog(QDialog):
         layout.setContentsMargins(16, 12, 16, 16)
 
         title = QLabel(tr("dialog.course.title", name=course_name))
-        title.setFont(QFont(FONT_CN, SIZE_TITLE))
+        title.setFont(font(SIZE_TITLE))
         title.setStyleSheet(f"font-weight: 700; color: {c['fg_primary']};")
         layout.addWidget(title)
 

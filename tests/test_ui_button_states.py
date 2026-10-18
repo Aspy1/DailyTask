@@ -84,3 +84,51 @@ def test_markdown_escapes_user_html() -> None:
 
     assert "&lt;b&gt;" in _md_to_html("<b>不是标签</b>")
     assert "<b>粗</b>" in _md_to_html("**粗**")
+
+
+def test_font_factory_uses_pixels_not_points() -> None:
+    """⚠ U5 回归：令牌是**像素**，字体必须 `setPixelSize`。
+
+    `QFont(family, size)` 的第二个参数是 **point**（本机 20pt ≈ 27 逻辑像素），
+    而 QSS 用 px —— 混用会让标题/标签/输入内容比例不一致。
+    """
+    from src.ui.styles.theme import SIZE_SUBTITLE, font
+
+    f = font(SIZE_SUBTITLE)
+    assert f.pixelSize() == SIZE_SUBTITLE
+    assert f.pointSize() == -1, "不该同时设 point（两套单位会打架）"
+
+
+def test_ai_history_is_rebuilt_on_theme_change(qapp) -> None:
+    """⚠ U3 回归：历史消息的配色写在 HTML 里，换主题必须重画。
+
+    原实现把颜色烤进 HTML 就丢了原文，`refresh_theme` 只改外壳 QSS →
+    浅色下建的消息切到深色后仍是深色字。
+    """
+    from src.ui.components.ai_panel import AIPanel
+    from src.ui.styles import theme
+
+    panel = AIPanel()
+    panel.append_message("user", "你好")
+    assert "你好" in panel._chat_label.text()
+
+    theme.switch_theme("dark")
+    panel.refresh_theme()
+    # 断言用的是**当前**主题的色 —— 修之前这里还是浅色那份（原文被丢了）
+    assert theme.get_colors()["accent"] in panel._chat_label.text()
+    theme.switch_theme("light")
+    panel.refresh_theme()
+    assert theme.get_colors()["accent"] in panel._chat_label.text()
+
+
+def test_ai_placeholder_is_replaced_by_the_real_reply(qapp) -> None:
+    """占位消息在真回复到达时被替换（原来是拿 `<!--ph-->` 做字符串手术）。"""
+    from src.ui.components.ai_panel import AIPanel
+
+    panel = AIPanel()
+    panel.append_message("ai", "正在思考", is_placeholder=True)
+    assert "正在思考" in panel._chat_label.text()
+
+    panel.append_message("ai", "答案")
+    text = panel._chat_label.text()
+    assert "答案" in text and "正在思考" not in text

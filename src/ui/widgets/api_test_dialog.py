@@ -2,7 +2,6 @@
 
 from datetime import datetime
 
-from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
@@ -15,7 +14,7 @@ from PySide6.QtWidgets import (
 
 from src.i18n.loader import tr
 from src.services.api_service import ApiService
-from src.ui.styles.theme import FONT_CN, SIZE_BODY, SIZE_SUBTITLE, get_colors
+from src.ui.styles.theme import SIZE_BODY, SIZE_SUBTITLE, font, get_colors
 from src.ui.widgets.rounded_button import RoundedButton
 from src.ui.widgets.rounded_input import RoundedLineEdit
 
@@ -79,7 +78,7 @@ class ApiTestDialog(QDialog):
 
         # 标题
         title = QLabel(tr("dialog.api_test.heading"))
-        title.setFont(QFont(FONT_CN, SIZE_SUBTITLE, 600))
+        title.setFont(font(SIZE_SUBTITLE, 600))
         layout.addWidget(title)
 
         # 天气预报测试
@@ -120,7 +119,7 @@ class ApiTestDialog(QDialog):
 
         # 结果显示
         result_label = QLabel(tr("dialog.api_test.label_result"))
-        result_label.setFont(QFont(FONT_CN, SIZE_BODY, 600))
+        result_label.setFont(font(SIZE_BODY, 600))
         layout.addWidget(result_label)
 
         self._result_text = QTextEdit()
