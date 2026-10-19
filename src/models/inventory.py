@@ -271,10 +271,8 @@ class InventoryModel(BaseJsonModel):
             "category": data.get("category", "其他"),
             "group": data.get("group", ""),
             "quantity": data.get("quantity", 1),
-            "unit": "件",
-            "status": data.get("status") or self.derive_status(data),
+            "unit": data.get("unit") or "件",       # ⚠ 不能用固定值把显式 unit 盖掉（R10）
             "min_quantity": data.get("min_quantity", 1),
-            "remaining_doses": int(data.get("quantity", 1)) * (data.get("doses_per_unit", 1) or 1),
             "location": data.get("location", ""),
             "notes": data.get("notes", ""),
             "tags": data.get("tags", []),
@@ -290,6 +288,10 @@ class InventoryModel(BaseJsonModel):
         for key, value in data.items():
             if key in ITEM_FIELDS and key not in item:
                 item[key] = value
+        # ⚠ **默认值齐了再推导**（R10）：先算余量真值，再算状态 ——
+        # 原来拿原始 `data` 算，`add_item({'name': 'x'})` 的余量被算成 0 → 直接判"需购"。
+        item["remaining_doses"] = InventoryModel.remaining_doses(item)
+        item["status"] = data.get("status") or InventoryModel.derive_status(item)
         items.append(item)
         return iid
 

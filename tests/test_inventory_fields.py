@@ -73,3 +73,58 @@ def test_membership_survives_the_ui_save_path(tmp_path) -> None:
 
 def test_item_fields_has_no_duplicates() -> None:
     assert len(ITEM_FIELDS) == len(set(ITEM_FIELDS))
+
+
+# ── 覆盖**全部**可写字段（审查 R10：只挑几个 C 类字段不够）──────────
+
+# 每个可写字段的样例值。**手写**（不是从 `ITEM_FIELDS` 推导）——
+# 这样"清单加了字段但没人管它"会被下面那条一致性断言抓住 ✓。
+SAMPLES = {
+    "name": "样例物品", "category": "日常消耗品", "group": "分组", "quantity": 3,
+    "unit": "瓶", "status": "不足", "min_quantity": 2, "min_doses": 4,
+    "location": "桌面", "notes": "备注", "tags": ["常用"], "instances": [{"tags": ["A"]}],
+    "ignore_low_stock": True, "doses_per_unit": 24,
+    "membership": {"username": "me", "expires_on": "2027-01-01"},
+    "expires_on": "2027-01-01", "runs_out_on": "2027-01-01", "remind_before_days": 10,
+    "stock_target": 6, "worn_since": "2026-10-01", "wash_after_days": 7, "needs_wash": True,
+}
+
+
+def test_samples_cover_every_writable_field() -> None:
+    """样例表必须与 `ITEM_FIELDS` **同步** —— 两边都要动，否则新字段会漏测。"""
+    assert set(SAMPLES) == set(ITEM_FIELDS), \
+        f"样例表与清单不同步：清单多 {set(ITEM_FIELDS) - set(SAMPLES)}，" \
+        f"样例多 {set(SAMPLES) - set(ITEM_FIELDS)}"
+
+
+def test_add_item_keeps_all_writable_fields(tmp_path) -> None:
+    """⭐ `add_item` 要**原样**保留每一个可写字段。
+
+    回归 R10：`unit` 曾被硬写成"件"，显式传的 `unit` 被丢掉；
+    而 `status` / 余量是在**默认值之前**算的（`add_item({'name': 'x'})` 会得到"需购"）。
+    """
+    m = _model(tmp_path)
+    m.add_item(dict(SAMPLES))
+    item = m.items[0]
+    for key, value in SAMPLES.items():
+        assert item.get(key) == value, f"add_item 丢了或改了字段 {key}"
+
+
+def test_add_item_with_only_a_name_is_not_marked_restock(tmp_path) -> None:
+    """⭐ 只给名字建一条：数量默认 1、余量默认 1 → 状态**充足**（原来算成"需购"）。"""
+    m = _model(tmp_path)
+    m.add_item({"name": "只有名字"})
+    item = m.items[0]
+    assert item["quantity"] == 1 and item["remaining_doses"] == 1
+    assert item["status"] == "充足", "默认值还没填就拿原始 data 推状态 → 误判需购"
+
+
+def test_update_item_keeps_all_writable_fields(tmp_path) -> None:
+    """`update_item` 同样覆盖全部字段（`status` 除外：它会被自动推导，见批次三那条遗留）。"""
+    m = _model(tmp_path)
+    m.add_item({"name": "占位", "quantity": 1})
+    for key, value in SAMPLES.items():
+        if key == "status":
+            continue                      # 手动 status 会被自动推导覆盖（另一条已知遗留）
+        assert m.update_item("i_001", {key: value}) is True
+        assert m.items[0].get(key) == value, f"update_item 丢了字段 {key}"

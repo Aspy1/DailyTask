@@ -22,12 +22,15 @@ from src.models.inventory import ITEM_FIELDS
 
 UI_DIR = Path(__file__).resolve().parent.parent / "src" / "ui"
 
-# 方法名 → 该模型的**可写字段清单**（清单只有一个来源，见各模型的常量 ✓）。
+# 方法名 → (要检查的**实参下标**, 该模型的**可写字段清单**)
+# ⚠ 下标不能一刀切：`update_item(iid, data)` 的 dict 在**第 2 个**实参，
+# 而 `add_item(data)` 在**第 1 个** —— 旧版统一要求"至少两个实参"，
+# 于是所有 `add_item(...)` 调用**从未被检查过**（2026-10-19 审查 R10 点出的盲区）。
 CHECKED = {
-    "update_item": ITEM_FIELDS,
-    "add_item": ITEM_FIELDS,
-    "update_exam": EXAM_FIELDS,
-    "add_exam": EXAM_FIELDS,
+    "update_item": (1, ITEM_FIELDS),
+    "add_item": (0, ITEM_FIELDS),
+    "update_exam": (1, EXAM_FIELDS),
+    "add_exam": (0, EXAM_FIELDS),
 }
 
 
@@ -59,10 +62,13 @@ def test_ui_update_calls_only_pass_writable_fields() -> None:
         for node in ast.walk(tree):
             if not isinstance(node, ast.Call):
                 continue
-            fields = CHECKED.get(_call_name(node))
-            if fields is None or len(node.args) < 2:
+            spec = CHECKED.get(_call_name(node))
+            if spec is None:
                 continue
-            keys = _literal_str_keys(node.args[1])
+            index, fields = spec
+            if len(node.args) <= index:
+                continue
+            keys = _literal_str_keys(node.args[index])
             if keys is None:
                 continue
             for key in keys:
