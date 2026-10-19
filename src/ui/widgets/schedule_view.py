@@ -42,6 +42,20 @@ from src.ui.widgets.schedule_slots import (
 logger = logging.getLogger(__name__)
 
 
+def slot_layout_index(slot_cards: dict, period: int) -> int:
+    """时段卡片在布局里的**位置**：比它小的 period 有几张，就插第几位。
+
+    为什么要这个（审查 R5）：`_refresh_day` 是 hash 增量刷新（未变的时段跳过重建），
+    但重建的卡片原来一律 `insertWidget(count - 1)` = 插到**末尾** —— 切分类筛选只改变
+    一部分时段，于是那几张跑到时间轴后面去（实测 `[1,2,3,4,5]` 变 `[2,3,4,5,1]`）。
+    布局里除卡片只有末尾那个 stretch，所以"比它小的有几张"就是它的正确位置。
+
+    放**模块级**而不是类方法：`ScheduleView` 已顶到类的尺寸上限（基线只允许减少），
+    塞进去会直接红；而 `_refresh_day` 内联又会把它的圈复杂度推到 C（门禁 ≤ B）。
+    """
+    return sum(1 for p in slot_cards if p < period)
+
+
 class ScheduleView(QWidget):
     course_table_requested = Signal()
     task_focus_requested = Signal(str)
@@ -577,7 +591,7 @@ class ScheduleView(QWidget):
                 self._slot_cards[period].deleteLater()
 
             card = self._create_slot_card(period, items, ddls, plans, is_current, c)
-            self._content_layout.insertWidget(self._content_layout.count() - 1, card)
+            self._content_layout.insertWidget(slot_layout_index(self._slot_cards, period), card)
             self._slot_cards[period] = card
             self._slot_hashes[period] = new_hash
 
