@@ -128,6 +128,48 @@ def test_finish_warns_when_claiming_without_data_change(qapp) -> None:
     assert seen and "没有任何改动" not in seen[-1], "纯查询不该报警告"
 
 
+def _run_final_text(replies: list[str]) -> list[str]:
+    """从 **`AIWorker.run()`** 出发跑一轮，收集**发给用户的最终文本**（R1/A1 的测试口径）。
+
+    为什么不用现成的 `_run()`：它只收集 `finished_with_instructions` 的**指令列表** ✗，
+    看不到用户实际读到的那句话 ✗ —— 而 R1 恰恰是"用户看到什么"的问题 ✓。
+    """
+    provider = _StubProvider(replies)
+    worker = AIWorker(provider=provider, model="stub", system_prompt="s",
+                      messages=[{"role": "user", "content": "记一下"}], settings=None)
+    out: list[str] = []
+    worker.finished_with_instructions.connect(lambda t, _i: out.append(t))
+    worker.finished.connect(out.append)
+    worker.error.connect(out.append)
+    worker.run()
+    return out
+
+
+# 一定失败的命令：数量为负 → `actions.py` 校验层直接拒（不写任何文件）
+BAD_CMD = 'python scripts/actions.py add_item --name "纸巾" --quantity -1'
+
+
+def test_run_reports_failed_writes_when_model_stops_on_its_own(qapp, sandbox) -> None:
+    """⭐ R1 回归：**模型自己收尾**（这轮没命令）时，累计的写失败也必须出现在最终文本里。
+
+    原来 `_handle_no_instructions()` 直接 emit + return ✗ —— 绕过了 `_finish()`，
+    于是"命令报错"这件事在"模型自己说完了"这条路上**完全报不出来** ✗
+    （用户看到的就是模型那句"已记录" ✓）。
+    """
+    out = _run_final_text([f"```sh\n{BAD_CMD}\n```", "已记录"])
+    assert out, "至少要有一个信号"
+    assert any("没有生效" in t for t in out), f"写失败没被汇报：{out}"
+
+
+def test_run_warns_when_model_never_ran_any_command(qapp, sandbox) -> None:
+    """⭐ R1 回归：只说话不干活（追问耗尽后停下）→ 最终文本必须有"数据没有任何改动"。
+
+    这条以前只在 `_finish()` 里成立 ✓，而"追问耗尽"走的是另一条出口 ✗。
+    """
+    out = _run_final_text(["已记录：牙膏 1 瓶"] * 4)
+    assert any("没有任何改动" in t for t in out), f"没警告：{out}"
+
+
 def test_nudge_when_model_claims_it_wrote_but_sent_no_command() -> None:
     """α 实测：模型只说"已记录：毛巾 2 条…"却一条命令都没发 → 数据其实没变 ✗。"""
     nudge = _continuation_nudge("已记录：毛巾 2 条，放在晾衣架。", False)

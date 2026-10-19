@@ -136,7 +136,7 @@ class DeepSeekProvider:
             # 文本里抽含 `scripts/actions.py` 的行去执行，而推理里常有"比如可以这样
             # 删…"这类**被否决或仅作举例**的命令 —— `actions.py` 只校验格式合法，
             # 校验不了**意图**。空内容交给上层按"没有可执行内容"处理：
-            # `_handle_no_instructions()` 会要求模型直接输出命令（只重试一次），
+            # `_should_continue()` 会要求模型直接输出命令（只重试一次），
             # 仍为空则明确报错（`_EMPTY_REPLY_NOTE`）。
             reasoning = getattr(choice.message, "reasoning_content", "") or ""
             logger.warning("content 为空、推理 %d 字符 —— 推理不进执行通道，按空回复处理",
@@ -203,13 +203,14 @@ class AIWorker(QObject):
             return 8192
 
     def run(self) -> None:
+        # 累计状态**在 try 之外初始化** —— 异常路径也要能带上"已经做了什么"（见下面 except）。
+        final_text = ""
+        all_instructions: list = []  # collect across multi-turn agent loop
+        wrote_data, finished_normally, ok_count = False, False, 0   # 见 _finish 的注释
+        write_failures: list[str] = []                 # 写命令里返回 ERROR 的
         try:
             msgs = list(self._messages)
-            final_text = ""
-            all_instructions = []  # collect across multi-turn agent loop
             max_tokens = self._max_tokens()
-            wrote_data, finished_normally, ok_count = False, False, 0   # 见 _finish 的注释
-            write_failures: list[str] = []                 # 写命令里返回 ERROR 的
             seen_cmds: dict[str, int] = {}                 # 同一批命令重复了几次（§4 循环检测）
             deadline = time.monotonic() + self._max_seconds()
             for turn in range(5):  # max 5 turns
@@ -232,12 +233,16 @@ class AIWorker(QObject):
                             turn + 1, time.monotonic() - started, len(text), truncated,
                             len(instructions), seen_cmds.get(cmds_key(instructions), 0))
                 if not instructions:
-                    if self._handle_no_instructions(text, truncated, msgs, turn,
-                                                    all_instructions, wrote_data):
+                    if self._should_continue(text, truncated, msgs, turn, wrote_data):
                         final_text = text
                         continue
-                    finished_normally = True     # 模型自己收尾了（不是被轮次/时限切断）
-                    return
+                    # 模型自己收尾了（不是被轮次/时限切断）。
+                    # ⚠ **不在这里 emit**：所有出口统一走 `run()` 末尾那一处 `_finish()` ——
+                    #   原来这里直接 emit + return，把累计的 `write_failures` / `ok_count`
+                    #   整个绕过去了（R1/A1：模型说"已记录"，用户就只看到"已记录" ✗）。
+                    finished_normally = True
+                    final_text = text
+                    break
                 all_instructions.extend(instructions)
                 results_text, n_ok, bad = self._run_commands(instructions, seen_cmds)
                 ok_count += n_ok
@@ -252,7 +257,9 @@ class AIWorker(QObject):
                          finished_normally, ok_count)
         # 边界捕获：本层已处理/记录，不允许异常向上逃逸（CODE_STANDARDS Q-I1）
         except Exception as e:  # noqa: BLE001
-            self.error.emit(str(e))
+            # 异常也可能发生在**部分写入之后** → 把已有结果摘要一起带上（只报异常会丢掉"写了什么" ✗）
+            self.error.emit(str(e) + self._status_note(
+                all_instructions, wrote_data, ok_count, write_failures, finished_normally, ""))
 
     def _run_commands(self, instructions: list, seen_cmds: dict) -> tuple[str, int, list]:
         """执行一批命令 → `(喂回对话的结果文本, 写命令成功数, 写命令失败列表)`。"""
@@ -309,32 +316,26 @@ class AIWorker(QObject):
                     "（上面那句是模型的自我描述）。请重试或换个说法。")
         return ""
 
-    def _handle_no_instructions(self, text: str, truncated: bool, msgs: list,
-                                turn: int, all_instructions: list,
-                                wrote_data: bool = False) -> bool:
-        """这一轮没有可执行命令：要么要求模型继续（返回 True），要么收尾（返回 False）。
+    def _should_continue(self, text: str, truncated: bool, msgs: list,
+                         turn: int, wrote_data: bool = False) -> bool:
+        """这一轮没有可执行命令：**只决定**继续（`True`）还是停止（`False`）。
+
+        ⚠ **绝不在这里发最终信号** —— 出口只有 `run()` 末尾那一处 `_finish()`（R1/A1）。
+        以前它自己 emit，于是"累计的写失败"在"模型自己收尾"这条路上全丢了 ✗。
 
         `wrote_data` = **数据是否真的变过**（不是"发过命令"），由调用方从磁盘指纹算出。
         """
         empty_retries = sum(1 for m in msgs
                             if m["role"] == "user" and "[系统]" in str(m["content"]))
         nudge = _continuation_nudge(text, truncated, empty_retries, wrote_data) if turn < 4 else None
-        if nudge:
-            # §12.1：把**哪个护栏触发了**也记下来（"为什么这轮停了"排查时缺的就是这个字段）
-            logger.warning("AI 第 %d 轮没有可执行命令，要求继续：%s",
-                           turn + 1, nudge.split("：", 1)[0][:40])
-            msgs.append({"role": "assistant", "content": text})
-            msgs.append({"role": "user", "content": nudge})
-            return True
-        if all_instructions:
-            # 前几轮执行过命令 → 走"执行完成"路径（带上汇总文本）
-            self.finished_with_instructions.emit(text or _EMPTY_REPLY_NOTE, all_instructions)
-        elif text.strip():
-            self.finished.emit(text)
-        else:
-            # 空回复 = **失败**，不是"完成"（此前会把推理文本当回答显示并执行）
-            self.error.emit(_EMPTY_REPLY_NOTE)
-        return False
+        if not nudge:
+            return False
+        # §12.1：把**哪个护栏触发了**也记下来（"为什么这轮停了"排查时缺的就是这个字段）
+        logger.warning("AI 第 %d 轮没有可执行命令，要求继续：%s",
+                       turn + 1, nudge.split("：", 1)[0][:40])
+        msgs.append({"role": "assistant", "content": text})
+        msgs.append({"role": "user", "content": nudge})
+        return True
 
 
 # ── Instruction parser ─────────────────────────────────────────
