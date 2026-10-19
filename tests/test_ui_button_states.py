@@ -192,14 +192,20 @@ def test_ui_token_baseline_guards_against_new_debt() -> None:
     )
 
     names, value_to_name = load_tokens()
-    _, by_kind, _ = _scan_files(_collect_files(["src"]), names, value_to_name, True)
+    _, by_kind, _, per_kind_file = _scan_files(_collect_files(["src"]), names, value_to_name, True)
     baseline = _load_px_baseline()
 
     assert baseline, "基线文件丢了（scripts/ui_tokens_baseline.json）"
     for key, kind in (("px", "PX"), ("size_lit", "SIZE-LIT")):
-        assert by_kind.get(kind, 0) <= baseline.get(key, 0), (
-            f"{kind} 涨到 {by_kind.get(kind)}（基线 {baseline.get(key)}）"
-            f" —— 新增了硬编码尺寸")
+        base = baseline.get(key)
+        # 新格式：**按文件**记账（只比总数会放过"这里少一处、那里多一处"）
+        assert isinstance(base, dict), f"基线格式该是「按文件」的 dict（{key}）"
+        total_base = sum(int(n) for n in base.values())
+        assert by_kind.get(kind, 0) <= total_base, (
+            f"{kind} 涨到 {by_kind.get(kind)}（基线 {total_base}）—— 新增了硬编码尺寸")
+        grown = {p: n for p, n in (per_kind_file.get(kind) or {}).items()
+                 if n > int(base.get(p, 0))}
+        assert not grown, f"这些文件的 {kind} 新增了：{grown}"
 
 
 def test_dialog_shell_caps_height_and_scrolls(qapp) -> None:

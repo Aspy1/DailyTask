@@ -87,6 +87,7 @@ SAMPLES = {
     "membership": {"username": "me", "expires_on": "2027-01-01"},
     "expires_on": "2027-01-01", "runs_out_on": "2027-01-01", "remind_before_days": 10,
     "stock_target": 6, "worn_since": "2026-10-01", "wash_after_days": 7, "needs_wash": True,
+    "status_locked": True,
 }
 
 

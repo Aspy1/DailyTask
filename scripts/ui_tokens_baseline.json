@@ -1,5 +1,44 @@
 {
   "_note": "UI 令牌门禁的存量台账：只防新增，改完重写。",
-  "px": 166,
-  "size_lit": 49
+  "px": {
+    "src\\ui\\components\\ai_panel.py": 9,
+    "src\\ui\\components\\main_workspace.py": 3,
+    "src\\ui\\components\\sidebar.py": 2,
+    "src\\ui\\main_window.py": 27,
+    "src\\ui\\panels\\course_panel.py": 4,
+    "src\\ui\\panels\\exam_panel.py": 7,
+    "src\\ui\\panels\\expense_panel.py": 5,
+    "src\\ui\\panels\\habit_dialogs.py": 10,
+    "src\\ui\\panels\\habit_panel.py": 9,
+    "src\\ui\\panels\\inventory_dialogs.py": 1,
+    "src\\ui\\panels\\inventory_panel.py": 31,
+    "src\\ui\\panels\\plugins_panel.py": 1,
+    "src\\ui\\panels\\settings_panel.py": 15,
+    "src\\ui\\panels\\task_panel.py": 5,
+    "src\\ui\\styles\\theme.py": 1,
+    "src\\ui\\widgets\\api_test_dialog.py": 3,
+    "src\\ui\\widgets\\course_detail_dialog.py": 4,
+    "src\\ui\\widgets\\dialog_shell.py": 2,
+    "src\\ui\\widgets\\hint_bar.py": 1,
+    "src\\ui\\widgets\\schedule_actions.py": 3,
+    "src\\ui\\widgets\\schedule_filter.py": 1,
+    "src\\ui\\widgets\\schedule_view.py": 17
+  },
+  "size_lit": {
+    "src\\ui\\components\\ai_panel.py": 4,
+    "src\\ui\\components\\sidebar.py": 1,
+    "src\\ui\\main_window.py": 3,
+    "src\\ui\\panels\\exam_panel.py": 2,
+    "src\\ui\\panels\\expense_panel.py": 2,
+    "src\\ui\\panels\\habit_dialogs.py": 12,
+    "src\\ui\\panels\\inventory_dialogs.py": 1,
+    "src\\ui\\panels\\inventory_panel.py": 6,
+    "src\\ui\\panels\\plugins_panel.py": 1,
+    "src\\ui\\panels\\settings_panel.py": 7,
+    "src\\ui\\widgets\\api_test_dialog.py": 2,
+    "src\\ui\\widgets\\course_detail_dialog.py": 1,
+    "src\\ui\\widgets\\course_table.py": 3,
+    "src\\ui\\widgets\\schedule_actions.py": 1,
+    "src\\ui\\widgets\\schedule_view.py": 1
+  }
 }

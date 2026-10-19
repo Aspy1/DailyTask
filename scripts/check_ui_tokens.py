@@ -225,11 +225,17 @@ def mask_doc_lines(lines: list[str]) -> list[bool]:
 
 
 def _scan_files(files: list[Path], names: set[str], value_to_name: dict[str, str],
-                check_px: bool) -> tuple[int, dict[str, int], dict[str, int]]:
-    """逐文件逐行检查并打印违规明细，返回 (总数, 按类型, 按文件)。"""
+                check_px: bool) -> tuple[int, dict[str, int], dict[str, int], dict[str, dict[str, int]]]:
+    """逐文件逐行检查并打印违规明细。
+
+    返回 `(总数, 按类型, 按文件, 按类型×文件)` —— 最后一个给**存量基线**用：
+    基线要按"**哪个文件、哪一类、几处**"记账，只记总数会放过"这里少一处、那里多一处"
+    （2026-10-19 审查：门禁的边界问题）。
+    """
     total = 0
     by_kind: dict[str, int] = {}
     per_file: dict[str, int] = {}
+    per_kind_file: dict[str, dict[str, int]] = {}
 
     for f in files:
         if f.name in SKIP_FILES:
@@ -244,8 +250,10 @@ def _scan_files(files: list[Path], names: set[str], value_to_name: dict[str, str
                 by_kind[kind] = by_kind.get(kind, 0) + 1
                 rel = f.relative_to(ROOT)
                 per_file[str(rel)] = per_file.get(str(rel), 0) + 1
+                bucket = per_kind_file.setdefault(kind, {})
+                bucket[str(rel)] = bucket.get(str(rel), 0) + 1
                 print(f"{rel}:{lineno}: [{kind}] {frag} {hint}")
-    return total, by_kind, per_file
+    return total, by_kind, per_file, per_kind_file
 
 
 def _print_summary(file_count: int, total: int, by_kind: dict[str, int],
@@ -306,29 +314,49 @@ def main() -> None:
 
     files = _collect_files(args.paths)
 
-    total, by_kind, per_file = _scan_files(files, names, value_to_name, args.check_px)
+    total, by_kind, per_file, per_kind_file = _scan_files(files, names, value_to_name, args.check_px)
     _print_summary(len(files), total, by_kind, per_file)
 
     if args.write_px_baseline:
-        counts = {"px": by_kind.get("PX", 0), "size_lit": by_kind.get("SIZE-LIT", 0)}
+        counts = {"px": per_kind_file.get("PX", {}),
+                  "size_lit": per_kind_file.get("SIZE-LIT", {})}
         _write_px_baseline(counts)
-        print(f"已写入存量基线：{counts}")
+        print(f"已写入存量基线（按文件）：px {sum(counts['px'].values())} 处 / "
+              f"size_lit {sum(counts['size_lit'].values())} 处")
         return
 
     # 存量走基线（审查 §6.2：现存债务逐项登记、只允许减少）；
     # 其余违规（硬编码颜色 / 类名选择器）必须为 0 —— `--strict` 照样拦。
-    px = by_kind.get("PX", 0)
-    size_lit = by_kind.get("SIZE-LIT", 0)
     baseline = _load_px_baseline()
-    over = [f"{key}={count} > 基线 {baseline[key]}"
-            for key, count in (("px", px), ("size_lit", size_lit))
-            if key in baseline and count > baseline[key]]
+    if args.strict and not baseline:
+        # ⚠ 基线缺失 / 读不出来**必须失败**：否则存量全部"无基线可比"，门禁形同虚设
+        # （2026-10-19 审查：基线文件缺失时不严格失败）。
+        print("\n✗ 找不到存量基线（`scripts/ui_tokens_baseline.json`）—— 门禁无法判定存量，"
+              "按失败处理。确实要重建用 --write-px-baseline")
+        raise SystemExit(1)
+    over = _over_baseline(per_kind_file, baseline)
     if args.strict and over:
-        print("\n✗ 存量超标（只允许减少）：" + "；".join(over)
+        print("\n✗ 存量超标（只允许减少）：\n  " + "\n  ".join(over[:20])
               + "\n（确实要改基线用 --write-px-baseline）")
         raise SystemExit(1)
-    if args.strict and (total - px - size_lit):
+    if args.strict and (total - by_kind.get("PX", 0) - by_kind.get("SIZE-LIT", 0)):
         raise SystemExit(1)
+
+
+def _over_baseline(per_kind_file: dict[str, dict[str, int]], baseline: dict) -> list[str]:
+    """按**文件指纹**比存量：同一文件同一类目多了就算超标。
+
+    只比总数会放过"这里少一处、那里多一处"（审查点名的门禁边界问题）。
+    """
+    over: list[str] = []
+    for kind, bucket in (("px", "PX"), ("size_lit", "SIZE-LIT")):
+        base = baseline.get(kind)
+        if not isinstance(base, dict):      # 老格式（纯数字）→ 当作没有可比基线
+            continue
+        for path, count in (per_kind_file.get(bucket) or {}).items():
+            if count > int(base.get(path, 0)):
+                over.append(f"{kind} {path}: {count} > 基线 {int(base.get(path, 0))}")
+    return over
 
 
 if __name__ == "__main__":

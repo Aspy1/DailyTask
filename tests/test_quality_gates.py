@@ -122,4 +122,12 @@ def test_baseline_is_not_behind_current_state() -> None:
     missing = set(current_sizes) - set(baseline.get("sizes", {}))
     assert not missing, f"这些超限项不在 baseline 里，会漏防: {sorted(missing)}"
     assert set(cq.check_token_names()) <= set(baseline.get("token_names", []))
-    assert cq.count_ui_chinese_literals() <= baseline.get("ui_chinese_literals", 0)
+    # i18n 存量**按文件**记账（2026-10-19 审查：只记总数会放过"这里少一处、那里多一处"）
+    base_cn = baseline.get("ui_chinese_literals")
+    if isinstance(base_cn, dict):
+        current = cq.count_ui_chinese_literals_by_file()
+        assert sum(current.values()) <= sum(base_cn.values())
+        assert set(current) <= set(base_cn), \
+            f"这些文件不在 baseline 里，会漏防: {sorted(set(current) - set(base_cn))}"
+    else:
+        assert cq.count_ui_chinese_literals() <= (base_cn or 0)

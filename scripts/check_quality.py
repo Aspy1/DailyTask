@@ -324,8 +324,18 @@ def _ui_py_files() -> Iterator[Path]:
 
 
 def count_ui_chinese_literals() -> int:
-    """界面层**未走 tr()** 的中文字面量数量（Q-N5 的度量口径）。"""
-    return sum(_count_cn_in_file(f) for f in _ui_py_files())
+    """界面层**未走 tr()** 的中文字面量总数（Q-N5 的度量口径）。"""
+    return sum(count_ui_chinese_literals_by_file().values())
+
+
+def count_ui_chinese_literals_by_file() -> dict[str, int]:
+    """**按文件**统计（存量基线要按文件记账 —— 只记总数会放过"这里少一处、那里多一处"）。"""
+    out: dict[str, int] = {}
+    for f in _ui_py_files():
+        n = _count_cn_in_file(f)
+        if n:
+            out[str(f.relative_to(ROOT))] = n
+    return out
 
 
 def _git_lines(*args: str) -> list[str]:
@@ -449,14 +459,27 @@ def report_baseline_tokens(rep: Report, current: list[str], base: list[str]) -> 
         rep.fail("TOKEN-NAME", item)
 
 
-def report_i18n(rep: Report, count: int, base: int | None) -> None:
+def report_i18n(rep: Report, per_file: dict[str, int], base) -> None:
+    """按**文件指纹**比存量 —— 只比总数会放过"这里少一处、那里多一处"（审查的门禁边界）。
+
+    老格式（纯数字）→ 只做总数比较（兼容一次），但会提示"建议重写基线"。
+    """
+    total = sum(per_file.values())
+    if isinstance(base, dict):
+        new = {p: n for p, n in per_file.items() if n > int(base.get(p, 0))}
+        rep.add(f"I18N       src/ui 中文字面量 {total} 处（按文件比 baseline）；"
+                f"新增/加重 {len(new)} 个文件")
+        for path, n in sorted(new.items()):
+            rep.add(f"            新增: {path} = {n}（baseline {int(base.get(path, 0))}）")
+            rep.fail("I18N", f"{path}={n}")
+        return
     if base is None:
-        rep.add(f"I18N       src/ui 中文字面量 {count} 处（无 baseline，仅报告）")
-    elif count > base:
-        rep.add(f"I18N       src/ui 中文字面量 {count} 处 > baseline {base} → 新增 {count - base} 处")
-        rep.fail("I18N", f"{count}>{base}")
+        rep.add(f"I18N       src/ui 中文字面量 {total} 处（无 baseline，仅报告）")
+    elif total > base:
+        rep.add(f"I18N       src/ui 中文字面量 {total} 处 > baseline {base} → 新增 {total - base} 处")
+        rep.fail("I18N", f"{total}>{base}")
     else:
-        rep.add(f"I18N       src/ui 中文字面量 {count} 处（baseline {base}，未增加）")
+        rep.add(f"I18N       src/ui 中文字面量 {total} 处（baseline {base}，未增加）")
 
 
 def report_baseline_count(rep: Report, tag: str, title: str, count: int, base: int | None) -> None:
@@ -493,7 +516,7 @@ def _report_tool_result(rep: Report, name: str, status: str, output: str) -> Non
 def write_baseline() -> None:
     sizes = check_sizes()
     tokens_bad = check_token_names()
-    ui_cn = count_ui_chinese_literals()
+    ui_cn = count_ui_chinese_literals_by_file()
     payload = {
         "_note": "存量债台账（CODE_STANDARDS 门禁 baseline）：只防新增，修好后重写。",
         "sizes": sizes,
@@ -542,6 +565,12 @@ def evaluate(with_tools: bool = True) -> Report:
     """
     baseline = json.loads(BASELINE_FILE.read_text(encoding="utf-8")) if BASELINE_FILE.exists() else {}
     rep = Report()
+    # ⚠ 基线缺失**必须失败**（2026-10-19 审查）：否则存量项全部"无基线可比"，
+    # 门禁悄悄变成不拦（`sizes` / `token_names` / `i18n` 都会退化成"仅报告"）。
+    if not BASELINE_FILE.exists():
+        rep.must_zero("BASELINE", "存量基线文件存在（`scripts/quality_baseline.json`）", ["缺失"])
+    else:
+        rep.add("BASELINE  存量基线文件存在")
     report_baseline_sizes(rep, check_sizes(), baseline.get("sizes", {}))
     rep.must_zero("SILENT", "`except: pass`", check_silent_swallow())
     rep.must_zero("ID-GEN", "`len()+1` 生成 ID", check_id_generation())
@@ -549,7 +578,7 @@ def evaluate(with_tools: bool = True) -> Report:
     report_baseline_count(rep, "LOG-ONLY", "日志是块内唯一语句",
                           len(check_log_sole_statement()), baseline.get("log_sole_statement"))
     report_baseline_tokens(rep, check_token_names(), baseline.get("token_names", []))
-    report_i18n(rep, count_ui_chinese_literals(), baseline.get("ui_chinese_literals"))
+    report_i18n(rep, count_ui_chinese_literals_by_file(), baseline.get("ui_chinese_literals"))
     report_items(rep, "TOP-DIR", "通过", check_top_level())
     report_items(rep, "SECRET", "通过（settings.ini 未入库）", check_secret_not_tracked())
     if not with_tools:

@@ -20,6 +20,7 @@ from src.models.inventory import (
     apply_consume,
     canonical_location,
     runs_out_date,
+    status_is_manual,
     worn_since_date,
 )
 
@@ -271,6 +272,7 @@ def _apply_item_quantity_fields(item: dict, args) -> None:
         item["unit"] = unit
     if status:
         item["status"] = status
+        item["status_locked"] = True      # 手动状态 → 锁住，不再被自动推导覆盖（与界面同一规则）
     if min_qty is not None:
         item["min_quantity"] = min_qty
     if min_doses is not None:
@@ -323,9 +325,9 @@ def cmd_update_item(args) -> None:
             continue
         _apply_item_updates(it, args)
         it["updated_at"] = now_iso()
-        # 状态：显式 `--status` 优先（用户手改的不能被覆盖）；否则重算
+        # 状态：手动给过的（`status_locked` / `ignore_low_stock`）不重算；否则按当前数据推导
         # （会员按到期日，其余按数量 —— 数量改了状态就该跟着变）
-        if not it.get("ignore_low_stock") and not getattr(args, "status", None):
+        if not status_is_manual(it) and not getattr(args, "status", None):
             it["status"] = InventoryModel.derive_status(it)
         added_loc = _ensure_location(data, it.get("location", ""))
         save("inventory.json", data)

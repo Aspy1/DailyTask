@@ -41,6 +41,8 @@ ITEM_FIELDS = (
     "membership", "expires_on", "runs_out_on", "remind_before_days", "stock_target",
     # 衣物（C 类第 4 项）
     "worn_since", "wash_after_days", "needs_wash",
+    # 手动状态锁定（2026-10-19 审查"遗留"）：用户显式给了 `status` 就锁住，不再自动推导
+    "status_locked",
 )
 
 
@@ -155,7 +157,7 @@ class InventoryModel(BaseJsonModel):
         """
         data = super().load()
         for it in self.items:
-            if InventoryModel.has_time_status(it) and not it.get("ignore_low_stock"):
+            if InventoryModel.has_time_status(it) and not status_is_manual(it):
                 it["status"] = InventoryModel.derive_status(it)
         return data
 
@@ -292,6 +294,8 @@ class InventoryModel(BaseJsonModel):
         # 原来拿原始 `data` 算，`add_item({'name': 'x'})` 的余量被算成 0 → 直接判"需购"。
         item["remaining_doses"] = InventoryModel.remaining_doses(item)
         item["status"] = data.get("status") or InventoryModel.derive_status(item)
+        if "status" in data:
+            item["status_locked"] = True    # 建的时候就给了状态 → 同样是手动覆盖
         items.append(item)
         return iid
 
@@ -444,10 +448,10 @@ class InventoryModel(BaseJsonModel):
         ⚠ 判据必须是"**有没有日期**"而不是"是不是会员" —— 否则为了保住手动状态，
         会把**所有非会员**的自动状态一起冻住（R3 就是这么来的）。
 
-        `ignore_low_stock` 是**显式豁免**（用户说"这条别自动改"）→ 日期驱动也不重算，
-        原样返回存下来的 `status`（与 `load()` 同一口径）。
+        `status_is_manual()` 为真（用户手动给过 `status`，或 `ignore_low_stock` 豁免）→
+        日期驱动也不重算，原样返回存下来的 `status`（与 `load()` 同一口径）。
         """
-        if InventoryModel.has_time_status(item) and not item.get("ignore_low_stock"):
+        if InventoryModel.has_time_status(item) and not status_is_manual(item):
             return InventoryModel.derive_status(item, today)
         return str(item.get("status") or InventoryModel.derive_status(item, today))
 
@@ -466,6 +470,8 @@ class InventoryModel(BaseJsonModel):
         for k in ITEM_FIELDS:
             if k in data:
                 it[k] = data[k]
+        if "status" in data:
+            it["status_locked"] = True      # 显式给状态 = 手动覆盖，锁住（与 CLI 同一规则）
 
     def update_item(self, iid: str, data: dict) -> bool:
         for it in self.items:
@@ -477,9 +483,9 @@ class InventoryModel(BaseJsonModel):
                     dpu = it.get("doses_per_unit", 1) or 1
                     it["remaining_doses"] = int(it.get("quantity", 0)) * dpu
                 self.sync_units(it)
-                # 状态自动推导（`ignore_low_stock` 的物品跳过 —— 那是显式豁免）。
+                # 状态自动推导（`status_is_manual()` 为真的跳过 —— 手动覆盖 / 显式豁免）。
                 # ⚠ 现在**也会回到"充足"**：补货之后不该还挂着"需购"（原来不清）
-                if not it.get("ignore_low_stock"):
+                if not status_is_manual(it):
                     it["status"] = self.derive_status(it)
                 return True
         return False
@@ -531,6 +537,20 @@ class InventoryModel(BaseJsonModel):
     @property
     def stock_count(self) -> int:
         return len([it for it in self.items if it.get("status") == "充足"])
+
+
+def status_is_manual(item: dict) -> bool:
+    """这条物品的状态是**手动定的**吗 —— 是则自动推导不许覆盖它。
+
+    两种手动来源，**共用一个判据**（2026-10-19 审查"遗留"：UI 与 CLI 规则曾经不一致 ——
+    CLI 的 `--status` 优先，而界面走模型 `update_item`，改完又被自动推导覆盖 ✗）：
+
+    - `status_locked`：用户显式给了 `status`（界面右键"标成需购"、CLI `--status`）→ 锁住；
+    - `ignore_low_stock`：显式豁免（更早的字段，语义是"这条别自动管"）。
+
+    放在**模块级**：`InventoryModel` 正好卡在类的尺寸上限（400 行）。
+    """
+    return bool(item.get("status_locked") or item.get("ignore_low_stock"))
 
 
 def item_number(item: dict) -> int:

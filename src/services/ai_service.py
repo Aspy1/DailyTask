@@ -186,7 +186,14 @@ class AIWorker(QObject):
         self._settings = settings
 
     def _max_seconds(self) -> float:
-        """整次请求的**墙钟上限**（读 `AI.max_seconds`，默认 90s）。到点优雅收尾。"""
+        """整次请求的**墙钟上限**（读 `AI.max_seconds`，默认 90s）。到点优雅收尾。
+
+        ⚠ **这是"软"上限，别当成硬保证**（2026-10-19 审查）：到点检查发生在**每轮请求之前**，
+        而**单次** SDK 调用本身可能超过它（provider 侧超时 120s，且可能重试）——
+        所以真实耗时可能是 `max_seconds + 一次请求`。
+        口径写清楚：**到点后不再发起新请求，已执行的命令结果照常保留并如实汇报**
+        （不做"超时就回滚"的承诺 —— 副作用已经落在 JSON 里了）。
+        """
         raw = self._settings.get("AI", "max_seconds", "90") if self._settings else "90"
         try:
             return max(10.0, float(raw))

@@ -7,6 +7,8 @@
 2026-10-19 渲染实测：4 条就有一条被切掉 ✓ → 换成会**换行**的流式排布。
 """
 
+from datetime import date
+
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QWidget
 
@@ -24,6 +26,7 @@ class HintBar(FlowGrid):
         self._data_dir = data_dir
         self.setSpacing(6)
         self._dismissed: set[str] = set()
+        self._dismissed_on = ""          # "已点掉"属于**哪一天**（跨天自动失效）
         self._hints: list[Hint] = []
 
     def refresh(self) -> None:
@@ -31,7 +34,16 @@ class HintBar(FlowGrid):
         self.show_hints(today_hints(self._data_dir) if self._data_dir else [])
 
     def show_hints(self, hints: list) -> None:
-        """重画（已点掉的 key 不再出现）。"""
+        """重画（已点掉的 key 不再出现）。
+
+        ⚠ **跨天自动清**：以前靠外部调 `clear_dismissed()`，而**全仓没人调** ✗ ——
+        常驻应用跨天后，昨天关掉的雨天/出门提示今天还被过滤着（2026-10-19 审查）。
+        现在把"点掉"记在**当天**名下，`show_hints` 是唯一出口，跨天自己失效 ✓。
+        """
+        today = date.today().isoformat()
+        if self._dismissed_on != today:
+            self._dismissed.clear()
+            self._dismissed_on = today
         self._hints = list(hints)
         for child in list(self.children()):
             if isinstance(child, QWidget):
@@ -59,8 +71,5 @@ class HintBar(FlowGrid):
 
     def _dismiss(self, key: str) -> None:
         self._dismissed.add(key)
+        self._dismissed_on = date.today().isoformat()
         self.show_hints(self._hints)
-
-    def clear_dismissed(self) -> None:
-        """换天时清掉"已点掉"记录（提示是**今天**的）。"""
-        self._dismissed.clear()
