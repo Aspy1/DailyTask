@@ -192,9 +192,16 @@ class _Renderer:
                       "- 第 4 节：复习英语\n"
                       "想调整时段直接说一声就行。")
         self.mw.resize(*NARROW)
-        for key in ("expenses", "settings", "inventory"):
+        # 日程是最挤的一页（工具栏控件最多）—— 原来 narrow 只覆盖记账/设置/库存，把它漏了 ✗
+        # ⚠ 先切回**日**视图：上一轮面板渲染结束时停在周视图，否则这里拍到的是周 ✗
+        self.mw._workspace._schedule_view._set_mode("day")
+        for key in ("schedule", "expenses", "settings", "inventory"):
             self.mw._workspace.switch_to(key)
             self.capture(f"{mode}-narrow-{key}-ai")
+        self.mw._workspace.switch_to("schedule")
+        self.mw._workspace._schedule_view._set_mode("week")
+        self.capture(f"{mode}-narrow-week-ai")
+        self.mw._workspace._schedule_view._set_mode("day")
         self.mw._on_ai_toggle(False)
 
     def run_panels(self) -> None:

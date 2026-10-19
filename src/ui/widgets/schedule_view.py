@@ -56,6 +56,23 @@ def slot_layout_index(slot_cards: dict, period: int) -> int:
     return sum(1 for p in slot_cards if p < period)
 
 
+def secondary_button(text: str, c: dict, slot=None) -> "RoundedButton":
+    """次级按钮（刷新 / 上一天 / 今天 / 下一天）：统一的次级配色与圆角。
+
+    放**模块级**是为了给类减负：`ScheduleView` 已顶到类的尺寸基线（只允许减少），
+    而这四处的样式块本来是一字不差抄了四遍（审查 R6 顺手收掉）。
+    """
+    btn = RoundedButton(text)
+    btn.setStyleSheet(f"""
+        QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
+            border-radius: 8px; padding: 3px 10px; font-size: 13px; }}
+        QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; color: {c['btn_secondary_hover_fg']}; }}
+    """)
+    if slot is not None:
+        btn.clicked.connect(slot)
+    return btn
+
+
 class ScheduleView(QWidget):
     course_table_requested = Signal()
     task_focus_requested = Signal(str)
@@ -83,9 +100,17 @@ class ScheduleView(QWidget):
         bar = QWidget()
         bar.setObjectName("taskBar")
         bar.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-        bl = QHBoxLayout(bar)
-        bl.setContentsMargins(16, 8, 16, 8)
+        # 两行工具栏（审查 R6）：窄窗口（990×638 且展开 AI）下 11 个控件挤一行会**互相重叠**、
+        # 日期被截断 —— 把"分类筛选 + 日期导航"分到第二行，两行各自留最小内容宽度。
+        bar_box = QVBoxLayout(bar)
+        bar_box.setContentsMargins(16, 8, 16, 8)
+        bar_box.setSpacing(6)
+        bl = QHBoxLayout()
         bl.setSpacing(6)
+        bl2 = QHBoxLayout()
+        bl2.setSpacing(6)
+        bar_box.addLayout(bl)
+        bar_box.addLayout(bl2)
 
         title = QLabel(tr("widget.schedule.title"))
         title.setFont(font("pageTitle"))
@@ -105,14 +130,12 @@ class ScheduleView(QWidget):
         bl.addStretch()
 
         self._build_action_row(bl, c)
+        # 分类筛选挪到第二行（与日期导航同属"浏览"类，和"操作"类分开 —— 审查 R6）
+        bl.removeWidget(self._category_filter)
+        bl2.insertWidget(0, self._category_filter)
+        bl2.addStretch()
 
-        refresh_btn = RoundedButton(tr("widget.schedule.btn_refresh"))
-        refresh_btn.setStyleSheet(f"""
-            QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
-                border-radius: 8px; padding: 3px 10px; font-size: 13px; }}
-            QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; color: {c['btn_secondary_hover_fg']}; }}
-        """)
-        refresh_btn.clicked.connect(self._refresh)
+        refresh_btn = secondary_button(tr("widget.schedule.btn_refresh"), c, self._refresh)
         bl.addWidget(refresh_btn)
         self._refresh_btn = refresh_btn
 
@@ -130,20 +153,14 @@ class ScheduleView(QWidget):
         for text, slot in [(tr("widget.schedule.btn_prev_day"), self._prev_day),
                            (tr("widget.schedule.btn_today"), self._go_today),
                            (tr("widget.schedule.btn_next_day"), self._next_day)]:
-            btn = RoundedButton(text)
-            btn.setStyleSheet(f"""
-                QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
-                    border-radius: 8px; padding: 3px 10px; font-size: 13px; }}
-                QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; color: {c['btn_secondary_hover_fg']}; }}
-            """)
-            btn.clicked.connect(slot)
-            bl.addWidget(btn)
+            btn = secondary_button(text, c, slot)
+            bl2.addWidget(btn)
             self._nav_buttons.append(btn)
 
         self._date_label = QLabel()
         self._date_label.setStyleSheet(f"color: {c['fg_secondary']}; font-size: 13px; min-width: 100px;")
         self._date_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        bl.addWidget(self._date_label)
+        bl2.addWidget(self._date_label)
 
         layout.addWidget(bar)
 
