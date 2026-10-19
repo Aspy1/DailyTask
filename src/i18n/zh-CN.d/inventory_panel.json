@@ -68,5 +68,9 @@
   "panel.inventory.msg_reminder_set_title": "已设置",
   "panel.inventory.msg_reminder_set": "已设置补货提醒",
   "panel.inventory.msg_reminder_failed_title": "没保存成功",
-  "panel.inventory.msg_reminder_failed": "保存被拒（数据被其它程序改过），提醒**没有**设置成功。请重试。"
+  "panel.inventory.msg_reminder_failed": "保存被拒（数据被其它程序改过），提醒**没有**设置成功。请重试。",
+  "panel.inventory.msg_save_failed_title": "没保存成功",
+  "panel.inventory.msg_save_failed": "保存被拒（数据被其它程序改过），这次修改**没有**写进去。请重试。",
+  "panel.inventory.msg_phone_save_failed_title": "只保存了一半",
+  "panel.inventory.msg_phone_save_failed": "会员信息已保存，但**手机号没写进去**（私有文件保存被拒）。请重试一次。"
 }

@@ -1006,7 +1006,7 @@ execution`（`cc6a9e4`，2026-10-17）：`chat()` 不再把 `reasoning_content` 
 | **R1 / A1** | **收尾漏洞**：`_handle_no_instructions()` 直接 `emit` + `return`，**绕过 `_finish()`** ✗ → 累计的 `write_failures`/`ok_count` 永远报不出来 | REVIEW R1 · 专项 A1 | **✅ 已完成**（`dev-logs/2026-10-19-R1-收尾漏洞统一收口.md`）：`break` 落到唯一 `_finish()`；`_should_continue()` 只返回 bool；累计状态提到 `try` 外 → 异常也带结果摘要；**2 条从 `run()` 出发的测试**（已用 `git stash` 证明旧代码会红 ✓） |
 | R2 | **精确余量没贯穿读取端**：1 盒 24 片扣 1 片 → `remaining_doses=23` ✓，但界面显示 `×0 (0次)`、`lookup_item` 显示 `0盒`、AI 摘要也只给 `0盒` ✗ | REVIEW R2 | **✅ 已完成**（`dev-logs/2026-10-19-R2-精确余量贯穿读取端.md`）：真值/展示各一处（`stock_parts`/`stock_text` + 界面 `inventory_text.quantity_text`）；四个读取端全改；5 条链路测试 |
 | R3 | **时间驱动状态没接入口**：`has_expiry()` 只认 `membership.expires_on` ✗ → 顶层 `expires_on`/`runs_out_on` 跨天不生效（`derive_status=需购` 但 `effective_status=充足`） | REVIEW R3 | **✅ 已完成**（`dev-logs/2026-10-19-R3-日期驱动状态跨天生效.md`）：`has_time_status()` 覆盖三种日期；`effective_status`/`load` 改用它并尊重 `ignore_low_stock`；6 条跨天测试（旧代码 3 条会红） |
-| R8 | **保存失败被忽略**：`inventory.save()` / `membership_contacts.save()` 返回值没人看 ✗ → 弹窗照常报成功 | REVIEW R8 | 待办 |
+| R8 | **保存失败被忽略**：`inventory.save()` / `membership_contacts.save()` 返回值没人看 ✗ → 弹窗照常报成功 | REVIEW R8 | **✅ 已完成（局部）**（`dev-logs/2026-10-19-R8-保存被拒不许报成功.md`）：两个弹窗的失败/部分成功分支都告警 + 返回 False；4 条桩测试。⚠ 全仓 `src/ui` 有 **37 处** `save()` 不看返回值 ✗ —— 系统性那条留批次三 |
 
 ### 批次二 · UI 运行时状态（REVIEW：先修这三条再谈装饰）
 
@@ -1045,7 +1045,7 @@ execution`（`cc6a9e4`，2026-10-17）：`chat()` 不再把 `reasoning_content` 
 - 重新换色板（先修 R4/R5/R6，装饰放最后）
 
 ### 进度
-- [x] 批次一：**R1/A1 ✅** → **R2 ✅** → **R3 ✅** → R8
+- [x] 批次一：**R1/A1 ✅** → **R2 ✅** → **R3 ✅** → **R8 ✅（局部）**
 - [ ] 批次二：R4 → R5/R6 → R7
 - [ ] 批次三：R9/R10 → 提示跨天 → 预算边界 → 门禁基线
 - [ ] AI 后续：回执 + 回读验收 → 任务账本 → 记忆与对比

@@ -100,7 +100,11 @@ def edit_tags_dialog(parent, dm, item: dict) -> bool:
         return False
     dm.inventory.update_item(item["id"], {
         "tags": [tag_list.item(i).text() for i in range(tag_list.count())]})
-    dm.inventory.save()
+    if not dm.inventory.save():
+        # 保存被拒（磁盘被别人改过）→ **不许报成功**（R8：以前这里返回值没人看 ✗）
+        QMessageBox.warning(parent, tr("panel.inventory.msg_save_failed_title"),
+                            tr("panel.inventory.msg_save_failed"))
+        return False
     return True
 
 
@@ -209,7 +213,15 @@ def edit_membership_dialog(parent, dm, item: dict) -> bool:
         return False
     membership = _membership_from_form(user, expires, auto, months)
     dm.inventory.update_item(item["id"], {"membership": membership})
-    dm.inventory.save()
+    if not dm.inventory.save():
+        # 库存保存被拒 → 停止，**不许**接着写私有文件、更不许报成功（R8）
+        QMessageBox.warning(parent, tr("panel.inventory.msg_save_failed_title"),
+                            tr("panel.inventory.msg_save_failed"))
+        return False
     dm.membership_contacts.set_phone(item["id"], phone.text())
-    dm.membership_contacts.save()
+    if not dm.membership_contacts.save():
+        # **部分成功**：会员信息已落盘，只有私有手机号没写进去 —— 如实说，不当全成功（R8）
+        QMessageBox.warning(parent, tr("panel.inventory.msg_phone_save_failed_title"),
+                            tr("panel.inventory.msg_phone_save_failed"))
+        return False
     return True
