@@ -144,15 +144,18 @@ class InventoryModel(BaseJsonModel):
         super().__init__(file_path, DEFAULT_INVENTORY)
 
     def load(self) -> dict:
-        """读盘后把**会员**的状态按当前日期重算一遍（其余物品保持存下来的值）。
+        """读盘后把**日期驱动的**状态按当前日期重算一遍（其余物品保持存下来的值）。
 
-        会员的状态随时间变（到期日），存下来的 `status` 只是写入那一刻的快照。
-        ⚠ **只重算会员**：非会员的 `status` 可能是用户用 `--status` 手动改过的，
+        状态随时间变的（**三种日期任一**：会员到期 / 保质期 / 预计用完），存下来的 `status`
+        只是写入那一刻的快照 → 读盘时重算。
+        ⚠ **只重算日期驱动的那些**：其余物品的 `status` 可能是用户用 `--status` 手动改过的，
         一刷新就被覆盖了（2026-10-18 被 `test_actions_smoke` 抓到的回归）。
+        ⚠ 判据是"有没有日期"，不是"是不是会员" —— 否则顶层 `expires_on` / `runs_out_on`
+        跨天不生效（2026-10-19 审查 R3）。
         """
         data = super().load()
         for it in self.items:
-            if InventoryModel.has_expiry(it) and not it.get("ignore_low_stock"):
+            if InventoryModel.has_time_status(it) and not it.get("ignore_low_stock"):
                 it["status"] = InventoryModel.derive_status(it)
         return data
 
@@ -421,20 +424,38 @@ class InventoryModel(BaseJsonModel):
         return value if isinstance(value, dict) else {}
 
     @staticmethod
-    def has_expiry(item: dict) -> bool:
-        """这条物品的状态由**到期日**决定吗（会员）。"""
-        return bool(InventoryModel.membership_of(item).get("expires_on"))
+    def has_time_status(item: dict) -> bool:
+        """这条物品的状态**由日期驱动**吗（三种日期任一）。
+
+        - 会员到期：`membership.expires_on`
+        - 保质期：顶层 `expires_on`（药品临期换新）
+        - 预计用完：顶层 `runs_out_on`（按时间估算补货）
+
+        为什么三种都要算：`derive_status()` 早就支持这三种，但**入口**只认会员那一种
+        （`load()` / `effective_status()`）—— 于是顶层日期**跨天不生效**：
+        存盘状态"充足"、到期日已过时 `derive_status=需购` 而 `effective_status=充足`，
+        界面 / AI / 每日提醒全部漏报（2026-10-19 审查 R3）。
+        """
+        if InventoryModel.membership_of(item).get("expires_on"):
+            return True
+        return bool(item.get("expires_on") or item.get("runs_out_on"))
 
     @staticmethod
     def effective_status(item: dict, today: date | None = None) -> str:
         """物品**当前**的状态（界面 / 提示词 / 补货都该用它，而不是裸读 `status`）。
 
-        - **会员（有到期日）**：按日期重算 —— 存下来的 `status` 是写入那一刻的快照，
-          应用开着几天不动就过期了（"该续费了"会漏掉）。
+        - **日期驱动的（三种日期任一）**：按日期重算 —— 存下来的 `status` 只是写入那一刻的
+          快照，应用开着几天不动就过期了（"该续费了""该换新了"会漏掉）。
         - **其余**：用存下来的 `status` —— 用户可能用 `--status` 手动改过，
           不能被自动推导覆盖（2026-10-18 `test_actions_smoke` 抓到的回归）。
+
+        ⚠ 判据必须是"**有没有日期**"而不是"是不是会员" —— 否则为了保住手动状态，
+        会把**所有非会员**的自动状态一起冻住（R3 就是这么来的）。
+
+        `ignore_low_stock` 是**显式豁免**（用户说"这条别自动改"）→ 日期驱动也不重算，
+        原样返回存下来的 `status`（与 `load()` 同一口径）。
         """
-        if InventoryModel.has_expiry(item):
+        if InventoryModel.has_time_status(item) and not item.get("ignore_low_stock"):
             return InventoryModel.derive_status(item, today)
         return str(item.get("status") or InventoryModel.derive_status(item, today))
 
