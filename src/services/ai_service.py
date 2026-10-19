@@ -10,7 +10,8 @@ from typing import Any, Protocol
 
 from PySide6.QtCore import QObject, QThread, Signal
 
-from src.services import ai_verify, deepseek, openmeteo
+from src.services import ai_ledger, ai_verify, deepseek, openmeteo
+from src.services.ai_instructions import InstructionParser
 from src.services.ai_loop_guards import (
     _claims_done,
     _continuation_nudge,
@@ -215,6 +216,7 @@ class AIWorker(QObject):
         all_instructions: list = []  # collect across multi-turn agent loop
         wrote_data, finished_normally, ok_count = False, False, 0   # 见 _finish 的注释
         write_failures: list[str] = []                 # 写命令里返回 ERROR 的
+        ledger = ai_ledger.Ledger()                    # §3.1 动作账本（按状态汇报）
         try:
             msgs = list(self._messages)
             max_tokens = self._max_tokens()
@@ -251,7 +253,8 @@ class AIWorker(QObject):
                     final_text = text
                     break
                 all_instructions.extend(instructions)
-                results_text, n_ok, bad, off_target = self._run_commands(instructions, seen_cmds)
+                results_text, n_ok, bad, off_target = self._run_commands(instructions, seen_cmds,
+                                                                        ledger)
                 ok_count += n_ok
                 # 验收没达到预期的，与"命令报错"一起进"没生效"清单（汇报权归代码）
                 write_failures += bad + off_target
@@ -259,21 +262,21 @@ class AIWorker(QObject):
                 msgs.append({"role": "assistant", "content": text})
                 msgs.append({"role": "user", "content": f"[工具执行结果]\n{results_text}"})
                 final_text = text
-            display = re.sub(r'```(?:sh|json)\s*.*?```', '', final_text, flags=re.DOTALL).strip()
-            # 轮次/时限到了（模型还没自己收尾）→ 可能只做了一半
-            self._finish(all_instructions, wrote_data, display, write_failures,
-                         finished_normally, ok_count)
+            self._report(all_instructions, wrote_data, final_text, write_failures,
+                         finished_normally, ok_count, ledger)
         # 边界捕获：本层已处理/记录，不允许异常向上逃逸（CODE_STANDARDS Q-I1）
         except Exception as e:  # noqa: BLE001
             # 异常也可能发生在**部分写入之后** → 把已有结果摘要一起带上（只报异常会丢掉"写了什么" ✗）
             self.error.emit(str(e) + self._status_note(
                 all_instructions, wrote_data, ok_count, write_failures, finished_normally, ""))
 
-    def _run_commands(self, instructions: list, seen_cmds: dict) -> tuple[str, int, list, list]:
+    def _run_commands(self, instructions: list, seen_cmds: dict,
+                      ledger=None) -> tuple[str, int, list, list]:
         """执行一批命令 → `(喂回对话的结果文本, 写命令成功数, 写命令失败列表, 没达到预期列表)`。
 
         **验收在最后一步**（专项审查 §3.2/§3.3）：执行前记下关心的字段，执行后**回读数据**
         按确定性规则判一次 —— 光有 `OK` 不能证明"用户要的状态成立了"。
+        **账本**（§3.1）逐条记下每条**写命令**的状态（状态来自验收，不是"handler 说 OK"）。
         """
         data_dir = getattr(self._dm, "data_dir", None)
         before = [ai_verify.observe(cmd, data_dir) for cmd in instructions]
@@ -281,9 +284,13 @@ class AIWorker(QObject):
         ok, bad = self._split_results(instructions, results)
         verdicts = [ai_verify.check(cmd, was, res, data_dir)
                     for cmd, was, res in zip(instructions, before, results, strict=False)]
+        if ledger is not None:
+            for cmd, (state, detail) in zip(instructions, verdicts, strict=False):
+                if _has_write_cmd([cmd]):        # 查询不算目标，不记账
+                    ledger.record(cmd, state, detail)
         ckey = cmds_key(instructions)
         seen_cmds[ckey] = seen_cmds.get(ckey, 0) + 1
-        text = "\n".join(results) + ai_verify.summarize(verdicts)
+        text = "\n".join(results) + ai_verify.summarize(verdicts) + ai_ledger.recovery_note(results)
         if results and not ok and not bad:
             # 给模型一条**事实**（不是指令）：命令跑了但一条都没成功
             text += ("\n[事实] 命令已执行，但**一条都没成功**（被拒或报错了），"
@@ -299,6 +306,20 @@ class AIWorker(QObject):
         ok = [c for c, r in pairs if _has_write_cmd([c]) and str(r).startswith("OK")]
         bad = [c for c, r in pairs if _has_write_cmd([c]) and not str(r).startswith("OK")]
         return ok, bad
+
+    def _report(self, all_instructions: list, wrote_data: bool, final_text: str,
+                write_failures: list, finished_normally: bool, ok_count: int,
+                ledger) -> None:
+        """收尾：剥掉代码块 → 附**账本**（只有不干净时才给用户看）→ 走统一 `_finish()`。
+
+        账本按**状态**汇报（§3.1），不是"成功命令数 ÷ 总命令数" ✗；全绿就不加这行（别添噪）。
+        """
+        display = re.sub(r'```(?:sh|json)\s*.*?```', '', final_text, flags=re.DOTALL).strip()
+        logger.info("AI 账本：%s", ledger.summary() or "（无写命令）")
+        if not ledger.is_clean():
+            display += "\n\n" + ledger.summary()
+        self._finish(all_instructions, wrote_data, display, write_failures,
+                     finished_normally, ok_count)
 
     def _finish(self, all_instructions: list, wrote_data: bool, display: str,
                 write_failures: list | None = None, finished_normally: bool = True,
@@ -353,50 +374,6 @@ class AIWorker(QObject):
         msgs.append({"role": "assistant", "content": text})
         msgs.append({"role": "user", "content": nudge})
         return True
-
-
-# ── Instruction parser ─────────────────────────────────────────
-
-
-class InstructionParser:
-    """Extract and execute shell commands from AI responses."""
-
-    @staticmethod
-    def parse(text: str) -> list[str]:
-        """从 ```sh 块里抽命令。**容忍被截断的块**（围栏没收尾）—— 完整行仍交出去执行：
-        每行都过 `actions.py` 的严格校验，所以"执行完整行"比"整段丢弃"更安全
-        （2026-10-16：截断导致一行都不执行，用户看到"AI 没反应"）。
-        """
-        blocks = re.findall(r'```(?:sh|bash|shell|console|zsh)\s*\n?(.*?)(?:```|\Z)',
-                            text, re.DOTALL)
-        commands = []
-        for block in blocks:
-            for line in block.strip().split('\n'):
-                line = line.strip()
-                if line and 'scripts/actions.py' in line:
-                    commands.append(line)
-        return commands
-
-    @staticmethod
-    def execute(commands: list[str]) -> list[str]:
-        """在**内存中**执行 actions.py 命令，返回每条命令的输出。
-
-        ⚠ 本方法运行在 AI worker 线程：**不得触碰 Model、不得 emit 信号**。
-        数据重载与通知由主线程的 `AIService._on_response_with_instructions` 负责
-        （CODE_STANDARDS Q-B2 / Q-B4）。
-        """
-        try:
-            from scripts.actions import run_in_process
-        except ImportError as e:  # 仅项目结构异常时可能发生
-            return [f"ERROR 无法加载 scripts/actions.py: {e}"] * len(commands)
-        results = []
-        for cmd in commands:
-            try:
-                results.append(run_in_process(cmd))
-            # 边界捕获：本层已处理/记录，不允许异常向上逃逸（CODE_STANDARDS Q-I1）
-            except Exception as e:  # noqa: BLE001
-                results.append(f"ERROR {e}")
-        return results
 
 
 def _inventory_prompt(inventory) -> str:
