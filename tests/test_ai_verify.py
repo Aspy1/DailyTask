@@ -111,6 +111,23 @@ def test_worker_feeds_the_verdict_back_to_the_model(qapp, sandbox) -> None:
     assert ok == 1 and not bad and not off_target
 
 
+def test_worker_warns_when_the_model_claimed_but_sent_no_command(qapp) -> None:
+    """⭐ 2026-10-19 评估集实测：模型说"已将羽绒服的位置改为家"却**一条命令都没发** ✗ ——
+    而"已将"当时不在 `_claims_done` 的措辞表里 → 用户看不到任何警示 ✗✗。
+
+    修法不是继续加词（措辞表天生漏词 ✗），而是**零命令时不看措辞也警告**（§2.3 汇报权归代码）。
+    """
+    from src.services.ai_service import AIWorker
+
+    worker = AIWorker(None, "m", "", [], None, None)
+    seen: list[str] = []
+    worker.finished_with_instructions.connect(lambda t, _i: seen.append(t))
+    worker.finished.connect(seen.append)
+
+    worker._finish([], wrote_data=False, display="已将羽绒服的位置改为家")
+    assert seen and "没有任何改动" in seen[-1], "零命令 + 声称做过 → 必须警告"
+
+
 def test_worker_reports_off_target_in_the_final_note(qapp) -> None:
     """⭐ 验收没达到预期的，要在**给用户的最终文本**里出现（汇报权归代码）。"""
     from src.services.ai_service import AIWorker

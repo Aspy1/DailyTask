@@ -88,11 +88,12 @@ def _looks_truncated(text: str) -> bool:
 
 
 def _strip_code_blocks(text: str) -> str:
-    """去掉代码块，只留自然语言（显示给用户用）。
+    """去掉代码块与 **`<ds_safety>` 安全分类残留**，只留自然语言（显示给用户用）。
 
-    围栏语言标记要放宽：模型常写 ```bash / ```shell，只认 ```sh 会把命令漏给用户看
-    （2026-10-17 实测：用户看到的"奇怪代码"就是这么漏出来的）。
+    围栏语言要放宽（模型常写 ```bash）；`<ds_safety>` 是端点把分类器输出拼进 content 的
+    产物（2026-10-19 评估集实测），在**末尾** → 从它开始截断。
     """
+    text = re.sub(r'<ds_safety>.*\Z', '', text, flags=re.DOTALL)
     return re.sub(r'```(?:sh|bash|shell|console|zsh|json)\s*.*?```', '',
                   text, flags=re.DOTALL).strip()
 
@@ -204,11 +205,9 @@ class AIWorker(QObject):
     def _max_seconds(self) -> float:
         """整次请求的**墙钟上限**（读 `AI.max_seconds`，默认 90s）。到点优雅收尾。
 
-        ⚠ **这是"软"上限，别当成硬保证**（2026-10-19 审查）：到点检查发生在**每轮请求之前**，
-        而**单次** SDK 调用本身可能超过它（provider 侧超时 120s，且可能重试）——
-        所以真实耗时可能是 `max_seconds + 一次请求`。
-        口径写清楚：**到点后不再发起新请求，已执行的命令结果照常保留并如实汇报**
-        （不做"超时就回滚"的承诺 —— 副作用已经落在 JSON 里了）。
+        ⚠ **这是"软"上限**（2026-10-19 审查）：检查发生在**每轮请求之前**，而**单次** SDK
+        调用本身可能超过它（provider 侧 120s，且可能重试）→ 真实耗时可能是 `max_seconds + 一次请求`。
+        口径：**到点后不再发起新请求，已执行的命令结果照常保留并如实汇报**（不承诺回滚）。
         """
         raw = self._settings.get("AI", "max_seconds", "90") if self._settings else "90"
         try:
@@ -327,9 +326,9 @@ class AIWorker(QObject):
                 ledger) -> None:
         """收尾：剥掉代码块 → 附**账本**（只有不干净时才给用户看）→ 走统一 `_finish()`。
 
-        账本按**状态**汇报（§3.1），不是"成功命令数 ÷ 总命令数" ✗；全绿就不加这行（别添噪）。
+        账本按**状态**汇报（§3.1），不是"成功命令数 ÷ 总命令数"；全绿就不加这行（别添噪）。
         """
-        display = re.sub(r'```(?:sh|json)\s*.*?```', '', final_text, flags=re.DOTALL).strip()
+        display = _strip_code_blocks(final_text)
         logger.info("AI 账本：%s", ledger.summary() or "（无写命令）")
         # ⚠ 账本**独立于聊天历史**（§2.4"聊天记录不等于执行日志"）：
         # 它走自己的信号，压缩历史也带不走它 —— 下一次"继续 / 撤销刚才那条"要靠它 ✓
@@ -368,7 +367,9 @@ class AIWorker(QObject):
             return (f"\n\n⚠ **可能没记全** —— 到了轮次/时限上限才停。本次执行 "
                     f"{len(all_instructions)} 条命令、其中写命令成功 {ok_count} 条；"
                     f"这条话里东西多的话请核对，或回一句\"继续\"让我接着记。")
-        if not wrote_data and (_has_write_cmd(all_instructions) or _claims_done(display)):
+        if not wrote_data and display and (not all_instructions
+                                           or _has_write_cmd(all_instructions)
+                                           or _claims_done(display)):
             return ("\n\n⚠ **数据没有任何改动** —— 命令没生效，或本轮压根没执行任何命令"
                     "（上面那句是模型的自我描述）。请重试或换个说法。")
         return ""

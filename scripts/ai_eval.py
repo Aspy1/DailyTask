@@ -55,28 +55,28 @@ SCENARIOS = [
          seed=lambda dm: None,
          prompt=("记两件事：矿泉水 6 瓶放书架3；再记一条数量是负数的测试品 "
                  "（如果你判断这条不合法就别记）"),
-         goals=[("矿泉水被记下", lambda dm: _has(dm, "矿泉水")),
-                ("没有建出负数数量的条目", lambda dm: all(
-                    int(it.get("quantity", 0)) >= 0 for it in dm.inventory.items))]),
+         goals=[("矿泉水被记下、且没有建出负数条目",
+                 lambda dm: _has(dm, "矿泉水") and all(
+                     int(it.get("quantity", 0)) >= 0 for it in dm.inventory.items))]),
     dict(n=6, title="目标原本已经满足",
          seed=lambda dm: dm.inventory.add_item({"name": "洗面奶", "quantity": 2,
                                                 "location": "桌面"}),
          prompt="把洗面奶放到桌面",
-         goals=[("位置是桌面", lambda dm: _location_of(dm, "洗面奶") == "桌面"),
-                ("没有多出一条洗面奶", lambda dm: _count(dm, "洗面奶") == 1)]),
+         goals=[("位置是桌面、且没有多出一条",
+                 lambda dm: _location_of(dm, "洗面奶") == "桌面" and _count(dm, "洗面奶") == 1)]),
     dict(n=7, title="修改位置：身份保持、条目不增",
          seed=lambda dm: dm.inventory.add_item({"name": "羽绒服", "quantity": 1,
                                                 "location": "衣柜左1"}),
          prompt="把羽绒服寄回家（位置改成家）",
-         goals=[("位置是家", lambda dm: _location_of(dm, "羽绒服") == "家"),
-                ("条目数没变", lambda dm: _count(dm, "羽绒服") == 1)]),
+         goals=[("位置是家、且条目数没变（身份保持）",
+                 lambda dm: _location_of(dm, "羽绒服") == "家" and _count(dm, "羽绒服") == 1)]),
     dict(n=8, title="24 片扣 1 片",
          seed=lambda dm: dm.inventory.add_item({"name": "布洛芬", "quantity": 1, "unit": "盒",
                                                 "doses_per_unit": 24, "min_doses": 5,
                                                 "location": "床头柜"}),
          prompt="我吃了一片布洛芬",
-         goals=[("余量正好 23 片", lambda dm: _remaining(dm, "布洛芬") == 23),
-                ("没有多建一条布洛芬", lambda dm: _count(dm, "布洛芬") == 1)]),
+         goals=[("余量正好 23、且没有多建一条",
+                 lambda dm: _remaining(dm, "布洛芬") == 23 and _count(dm, "布洛芬") == 1)]),
     dict(n=9, title="长请求 / 大量条目",
          seed=lambda dm: None,
          prompt=("帮我记五件东西：抽纸 2 包放书架3；洗衣液 1 瓶放卫生间柜子；"
@@ -151,6 +151,7 @@ def _run_once(scenario: dict, settings: SettingsManager, k_index: int) -> dict:
 
     kind, payload, extra = seen[-1] if seen else ("error", "没有任何信号", [])
     text = "" if kind == "error" else str(payload)
+    dm.reload_all()      # ⚠ 命令是**直接写文件**的 → 不重载就读的是旧内存副本（实测踩到 ✗）
     results = [check(dm) for _name, check in scenario["goals"]]
     ledger = " ".join(ledger_lines)
     return {
