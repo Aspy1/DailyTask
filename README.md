@@ -115,6 +115,7 @@ python -m venv .venv
 │   ├── ARCHITECTURE.md             #   项目运作原理（分层/数据流/信号/不变量/schema）
 │   ├── CODE_STANDARDS.md           #   代码与工程规范（Q-xxx，可检查）
 │   ├── DEV_PRINCIPLES.md           #   可迁移的通用开发准则
+│   ├── AI助手参考资料/              #   AI 专项审查、论文 PDF 与工程实践索引
 │   ├── archive/                    #   归档区（含第三方 skill 存档，见其 README）
 │   └── （UI 规范与原型见 design/INDEX.md）
 │   ├── PLUGINS.md                  #   插件开发约定
@@ -132,6 +133,8 @@ python -m venv .venv
 └── data/                           # 用户数据（JSON + settings.ini，永不进发行版）
     └── backup/                     #   自动备份
 ```
+
+AI 代理的专项审查、论文原文与工程实践索引见 [AI 助手参考资料](MD-files/AI助手参考资料/README.md)。
 
 ## 功能
 
