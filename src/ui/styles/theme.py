@@ -181,6 +181,8 @@ def rgba(color: str, alpha: float) -> str:
 
 
 _DECL_RE = re.compile(r"(?P<prop>[a-zA-Z-]+)\s*:\s*(?P<value>[^;{}]+)")
+# 花括号里的**声明块**（选择器在外面，一律不动）
+_BLOCK_RE = re.compile(r"\{([^{}]*)\}", re.DOTALL)
 
 
 def _is_fill_prop(prop: str) -> bool:
@@ -192,6 +194,10 @@ def remap_colors(qss: str, maps: tuple[dict[str, str], dict[str, str]]) -> str:
     """按**属性角色**替换色值：`color:` 用文字映射，`background`/`border` 用填充映射。
 
     逐条声明处理，而不是整串替换 —— 否则"同色不同用途"的两个 token 会换错（审查 U2）。
+
+    ⚠ **只在花括号里替换，选择器原样保留**（2026-10-19 审查 R4）：
+    原来的正则在整段 QSS 上匹配 ✗ —— `QPushButton:hover` 里的 `hover` 被当成属性名，
+    输出变成 `QPushButton: hover`，**伪状态选择器全被改坏** ✗（按钮 hover/pressed 失效）。
     """
     text_map, fill_map = maps
 
@@ -203,7 +209,14 @@ def remap_colors(qss: str, maps: tuple[dict[str, str], dict[str, str]]) -> str:
             out = re.sub(re.escape(old_val), new_val, out, flags=re.IGNORECASE)
         return f"{prop}: {out}"
 
-    return _DECL_RE.sub(_sub, qss)
+    def _block(m: re.Match) -> str:
+        return "{" + _DECL_RE.sub(_sub, m.group(1)) + "}"
+
+    if "{" not in qss:
+        # 整段都是**裸声明**（部件级 `setStyleSheet("color: …")`，没有选择器）→ 逐条替换 ✓
+        return _DECL_RE.sub(_sub, qss)
+    # 有选择器 → **只在花括号里**替换，选择器（含 `:hover` 这类伪状态）一律不动 ✓
+    return _BLOCK_RE.sub(_block, qss)
 
 
 def _remap_qss(qss: str, maps: tuple[dict[str, str], dict[str, str]]) -> str:

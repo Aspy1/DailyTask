@@ -79,6 +79,7 @@ class RoundedButton(QPushButton):
         # `styleSheet()` 里那份已经被摘掉颜色了，换主题时靠它才能重算（审查 U1）
         self._original_qss = ""
         self._absorbing = False
+        self._applied_qss = ""          # 我们自己写回去的那份（用来区分"谁改的样式"）
 
     def _absorb_qss(self) -> None:
         """把 QSS 里的背景/描边/圆角搬到自己身上（**每次样式变化都要重做**）。"""
@@ -99,14 +100,23 @@ class RoundedButton(QPushButton):
         self._absorbing = True          # 别把自己的这次 setStyleSheet 当成"外部换样式"
         try:
             self.setStyleSheet(cleaned)
+            self._applied_qss = cleaned
         finally:
             self._absorbing = False
 
     def changeEvent(self, event) -> None:
-        """样式表被换掉（含换主题的 `remap_stylesheets`）→ 作废缓存，下次 paint 重新吸收。"""
+        """样式表被换掉（含换主题的 `remap_stylesheets`）→ 作废缓存，下次 paint 重新吸收。
+
+        ⚠ **只有"调用方重新给了样式"才算新的原始样式**（2026-10-19 审查 R4）：
+        全局 `app.setStyleSheet(...)` 也会发 StyleChange ✗，但那时 `styleSheet()` 已经是我们
+        自己写回去的**剥掉背景**的那份 —— 拿它当"原始样式"，按钮底色就全没了（实测四个背景
+        状态塌成一个透明 normal ✗）。区分办法：跟自己最后写回去的那份比。
+        """
         if event.type() == QEvent.Type.StyleChange and not self._absorbing:
-            self._original_qss = self.styleSheet()
-            self._absorbed = False
+            current = self.styleSheet()
+            if current != self._applied_qss:
+                self._original_qss = current      # 外部真的换了样式 → 这才是新的原始样式
+            self._absorbed = False                # 全局换主题也要重新吸收（色值由 remap 更新）
         super().changeEvent(event)
 
     def remap_theme_colors(self, maps: tuple[dict[str, str], dict[str, str]]) -> bool:
