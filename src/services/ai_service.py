@@ -357,7 +357,7 @@ class AIWorker(QObject):
                      write_failures: list, finished_normally: bool, display: str) -> str:
         """给用户看的告警文案（没有问题时返回空串）。
 
-        ⚠ **不许挂在模型的措辞上**：判定只用**命令自己的结果**与**是否被切断**。
+        ⚠ **判据以证据为主**：命令结果 / 验收结论 / 是否被切断 / **有没有发过命令**；措辞表只是补充触发。
         """
         total = ok_count + len(write_failures)
         if write_failures:
