@@ -67,6 +67,20 @@ AI_REQUEST_TIMEOUT = 120
 # 吃光（实测 8192 全给推理 → content 为空）。只在 OpenCode 端点发这个参数。
 REASONING_EFFORT = "none"
 
+# 账本保留条数：它是"**最近实际做过什么**"（§2.4 的执行日志），不是流水账
+EXEC_LOG_KEEP = 5
+
+
+def _exec_log_section(lines: list[str]) -> str:
+    """把"**实际执行过的动作**"拼成提示词里的一段（§2.4：执行日志 ≠ 聊天记录）。
+
+    标明是**事实**（不是模型的回忆）——"继续 / 撤销刚才那条"要以此为准 ✓。
+    放模块级：`_build_system_prompt` 与 `AIService` 都卡在尺寸上限。
+    """
+    body = "\n".join(f"  {line}" for line in lines)
+    return ("\n最近实际执行过的动作（**事实**，不是你的回忆；"
+            "\"继续 / 撤销刚才那条\"要以此为准）:\n" + body + "\n")
+
 
 def _looks_truncated(text: str) -> bool:
     """回复是否疑似被输出上限截断：代码围栏数量是奇数 = 有开场没收尾。"""
@@ -175,6 +189,7 @@ class AIWorker(QObject):
     finished = Signal(str)
     error = Signal(str)
     finished_with_instructions = Signal(str, list)
+    ledger_ready = Signal(str)          # §3.1 账本：独立于聊天历史，供下一次请求参考
 
     def __init__(self, provider: AIProvider, model: str, system_prompt: str,
                  messages: list, dm=None, settings=None, parent=None) -> None:
@@ -316,6 +331,10 @@ class AIWorker(QObject):
         """
         display = re.sub(r'```(?:sh|json)\s*.*?```', '', final_text, flags=re.DOTALL).strip()
         logger.info("AI 账本：%s", ledger.summary() or "（无写命令）")
+        # ⚠ 账本**独立于聊天历史**（§2.4"聊天记录不等于执行日志"）：
+        # 它走自己的信号，压缩历史也带不走它 —— 下一次"继续 / 撤销刚才那条"要靠它 ✓
+        if ledger.summary():
+            self.ledger_ready.emit(ledger.summary())
         if not ledger.is_clean():
             display += "\n\n" + ledger.summary()
         self._finish(all_instructions, wrote_data, display, write_failures,
@@ -394,6 +413,8 @@ class AIService(QObject):
         self._dm = data_manager
         self._weather_service = weather_service  # 天气服务
         self._history: list[dict] = []
+        # 实际执行过的动作（§2.4：**执行日志 ≠ 聊天记录**）—— 压缩历史时**不丢** ✓
+        self._exec_log: list[str] = []
         self._thread: QThread | None = None
         self._worker: AIWorker | None = None
         # 实例级缓存（原为类属性 → 跨实例共享可变状态，见 CODE_STANDARDS Q-B2 / RUF012）
@@ -447,6 +468,7 @@ class AIService(QObject):
         self._worker.finished.connect(self._on_response)
         self._worker.error.connect(self._on_error)
         self._worker.finished_with_instructions.connect(self._on_response_with_instructions)
+        self._worker.ledger_ready.connect(self._on_ledger)
         self._worker.finished.connect(self._thread.quit)
         self._worker.error.connect(self._thread.quit)
         self._worker.finished_with_instructions.connect(self._thread.quit)
@@ -657,6 +679,8 @@ class AIService(QObject):
 假期/调休:
 {self._build_holiday_info()}
 """
+        if self._exec_log:
+            context += _exec_log_section(self._exec_log)
         prompt = SYSTEM_PROMPT_BASE + "\n" + context + "\n【输出格式】\n- 纯文本，禁用 markdown。仅可用**加粗**。\n- 禁止输出脚本命令原文和执行结果。\n- ⚠ 要执行操作时**只能**输出 ```sh 代码块（每行一条 `python scripts/actions.py …`）。\n  禁止输出任何**工具调用 / 函数调用**格式（例如 `<｜｜DSML｜｜ invoke name=…>`、`<｜｜DSML｜｜ parameter …>`、\n  XML/JSON 包裹的 invoke/parameter）—— 那些不会被解析，等于什么都没做。\n- 查找发现重复物品时，在该轮回复中告知用户，等待确认后再处理。\n- 完成后用一行简练中文总结操作结果。"
         self._prompt_cache_key = cache_key
         self._prompt_cache_value = prompt
@@ -751,8 +775,15 @@ class AIService(QObject):
         logger.error("AI error: %s", error_msg)
         self.error_occurred.emit(error_msg)
 
+    def _on_ledger(self, summary: str) -> None:
+        """收下本次账本，作为**事实**留给下一次请求（§2.4）。只留最近 `EXEC_LOG_KEEP` 条；
+        与 `_history` **分开存** —— 压缩聊天历史不会动它 ✓。"""
+        self._exec_log.append(summary)
+        del self._exec_log[:-EXEC_LOG_KEEP]
+
     def clear_history(self) -> None:
         self._history = []
+        self._exec_log = []
 
     def _auto_compress(self) -> None:
         """Keep history at a reasonable size — last 16 messages (~8 exchanges)."""
