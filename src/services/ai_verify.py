@@ -1,0 +1,180 @@
+"""AI 动作的**回执**与**领域验收**（专项审查 §3.2 / §3.3 的第一步，2026-10-19）。
+
+为什么需要：命令返回 `OK` 只说明"handler 没报错"，**不说明用户要的状态成立了**
+（审查 §2.2："格式正确、写盘成功、业务意图正确是不同层次"）。
+所以执行之后要**回读数据**、按**确定性规则**判一次，把结论回喂给模型 ——
+它才有机会针对差异返工 ✓。
+
+判据一律是"读 JSON 比字段"，**不请模型自查** ✓（§2.3：模型不能自填"验证通过"当证据）。
+
+范围：审查 §6 建议的**最小垂直链路** —— 扣减 / 移动 / 计划完成。
+**没写验收器的操作明说"未验收"**，不假装通过 ✗（那比没有验收更糟）。
+
+状态取值（§3.2）：
+- `verified`      目标状态成立 ✓
+- `verified_noop` 目标**本来就已经满足** —— 不是失败（§2.1：验证后的无变化也算成功）
+- `mismatch`      状态**不成立** → 模型该针对差异返工（不是重复原命令）
+- `failed`        命令自己就报错了（handler / 校验拒绝）
+- `unverified`    没有验收器 / 读不到数据 → **不许当成通过** ✗
+"""
+
+import json
+import re
+from pathlib import Path
+
+VERIFIED = "verified"
+NOOP = "verified_noop"
+MISMATCH = "mismatch"
+FAILED = "failed"
+UNVERIFIED = "unverified"
+
+_ARG_RE = re.compile(r"--([a-z_]+)(?:[ =])(\"[^\"]*\"|'[^']*'|\S+)")
+
+
+def parse_command(command: str) -> tuple[str, dict[str, str]]:
+    """从命令行里取出 `(操作名, 参数)` —— 只认 `--k v` / `--k=v`（`actions.py` 的两种写法）。"""
+    parts = str(command or "").split()
+    operation = ""
+    for i, token in enumerate(parts):
+        if token.endswith("actions.py") and i + 1 < len(parts):
+            operation = parts[i + 1]
+            break
+    args: dict[str, str] = {}
+    for key, value in _ARG_RE.findall(str(command or "")):
+        args[key] = value.strip("\"'")
+    return operation, args
+
+
+def _read(data_dir: Path, name: str) -> dict:
+    """读一个数据文件；读不到 → 空 dict（验收读不到就报"未验收"，不猜 ✗）。"""
+    try:
+        return json.loads((Path(data_dir) / name).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def _item(data: dict, iid: str) -> dict:
+    return next((it for it in data.get("items", []) if it.get("id") == iid), {})
+
+
+def observe(command: str, data_dir: Path) -> dict:
+    """执行**之前**记下这条命令关心的字段（回执的 `before`，也是"本来已满足"的判据）。"""
+    operation, args = parse_command(command)
+    if not data_dir:
+        return {}
+    return _OBSERVERS.get(operation, _no_state)(args, data_dir)
+
+
+def _no_state(args: dict, data_dir: Path) -> dict:
+    return {}
+
+
+def _observe_consume(args: dict, data_dir: Path) -> dict:
+    item = _item(_read(data_dir, "inventory.json"), args.get("id", ""))
+    return {"remaining_doses": item.get("remaining_doses")} if item else {}
+
+
+def _observe_location(args: dict, data_dir: Path) -> dict:
+    if not args.get("location"):
+        return {}
+    item = _item(_read(data_dir, "inventory.json"), args.get("id", ""))
+    return {"location": item.get("location")} if item else {}
+
+
+def _observe_complete_plan(args: dict, data_dir: Path) -> dict:
+    plans = (_read(data_dir, "daily_logs.json").get("plans") or {}).get(args.get("date", ""))
+    try:
+        plan = (plans or [])[int(args.get("index", "-1"))]
+    except (IndexError, ValueError):
+        return {}
+    return {"done": bool(plan.get("done"))}
+
+
+_OBSERVERS = {
+    "consume": _observe_consume,
+    "update_item": _observe_location,
+    "complete_plan": _observe_complete_plan,
+}
+
+
+def check(command: str, before: dict, result: str, data_dir: Path) -> tuple[str, str]:
+    """执行**之后**回读数据验收 → `(状态, 给模型看的一句话)`。
+
+    ⚠ 顺序：**命令自己报错就不用再验收**（`failed`）—— 别把"执行失败"说成"验收不通过"。
+    """
+    operation, args = parse_command(command)
+    if not str(result).startswith("OK"):
+        return FAILED, f"命令没成功（{str(result)[:80]}）"
+    if not data_dir or not before:
+        return UNVERIFIED, "未验收（这条命令没有验收器）"
+    if operation == "consume":
+        return _check_consume(before, args, data_dir)
+    if operation == "update_item" and args.get("location"):
+        return _check_location(before, args, data_dir)
+    if operation == "complete_plan":
+        return _check_complete_plan(before, args, data_dir)
+    return UNVERIFIED, "未验收（这条命令没有验收器）"
+
+
+def _check_consume(before: dict, args: dict, data_dir: Path) -> tuple[str, str]:
+    """扣减：余量必须**正好**少掉 `--amount`（默认 1）。
+
+    ⚠ 特别注意"命令说 OK 但余量没变" —— 那是**不一致**，不是"无变化也算成功" ✗。
+    """
+    amount = int(args.get("amount", "1") or 1)
+    item = _item(_read(data_dir, "inventory.json"), args.get("id", ""))
+    if not item:
+        return MISMATCH, f"物品 {args.get('id', '')} 不在了"
+    was, now = before.get("remaining_doses"), item.get("remaining_doses")
+    if not isinstance(was, int) or not isinstance(now, int):
+        return UNVERIFIED, "余量字段读不到，未验收"
+    if now == was - amount:
+        return VERIFIED, f"余量 {was} → {now}（正好扣了 {amount}）"
+    if now == was:
+        return MISMATCH, f"命令说成功，但余量还是 {now}（没扣掉）"
+    return MISMATCH, f"余量变成了 {now}，期望 {was - amount}（扣减量对不上）"
+
+
+def _check_location(before: dict, args: dict, data_dir: Path) -> tuple[str, str]:
+    """移动：位置必须等于**归一化之后**的目标位置（词表口径见 `canonical_location`）。"""
+    from src.models.inventory import canonical_location
+
+    item = _item(_read(data_dir, "inventory.json"), args.get("id", ""))
+    if not item:
+        return MISMATCH, f"物品 {args.get('id', '')} 不在了"
+    want = canonical_location(args.get("location", ""))
+    now = str(item.get("location") or "")
+    if now == want:
+        if before.get("location") == want:
+            return NOOP, f"位置本来就是「{want}」（没变化，不算失败）"
+        return VERIFIED, f"位置 {before.get('location') or '（空）'} → {now}"
+    return MISMATCH, f"位置还是「{now}」，期望「{want}」"
+
+
+def _check_complete_plan(before: dict, args: dict, data_dir: Path) -> tuple[str, str]:
+    """计划完成：那一条的 `done` 必须为真。"""
+    plans = (_read(data_dir, "daily_logs.json").get("plans") or {}).get(args.get("date", ""))
+    try:
+        plan = (plans or [])[int(args.get("index", "-1"))]
+    except (IndexError, ValueError):
+        return MISMATCH, "那条计划不在了"
+    if plan.get("done"):
+        if before.get("done"):
+            return NOOP, "那条计划本来就是完成状态"
+        return VERIFIED, "计划已标记完成"
+    return MISMATCH, "那条计划**没有**被标记完成"
+
+
+def summarize(verdicts: list[tuple[str, str]]) -> str:
+    """把一批验收结论拼成给模型看的一段（附在工具结果后面）。"""
+    if not verdicts:
+        return ""
+    return "\n[验收]\n" + "\n".join(f"  {state}: {detail}" for state, detail in verdicts)
+
+
+def mismatches(verdicts: list[tuple[str, str]]) -> list[str]:
+    """**没达到预期**的那些（`mismatch`）—— 给"汇报权归代码"用。
+
+    `failed` 不在这里：命令自己报错已经由写失败那条路径汇报了（别重复报）。
+    """
+    return [detail for state, detail in verdicts if state == MISMATCH]

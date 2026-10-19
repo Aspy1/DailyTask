@@ -10,7 +10,7 @@ from typing import Any, Protocol
 
 from PySide6.QtCore import QObject, QThread, Signal
 
-from src.services import deepseek, openmeteo
+from src.services import ai_verify, deepseek, openmeteo
 from src.services.ai_loop_guards import (
     _claims_done,
     _continuation_nudge,
@@ -251,9 +251,10 @@ class AIWorker(QObject):
                     final_text = text
                     break
                 all_instructions.extend(instructions)
-                results_text, n_ok, bad = self._run_commands(instructions, seen_cmds)
+                results_text, n_ok, bad, off_target = self._run_commands(instructions, seen_cmds)
                 ok_count += n_ok
-                write_failures += bad
+                # 验收没达到预期的，与"命令报错"一起进"没生效"清单（汇报权归代码）
+                write_failures += bad + off_target
                 wrote_data = wrote_data or n_ok > 0
                 msgs.append({"role": "assistant", "content": text})
                 msgs.append({"role": "user", "content": f"[工具执行结果]\n{results_text}"})
@@ -268,19 +269,28 @@ class AIWorker(QObject):
             self.error.emit(str(e) + self._status_note(
                 all_instructions, wrote_data, ok_count, write_failures, finished_normally, ""))
 
-    def _run_commands(self, instructions: list, seen_cmds: dict) -> tuple[str, int, list]:
-        """执行一批命令 → `(喂回对话的结果文本, 写命令成功数, 写命令失败列表)`。"""
+    def _run_commands(self, instructions: list, seen_cmds: dict) -> tuple[str, int, list, list]:
+        """执行一批命令 → `(喂回对话的结果文本, 写命令成功数, 写命令失败列表, 没达到预期列表)`。
+
+        **验收在最后一步**（专项审查 §3.2/§3.3）：执行前记下关心的字段，执行后**回读数据**
+        按确定性规则判一次 —— 光有 `OK` 不能证明"用户要的状态成立了"。
+        """
+        data_dir = getattr(self._dm, "data_dir", None)
+        before = [ai_verify.observe(cmd, data_dir) for cmd in instructions]
         results = InstructionParser.execute(instructions)
         ok, bad = self._split_results(instructions, results)
+        verdicts = [ai_verify.check(cmd, was, res, data_dir)
+                    for cmd, was, res in zip(instructions, before, results, strict=False)]
         ckey = cmds_key(instructions)
         seen_cmds[ckey] = seen_cmds.get(ckey, 0) + 1
-        text = "\n".join(results)
+        text = "\n".join(results) + ai_verify.summarize(verdicts)
         if results and not ok and not bad:
             # 给模型一条**事实**（不是指令）：命令跑了但一条都没成功
             text += ("\n[事实] 命令已执行，但**一条都没成功**（被拒或报错了），"
                      "库存/日程没有任何变化。")
         note = repeat_nudge(seen_cmds, ckey, bool(ok))
-        return (text + "\n" + note) if note else text, len(ok), bad
+        return ((text + "\n" + note) if note else text, len(ok), bad,
+                ai_verify.mismatches(verdicts))
 
     @staticmethod
     def _split_results(instructions: list, results: list) -> tuple[list, list]:
@@ -313,7 +323,7 @@ class AIWorker(QObject):
         total = ok_count + len(write_failures)
         if write_failures:
             shown = "\n".join(f"  {c}" for c in write_failures[:5])
-            return f"\n\n⚠ **{len(write_failures)}/{total} 条写命令没有生效**：\n{shown}"
+            return f"\n\n⚠ **{len(write_failures)}/{total} 条写命令没有生效或没达到预期**：\n{shown}"
         if all_instructions and not finished_normally:
             return (f"\n\n⚠ **可能没记全** —— 到了轮次/时限上限才停。本次执行 "
                     f"{len(all_instructions)} 条命令、其中写命令成功 {ok_count} 条；"
