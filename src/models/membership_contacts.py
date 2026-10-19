@@ -41,3 +41,12 @@ class MembershipContactsModel(BaseJsonModel):
             contacts[iid] = {"phone": value}
         else:
             contacts.pop(iid, None)
+
+    def forget(self, iid: str) -> None:
+        """物品被删 → 把它的手机号一起清掉（2026-10-19 审查 R9）。
+
+        ⚠ 这只是**卫生**，不是防串号的关键 —— 关键是物品 id **只增不复用**
+        （`InventoryModel._next_item_id`）。id 一旦复用，旧号码会挂到新物品上 ✗，
+        光靠"删的时候清一下"挡不住（备份/同步恢复、CLI 删除、异常中断都可能漏）。
+        """
+        self._data.setdefault("contacts", {}).pop(iid, None)

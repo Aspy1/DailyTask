@@ -749,6 +749,8 @@ class InventoryPanel(QWidget):
                                 tr("panel.inventory.msg_confirm_delete", name=name)) == QMessageBox.StandardButton.Yes:
             self._dm.inventory.delete_item(iid)
             self._dm.inventory.save()
+            self._dm.membership_contacts.forget(iid)      # 私有手机号跟着删（审查 R9）
+            self._dm.membership_contacts.save()
             self._dm.data_changed.emit("inventory")
             self._refresh()
 

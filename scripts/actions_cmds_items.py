@@ -342,9 +342,22 @@ def cmd_delete_item(args) -> None:
         if it["id"] == iid:
             removed = items.pop(i)
             save("inventory.json", data)
+            _forget_private_phone(iid)          # 私有手机号跟着删（审查 R9）
             print(f"OK delete_item {iid} | {removed.get('name','')}")
             return
     print(f"ERROR item not found: {iid}")
+
+
+def _forget_private_phone(iid: str) -> None:
+    """删物品时把它的手机号一起清掉（私有文件，不在同步清单里）。
+
+    ⚠ 防串号的关键不在这里，而在**物品 id 只增不复用**（见 `InventoryModel._next_item_id`）——
+    这条只是卫生：别让私有文件里堆着永远对不上的记录。
+    """
+    path = "private/memberships.json"
+    data = load(path)
+    if isinstance(data.get("contacts"), dict) and data["contacts"].pop(iid, None) is not None:
+        save(path, data)
 
 
 def cmd_need_restock(args) -> None:
