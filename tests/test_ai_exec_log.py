@@ -58,6 +58,20 @@ def test_clear_history_also_clears_the_exec_log(qapp, tmp_path) -> None:
     assert "最近实际执行过的动作" not in svc._build_system_prompt()
 
 
+def test_safety_classifier_residue_is_stripped_from_the_display() -> None:
+    """⭐ 端点会把安全分类器的输出拼进 content —— 用户不该看到这段机器话。
+
+    2026-10-19 评估集实测到：`<ds_safety>[用户未成年]否 / [分类]其他 / [判定]…</ds_safety>Safe`
+    """
+    from src.services.ai_service import _strip_code_blocks
+
+    text = ('已记录：牙膏 1 瓶。\n'
+            '<ds_safety>[用户未成年]否 / [分类]其他 / [判定]普通物品管理 / [规则]无</ds_safety>Safe')
+    cleaned = _strip_code_blocks(text)
+    assert "已记录" in cleaned
+    assert "ds_safety" not in cleaned and "用户未成年" not in cleaned
+
+
 def test_worker_emits_the_ledger_on_its_own_signal(qapp, sandbox) -> None:
     """⭐ 账本走**独立信号**（不是塞进聊天文本）—— 从 worker 的真实入口验。"""
     from src.services import ai_ledger
