@@ -195,6 +195,33 @@ class InventoryModel(BaseJsonModel):
         item["remaining_doses"] = InventoryModel.remaining_doses(item)
         item["quantity"] = item["remaining_doses"] // dpu
 
+    @staticmethod
+    def stock_parts(item: dict) -> tuple[int, int, int]:
+        """库存的展示三元组 `(整包装数, 散装小单位, 每包装小单位)`。
+
+        真值**只有 `remaining_doses` 一处** —— 展示一律从它推，**不许**再写
+        `quantity × doses_per_unit`（2026-10-19 审查 R2：底层"扣 1 片丢 23 片"修好了，
+        但界面 / `lookup_item` / AI 摘要各自重算 ✗ —— 1 盒 24 片扣 1 片仍显示成"0 盒"，
+        用户和模型都以为没库存了 ✗）。
+        """
+        dpu = int(item.get("doses_per_unit", 1) or 1)
+        total = InventoryModel.remaining_doses(item)
+        return (total // dpu, total % dpu, dpu)
+
+    @staticmethod
+    def stock_text(item: dict) -> str:
+        """**纯文本口径**（CLI / AI 摘要用；界面走 i18n + `stock_parts()`）。
+
+        - 没分装：`3盒` / `2件`
+        - 有分装：`0盒（剩 23 片）` —— 整包装为 0 时**必须**把散的说出来，
+          否则读起来就是"没了" ✗（这正是 R2 的病灶）。
+        """
+        boxes, loose, dpu = InventoryModel.stock_parts(item)
+        unit = str(item.get("unit") or "个")
+        if dpu > 1 and loose:
+            return f"{boxes}{unit}（剩 {loose} 片）"
+        return f"{boxes}{unit}"
+
     def consume_doses(self, iid: str, amount: int = 1) -> int | None:
         """扣 `amount` 个**小单位**（片 / 次），返回剩余片数；找不到返回 `None`。
 

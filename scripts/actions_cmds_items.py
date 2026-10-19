@@ -355,7 +355,7 @@ def cmd_need_restock(args) -> None:
     data = load("inventory.json")
     needs = [it for it in data.get("items", []) if _needs_restock(it)]
     for it in needs:
-        print(f"  [{it['id']}] {it['name']} ({it['quantity']}{it.get('unit','个')}) - {it['status']}")
+        print(f"  [{it['id']}] {it['name']} ({InventoryModel.stock_text(it)}) - {it['status']}")
     if not needs:
         print("无需购物品")
 
@@ -378,9 +378,9 @@ def _membership_extra(it: dict) -> str:
 def _item_extra(it: dict) -> str:
     """括号里的补充信息：片数 / 下限 / 各件数 / 标签 / 会员。"""
     extra = []
-    dpu = it.get("doses_per_unit", 1) or 1
-    if dpu != 1:
-        extra.append(f"{it.get('quantity', 0) * dpu}片")
+    if (it.get("doses_per_unit", 1) or 1) != 1:
+        # 片数走**真值**（`remaining_doses`），不拿盒数乘 —— 2026-10-19 审查 R2
+        extra.append(f"{InventoryModel.remaining_doses(it)}片")
     if it.get("min_doses"):
         extra.append(f"下限{it['min_doses']}片")
     elif it.get("min_quantity"):
@@ -401,7 +401,7 @@ def _item_line(it: dict) -> str:
     状态**按当前日期重新推导** —— 会员的"需购"来自到期日，存下来的快照会过期。
     """
     loc = f" @{it['location']}" if it.get("location") else ""
-    return (f"  [{it['id']}] {it['name']} {it.get('quantity', 0)}{it.get('unit', '')}"
+    return (f"  [{it['id']}] {it['name']} {InventoryModel.stock_text(it)}"
             f"{loc} - {InventoryModel.effective_status(it)}{_item_extra(it)}")
 
 

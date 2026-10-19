@@ -30,6 +30,7 @@ from src.ui.panels.inventory_dialogs import (
     edit_tags_dialog,
     email_reminder_dialog,
 )
+from src.ui.panels.inventory_text import quantity_text
 from src.ui.styles.cards import card as make_card
 from src.ui.styles.theme import RADIUS, SPACING, font, get_colors, rgba
 from src.ui.widgets.flow_grid import FlowGrid
@@ -509,10 +510,7 @@ class InventoryPanel(QWidget):
         name.setStyleSheet(f"color: {c['fg_primary']}; font-size: 14px; font-weight: 600; border: none; background: transparent;")
         hdr.addWidget(name)
         hdr.addStretch()
-        qty_text = self._format_quantity(it)
-        dpu = it.get('doses_per_unit', 1)
-        if dpu > 1:
-            qty_text = tr("panel.inventory.qty_with_doses", n=it['quantity'], doses=it['quantity'] * dpu)
+        qty_text = quantity_text(it)
         qty = QLabel(qty_text)
         qty.setStyleSheet(f"color: {c['fg_secondary']}; font-size: 14px; font-weight: 700; border: none; background: transparent;")
         hdr.addWidget(qty)
@@ -589,8 +587,9 @@ class InventoryPanel(QWidget):
         cl.addWidget(name)
         cl.addStretch()
 
+        # 单件展开：件数用 `quantity`（分装的"盒"就是件 ✓），数量**文字**才走 `remaining_doses`
         qty = it.get("quantity", 0)
-        qty_label = QLabel(self._format_quantity(it))
+        qty_label = QLabel(quantity_text(it))
         qty_label.setStyleSheet(f"color: {c['fg_secondary']}; font-size: 14px; font-weight: 700; border: none; background: transparent;")
         cl.addWidget(qty_label)
 
@@ -659,13 +658,6 @@ class InventoryPanel(QWidget):
         rl.setSpacing(0)
         rl.addWidget(card)
         self._card_layout.insertWidget(self._card_layout.count() - 1, row)
-
-    def _format_quantity(self, it: dict) -> str:
-        cat = it.get("category", "")
-        qty = it.get("quantity", 0)
-        if cat == "虚拟品类":
-            return tr("panel.inventory.qty_virtual_items", n=qty)
-        return tr("panel.inventory.qty_pieces", n=qty)
 
     def _toggle_expand(self, iid: str) -> None:
         if iid in self._expanded_items:

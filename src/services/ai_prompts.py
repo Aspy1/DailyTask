@@ -7,6 +7,7 @@
 反之每个 handler 也必须被宣传 —— 由 `tests/test_prompt_consistency.py` 双向把关。
 """
 
+from src.models.inventory import InventoryModel
 
 # ── System prompt ──────────────────────────────────────────────
 
@@ -335,7 +336,10 @@ def inventory_prompt(inventory) -> str:
         tags = it.get("tags", [])
         tag_str = f" ({','.join(tags)})" if tags else ""
         status = inventory.effective_status(it)
-        lines.append(f"  [{it['id']}] {it['name']} {it['quantity']}{it['unit']}"
+        # 数量走**唯一口径**（`stock_text` → `remaining_doses`）——
+        # 原来这里写 `quantity`（盒数）✗：1 盒 24 片扣 1 片会给模型看"0盒"，
+        # 于是它以为没库存了（2026-10-19 审查 R2）。
+        lines.append(f"  [{it['id']}] {it['name']} {InventoryModel.stock_text(it)}"
                      f"{loc_str} - {status}{tag_str}{membership_note(it)}"
                      f"{item_extra(it, it.get('unit', ''))}")
     allowed = inventory.locations
