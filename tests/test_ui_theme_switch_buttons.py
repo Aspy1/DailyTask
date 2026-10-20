@@ -73,3 +73,29 @@ def test_external_restyle_is_still_adopted(qapp) -> None:
     btn.setStyleSheet("QPushButton { background: #555555; }")
     qapp.processEvents()
     assert "#555555" in btn._original_qss, "外部重新设的样式必须被采纳"
+
+
+def test_focus_ring_painter_draws_on_the_edge(qapp) -> None:
+    """⭐ 键盘焦点环：在**边缘**画出可见的一圈（审查 §"按钮键盘焦点尚未闭环"）。
+
+    只测绘制函数本身 —— 不依赖窗口是否激活（离屏测试里拿不到真焦点）。
+    """
+    from PySide6.QtCore import QRectF
+    from PySide6.QtGui import QColor, QPainter, QPixmap
+
+    from src.ui.widgets.rounded_button import paint_focus_ring
+
+    canvas = QPixmap(80, 30)
+    canvas.fill(QColor("#333333"))
+    painter = QPainter(canvas)
+    paint_focus_ring(painter, QRectF(1, 1, 78, 28), 8)
+    painter.end()
+
+    image = canvas.toImage()
+    base = QColor("#333333")
+    changed = [(x, y) for x in range(image.width()) for y in range(image.height())
+               if image.pixelColor(x, y) != base]
+    assert changed, "应该画出焦点环（有像素被改）"
+    assert all(y <= 4 or y >= image.height() - 5 or x <= 4 or x >= image.width() - 5
+               for x, y in changed), f"环只该在边缘：{changed[:5]}"
+    assert image.pixelColor(40, 15) == base, "中间不该被涂到（只画环）"

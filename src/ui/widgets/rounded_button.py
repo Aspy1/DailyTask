@@ -14,7 +14,7 @@ import re
 from typing import Any
 
 from PySide6.QtCore import QEvent, Qt
-from PySide6.QtGui import QColor, QPainter
+from PySide6.QtGui import QColor, QPainter, QPen
 from PySide6.QtWidgets import QPushButton, QStyle, QStyleOptionButton
 
 from src.ui.styles.theme import RADIUS, get_colors, qcolor
@@ -64,6 +64,18 @@ def _extract(qss: str) -> tuple[dict[str, QColor], QColor | None, int]:
     cleaned = re.sub(_DECL, "", qss)
     cleaned = cleaned.replace("QPushButton {", "QPushButton { background: transparent; border: none;", 1)
     return colors, border, radius
+
+
+def paint_focus_ring(painter: QPainter, rect, radius: float) -> None:
+    """在 `rect` 上画一圈**键盘焦点环**（审查 §"按钮键盘焦点尚未闭环"）。
+
+    抽成模块级函数是为了**可测**：不依赖窗口是否激活 / 是否真的拿到焦点，
+    在 QPixmap 上画一次就能断言像素 ✓。
+    """
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+    painter.setBrush(Qt.BrushStyle.NoBrush)
+    painter.setPen(QPen(qcolor(get_colors()["focus_ring"]), 2))
+    painter.drawRoundedRect(rect, radius, radius)
 
 
 class RoundedButton(QPushButton):
@@ -180,3 +192,9 @@ class RoundedButton(QPushButton):
         painter = QPainter(self)
         self.style().drawControl(QStyle.ControlElement.CE_PushButtonLabel, option, painter, self)
         painter.end()
+        # 键盘焦点环（审查 §"按钮键盘焦点尚未闭环"）：全局抑制了 PE_FrameFocusRect，
+        # 自绘按钮也不走 QSS `:focus` → 这里自己画一圈，Tab 走一圈才看得出来 ✓
+        if self.hasFocus():
+            painter = QPainter(self)
+            paint_focus_ring(painter, self.rect().adjusted(1, 1, -2, -2), self._radius)
+            painter.end()
