@@ -154,3 +154,22 @@ def test_sync_stages_deletion_of_tracked_data(qapp, tmp_path) -> None:
 
     tree = _git(repo, "ls-tree", "-r", "--name-only", "origin/master").stdout
     assert "data/inventory.json" not in tree, f"远端还留着已删除的文件：{tree}"
+
+
+def test_sync_runs_inside_the_data_repo(tmp_path) -> None:
+    """⭐ 2026-10-20 拆分后：同步必须在 `data/` **内部**执行（它自己是仓库）。
+
+    如果退回 `GitSync(DATA_DIR.parent, ...)`，`git push` 推的就是**代码仓库** →
+    个人数据会被推到**公开**仓库 ✗✗。这条守住那个方向。
+    """
+    from src.services.git_sync import GitSync, build_sync_commands
+
+    data = tmp_path / "data"
+    data.mkdir()
+    sync = GitSync(data, data)
+
+    assert sync._data_rel() == ".", "拆分后数据目录就是仓库根"
+    add, commit, push = build_sync_commands(sync._data_rel(), "msg")
+    assert add == ["git", "add", "-A", "--", "."]
+    assert commit[-1] == "."
+    assert push == ["git", "push"]

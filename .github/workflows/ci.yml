@@ -1,12 +1,13 @@
-name: CI（手动触发）
+name: CI
 
-# ⚠ 2026-10-20 起**不再随 push 自动跑**：仓库是私有的，Actions 按分钟计费
-#   （Free 2,000 分钟/月，Windows ×2）；原来每次 push 跑 4 个 job ≈ 17 分钟 ✗。
-#   额度要留给 `daily-digest.yml`（每天 4:55 的日程摘要）。
-#   日常验证请用本地：`.venv\Scripts\python.exe scripts/ci_local.py`
-#   需要看"干净环境 / 3.12 兼容"时，到 Actions 页面手动点 Run workflow。
+# 2026-10-20：代码仓库已**公开** → Actions 免费不限量 ✓ → push/PR **自动跑**恢复。
+# （在此之前为了省私有仓库额度，曾改成只手动触发；数据相关的每日摘要已搬到私有数据仓库。）
+# 本地等价物：`.venv\Scripts\python.exe scripts/ci_local.py`
 
 on:
+  push:
+    branches: [master]
+  pull_request:
   workflow_dispatch:
 
 jobs:
