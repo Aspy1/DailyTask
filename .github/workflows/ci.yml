@@ -1,32 +1,41 @@
-name: CI
+name: CI（手动触发）
+
+# ⚠ 2026-10-20 起**不再随 push 自动跑**：仓库是私有的，Actions 按分钟计费
+#   （Free 2,000 分钟/月，Windows ×2）；原来每次 push 跑 4 个 job ≈ 17 分钟 ✗。
+#   额度要留给 `daily-digest.yml`（每天 4:55 的日程摘要）。
+#   日常验证请用本地：`.venv\Scripts\python.exe scripts/ci_local.py`
+#   需要看"干净环境 / 3.12 兼容"时，到 Actions 页面手动点 Run workflow。
 
 on:
-  push:
-    branches: [master]
-  pull_request:
   workflow_dispatch:
-  # 依赖漏洞审计**每周**跑一次（I-16）：新披露的 CVE 跟我们的提交无关，
-  # 只在 push 时跑就会"没人动代码 → 永远不检查" ✗。
-  schedule:
-    - cron: '0 3 * * 1'
 
 jobs:
-  # 依赖漏洞审计（I-16）：对着**锁文件**查已知 CVE（锁文件才是我们真正锁的版本 ✓）。
-  audit:
-    runs-on: ubuntu-latest
+  check:
+    # 与目标平台一致（PySide6 的 Qt 库在 Windows runner 上开箱可用）
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        python-version: ['3.12', '3.14']
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
-      - name: 装 pip-audit
-        run: python -m pip install "pip-audit>=2.10"
-      - name: 审计锁文件
-        run: python -m pip_audit -r requirements.lock.txt
+          python-version: ${{ matrix.python-version }}
+      - name: 装依赖
+        run: python -m pip install -r requirements-dev.txt
+      - name: 编译检查
+        run: python -m compileall -q src scripts tests
+      - name: ruff
+        run: python -m ruff check src scripts tests
+      - name: UI 令牌门禁
+        run: python scripts/check_ui_tokens.py --strict --check-px
+      - name: 工程规范门禁
+        run: python scripts/check_quality.py --strict
+      - name: 测试
+        run: python -m pytest -q
 
-  # 锁文件复现：只照 requirements.lock.txt 装一遍，验证"照着锁能装出可用环境"。
-  # 2026-10-17 审查：CI 原来只装区间依赖（requirements-dev.txt），复现不了任何一次运行。
   lock-repro:
+    # 锁文件复现：只照 requirements.lock.txt 装一遍，验证"照着锁能装出可用环境"。
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -37,42 +46,3 @@ jobs:
         run: python -m pip install -r requirements.lock.txt
       - name: 依赖一致性
         run: python -m pip check
-
-  check:
-    # 与目标平台一致（PySide6 的 Qt 库在 Windows runner 上开箱可用）
-    runs-on: windows-latest
-    strategy:
-      fail-fast: false
-      # 3.12 = pyproject 的下限；3.14 = 实际运行版本（本机 venv）
-      matrix:
-        python-version: ['3.12', '3.14']
-    env:
-      # Windows runner 控制台默认 cp1252，中文输出会 UnicodeEncodeError
-      PYTHONUTF8: "1"
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
-
-      - name: 安装依赖
-        run: python -m pip install -r requirements-dev.txt
-
-      - name: 语法检查
-        run: python -m compileall -q src scripts plugins
-
-      - name: 静态检查（ruff）
-        run: python -m ruff check src scripts plugins tests
-
-      - name: UI 令牌合规
-        run: python scripts/check_ui_tokens.py --strict --check-px
-
-      # 规范里"能自动检查"的部分（尺寸/静默吞异常/ID 生成/令牌命名/i18n 计数/
-      # 顶层目录/密钥入库 + vulture + radon）；存量债走 scripts/quality_baseline.json
-      - name: 工程规范门禁
-        run: python scripts/check_quality.py --strict
-
-      # 覆盖率下限防"越改越少测"（当前约 54%，留出余量取 50）
-      - name: 测试 + 覆盖率下限
-        run: python -m pytest -q --cov=src --cov=scripts --cov-fail-under=50

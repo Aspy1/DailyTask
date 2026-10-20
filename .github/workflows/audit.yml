@@ -1,0 +1,24 @@
+name: 依赖审计
+
+# 每周跑一次 + 手动（I-16：新披露的 CVE 跟我们的提交无关，只在 push 时跑就会"没人动代码 → 永远不检查"）。
+# 单独成文件是为了**省钱**：schedule 会拉起该 workflow 的**所有** job，
+# 放在 ci.yml 里会把两个 Windows 全量检查（×2 计费）一起拉起来 ✗。
+# 这里只有 1 个 ubuntu job ≈ 1 分钟/周 ✓。
+
+on:
+  schedule:
+    - cron: '0 3 * * 1'      # 每周一 03:00 UTC
+  workflow_dispatch:
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: 装 pip-audit
+        run: python -m pip install "pip-audit>=2.10"
+      - name: 审计锁文件
+        run: python -m pip_audit -r requirements.lock.txt
