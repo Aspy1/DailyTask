@@ -35,6 +35,7 @@ from src.ui.styles.theme import (
     size_small_button,
 )
 from src.ui.widgets.api_test_dialog import ApiTestDialog
+from src.ui.widgets.dialog_shell import form_row
 from src.ui.widgets.rounded_button import RoundedButton
 from src.ui.widgets.rounded_input import RoundedComboBox, RoundedLineEdit
 from src.ui.widgets.toggle_switch import ToggleSwitch
@@ -130,25 +131,20 @@ class SettingsPanel(QWidget):
         return card("panel", pad="spacing_none")
 
     def _row(self, label: str, widget: QWidget, hint: QWidget | None = None) -> QWidget:
-        c = self._c()
-        row = QWidget()
-        row.setStyleSheet("background: transparent;")
-        rl = QHBoxLayout(row)
-        rl.setContentsMargins(16, 12, 16, 12)
-        lbl = QLabel(label)
-        lbl.setStyleSheet(f"color: {c['fg_primary']}; font-size: 13px; font-weight: 600; background: transparent;")
-        lbl.setFixedWidth(100)
-        lbl.setAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignCenter)
-        rl.addWidget(lbl)
-        wc = QWidget()
-        wc.setStyleSheet("background: transparent;")
-        wl = QVBoxLayout(wc)
-        wl.setContentsMargins(0, 0, 0, 0)
-        wl.addWidget(widget)
-        if hint:
-            wl.addWidget(hint)
-        rl.addWidget(wc, stretch=1)
-        return row
+        """设置页的行**也走唯一行工厂**（`Q-H9`）。
+
+        2026-10-20：`form_row` 的 docstring 早就写着"已统一 settings_panel._row" ✗，
+        但这儿一直留着自己那套（100px 定宽 + **居中** + 粗体）→ 标签位置和弹窗里不一致 ✗。
+        帮助文字放在控件**下面**（工厂只负责"标签 + 控件"那一行）。
+        """
+        if hint is None:
+            return form_row(label, widget)
+        box = QVBoxLayout()
+        box.setContentsMargins(0, 0, 0, 0)
+        box.setSpacing(2)
+        box.addWidget(widget)
+        box.addWidget(hint)
+        return form_row(label, box)
 
     def _divider(self) -> QFrame:
         c = self._c()
