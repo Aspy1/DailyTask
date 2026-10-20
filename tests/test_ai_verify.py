@@ -96,6 +96,44 @@ def test_failed_command_is_not_reported_as_mismatch(sandbox) -> None:
 
 # ── 接进 worker：结论要**回喂给模型** ───────────────────────
 
+def test_add_item_is_verified_by_presence(sandbox) -> None:
+    """⭐ 新验收器：`add_item` 要**在清单里真的找得到**（不是"handler 说 OK"）。"""
+    from scripts.actions import run_in_process
+
+    cmd = 'python scripts/actions.py add_item --name "抽纸" --quantity 2'
+    before = ai_verify.observe(cmd, sandbox)
+    assert before == {"exists": False}
+    assert ai_verify.check(cmd, before, run_in_process(cmd), sandbox)[0] == ai_verify.VERIFIED
+
+
+def test_add_task_is_verified(sandbox) -> None:
+    from scripts.actions import run_in_process
+
+    cmd = 'python scripts/actions.py add_task --title "写实验报告" --due 2026-10-25'
+    before = ai_verify.observe(cmd, sandbox)
+    assert ai_verify.check(cmd, before, run_in_process(cmd), sandbox)[0] == ai_verify.VERIFIED
+
+
+def test_delete_item_is_verified(sandbox) -> None:
+    from scripts.actions import run_in_process
+
+    run_in_process('add_item --name "旧牙膏" --quantity 1')
+    cmd = "python scripts/actions.py delete_item --id i_001"
+    before = ai_verify.observe(cmd, sandbox)
+    assert before == {"exists": True}
+    assert ai_verify.check(cmd, before, run_in_process(cmd), sandbox)[0] == ai_verify.VERIFIED
+
+
+def test_update_item_quantity_is_verified(sandbox) -> None:
+    from scripts.actions import run_in_process
+
+    run_in_process('add_item --name "纸巾" --quantity 2')
+    cmd = "python scripts/actions.py update_item --id i_001 --quantity 5"
+    before = ai_verify.observe(cmd, sandbox)
+    state, detail = ai_verify.check(cmd, before, run_in_process(cmd), sandbox)
+    assert state == ai_verify.VERIFIED and "5" in detail
+
+
 def test_worker_feeds_the_verdict_back_to_the_model(qapp, sandbox) -> None:
     """⭐ 从 worker 的真实入口走一遍：工具结果里必须带 `[验收]` 与具体数字。"""
     from src.services.ai_service import AIWorker

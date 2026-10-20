@@ -74,11 +74,17 @@ def _observe_consume(args: dict, data_dir: Path) -> dict:
     return {"remaining_doses": item.get("remaining_doses")} if item else {}
 
 
-def _observe_location(args: dict, data_dir: Path) -> dict:
-    if not args.get("location"):
-        return {}
+def _observe_update_item(args: dict, data_dir: Path) -> dict:
+    """改物品：记下**这条命令关心的**字段（位置 / 数量）—— 别的字段没有验收器。"""
     item = _item(_read(data_dir, "inventory.json"), args.get("id", ""))
-    return {"location": item.get("location")} if item else {}
+    if not item:
+        return {}
+    out: dict = {}
+    if args.get("location"):
+        out["location"] = item.get("location")
+    if "quantity" in args:
+        out["quantity"] = item.get("quantity")
+    return out
 
 
 def _observe_complete_plan(args: dict, data_dir: Path) -> dict:
@@ -90,10 +96,28 @@ def _observe_complete_plan(args: dict, data_dir: Path) -> dict:
     return {"done": bool(plan.get("done"))}
 
 
+def _observe_add_item(args: dict, data_dir: Path) -> dict:
+    items = _read(data_dir, "inventory.json").get("items") or []
+    return {"exists": any(it.get("name") == args.get("name") for it in items)}
+
+
+def _observe_add_task(args: dict, data_dir: Path) -> dict:
+    tasks = _read_semester(data_dir, "tasks.json").get("tasks") or []
+    return {"exists": any(t.get("title") == args.get("title") for t in tasks)}
+
+
+def _observe_delete_item(args: dict, data_dir: Path) -> dict:
+    items = _read(data_dir, "inventory.json").get("items") or []
+    return {"exists": any(it.get("id") == args.get("id") for it in items)}
+
+
 _OBSERVERS = {
     "consume": _observe_consume,
-    "update_item": _observe_location,
+    "update_item": _observe_update_item,
     "complete_plan": _observe_complete_plan,
+    "add_item": _observe_add_item,
+    "add_task": _observe_add_task,
+    "delete_item": _observe_delete_item,
 }
 
 
@@ -118,23 +142,79 @@ def label_of(command: str, data_dir: Path) -> str:
     return fallback
 
 
+def _read_semester(data_dir: Path, name: str) -> dict:
+    """读**按学期分**的数据文件（`tasks.json` 这类在 `semesters/<id>/` 下）。"""
+    from src.models import semester_paths
+
+    try:
+        return _read(data_dir, str(Path(semester_paths.resolve(Path(data_dir), name))
+                                  .relative_to(Path(data_dir))))
+    except (OSError, ValueError):
+        return {}
+
+
 def check(command: str, before: dict, result: str, data_dir: Path) -> tuple[str, str]:
     """执行**之后**回读数据验收 → `(状态, 给模型看的一句话)`。
 
     ⚠ 顺序：**命令自己报错就不用再验收**（`failed`）—— 别把"执行失败"说成"验收不通过"。
+    验收器按**操作**查表（`_CHECKS`）；没登记的操作明说"未验收" ✗（不许当成通过）。
     """
     operation, args = parse_command(command)
     if not str(result).startswith("OK"):
         return FAILED, f"命令没成功（{str(result)[:80]}）"
-    if not data_dir or not before:
+    verifier = _CHECKS.get(operation)
+    if verifier is None:
         return UNVERIFIED, "未验收（这条命令没有验收器）"
-    if operation == "consume":
-        return _check_consume(before, args, data_dir)
-    if operation == "update_item" and args.get("location"):
+    if not data_dir or not before:
+        return UNVERIFIED, "未验收（读不到数据，没法核对）"
+    return verifier(before, args, data_dir)
+
+
+def _check_add_item(before: dict, args: dict, data_dir: Path) -> tuple[str, str]:
+    """新增物品：那条**真的在**（名字对得上）—— 不是"handler 说 OK"。"""
+    name = args.get("name", "")
+    items = _read(data_dir, "inventory.json").get("items") or []
+    if any(it.get("name") == name for it in items):
+        return VERIFIED, f"「{name}」在清单里"
+    return MISMATCH, f"清单里找不到「{name}」"
+
+
+def _check_add_task(before: dict, args: dict, data_dir: Path) -> tuple[str, str]:
+    """记作业：那条**真的在**（标题对得上）。"""
+    title = args.get("title", "")
+    tasks = _read_semester(data_dir, "tasks.json").get("tasks") or []
+    if any(t.get("title") == title for t in tasks):
+        return VERIFIED, f"作业「{title}」在列表里"
+    return MISMATCH, f"作业列表里找不到「{title}」"
+
+
+def _check_delete_item(before: dict, args: dict, data_dir: Path) -> tuple[str, str]:
+    """删物品：那条**真的没了**（而且原来是在的）。"""
+    iid = args.get("id", "")
+    items = _read(data_dir, "inventory.json").get("items") or []
+    gone = not any(it.get("id") == iid for it in items)
+    if gone and before.get("exists"):
+        return VERIFIED, f"{iid} 已删除"
+    if not gone:
+        return MISMATCH, f"{iid} 还在，没删掉"
+    return NOOP, f"本来就没有 {iid}"
+
+
+def _check_update_item(before: dict, args: dict, data_dir: Path) -> tuple[str, str]:
+    """改物品：位置走专门的核对；只改数量时核对**数量**。"""
+    if args.get("location"):
         return _check_location(before, args, data_dir)
-    if operation == "complete_plan":
-        return _check_complete_plan(before, args, data_dir)
-    return UNVERIFIED, "未验收（这条命令没有验收器）"
+    if "quantity" in args:
+        item = _item(_read(data_dir, "inventory.json"), args.get("id", ""))
+        if not item:
+            return MISMATCH, f"物品 {args.get('id', '')} 不在了"
+        want = int(args["quantity"])
+        if int(item.get("quantity", -1)) == want:
+            return VERIFIED, f"数量现在是 {want}"
+        return MISMATCH, f"数量是 {item.get('quantity')}，期望 {want}"
+    return UNVERIFIED, "未验收（这条改动物品的命令没有核对项）"
+
+
 
 
 def _check_consume(before: dict, args: dict, data_dir: Path) -> tuple[str, str]:
@@ -199,3 +279,13 @@ def mismatches(verdicts: list[tuple[str, str]]) -> list[str]:
     `failed` 不在这里：命令自己报错已经由写失败那条路径汇报了（别重复报）。
     """
     return [detail for state, detail in verdicts if state == MISMATCH]
+
+
+_CHECKS = {
+    "consume": _check_consume,
+    "complete_plan": _check_complete_plan,
+    "update_item": _check_update_item,
+    "add_item": _check_add_item,
+    "add_task": _check_add_task,
+    "delete_item": _check_delete_item,
+}

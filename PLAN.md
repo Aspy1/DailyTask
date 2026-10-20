@@ -1038,9 +1038,9 @@ execution`（`cc6a9e4`，2026-10-17）：`chat()` 不再把 `reasoning_content` 
 | A5/A6 | 执行证据不进服务历史；压缩丢约束 | **第 ④ 步已完成**：`AIWorker.ledger_ready` 独立信号 → `AIService._exec_log`（与 `_history` **分开存**，`_auto_compress` 动不到）；只留最近 5 条；注入提示词时标明是**事实**（§2.4"事实记忆与反思分开"）；`clear_history` 一并清。见 `dev-logs/2026-10-19-AI-执行日志独立于聊天历史.md` |
 | A7 | 预算非硬约束 | 传剩余预算给 provider + 约束重试 |
 | A8 | 护栏测试只证明"函数存在" | 测试从 `AIWorker.run()` 出发，断言**最终用户文本** |
-| Verifier | 领域验收独立于模型自述 | **第 ② 步已完成**（最小垂直链路）：新模块 `src/services/ai_verify.py`（`observe` 执行前记状态 → `check` 执行后**回读数据**按确定性规则验收）；状态 `verified` / `verified_noop` / `mismatch` / `failed` / `unverified`；覆盖 **consume / update_item --location / complete_plan** 三条，其余明说"未验收"；`[验收]` 段回喂模型 + 最终文案"没生效**或没达到预期**"。见 `dev-logs/2026-10-19-AI-回执与领域验收.md` |
+| Verifier | 领域验收独立于模型自述 | **已完成（6 条）**：`ai_verify` 覆盖 **consume / update_item（位置·数量）/ complete_plan / add_item / add_task / delete_item**；`check` 改**表驱动**（`_CHECKS`），其余明说"未核对"；未核对按**丙**（只在有写命令时显示）。见 `dev-logs/2026-10-19-AI-回执与领域验收.md` |
 
-### 乙方案：代码写事实、模型只补说明（用户 2026-10-19 拍板）`[设计完成，待实现]`
+### 乙方案：代码写事实、模型只补说明（用户 2026-10-19 拍板）`[已实现 2026-10-20]`
 
 > 起因：评估集实测到模型**一条命令都没发**却回复"已将羽绒服的位置改为家"，
 > 而用户**看不到任何警示** —— 根子是"**模型的话仍是主报告**"，代码只在后面追加告警。
@@ -1061,9 +1061,9 @@ execution`（`cc6a9e4`，2026-10-17）：`chat()` 不再把 `reasoning_content` 
 四条规则：① 事实行由代码写；② 模型那句只能解释（输入就是事实块）；③ 两者**视觉分开**；
 ④ 没有验收器的操作**明说"未核对"**，不许把"命令返回 OK"写成"已完成"。
 
-**落地三步**：① `ai_verify` 的 verdict 带上 `before → after` → 生成事实行；
-② 改 `AIWorker._report()` 的渲染（事实块在前、模型的话标注在后）；
-③ 扩大验收器覆盖面（否则事实块大面积"未核对"）。
+**落地三步**：① `ai_verify` 的 verdict 带上 `before → after` → 生成事实行（**已完成**：`fact_line()` 直接写 24 → 23）；
+② 改 `AIWorker._report()` 的渲染（事实块在前、模型的话标注在后）（**已完成** 2026-10-20，见
+`dev-logs/2026-10-20-乙方案-代码写事实.md`）；③ 扩大验收器覆盖面（否则事实块大面积"未核对"）。
 
 ### §5 评估集（`scripts/ai_eval.py`）
 **已完成**：9 个场景（本轮可测的那些）× **k 次重复采样**（用户定 k=4，模型 deepseek）✓；
