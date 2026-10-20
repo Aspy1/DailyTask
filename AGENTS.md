@@ -201,15 +201,19 @@
 
 ## 7. 提交规范
 
+- **仓库已拆成两个**（2026-10-20）：
+  - **代码仓库** `Aspy1/DailyTask`（**公开**）：只有源码/脚本/测试/文档；`.gitignore` 里 `data/` **整个目录**不进库；
+  - **数据仓库** `Aspy1/DailyTask-OnlyPrivateData`（**私有**）：`data/` **自己是一个 git 仓库**，
+    由 `git_sync` 自动提交推送（`GitSync(DATA_DIR, DATA_DIR)` → `cd data && git add -A -- . && git push`）；
+    `settings.ini`（密钥）与 `private/`（手机号）在**两边**都被 ignore ✓。
+  - **为什么这么拆**：公开仓库的 Actions **免费不限分钟**（私有仓库 Free 只有 2,000 分钟/月、Windows ×2），
+    而 `data/` 是个人数据 ✗ 不能公开；每日摘要工作流放在**私有数据仓库**，额度按天只花 1–3 分钟 ✓。
 - 每次功能修改后 **commit + push**；message ≤60 字符英文，形如
   `fix: ...` / `feat: ...` / `docs: ...` / `chore: ...`。
 - **数据同步的范围是唯一的**：`src/services/git_sync.py` 的 `DATA_FILES` / `DATA_DIRS`
   —— 自动同步（应用）与手动同步（托盘菜单）都用它。**新增数据文件必须同步加进清单**
   （`tests/test_git_sync_scope.py` 会拿 `DataManager._models()` 对照，漏了就红）。
-- **不进版本库的东西**：`data/settings.ini`（密钥）· `data/app.log` · `data/backup/` ·
-  `data/schedule_snapshot.txt` · **派生/缓存**（`weather_cache` / `weather_stats` /
-  `search_index` / `scenes_meta`）· `*.bak` / `*.tmp` —— 全部见 `.gitignore`。
-- 提交前确认 `git status`，避免夹带无关改动。
+- **不进版本库的东西**：`data/`（整个目录，含密钥与全部个人数据）· `*.bak` / `*.tmp` —— 见两个仓库各自的 `.gitignore`。
 
 ## 8. 文档维护规则
 
