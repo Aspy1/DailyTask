@@ -99,3 +99,27 @@ def test_today_hints_merges_outing_rules(tmp_path) -> None:
         json.dumps({"plans": {today: [{"title": "去实验室"}]}}), encoding="utf-8")
     keys = [h.key for h in today_hints(tmp_path)]
     assert "outing.keys" in keys and "outing.trash" in keys
+
+
+# ── 提示条的显示（2026-10-19 审查 §"提示层级过密"）────────────
+
+def test_long_hint_wraps_at_the_dash() -> None:
+    """单条长提示要**能换行** —— `QPushButton` 不自动换行 ✗，所以在「——」处插换行。"""
+    from src.ui.widgets.hint_bar import HintBar
+
+    text = "今天有安排 —— 出门前把钥匙串 / 卡包放回右手架子上 🔑"
+    wrapped = HintBar._wrap_text(text)
+    assert "\n" in wrapped
+    assert wrapped.replace("\n", "").replace(" ", "") == text.replace(" ", ""), "换行不能丢字"
+    assert HintBar._wrap_text("短提示") == "短提示"
+
+
+def test_hint_levels_use_different_colours() -> None:
+    """警告（warn）与普通建议（info）配色要不同 —— 原来全都橙色，同样抢眼 ✗。"""
+    from src.ui.styles.theme import get_colors
+    from src.ui.widgets.hint_bar import HintBar
+
+    c = get_colors()
+    assert HintBar._chip_qss("warn", c) != HintBar._chip_qss("info", c)
+    assert c["orange"] in HintBar._chip_qss("warn", c), "警告用橙色"
+    assert c["orange"] not in HintBar._chip_qss("info", c), "普通建议别用警告色"

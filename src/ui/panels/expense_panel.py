@@ -115,11 +115,11 @@ class ExpensePanel(QWidget):
         al = QHBoxLayout(add_row)
         al.setContentsMargins(16, 4, 16, 4)
         al.setSpacing(8)
-
         self._amount_input = RoundedLineEdit()
         self._amount_input.setPlaceholderText(tr("expense.amount"))
         self._amount_input.setFixedWidth(80)
         self._amount_input.setStyleSheet(self._input_qss())
+        al.addSpacing(80)
         al.addWidget(self._amount_input)
 
         self._cat_combo = RoundedComboBox()
@@ -156,7 +156,7 @@ class ExpensePanel(QWidget):
         sl.setContentsMargins(16, 4, 16, 4)
         sl.setSpacing(8)
         sav_label = QLabel(tr("panel.expense.label_saving"))
-        sav_label.setFixedWidth(80)              # 让「省了多少」与上面「金额」左对齐
+        sav_label.setFixedWidth(80)              # 两个金额框**左对齐**（add 行也有 80px 缩进）
         sav_label.setStyleSheet(self._sub_label_qss())
         sl.addWidget(sav_label)
         self._sav_amount = RoundedLineEdit()
@@ -336,10 +336,10 @@ class ExpensePanel(QWidget):
         remaining = budget - month_total
         today_saved = self._dm.daily_logs.today_savings_total()
 
-        self._find_sum_label("month").setText(f"¥{month_total:.0f}")
-        self._find_sum_label("today").setText(f"¥{today_total:.0f}")
-        self._find_sum_label("budget").setText(f"¥{remaining:.0f}")
-        self._find_sum_label("saved").setText(f"¥{today_saved:.0f}")
+        self._find_sum_label("month").setText(f"¥{month_total:.2f}")
+        self._find_sum_label("today").setText(f"¥{today_total:.2f}")
+        self._find_sum_label("budget").setText(f"¥{remaining:.2f}")
+        self._find_sum_label("saved").setText(f"¥{today_saved:.2f}")
 
         # Footer: filtered total
         cat_info = f" ({self._filter_category})" if self._filter_category else ""

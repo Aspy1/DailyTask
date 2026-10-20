@@ -33,6 +33,34 @@ class HintBar(FlowGrid):
         """重新算一遍今天的提示并重画（换主题 / 数据变化都走这里）。"""
         self.show_hints(today_hints(self._data_dir) if self._data_dir else [])
 
+    @staticmethod
+    def _chip_qss(level: str, c: dict) -> str:
+        """提示的配色**按级别分开**（2026-10-19 审查：原来所有提示都橙色，普通建议和警告一样抢眼）。
+
+        - `warn`（预算超支这类）→ 橙色，要抢眼；
+        - `info`（带伞 / 该洗 / 出门）→ 中性底，别和警告一样吵。
+        """
+        if level == "warn":
+            bg, fg, hover = c["orange_tint"], c["orange"], c["orange_tint_weak"]
+        else:
+            bg, fg, hover = c["bg_elevated"], c["fg_secondary"], c["btn_secondary_hover"]
+        return (f"QPushButton {{ background-color: {bg}; color: {fg}; border: none;"
+                f" border-radius: 8px; padding: 4px 10px; font-size: 13px; }}"
+                f" QPushButton:hover {{ background-color: {hover}; }}")
+
+    @staticmethod
+    def _wrap_text(text: str) -> str:
+        """长提示**折成两行** —— `QPushButton` 不会自动换行（审查：单条长提示也要换行）。
+
+        优先在「——」处断（那是"原因 —— 内容"的自然分界），否则按 24 字硬折。
+        """
+        if len(text) <= 24:
+            return text
+        cut = text.find("——")
+        if 0 < cut < len(text) - 2:
+            return text[:cut + 2].rstrip() + "\n" + text[cut + 2:].lstrip()
+        return text[:24] + "\n" + text[24:]
+
     def show_hints(self, hints: list) -> None:
         """重画（已点掉的 key 不再出现）。
 
@@ -54,14 +82,10 @@ class HintBar(FlowGrid):
         for hint in self._hints:
             if hint.key in self._dismissed:
                 continue
-            chip = RoundedButton(f"{hint.text}   ✕")
+            chip = RoundedButton(f"{self._wrap_text(hint.text)}   ✕")
             chip.setParent(self)
             chip.setCursor(Qt.CursorShape.PointingHandCursor)
-            chip.setStyleSheet(
-                f"QPushButton {{ background-color: {c['orange_tint']};"
-                f" color: {c['orange']}; border: none; border-radius: 8px;"
-                f" padding: 4px 10px; font-size: 13px; }}"
-                f" QPushButton:hover {{ background-color: {c['orange_tint_weak']}; }}")
+            chip.setStyleSheet(self._chip_qss(hint.level, c))
             chip.clicked.connect(lambda _checked=False, k=hint.key: self._dismiss(k))
             chip.show()
             shown += 1
