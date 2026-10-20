@@ -53,5 +53,8 @@ shots-*/
 # 由 `git_sync` 自动提交推送；`settings.ini` / `private/` 在那边也被 ignore ✓。
 data/
 
+# 本地备份（git bundle 快照）—— 含**拆分前**的历史（有个人数据 ✗），绝不入库
+backup/
+
 # AI 评估集跑出来的原始结果（`scripts/ai_eval.py`）—— 机器产物，不入库
 dev-logs/ai-eval-*/
