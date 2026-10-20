@@ -99,17 +99,65 @@ def test_worker_feeds_recovery_advice_back_to_the_model(qapp, sandbox) -> None:
 
 
 def test_worker_reports_the_ledger_when_something_failed(qapp, sandbox) -> None:
-    """⭐ 最终文本要带账本（按状态）—— 只有"不干净"时才给用户看。"""
+    """乙：失败要出现在**事实块**里（不再是"本次账本"那一行）。"""
     out = _run_text([f"```sh\n{BAD}\n```", "记好了"], dm=None)
-    assert any("本次账本" in t for t in out), out
-    assert any("执行失败" in t for t in out), out
+    assert any("【已执行】" in t for t in out), out
+    assert any("没有生效" in t for t in out), out
 
 
-def test_worker_stays_quiet_when_everything_is_clean(qapp, sandbox) -> None:
-    """全绿时不加账本那行（别给用户添噪）。"""
+def test_worker_shows_the_fact_block_even_when_clean(qapp, sandbox) -> None:
+    """乙：全绿时**事实块照常显示**（那是报告本身），但不加账本尾巴。"""
     good = 'python scripts/actions.py add_item --name "抽纸" --quantity 2'
-    out = _run_text([f"```sh\n{good}\n```", "记好了"], dm=None)
-    assert not any("本次账本" in t for t in out), out
+    joined = "\n".join(_run_text([f"```sh\n{good}\n```", "记好了"], dm=None))
+    assert "【已执行】" in joined and "记入 抽纸" in joined, joined
+    assert "本次账本" not in joined
+
+
+# ── 乙：事实块（代码写事实、模型只解释）────────────────────
+
+def test_fact_lines_use_chinese_verbs_and_labels() -> None:
+    """事实行 = 动词 + 对象 + 证据；**不用** ✓/✗ 之类的符号（用户明确不要）。"""
+    led = ai_ledger.Ledger()
+    led.record("python scripts/actions.py consume --id i_001 --amount 1",
+               ai_ledger.VERIFIED, "余量 24 → 23", "布洛芬")
+    led.record("python scripts/actions.py update_item --id i_002 --location X",
+               ai_ledger.MISMATCH, "位置还是「书架3」，期望「桌面」", "羽绒服")
+    lines = ai_ledger.fact_lines(led.goals)
+    assert lines[0] == "扣减 布洛芬：余量 24 → 23"
+    assert lines[1].startswith("更新 羽绒服：**没有达到预期**")
+    assert not any(ch in "".join(lines) for ch in "✓✗")
+
+
+def test_fact_lines_cover_failed_and_unverified() -> None:
+    led = ai_ledger.Ledger()
+    led.record("python scripts/actions.py add_item --name 纸巾", ai_ledger.FAILED, "参数不合法", "纸巾")
+    led.record("python scripts/actions.py add_task --title 作业", ai_ledger.UNVERIFIED, "", "作业")
+    lines = ai_ledger.fact_lines(led.goals)
+    assert "没有生效" in lines[0]
+    assert lines[1] == "记作业 作业：未核对"
+
+
+def test_pure_query_shows_no_fact_block(qapp, sandbox) -> None:
+    """⭐ 丙：**没有写命令**（纯查询）→ 不显示事实块，也不显示"未核对"。"""
+    from src.services.ai_service import AIWorker
+    from src.services.data_manager import DataManager
+
+    dm = DataManager(sandbox)
+    dm.inventory.add_item({"name": "牙膏", "quantity": 2})
+    dm.inventory.save()
+    text, *_ = AIWorker(None, "m", "", [], dm, None)._run_commands(
+        ['python scripts/actions.py lookup_item --name "牙膏"'], {})
+    assert text, "查询本身要有结果"
+    assert "未核对" not in text
+
+
+def test_model_text_is_labelled_as_explanation(qapp, sandbox) -> None:
+    """乙：模型的话放在【说明】里，事实在【已执行】里，两者分开。"""
+    out = "\n".join(_run_text(
+        ['```sh\npython scripts/actions.py add_item --name "抽纸" --quantity 2\n```', "顺手放书架3"], dm=None))
+    assert "【已执行】" in out and "【说明】" in out
+    assert out.index("【已执行】") < out.index("【说明】"), "事实块必须在说明之前"
+    assert "顺手放书架3" in out
 
 
 def test_verify_and_ledger_use_the_same_state_names() -> None:

@@ -72,11 +72,7 @@ EXEC_LOG_KEEP = 5
 
 
 def _exec_log_section(lines: list[str]) -> str:
-    """把"**实际执行过的动作**"拼成提示词里的一段（§2.4：执行日志 ≠ 聊天记录）。
-
-    标明是**事实**（不是模型的回忆）——"继续 / 撤销刚才那条"要以此为准 ✓。
-    放模块级：`_build_system_prompt` 与 `AIService` 都卡在尺寸上限。
-    """
+    """把"实际执行过的动作"拼成提示词里的一段（§2.4：执行日志 ≠ 聊天记录，且标明是**事实**）。"""
     body = "\n".join(f"  {line}" for line in lines)
     return ("\n最近实际执行过的动作（**事实**，不是你的回忆；"
             "\"继续 / 撤销刚才那条\"要以此为准）:\n" + body + "\n")
@@ -186,6 +182,37 @@ class DeepSeekProvider:
 
 # ── Worker ─────────────────────────────────────────────────────
 
+def _status_note(all_instructions: list, wrote_data: bool, ok_count: int,
+                 write_failures: list, finished_normally: bool, display: str) -> str:
+    """给用户看的告警文案（没有问题时返回空串）。
+
+    ⚠ **判据以证据为主**：命令结果 / 验收结论 / 是否被切断 / **有没有发过命令**；措辞表只是补充触发。
+    """
+    total = ok_count + len(write_failures)
+    if write_failures:
+        shown = "\n".join(f"  {c}" for c in write_failures[:5])
+        return f"\n\n⚠ **{len(write_failures)}/{total} 条写命令没有生效或没达到预期**：\n{shown}"
+    if all_instructions and not finished_normally:
+        return (f"\n\n⚠ **可能没记全** —— 到了轮次/时限上限才停。本次执行 "
+                f"{len(all_instructions)} 条命令、其中写命令成功 {ok_count} 条；"
+                f"这条话里东西多的话请核对，或回一句\"继续\"让我接着记。")
+    if not wrote_data and display and (not all_instructions
+                                       or _has_write_cmd(all_instructions)
+                                       or _claims_done(display)):
+        return ("\n\n⚠ **数据没有任何改动** —— 命令没生效，或本轮压根没执行任何命令"
+                "（上面那句是模型的自我描述）。请重试或换个说法。")
+    return ""
+
+
+def _record_goals(ledger, instructions: list, verdicts: list, labels: list) -> None:
+    """把每条**写命令**的状态记进账本（查询不算目标；没有账本就跳过）。"""
+    if ledger is None:
+        return
+    for cmd, (state, detail), label in zip(instructions, verdicts, labels, strict=False):
+        if _has_write_cmd([cmd]):
+            ledger.record(cmd, state, detail, label)
+
+
 class AIWorker(QObject):
     finished = Signal(str)
     error = Signal(str)
@@ -279,29 +306,26 @@ class AIWorker(QObject):
             self._report(all_instructions, wrote_data, final_text, write_failures,
                          finished_normally, ok_count, ledger)
         # 边界捕获：本层已处理/记录，不允许异常向上逃逸（CODE_STANDARDS Q-I1）
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             # 异常也可能发生在**部分写入之后** → 把已有结果摘要一起带上（只报异常会丢掉"写了什么" ✗）
-            self.error.emit(str(e) + self._status_note(
+            logger.exception("AI worker 异常（已转成用户可见的错误）")
+            self.error.emit(str(e) + _status_note(
                 all_instructions, wrote_data, ok_count, write_failures, finished_normally, ""))
 
     def _run_commands(self, instructions: list, seen_cmds: dict,
                       ledger=None) -> tuple[str, int, list, list]:
-        """执行一批命令 → `(喂回对话的结果文本, 写命令成功数, 写命令失败列表, 没达到预期列表)`。
+        """执行一批命令 → `(喂回文本, 写命令成功数, 写失败, 没达到预期)`。
 
-        **验收在最后一步**（专项审查 §3.2/§3.3）：执行前记下关心的字段，执行后**回读数据**
-        按确定性规则判一次 —— 光有 `OK` 不能证明"用户要的状态成立了"。
-        **账本**（§3.1）逐条记下每条**写命令**的状态（状态来自验收，不是"handler 说 OK"）。
+        执行前记状态、执行后**回读数据**验收（§3.2/§3.3），并逐条写进账本（§3.1）。
         """
         data_dir = getattr(self._dm, "data_dir", None)
         before = [ai_verify.observe(cmd, data_dir) for cmd in instructions]
+        labels = [ai_verify.label_of(cmd, data_dir) for cmd in instructions]
         results = InstructionParser.execute(instructions)
         ok, bad = self._split_results(instructions, results)
         verdicts = [ai_verify.check(cmd, was, res, data_dir)
                     for cmd, was, res in zip(instructions, before, results, strict=False)]
-        if ledger is not None:
-            for cmd, (state, detail) in zip(instructions, verdicts, strict=False):
-                if _has_write_cmd([cmd]):        # 查询不算目标，不记账
-                    ledger.record(cmd, state, detail)
+        _record_goals(ledger, instructions, verdicts, labels)
         ckey = cmds_key(instructions)
         seen_cmds[ckey] = seen_cmds.get(ckey, 0) + 1
         text = "\n".join(results) + ai_verify.summarize(verdicts) + ai_ledger.recovery_note(results)
@@ -324,18 +348,16 @@ class AIWorker(QObject):
     def _report(self, all_instructions: list, wrote_data: bool, final_text: str,
                 write_failures: list, finished_normally: bool, ok_count: int,
                 ledger) -> None:
-        """收尾：剥掉代码块 → 附**账本**（只有不干净时才给用户看）→ 走统一 `_finish()`。
+        """收尾：**事实块（代码生成）在前、模型的话作为说明在后**（乙方案）。
 
-        账本按**状态**汇报（§3.1），不是"成功命令数 ÷ 总命令数"；全绿就不加这行（别添噪）。
+        以前模型那句"已将 X 改为 Y"是主报告，代码只能事后补告警（还挂在措辞表上，会漏）。
+        现在反过来：做过什么由账本 + 验收回执写，模型只解释；没有写命令就没有事实块。
         """
-        display = _strip_code_blocks(final_text)
+        display = ai_ledger.render_facts(ledger, _strip_code_blocks(final_text))
         logger.info("AI 账本：%s", ledger.summary() or "（无写命令）")
-        # ⚠ 账本**独立于聊天历史**（§2.4"聊天记录不等于执行日志"）：
-        # 它走自己的信号，压缩历史也带不走它 —— 下一次"继续 / 撤销刚才那条"要靠它 ✓
+        # ⚠ 账本走自己的信号（§2.4：执行日志 ≠ 聊天记录），压缩历史也带不走它
         if ledger.summary():
             self.ledger_ready.emit(ledger.summary())
-        if not ledger.is_clean():
-            display += "\n\n" + ledger.summary()
         self._finish(all_instructions, wrote_data, display, write_failures,
                      finished_normally, ok_count)
 
@@ -343,7 +365,7 @@ class AIWorker(QObject):
                 write_failures: list | None = None, finished_normally: bool = True,
                 ok_count: int = 0) -> None:
         """收尾：**汇报权归代码**（§2.3）+ **量化覆盖**（§9.3），见 `_status_note`。"""
-        display += self._status_note(all_instructions, wrote_data, ok_count,
+        display += _status_note(all_instructions, wrote_data, ok_count,
                                      write_failures or [], finished_normally, display)
         if all_instructions:
             self.finished_with_instructions.emit(display or "已完成", all_instructions)
@@ -351,28 +373,6 @@ class AIWorker(QObject):
             self.finished.emit(display)
         else:
             self.error.emit(_EMPTY_REPLY_NOTE)
-
-    @staticmethod
-    def _status_note(all_instructions: list, wrote_data: bool, ok_count: int,
-                     write_failures: list, finished_normally: bool, display: str) -> str:
-        """给用户看的告警文案（没有问题时返回空串）。
-
-        ⚠ **判据以证据为主**：命令结果 / 验收结论 / 是否被切断 / **有没有发过命令**；措辞表只是补充触发。
-        """
-        total = ok_count + len(write_failures)
-        if write_failures:
-            shown = "\n".join(f"  {c}" for c in write_failures[:5])
-            return f"\n\n⚠ **{len(write_failures)}/{total} 条写命令没有生效或没达到预期**：\n{shown}"
-        if all_instructions and not finished_normally:
-            return (f"\n\n⚠ **可能没记全** —— 到了轮次/时限上限才停。本次执行 "
-                    f"{len(all_instructions)} 条命令、其中写命令成功 {ok_count} 条；"
-                    f"这条话里东西多的话请核对，或回一句\"继续\"让我接着记。")
-        if not wrote_data and display and (not all_instructions
-                                           or _has_write_cmd(all_instructions)
-                                           or _claims_done(display)):
-            return ("\n\n⚠ **数据没有任何改动** —— 命令没生效，或本轮压根没执行任何命令"
-                    "（上面那句是模型的自我描述）。请重试或换个说法。")
-        return ""
 
     def _should_continue(self, text: str, truncated: bool, msgs: list,
                          turn: int, wrote_data: bool = False) -> bool:
@@ -682,7 +682,7 @@ class AIService(QObject):
 """
         if self._exec_log:
             context += _exec_log_section(self._exec_log)
-        prompt = SYSTEM_PROMPT_BASE + "\n" + context + "\n【输出格式】\n- 纯文本，禁用 markdown。仅可用**加粗**。\n- 禁止输出脚本命令原文和执行结果。\n- ⚠ 要执行操作时**只能**输出 ```sh 代码块（每行一条 `python scripts/actions.py …`）。\n  禁止输出任何**工具调用 / 函数调用**格式（例如 `<｜｜DSML｜｜ invoke name=…>`、`<｜｜DSML｜｜ parameter …>`、\n  XML/JSON 包裹的 invoke/parameter）—— 那些不会被解析，等于什么都没做。\n- 查找发现重复物品时，在该轮回复中告知用户，等待确认后再处理。\n- 完成后用一行简练中文总结操作结果。"
+        prompt = SYSTEM_PROMPT_BASE + "\n" + context + "\n【输出格式】\n- 纯文本，禁用 markdown。仅可用**加粗**。\n- 禁止输出脚本命令原文和执行结果。\n- ⚠ 要执行操作时**只能**输出 ```sh 代码块（每行一条 `python scripts/actions.py …`）。\n  禁止输出任何**工具调用 / 函数调用**格式（例如 `<｜｜DSML｜｜ invoke name=…>`、`<｜｜DSML｜｜ parameter …>`、\n  XML/JSON 包裹的 invoke/parameter）—— 那些不会被解析，等于什么都没做。\n- 查找发现重复物品时，在该轮回复中告知用户，等待确认后再处理。\n- 完成后用一句简练中文**补充说明**（背景、注意事项）；**不要**复述「已记录 / 已完成 / 已改为」这类完成叙述 —— 实际执行结果由程序单独显示给用户。"
         self._prompt_cache_key = cache_key
         self._prompt_cache_value = prompt
         return prompt

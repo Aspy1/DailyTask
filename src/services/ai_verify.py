@@ -97,6 +97,27 @@ _OBSERVERS = {
 }
 
 
+def label_of(command: str, data_dir: Path) -> str:
+    """这条命令操作的**对象名**（事实行要写"哪个东西"）。读不到 → 空串。
+
+    ⚠ 必须在**执行前**取：像 `delete_item` 执行完，对象就没了 ✗。
+    """
+    operation, args = parse_command(command)
+    fallback = str(args.get("name") or "")
+    if not data_dir:
+        return fallback
+    if operation in ("consume", "update_item", "delete_item"):
+        item = _item(_read(data_dir, "inventory.json"), args.get("id", ""))
+        return str(item.get("name") or fallback)
+    if operation in ("complete_plan", "delete_plan"):
+        plans = (_read(data_dir, "daily_logs.json").get("plans") or {}).get(args.get("date", ""))
+        try:
+            return str((plans or [])[int(args.get("index", "-1"))].get("title") or "")
+        except (IndexError, ValueError):
+            return ""
+    return fallback
+
+
 def check(command: str, before: dict, result: str, data_dir: Path) -> tuple[str, str]:
     """执行**之后**回读数据验收 → `(状态, 给模型看的一句话)`。
 

@@ -64,6 +64,60 @@ class Goal:
     command: str
     state: str = PENDING
     detail: str = ""
+    label: str = ""          # 对象名（"布洛芬" / "羽绒服" / 计划标题）—— 事实行里要写清楚
+
+
+# 操作 → 中文动词（事实行的开头）。没登记的退化成操作名本身。
+VERB = {
+    "add_item": "记入", "update_item": "更新", "delete_item": "删除", "consume": "扣减",
+    "add_task": "记作业", "complete_plan": "标记完成", "delete_plan": "删除日程",
+    "add_plan": "记日程", "replace_plans": "重排日程",
+    "add_expense": "记支出", "add_habit": "记习惯",
+    "update_course": "改课表", "add_course": "加课程", "delete_course": "删课程",
+    "add_exam": "记考试", "update_exam": "改考试",
+}
+
+
+def fact_line(goal: Goal) -> str:
+    """一条写命令 → **给用户看的事实行**（乙方案：事实由代码写，模型只解释）。
+
+    状态用**中文**表达，不用 ✓/✗ 之类的符号（用户明确不要）。
+    """
+    from src.services import ai_verify
+
+    operation, _args = ai_verify.parse_command(goal.command)
+    head = f"{VERB.get(operation, operation or '动作')}{(' ' + goal.label) if goal.label else ''}"
+    if goal.state == VERIFIED:
+        return f"{head}：{goal.detail}"
+    if goal.state == NOOP:
+        return f"{head}：无需改动"
+    if goal.state == MISMATCH:
+        return f"{head}：**没有达到预期** —— {goal.detail}"
+    if goal.state == FAILED:
+        return f"{head}：**没有生效** —— {goal.detail}"
+    if goal.state == BLOCKED:
+        return f"{head}：被阻塞 —— {goal.detail}"
+    return f"{head}：未核对"
+
+
+def fact_lines(goals: list[Goal]) -> list[str]:
+    """整批账本 → 事实行列表（空账本 → 空列表，界面就不会多一块）。"""
+    return [fact_line(goal) for goal in goals or []]
+
+
+def render_facts(ledger: "Ledger", model_text: str) -> str:
+    """**乙方案的渲染**：事实块在前、模型的话作为说明在后。
+
+    - 有写命令 → 两块分开（【已执行】/【说明】）；模型那句**不重复**事实，只解释 ✓；
+    - 没有写命令（纯查询 / 闲聊）→ 只有模型的话 ✓（丙：不显示"未核对"）。
+    """
+    facts = fact_lines(ledger.goals if ledger else [])
+    if not facts:
+        return model_text
+    lines = ["【已执行】", *[f"  {f}" for f in facts]]
+    if model_text:
+        lines += ["", "【说明】", f"  {model_text}"]
+    return "\n".join(lines)
 
 
 @dataclass
@@ -72,8 +126,8 @@ class Ledger:
 
     goals: list[Goal] = field(default_factory=list)
 
-    def record(self, command: str, state: str, detail: str = "") -> None:
-        self.goals.append(Goal(command=command, state=state, detail=detail))
+    def record(self, command: str, state: str, detail: str = "", label: str = "") -> None:
+        self.goals.append(Goal(command=command, state=state, detail=detail, label=label))
 
     def counts(self) -> dict[str, int]:
         out: dict[str, int] = {}
