@@ -63,7 +63,13 @@ def test_default_data_is_not_shared_between_instances(tmp_path) -> None:
 
 
 def test_shipped_data_files_are_versioned_and_valid() -> None:
-    """仓库内的 data/*.json（含按学期分的那批）必须能解析且带 `_version`（派生文件除外）。"""
+    """`data/` 里的 JSON（含按学期分的那批）必须能解析且带 `_version`（派生文件除外）。
+
+    ⚠ 2026-10-20 拆仓库后：`data/` **不再随代码仓库走**（它是独立的私有数据仓库）→
+    在 CI 里这个目录**不存在** ✓。存在就校验，不存在就跳过（不是失败 ✗）。
+    """
+    if not (ROOT / "data").is_dir():
+        pytest.skip("data/ 不在代码仓库里（2026-10-20 已拆到私有数据仓库）")
     derived = {"weather_cache.json", "weather_stats.json", "search_index.json",
                "scenes_meta.json"}
     candidates = list((ROOT / "data").glob("*.json"))

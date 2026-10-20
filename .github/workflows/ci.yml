@@ -10,6 +10,13 @@ on:
   pull_request:
   workflow_dispatch:
 
+# ⚠ 整个 workflow 都要 UTF-8：测试里会**起子进程**（`main.py` / `git`）打印中文，
+#   不带这个的话 Windows runner 的默认编码是 charmap → `UnicodeEncodeError` ✗
+#   （2026-10-20 我重写 ci.yml 时漏了这行，CI 立刻红了两条）。
+env:
+  PYTHONUTF8: "1"
+  PYTHONIOENCODING: utf-8
+
 jobs:
   check:
     # 与目标平台一致（PySide6 的 Qt 库在 Windows runner 上开箱可用）
