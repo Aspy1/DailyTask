@@ -19,6 +19,8 @@ import os
 import sys
 import tempfile
 import time
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 
@@ -87,6 +89,32 @@ SCENARIOS = [
                 ("袜子", lambda dm: _has(dm, "袜子")),
                 ("耳机", lambda dm: _has(dm, "耳机")),
                 ("雨伞", lambda dm: _has(dm, "雨伞"))]),
+    # ── 需要故障注入 / 两轮对话的（2026-10-20 补）────────────
+    dict(n=4, title="动作已写入但响应丢失",
+         seed=lambda dm: None,
+         prompt="记一下：抽纸 2 包，放书架3",
+         fault="lost_result",
+         goals=[("抽纸**只被记一条**（不能重复）", lambda dm: _count(dm, "抽纸") == 1)]),
+    dict(n=12, title="工具不可用",
+         seed=lambda dm: dm.inventory.add_item({"name": "洗面奶", "quantity": 2,
+                                                "location": "书架3"}),
+         prompt="把洗面奶放到桌面",
+         fault="no_tool",
+         goals=[("如实说没做成（不谎报成功）",
+                 lambda dm: _location_of(dm, "洗面奶") == "书架3")]),
+    dict(n=10, title="用户纠正前一条指令",
+         seed=lambda dm: None,
+         turns=["记一下：抽纸 2 包放书架3", "不对，是 3 包"],
+         goals=[("抽纸", lambda dm: _has(dm, "抽纸")),
+                ("数量按最后一次说的是 3", lambda dm: _quantity_of(dm, "抽纸") == 3)]),
+    dict(n=11, title="说\"继续\"接着做完",
+         seed=lambda dm: None,
+         turns=["帮我记三件事：抽纸 2 包放书架3；洗衣液 1 瓶放卫生间柜子；"
+                "袜子 3 双放衣柜左1。先记第一件就行。",
+                "继续"],
+         goals=[("抽纸", lambda dm: _has(dm, "抽纸")),
+                ("洗衣液", lambda dm: _has(dm, "洗衣液")),
+                ("袜子", lambda dm: _has(dm, "袜子"))]),
 ]
 
 
@@ -114,27 +142,52 @@ def _remaining(dm: DataManager, name: str) -> int | None:
     return None
 
 
+def _quantity_of(dm: DataManager, name: str) -> int | None:
+    for it in dm.inventory.items:
+        if name in str(it.get("name", "")):
+            return int(it.get("quantity", 0))
+    return None
+
+
 # ── 跑一次 ──────────────────────────────────────────────────
 
-def _run_once(scenario: dict, settings: SettingsManager, k_index: int) -> dict:
-    """一个场景跑一次：**全新沙箱** + 真实模型 + 看最终状态。"""
-    import scripts.actions_core as core
-    from scripts.actions import run_in_process
-    from src.services.ai_loop_guards import _claims_done
+@contextmanager
+def _fault(kind: str) -> Iterator[None]:
+    """故障注入（审查 §5 里"需要特殊注入"的那两个场景）。
 
-    sandbox = Path(tempfile.mkdtemp(prefix="ai_eval_"))
-    core.DATA = sandbox
-    dm = DataManager(sandbox)
-    run_in_process(f'set_locations --values "{SEED_LOCATIONS}"')
-    dm.reload_all()          # ⚠ `set_locations` 是**直接写文件**的 → 内存副本会变旧，
-    scenario["seed"](dm)     #   不重载的话下一步 save 会被冲突检测拒掉（实测踩到）
-    dm.inventory.save()
-    dm.daily_logs.save()
+    - `lost_result`：命令**真的执行了**，但把结果换成"响应丢失"——考的是"别重复扣/重复记"；
+    - `no_tool`：命令根本没跑，回 "ERROR 未知操作"——考的是"如实说没做成，别谎报"。
 
-    svc = AIService(settings, dm)
-    model = settings.get("AI", "model", "deepseek-v4.1-flash")
+    ⚠ 只在这段上下文里替换 `InstructionParser.execute`，退出即还原。
+    """
+    if not kind:
+        yield
+        return
+    from src.services import ai_service
+
+    original = ai_service.InstructionParser.execute
+    calls = {"n": 0}
+
+    def fake(commands: list) -> list:
+        calls["n"] += 1
+        if kind == "no_tool":
+            return ["ERROR 未知操作（故障注入）"] * len(commands)
+        if kind == "lost_result" and calls["n"] == 1:
+            original(commands)                    # **真的执行**：副作用发生了
+            return ["ERROR 响应丢失（故障注入）"] * len(commands)
+        return original(commands)
+
+    ai_service.InstructionParser.execute = staticmethod(fake)
+    try:
+        yield
+    finally:
+        ai_service.InstructionParser.execute = original
+
+
+def _run_turn(svc, dm, settings, model: str, history: list, fault) -> dict:
+    """跑**一轮**（含可选故障注入）→ `{error, elapsed, reply, commands, ledger}`。"""
     worker = AIWorker(svc._make_provider(), model, svc._build_system_prompt(),
-                      [{"role": "user", "content": scenario["prompt"]}], dm, settings)
+                      list(history), dm, settings)
     seen: list[tuple[str, object, object]] = []
     ledger_lines: list[str] = []
     worker.finished.connect(lambda t, s=seen: s.append(("text", t, [])))
@@ -143,22 +196,70 @@ def _run_once(scenario: dict, settings: SettingsManager, k_index: int) -> dict:
     worker.ledger_ready.connect(ledger_lines.append)
 
     started = time.monotonic()
+    out = {"elapsed": 0.0, "reply": "", "commands": [], "ledger": "", "error": ""}
     try:
-        worker.run()
+        with _fault(fault):
+            worker.run()
     except Exception as e:  # noqa: BLE001
-        return {"k": k_index, "error": str(e), "elapsed": time.monotonic() - started}
-    elapsed = time.monotonic() - started
-
+        out["error"] = str(e)
+        return out
+    out["elapsed"] = time.monotonic() - started
     kind, payload, extra = seen[-1] if seen else ("error", "没有任何信号", [])
-    text = "" if kind == "error" else str(payload)
+    if kind == "error":
+        out["error"] = str(payload)
+        return out
+    out["reply"] = str(payload)
+    out["commands"] = list(extra)
+    out["ledger"] = " ".join(ledger_lines)
+    return out
+
+
+def _run_once(scenario: dict, settings: SettingsManager, k_index: int) -> dict:
+    """一个场景跑一次：**全新沙箱** + 真实模型（可多轮）+ 可选故障注入 + 看最终状态。"""
+    import scripts.actions_core as core
+    from scripts.actions import run_in_process
+    from src.services.ai_loop_guards import _claims_done
+
+    sandbox = Path(tempfile.mkdtemp(prefix="ai_eval_"))
+    core.DATA = sandbox
+    dm = DataManager(sandbox)
+    run_in_process(f'set_locations --values "{SEED_LOCATIONS}"')
+    dm.reload_all()          # ⚠ `set_locations` 是**直接写文件**的 → 内存副本会变旧
+    scenario["seed"](dm)
+    dm.inventory.save()
+    dm.daily_logs.save()
+
+    svc = AIService(settings, dm)
+    model = settings.get("AI", "model", "deepseek-v4.1-flash")
+    history: list[dict] = []
+    replies: list[str] = []
+    commands: list = []
+    ledgers: list[str] = []
+    elapsed = 0.0
+    error = ""
+
+    for text in scenario.get("turns") or [scenario["prompt"]]:
+        history.append({"role": "user", "content": text})
+        turn = _run_turn(svc, dm, settings, model, history, scenario.get("fault"))
+        elapsed += turn["elapsed"]
+        commands += turn["commands"]
+        if turn["ledger"]:
+            ledgers.append(turn["ledger"])
+        if turn["error"]:
+            error = turn["error"]
+            break
+        replies.append(turn["reply"])
+        history.append({"role": "assistant", "content": turn["reply"]})
+
     dm.reload_all()      # ⚠ 命令是**直接写文件**的 → 不重载就读的是旧内存副本（实测踩到 ✗）
     results = [check(dm) for _name, check in scenario["goals"]]
-    ledger = " ".join(ledger_lines)
+    text = "\n".join(replies)
+    ledger = " ".join(ledgers)
     return {
         "k": k_index,
-        "error": str(payload) if kind == "error" else "",
+        "error": error,
         "elapsed": round(elapsed, 1),
-        "commands": list(extra),
+        "commands": commands,
         "reply": text,
         "goals": [name for name, _ in scenario["goals"]],
         "satisfied": results,
