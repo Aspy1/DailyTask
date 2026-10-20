@@ -48,5 +48,10 @@ Thumbs.db
 # UI 渲染产物（`scripts/ui_render.py` 的输出，供人工逐页批注用）
 shots-*/
 
+# ⚠ 2026-10-20：`data/` **整个目录**不再进代码仓库（代码仓库已公开）。
+# 数据走独立私有仓库 `DailyTask-OnlyPrivateData`（`data/` 自己是 git 仓库），
+# 由 `git_sync` 自动提交推送；`settings.ini` / `private/` 在那边也被 ignore ✓。
+data/
+
 # AI 评估集跑出来的原始结果（`scripts/ai_eval.py`）—— 机器产物，不入库
 dev-logs/ai-eval-*/
