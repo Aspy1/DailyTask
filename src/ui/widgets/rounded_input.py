@@ -40,10 +40,10 @@ class _RoundedField:
 
 
 class RoundedLineEdit(_RoundedField, QLineEdit):
-    """自绘圆角的单行输入框。"""
+    """自绘圆角的单行输入框（`text` 参数与 `QLineEdit` 一致，类替换即可）。"""
 
-    def __init__(self, parent=None) -> None:
-        super().__init__(parent)
+    def __init__(self, text: str = "", parent=None) -> None:
+        super().__init__(text, parent)
         self.setStyleSheet(input_qss())
 
     def paintEvent(self, event) -> None:

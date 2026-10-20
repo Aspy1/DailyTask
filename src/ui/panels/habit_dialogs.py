@@ -10,7 +10,6 @@ from PySide6.QtWidgets import (
     QDialog,
     QHBoxLayout,
     QLabel,
-    QLineEdit,
     QListWidget,
     QMessageBox,
     QSpinBox,
@@ -52,7 +51,7 @@ class HabitDialog(QDialog):
         layout.setSpacing(12)
         layout.setContentsMargins(24, 20, 24, 16)
 
-        self._name_input = QLineEdit(habit.get("name", "") if habit else "")
+        self._name_input = RoundedLineEdit(habit.get("name", "") if habit else "")
         self._name_input.setPlaceholderText(tr("panel.habit.placeholder_name"))
         layout.addWidget(form_row(tr("panel.habit.label_name"), self._name_input))
 

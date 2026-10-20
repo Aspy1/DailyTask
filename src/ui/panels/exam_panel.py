@@ -8,7 +8,6 @@ from PySide6.QtWidgets import (
     QDialog,
     QHBoxLayout,
     QLabel,
-    QLineEdit,
     QMessageBox,
     QScrollArea,
     QSizePolicy,
@@ -27,6 +26,7 @@ from src.ui.widgets.menu import (
     show_at,
 )
 from src.ui.widgets.rounded_button import RoundedButton
+from src.ui.widgets.rounded_input import RoundedLineEdit
 
 logger = logging.getLogger(__name__)
 
@@ -289,15 +289,15 @@ class ExamDialog(QDialog):
         outer.setContentsMargins(24, 20, 24, 16)
         # 内容可滚动 + 限高（审查 U9）；⚠ 按钮行挂在 `outer` 上，不跟着内容滚
         layout = make_scrollable(outer)
-        self._course = QLineEdit(exam.get("course_name", "") if exam else "")
+        self._course = RoundedLineEdit(exam.get("course_name", "") if exam else "")
         self._course.setPlaceholderText(tr("panel.exam.placeholder_course"))
-        self._date = QLineEdit(exam.get("exam_date", "") if exam else "")
+        self._date = RoundedLineEdit(exam.get("exam_date", "") if exam else "")
         self._date.setPlaceholderText("YYYY-MM-DD")
-        self._scope = QLineEdit(exam.get("scope", "") if exam else "")
+        self._scope = RoundedLineEdit(exam.get("scope", "") if exam else "")
         self._scope.setPlaceholderText(tr("panel.exam.placeholder_scope"))
-        self._location = QLineEdit(exam.get("location", "") if exam else "")
+        self._location = RoundedLineEdit(exam.get("location", "") if exam else "")
         self._location.setPlaceholderText(tr("panel.exam.placeholder_location"))
-        self._notes = QLineEdit(exam.get("notes", "") if exam else "")
+        self._notes = RoundedLineEdit(exam.get("notes", "") if exam else "")
         self._notes.setPlaceholderText(tr("panel.exam.placeholder_notes"))
 
         for label_key, field in (("panel.exam.label_course", self._course),
