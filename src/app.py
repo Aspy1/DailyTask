@@ -1,7 +1,5 @@
 """Application singleton with system tray support and single-instance lock."""
 
-import contextlib
-import ctypes
 import logging
 import sys
 import winreg
@@ -58,6 +56,24 @@ def _get_startup_command() -> str:
     if pythonw.exists():
         return f'"{pythonw}" "{main_py}"'
     return f'"{sys.executable}" "{main_py}"'
+
+
+def _set_windows_app_id() -> None:
+    """Windows：注册 **AppUserModelID**，否则托盘通知的**标题**会显示注册键名/程序路径 ✗。
+
+    用户 2026-10-30 实测到的就是这种：通知里出现一串键名而不是「生活助手」✓。
+    必须在**创建托盘图标之前**调用 ✓（`App.__init__` 里紧跟 `setApplicationName` ✓）。
+    """
+    if sys.platform != "win32":
+        return
+    try:
+        import ctypes
+
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(
+            "LifeAssistant.StudentScheduler")
+    except (AttributeError, OSError):
+        logger.debug("设置 AppUserModelID 失败（只影响通知标题，不影响功能）", exc_info=True)
+        return
 
 
 def set_autostart(enabled: bool) -> None:
@@ -128,11 +144,8 @@ class App(QApplication):
         self.is_secondary = False
 
         self.setApplicationName(tr("app.name"))
+        _set_windows_app_id()          # 托盘通知标题显示「生活助手」而不是注册键名 ✓
         self.setQuitOnLastWindowClosed(False)
-
-        # Windows: 设置 AppUserModelID 让任务栏图标正确（失败不影响运行）
-        with contextlib.suppress(Exception):
-            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("LifeAssistant.StudentScheduler")
 
         app_icon = _make_icon()
         self._icon_normal = app_icon
