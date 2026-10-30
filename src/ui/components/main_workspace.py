@@ -20,6 +20,7 @@ from src.ui.panels.exam_panel import ExamPanel
 from src.ui.panels.expense_panel import ExpensePanel
 from src.ui.panels.habit_panel import HabitPanel
 from src.ui.panels.inventory_panel import InventoryPanel
+from src.ui.panels.routine_panel import RoutinePanel
 from src.ui.panels.settings_panel import SettingsPanel
 from src.ui.panels.task_panel import TaskPanel
 from src.ui.styles.theme import get_colors
@@ -36,12 +37,13 @@ logger = logging.getLogger(__name__)
 # 匹配不上任何面板 → **切学期后作业/考试面板不刷新**；`"saving"` 也匹配不上记账面板。
 # 现在显式登记，`tests/test_data_events.py` 扫全仓 emit 守住它。
 # 未登记的事件 → `_on_data_changed` 保守全刷（不会漏，但浪费一次重绘）。
-ALL_PANELS = frozenset({"task", "expense", "habit", "exam", "inventory"})
+ALL_PANELS = frozenset({"task", "expense", "habit", "routine", "exam", "inventory"})
 EVENT_PANELS: dict[str, frozenset[str]] = {
     # 域名本身（面板直接用自己的域发事件）
     "task": frozenset({"task"}),
     "exam": frozenset({"exam"}),
     "habit": frozenset({"habit"}),
+    "routine": frozenset({"routine"}),
     "expense": frozenset({"expense"}),
     "inventory": frozenset({"inventory"}),
     # 历史事件名（同一个域的不同写法，别让它们掉进"保守全刷"）
@@ -88,6 +90,7 @@ class MainWorkspace(QWidget):
         self._schedule_view = ScheduleView(dm)
         self._task_panel = TaskPanel(dm)
         self._habit_panel = HabitPanel(dm)
+        self._routine_panel = RoutinePanel(dm)
         self._exam_panel = ExamPanel(dm)
         self._expense_panel = ExpensePanel(dm)
 
@@ -98,25 +101,8 @@ class MainWorkspace(QWidget):
 
         self._settings_panel = SettingsPanel(settings, ai_service, plugin_manager, dm)
 
-        # ── Flat stack: index = nav key ────────────────────────
-        self._panel_map: dict[str, int] = {
-            "schedule": 0, "tasks": 1,
-            "exams": 2, "daily": 3, "expenses": 4,
-            "inventory": 5, "meals": 6,
-            "settings": 7,
-        }
-        panels = [
-            self._schedule_view,   # 0: schedule（含 日/周 两页）
-            self._task_panel,      # 1: tasks
-            self._exam_panel,      # 2: exams
-            self._habit_panel,     # 3: daily (habits)
-            self._expense_panel,   # 4: expenses
-            self._inventory_panel, # 5: inventory
-            self._meal_panel,      # 6: meals
-            self._settings_panel,  # 7: settings
-        ]
-        for p in panels:
-            self._stack.addWidget(p)
+        # ── Flat stack: index = nav key（顺序见 `_add_panels()`）──
+        self._panel_map = self._add_panels()
 
         # ── Cross-panel signals ────────────────────────────────
         self._schedule_view.course_panel.on_view_tasks(self._on_view_course_tasks)
@@ -124,6 +110,23 @@ class MainWorkspace(QWidget):
         self._schedule_view.quick_adjust_requested.connect(self._on_quick_adjust)
 
         dm.data_changed.connect(self._on_data_changed)
+
+    def _add_panels(self) -> dict[str, int]:
+        """按**导航键顺序**把面板装进栈，返回 `key → index`（顺序即索引）。"""
+        panels = [
+            ("schedule", self._schedule_view),     # 含 日/周 两页
+            ("tasks", self._task_panel),
+            ("exams", self._exam_panel),
+            ("daily", self._habit_panel),          # 习惯
+            ("routines", self._routine_panel),     # 近期安排（每日固定任务）
+            ("expenses", self._expense_panel),
+            ("inventory", self._inventory_panel),
+            ("meals", self._meal_panel),
+            ("settings", self._settings_panel),
+        ]
+        for _key, panel in panels:
+            self._stack.addWidget(panel)
+        return {key: idx for idx, (key, _panel) in enumerate(panels)}
 
     def _placeholder(self, title: str, desc: str) -> QWidget:
         c = get_colors()
@@ -187,6 +190,7 @@ class MainWorkspace(QWidget):
             (self._task_panel, "task"),
             (self._expense_panel, "expense"),
             (self._habit_panel, "habit"),
+            (self._routine_panel, "routine"),
             (self._exam_panel, "exam"),
             (self._inventory_panel, "inventory"),
         ):
@@ -201,7 +205,7 @@ class MainWorkspace(QWidget):
         for attr in (
             "_task_panel", "_schedule_view",
             "_habit_panel", "_expense_panel", "_inventory_panel",
-            "_meal_panel", "_settings_panel",
+            "_routine_panel", "_meal_panel", "_settings_panel",
         ):
             w = getattr(self, attr, None)
             if w is None:

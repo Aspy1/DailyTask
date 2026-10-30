@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 # 为什么显式列名而不是 `data/*.json`：那个 glob 会连带命中派生文件
 # （weather_cache / weather_stats / search_index），靠 .gitignore 兜住太隐式。
 DATA_FILES = ("daily_logs.json", "expenses.json", "habits.json",
-              "inventory.json", "semesters.json")
+              "inventory.json", "routines.json", "semesters.json")
 # 按学期的文件：整个目录 —— **不只当前学期**，旧学期的 courses/tasks/exams 也要同步
 DATA_DIRS = ("semesters",)
 # **故意不同步**的文件（私有：PII 级）。仍然登记在这里，因为

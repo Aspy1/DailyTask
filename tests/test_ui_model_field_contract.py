@@ -19,6 +19,7 @@ from pathlib import Path
 
 from src.models.exam import EXAM_FIELDS
 from src.models.inventory import ITEM_FIELDS
+from src.models.routine import ROUTINE_FIELDS
 
 UI_DIR = Path(__file__).resolve().parent.parent / "src" / "ui"
 
@@ -26,11 +27,14 @@ UI_DIR = Path(__file__).resolve().parent.parent / "src" / "ui"
 # ⚠ 下标不能一刀切：`update_item(iid, data)` 的 dict 在**第 2 个**实参，
 # 而 `add_item(data)` 在**第 1 个** —— 旧版统一要求"至少两个实参"，
 # 于是所有 `add_item(...)` 调用**从未被检查过**（2026-10-19 审查 R10 点出的盲区）。
+# ⚠ `update_item` 这个名字只在物品模型里有；「近期安排」用的是 `update_routine`
+# （模型方法名不同才不会被当成物品的字段清单 —— 2026-10-30 A3）。
 CHECKED = {
     "update_item": (1, ITEM_FIELDS),
     "add_item": (0, ITEM_FIELDS),
     "update_exam": (1, EXAM_FIELDS),
     "add_exam": (0, EXAM_FIELDS),
+    "update_routine": (1, ROUTINE_FIELDS),
 }
 
 

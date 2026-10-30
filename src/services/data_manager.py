@@ -3,7 +3,7 @@
 **数据布局**（按学期分文件，见 `models/semester_paths.py`）：
 
 - 按学期：`semesters/<当前学期>/{courses,tasks,exams}.json`
-- 跨学期共享：`habits.json` / `expenses.json` / `daily_logs.json` / `inventory.json`
+- 跨学期共享：`habits.json` / `routines.json`（近期安排）/ `expenses.json` / `daily_logs.json` / `inventory.json`
 - 学期注册表：`semesters.json`（列表 + 当前学期）
 
 `switch_semester()` 会把按学期的三个模型**重定向**到新学期的文件并重新加载 ——
@@ -26,6 +26,7 @@ from src.models.expense import ExpenseModel
 from src.models.habit import HabitModel
 from src.models.inventory import InventoryModel
 from src.models.membership_contacts import MembershipContactsModel
+from src.models.routine import RoutineModel
 from src.models.semester import (
     DEFAULT_EXAM_WEEKS,
     DEFAULT_PERIOD_COUNT,
@@ -81,6 +82,7 @@ class DataManager(QObject):
 
         # ── 跨学期共享的模型 ──────────────────────────────────
         self.habits = HabitModel(data_dir / "habits.json")
+        self.routines = RoutineModel(data_dir / "routines.json")
         self.expenses = ExpenseModel(data_dir / "expenses.json")
         self.daily_logs = DailyLogModel(data_dir / "daily_logs.json")
         self.inventory = InventoryModel(data_dir / "inventory.json")
@@ -142,7 +144,8 @@ class DataManager(QObject):
     def _models(self) -> list[tuple[object, str]]:
         return [
             (self.courses, "courses"), (self.tasks, "tasks"),
-            (self.habits, "habits"), (self.expenses, "expenses"),
+            (self.habits, "habits"), (self.routines, "routines"),
+            (self.expenses, "expenses"),
             (self.daily_logs, "daily_logs"), (self.exams, "exams"),
             (self.inventory, "inventory"), (self.semesters, "semesters"),
             (self.membership_contacts, "membership_contacts"),

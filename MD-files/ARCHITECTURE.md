@@ -190,7 +190,7 @@ data/
 │   ├── courses.json                   该学期课程表（含 holidays）
 │   ├── tasks.json                     该学期作业
 │   └── exams.json                     该学期考试
-├── habits.json / expenses.json / inventory.json / daily_logs.json    跨学期共享
+├── habits.json / routines.json / expenses.json / inventory.json / daily_logs.json    跨学期共享
 ├── private/memberships.json           会员手机号（**私有**：不进仓库、不进 AI 提示词）
 └── search_index.json / weather_*.json / scenes_meta.json             派生或遗留
 ```
@@ -211,6 +211,7 @@ data/
 | `semesters/<id>/exams.json` | 1 | `exams[]` | exam: `id,course_name,exam_date,scope,location,notes,tags[],created_at,updated_at` |
 | `habits.json` | 2 | `habits[]` `attached_task_templates[]` `logs{date:{hid:{completed,completed_at,note}}}` | habit: `id,name,schedule{type(daily/weekly/monthly/interval),days[],value,times_per_day,start_date},duration_minutes,reminder_time,streak,longest_streak,postpone_until,canceled_on[]` |
 | `expenses.json` | 1 | `categories[{id,name}]` `budget{monthly,by_category}` `records[]` | record: `id,amount,date,category,note,created_at` |
+| `routines.json` | 1 | `items[]` `logs{date:{rid:"done"/"skipped"}}` | routine: `id,title,note,order,created_at` —— **「近期安排」**（2026-10-30 A3）：不是习惯、没有连续天数，三态按天存（空/✔/✗），`order` 就是拖动后的顺序 |
 | `daily_logs.json` | 4 | `logs{}` `plans{date:[...]}` `savings{date:[...]}` `reminders[]` | plan: `title,time_slot(1-6),type(custom/course_note),note,course_name,created_at`；**`category(study/life)`**（日程顶部的学习/生活筛选，视图状态 + 用户可改）、**`done`/`completed_at`**（2026-10-18 加）；reminder: `id,item_type,item_name,item_date,notify_time` |
 | `inventory.json` | 1 | `items[]` `categories[]` `locations[]` | item: `id,name,category,group,quantity,unit,status(充足/不足/需购),min_quantity,min_doses,doses_per_unit,location,notes,tags[],instances[],ignore_low_stock`；**到期类**：`membership{username,expires_on,auto_renew,renew_months}`、`runs_out_on`+`remind_before_days`（预计用完）、`expires_on`+`remind_before_days`（保质期）、**`stock_target`**（常备量，剩 1/4 提醒）；**衣物**：`worn_since`+`wash_after_days`+`needs_wash`（见 §11） |
 > **位置就是归属**（2026-10-18）：换季把部分衣物**寄回家**、来年寄回，所以"在哪一边"要能表达 ——

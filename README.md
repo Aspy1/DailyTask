@@ -50,6 +50,7 @@ python -m venv .venv
 │   │   ├── course.py               #   课程 · 学期 · 假期
 │   │   ├── task.py                 #   作业 · DDL
 │   │   ├── habit.py                #   日常 · 周期 · 打卡
+│   │   ├── routine.py              #   近期安排 · 三态（空/✔/✗）· 按天
 │   │   ├── expense.py              #   支出 · 预算 · 余额
 │   │   ├── exam.py                 #   考试 · 日期 · 范围
 │   │   ├── daily_log.py            #   日程计划 · 储蓄 · 自定义提醒
@@ -80,6 +81,8 @@ python -m venv .venv
 │       │   ├── task_panel.py       #     作业 (多选筛选 + 分页)
 │       │   ├── exam_panel.py       #     考试
 │       │   ├── habit_panel.py      #     日常 (卡片网格)
+│       │   ├── routine_panel.py    #     近期安排 (可拖动排序 + 三态框)
+│       │   ├── routine_dialog.py   #     近期安排 新增/编辑弹窗
 │       │   ├── expense_panel.py    #     记账 (6 分类)
 │       │   ├── inventory_panel.py  #     有什么 (分类筛选 + 标签编辑)
 │       │   ├── settings_panel.py   #     设置

@@ -14,6 +14,23 @@ from src.i18n.loader import tr
 from src.ui.styles.theme import SIZE_BODY_M, font, get_colors
 from src.ui.widgets.rounded_button import RoundedButton
 
+# 导航分组：`(分组 id, 分组标题键, [(导航键, 文案键), …])` —— 顺序即界面顺序。
+# 加一项只改这里；`tests/test_ui_wiring.py` 会检查每个键都能切到对应面板。
+_SECTION_ITEMS = (
+    ("func", "sidebar.section.func", (
+        ("schedule", "sidebar.nav.schedule"),
+        ("tasks", "sidebar.nav.tasks"),
+        ("exams", "sidebar.nav.exams"),
+    )),
+    ("life", "sidebar.section.life", (
+        ("daily", "sidebar.nav.daily"),
+        ("routines", "sidebar.nav.routines"),
+        ("expenses", "sidebar.nav.expenses"),
+        ("inventory", "sidebar.nav.inventory"),
+        ("meals", "sidebar.nav.meals"),
+    )),
+)
+
 
 class SectionHeader(QPushButton):
     """Clickable group header. No arrow — just bold text."""
@@ -168,23 +185,8 @@ class Sidebar(QWidget):
         self._title.setFont(font(SIZE_BODY_M, QFont.Weight.Bold))
         layout.addWidget(self._title)
 
-        func_section = SidebarSection("func", tr("sidebar.section.func"), [
-            ("schedule", tr("sidebar.nav.schedule")),
-            ("tasks", tr("sidebar.nav.tasks")), ("exams", tr("sidebar.nav.exams"))])
-        life_section = SidebarSection("life", tr("sidebar.section.life"), [
-            ("daily", tr("sidebar.nav.daily")), ("expenses", tr("sidebar.nav.expenses")),
-            ("inventory", tr("sidebar.nav.inventory")), ("meals", tr("sidebar.nav.meals"))])
-        self._sections["func"] = func_section
-        self._sections["life"] = life_section
-        layout.addWidget(func_section)
-        layout.addWidget(life_section)
-
-        for sec in self._sections.values():
-            for nav in sec.nav_items().values():
-                nav.clicked_with_key.connect(self._on_nav_clicked)
-                self._nav_items[nav.nav_key] = nav
-
-        func_section.set_expanded(True)
+        self._build_sections(layout)
+        self._sections["func"].set_expanded(True)
         self.set_active("schedule")
 
         spacer = QWidget()
@@ -211,6 +213,18 @@ class Sidebar(QWidget):
         layout.addWidget(self._ai_btn)
 
         self.refresh_theme()
+
+    def _build_sections(self, layout: QVBoxLayout) -> None:
+        """建"功能 / 生活"两组导航（内容见 `_SECTION_ITEMS`），并接线。"""
+        for section_id, header_key, items in _SECTION_ITEMS:
+            section = SidebarSection(
+                section_id, tr(header_key),
+                [(key, tr(label_key)) for key, label_key in items])
+            self._sections[section_id] = section
+            layout.addWidget(section)
+            for nav in section.nav_items().values():
+                nav.clicked_with_key.connect(self._on_nav_clicked)
+                self._nav_items[nav.nav_key] = nav
 
     def nav_item(self, key: str) -> NavItem | None:
         """按导航键取条目（用于把菜单锚在对应按钮下方）。"""

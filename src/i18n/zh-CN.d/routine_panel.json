@@ -1,0 +1,21 @@
+{
+  "panel.routine.title": "近期安排",
+  "panel.routine.btn_add": "+ 新增",
+  "panel.routine.count": "今天 {done}/{total} 完成（跳过 {skipped}）",
+  "panel.routine.empty": "还没有近期安排。比如备考期间：「每天背单词 50 个」。做完这件事就删掉它 —— 这不是习惯，不用管连续天数。",
+
+  "panel.routine.drag_hint": "按住上下拖动可排序",
+  "panel.routine.box_hint": "点一下：完成；再点：没做成；再点：清空",
+  "panel.routine.menu_edit": "编辑",
+  "panel.routine.menu_delete": "删除",
+
+  "panel.routine.dialog_title_add": "新增近期安排",
+  "panel.routine.dialog_title_edit": "编辑近期安排",
+  "panel.routine.label_title": "做什么:",
+  "panel.routine.label_note": "备注:",
+  "panel.routine.placeholder_title": "如：背单词",
+  "panel.routine.placeholder_note": "如：六级词汇 50 个（可选）",
+
+  "panel.routine.delete_title": "删除这条安排",
+  "panel.routine.delete_body": "删除后这条每天的任务就不再出现（按天的记录也会一起不管了）。确定删除？"
+}
