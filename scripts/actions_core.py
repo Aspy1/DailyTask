@@ -275,13 +275,13 @@ def _parse_relative_date(s: str, today: date, day_names: dict) -> str | None:
 
 
 def _parse_month_day(s: str, today: date) -> str:
-    """月日形式（6月20日 / 6.20 / 6/20）→ ISO；不匹配则原样返回。"""
+    """月日形式（6月20日 / 6.20 / 6/20）→ ISO，取**下一次**出现（只比月份会留在今年 ✗）。"""
     for pattern in (r'(\d{1,2})月(\d{1,2})[日号]?', r'(\d{1,2})[./-](\d{1,2})'):
         m = re.match(pattern, s)
         if m:
             month, day = int(m.group(1)), int(m.group(2))
             year = today.year
-            if month < today.month:
+            if (month, day) < (today.month, today.day):
                 year += 1
             return f"{year}-{month:02d}-{day:02d}"
     return s
