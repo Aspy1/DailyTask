@@ -10,6 +10,7 @@
 import time
 from pathlib import Path
 
+from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QLabel, QWidget
 
 from src.ui import animations
@@ -55,6 +56,11 @@ def test_fade_in_reaches_full_opacity_then_drops_effect(qapp) -> None:
     assert id(widget) in animations._RUNNING      # 保引用
 
     _settle()
+    # ⚠ 动画结束回调偶发晚到（CI 负载高时）→ 最多再等 1s，别让测试抖 ✗
+    for _ in range(20):
+        if widget.graphicsEffect() is None:
+            break
+        QTest.qWait(50)
     assert widget.graphicsEffect() is None        # 效果已摘掉
 
     after = widget.grab().toImage()
