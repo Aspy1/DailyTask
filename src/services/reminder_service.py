@@ -33,6 +33,7 @@ from src.services.reminder_rules import (
     balance_alerts,
     ddl_email_body,
     ddl_email_due,
+    ddl_notify_cooldown_due,
     ddl_reminder_body,
     ddl_reminder_due,
     expired_custom_reminder_ids,
@@ -67,6 +68,27 @@ def _add_exam_item(items: dict[str, dict], name: str, date_str: str) -> None:
     items.setdefault(key, {"key": key, "name": name, "date": day})
 
 
+def _ddl_reminder_notify(svc) -> None:
+    """作业截止前 3 天的提醒（放模块级：`ReminderService` 正好卡在类的尺寸上限）。
+
+    用户 2026-10-30：原实现**忘了把已提醒的任务写进集合** ✗ → 每分钟一条通知 + 一封邮件 ✗✗。
+    现在：同一任务**30 分钟**才再通知一次；**邮件每天一封** ✓。
+    """
+    now = datetime.now()
+    matched = ddl_reminder_due(svc._dm.tasks.pending, schedule_date(), set())
+    fresh = ddl_notify_cooldown_due(matched, svc._ddl_last_notified, now)
+    if not fresh:
+        return
+    for _task, _days, key in fresh:
+        svc._ddl_last_notified[key] = now
+    today = schedule_date().isoformat()
+    email_due = any(f"{key}@{today}" not in svc._ddl_mailed for _t, _d, key in fresh)
+    for _task, _days, key in fresh:
+        svc._ddl_mailed.add(f"{key}@{today}")
+    svc._notify("作业截止提醒", ddl_reminder_body([(t, d) for t, d, _k in fresh]),
+                email=email_due, subject=f"作业截止提醒（{DDL_REMIND_DAYS} 天内）")
+
+
 class ReminderService(QObject):
     reminder_notify = Signal(str, str)   # tray notification
     ddl_alert = Signal(int)             # urgent DDL count for red dot + flash
@@ -82,7 +104,9 @@ class ReminderService(QObject):
         self._notified_today: set[str] = set()
         self._notified_date = ""
         self._ddl_emailed: set[str] = set()       # DDL IDs already emailed (6h window)
-        self._ddl_reminded: set[str] = set()      # 3 天提醒已发：task@due
+        self._ddl_reminded: set[str] = set()      # 3 天提醒已发：task@due（保留给旧调用）
+        self._ddl_last_notified: dict[str, datetime] = {}   # 3 天提醒的**通知冷却**（task@due → 上次）
+        self._ddl_mailed: set[str] = set()                  # 3 天提醒的**邮件**去重（task@due@今天）
         self._attendance_sent: set[str] = set()   # 点名提醒已发：course@date@start
         self._exam_emailed: dict[str, set[int]] = {}  # exam_id -> {days thresholds already sent}
         self._balance_notified_today = False
@@ -322,13 +346,8 @@ class ReminderService(QObject):
     # ── DDL 3-day reminder ────────────────────────────────
 
     def _check_ddl_reminder(self) -> None:
-        """作业截止前 3 天提醒（邮件 + 托盘，一次一封）。规则见 `reminder_rules`。"""
-        matched = ddl_reminder_due(self._dm.tasks.pending, schedule_date(),
-                                   self._ddl_reminded)
-        if not matched:
-            return
-        self._notify("作业截止提醒", ddl_reminder_body(matched), email=True,
-                     subject=f"作业截止提醒（{DDL_REMIND_DAYS} 天内）")
+        """作业截止前 3 天：通知 30 分钟一次、邮件每天一次（用户 2026-10-30 口径）。"""
+        _ddl_reminder_notify(self)
 
     # ── DDL red dot ───────────────────────────────────────
 

@@ -13,6 +13,7 @@ from datetime import date, datetime, timedelta
 from src.models.course import ATTENDANCE_LEAD_MINUTES, PERIOD_TIMES
 
 DDL_REMIND_DAYS = 3          # 作业截止前多少天提醒
+DDL_NOTIFY_COOLDOWN_MINUTES = 30   # 同一任务的**通知**冷却（用户 2026-10-30：原来每分钟一条 ✗）
 DDL_EMAIL_HOURS = 6          # 距截止多少小时内发紧急邮件
 
 
@@ -92,6 +93,23 @@ def ddl_reminder_due(pending: list[dict], today: date,
         key = f"{t.get('id', '')}@{due_str}"
         if 0 <= days_left <= DDL_REMIND_DAYS and key not in sent:
             out.append((t, days_left))
+    return out
+
+
+def ddl_notify_cooldown_due(matched: list[tuple[dict, int]], last_notified: dict,
+                            now: datetime,
+                            cooldown_minutes: int = DDL_NOTIFY_COOLDOWN_MINUTES
+                            ) -> list[tuple[dict, int, str]]:
+    """同一任务**冷却期内不重复通知** → 返回 `(task, 剩余天数, 去重键)` 列表。**纯函数**。
+
+    用户 2026-10-30：原来每分钟都提醒 ✗ → 通知 30 分钟一次、邮件另按"每天一次"由服务层管 ✓。
+    """
+    out: list[tuple[dict, int, str]] = []
+    for task, days_left in matched:
+        key = f"{task.get('id', '')}@{str(task.get('due_date') or '')[:10]}"
+        last = last_notified.get(key)
+        if last is None or (now - last) >= timedelta(minutes=cooldown_minutes):
+            out.append((task, days_left, key))
     return out
 
 
