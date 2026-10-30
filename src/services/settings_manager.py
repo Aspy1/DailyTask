@@ -10,7 +10,7 @@ DEFAULT_SETTINGS = {
     "General": {
         "language": "zh-CN",
         "theme": "light",
-        "auto_start": "false",
+        "auto_start": "true",
         "minimize_to_tray": "true",
         "reminder_enabled": "true",
         "reminder_check_interval_minutes": "1",
