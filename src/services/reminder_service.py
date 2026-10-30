@@ -37,6 +37,7 @@ from src.services.reminder_rules import (
     ddl_reminder_body,
     ddl_reminder_due,
     expired_custom_reminder_ids,
+    meal_slot_due,
     parse_hhmm,
     pending_custom_reminders,
     restock_body,
@@ -89,6 +90,16 @@ def _ddl_reminder_notify(svc) -> None:
                 email=email_due, subject=f"作业截止提醒（{DDL_REMIND_DAYS} 天内）")
 
 
+def _meal_reminder_notify(svc, now: datetime) -> None:
+    """午饭 / 晚饭到点各提醒**一次**（用户 2026-10-30 A2：11:40 / 16:40）。
+
+    规则在 `reminder_rules.meal_slot_due()`（纯函数）；这里只发、并记"今天这顿已提醒"。
+    """
+    for key, label in meal_slot_due(now, svc._meal_sent):
+        svc._meal_sent.add(key)
+        svc._notify(label, f"{label}时间到了 🍚 去吃点东西吧")
+
+
 class ReminderService(QObject):
     reminder_notify = Signal(str, str)   # tray notification
     ddl_alert = Signal(int)             # urgent DDL count for red dot + flash
@@ -112,6 +123,7 @@ class ReminderService(QObject):
         self._balance_notified_today = False
         self._custom_reminded: set[str] = set()   # custom reminder IDs already sent
         self._water_last: datetime | None = None  # 上次喝水/起身提醒（C 类第 8 项）
+        self._meal_sent: set[str] = set()         # 吃饭提醒已发：slot@日期（用户 2026-10-30）
 
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._check)
@@ -183,6 +195,7 @@ class ReminderService(QObject):
         # ── Habits: tray notification only ────────────────
         self._check_habits(now_str, early_str, now_minutes)
         self._check_water(now)     # 喝水 / 起身（C 类第 8 项）：复用这个 tick，不另开定时器
+        _meal_reminder_notify(self, now)     # 午饭 / 晚饭（11:40 / 16:40，A2）
 
         self._check_attendance(now)
 
@@ -258,6 +271,7 @@ class ReminderService(QObject):
         today_str = now.strftime("%Y-%m-%d")
         if today_str != self._notified_date:
             self._notified_today.clear()
+            self._meal_sent.clear()      # 新的日期前缀本来就不会命中，这里顺手防无限增长
             self._notified_date = today_str
 
     # ── Habit tray (no email by default) ──────────────────

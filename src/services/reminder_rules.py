@@ -16,6 +16,12 @@ DDL_REMIND_DAYS = 3          # 作业截止前多少天提醒
 DDL_NOTIFY_COOLDOWN_MINUTES = 30   # 同一任务的**通知**冷却（用户 2026-10-30：原来每分钟一条 ✗）
 DDL_EMAIL_HOURS = 6          # 距截止多少小时内发紧急邮件
 
+# ── 吃饭提醒（用户 2026-10-30：每天 11:40 / 16:40 一次）──────────
+# `(时, 分, slot, 名称)`；slot 只用来做"今天这一顿提醒过没有"的幂等键。
+MEAL_TIMES = ((11, 40, "lunch", "午饭"), (16, 40, "dinner", "晚饭"))
+# 整点后多久还算"该吃饭了"：应用此刻才开也不至于完全错过；超过就别再打扰 ✗
+MEAL_WINDOW_MINUTES = 90
+
 
 # ── 点名提醒（会点名的课）────────────────────────────────────
 
@@ -281,3 +287,24 @@ def expired_custom_reminder_ids(reminders: list[dict], now: datetime,
         notify_time = r.get("notify_time", "")
         if rid not in to_delete and notify_time and notify_time < cutoff:
             to_delete.append(rid)
+
+
+# ── 吃饭提醒（纯函数）────────────────────────────────────────
+
+def meal_slot_due(now: datetime, sent: set[str]) -> list[tuple[str, str]]:
+    """到点（11:40 / 16:40）且**今天这一顿还没提醒过** → `[(幂等键, 名称)]`。
+
+    窗口：整点后 `MEAL_WINDOW_MINUTES` 分钟内算数（应用那时刚开也来得及），
+    超过就当错过，**不补发** ✗ —— 下午三点提醒"该吃午饭"只会招烦。
+    """
+    today = now.date().isoformat()
+    out: list[tuple[str, str]] = []
+    for hour, minute, slot, label in MEAL_TIMES:
+        key = f"{slot}@{today}"
+        if key in sent:
+            continue
+        due = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+        late_min = (now - due).total_seconds() / 60
+        if 0 <= late_min <= MEAL_WINDOW_MINUTES:
+            out.append((key, label))
+    return out

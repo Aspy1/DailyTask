@@ -13,7 +13,7 @@
 
 import logging
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 
 from src.services.weather_store import read_json_safe
@@ -27,11 +27,16 @@ HOT_C, COLD_C = 35, 0
 
 @dataclass(frozen=True)
 class Hint:
-    """一条提示。`key` 是**幂等键**（同一条今天只提示一次）。"""
+    """一条提示。`key` 是**幂等键**（同一条今天只提示一次）。
+
+    `blink=True` → 这条会**低频闪烁**（吃饭提醒用：用户 2026-10-30 的口径是
+    "和那三条可点掉的提示一样，只是低频闪烁"，不是托盘闪、也不是新控件）。
+    """
 
     key: str
     text: str
     level: str = "info"          # info / warn
+    blink: bool = False
 
 
 def is_rain(code: int) -> bool:
@@ -130,17 +135,31 @@ def budget_hints(data_dir: Path, items: list) -> list[Hint]:
                  "warn")]
 
 
-def today_hints(data_dir: Path) -> list[Hint]:
-    """今天该提示的东西：天气 + 该洗的衣物 + 预算超支 + 出门提醒（继续加规则）。"""
-    now, forecast_data = load_weather(data_dir)
+def today_hints(data_dir: Path, now: datetime | None = None) -> list[Hint]:
+    """今天该提示的东西：天气 + 该洗的衣物 + 预算超支 + 出门提醒 + 吃饭（继续加规则）。"""
+    now = now or datetime.now()
+    now_weather, forecast_data = load_weather(data_dir)
     inventory = read_json_safe(Path(data_dir) / "inventory.json")
     items = inventory.get("items") or []
     logs = read_json_safe(Path(data_dir) / "daily_logs.json")
     today = date.today().isoformat()
     plans = (logs.get("plans") or {}).get(today) or []
-    return (weather_hints(now, forecast_data) + wash_hints(items)
+    return (weather_hints(now_weather, forecast_data) + wash_hints(items)
             + budget_hints(data_dir, items)
-            + outing_hints(plans, _courses_today(data_dir, date.today())))
+            + outing_hints(plans, _courses_today(data_dir, date.today()))
+            + meal_hints(now))
+
+
+def meal_hints(now: datetime) -> list[Hint]:
+    """11:40 / 16:40 到点 → 一条**会闪**的提示（用户 2026-10-30 A2）。
+
+    窗口与托盘通知**同一个口径**（`reminder_rules.meal_slot_due`）—— 通知弹出的同时
+    首页那条开始低频闪烁，用户能对上号；点一下就消失（视图状态，不写数据）。
+    """
+    from src.services.reminder_rules import meal_slot_due
+
+    return [Hint(key, f"{label}时间到了 🍚", "info", blink=True)
+            for key, label in meal_slot_due(now, set())]
 
 
 def _courses_today(data_dir: Path, today: date) -> list:

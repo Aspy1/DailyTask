@@ -9,13 +9,18 @@
 
 from datetime import date
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import QWidget
 
 from src.services.hints import Hint, today_hints
-from src.ui.styles.theme import get_colors
+from src.ui.styles.theme import SIZE_BODY_S, get_colors
 from src.ui.widgets.flow_grid import FlowGrid
 from src.ui.widgets.rounded_button import RoundedButton
+
+# 低频闪烁：2 秒一次（托盘告警是 800ms，这里故意更慢 —— 用户 2026-10-30 的口径）
+BLINK_INTERVAL_MS = 2000
+# 吃饭提示只在整点后 90 分钟内出现 → 每分钟重算一次，不用等数据变化
+REFRESH_INTERVAL_MS = 60_000
 
 
 class HintBar(FlowGrid):
@@ -28,6 +33,16 @@ class HintBar(FlowGrid):
         self._dismissed: set[str] = set()
         self._dismissed_on = ""          # "已点掉"属于**哪一天**（跨天自动失效）
         self._hints: list[Hint] = []
+        self._blink_chips: list[tuple[RoundedButton, str]] = []
+        self._blink_on = False
+        self._blink_timer = QTimer(self)
+        self._blink_timer.setInterval(BLINK_INTERVAL_MS)
+        self._blink_timer.timeout.connect(self._blink_tick)
+        self._refresh_timer = QTimer(self)
+        self._refresh_timer.setInterval(REFRESH_INTERVAL_MS)
+        self._refresh_timer.timeout.connect(self.refresh)
+        if self._data_dir is not None:
+            self._refresh_timer.start()
 
     def refresh(self) -> None:
         """重新算一遍今天的提示并重画（换主题 / 数据变化都走这里）。"""
@@ -45,8 +60,15 @@ class HintBar(FlowGrid):
         else:
             bg, fg, hover = c["bg_elevated"], c["fg_secondary"], c["btn_secondary_hover"]
         return (f"QPushButton {{ background-color: {bg}; color: {fg}; border: none;"
-                f" border-radius: 8px; padding: 4px 10px; font-size: 13px; }}"
+                f" border-radius: 8px; padding: 4px 10px; font-size: {SIZE_BODY_S}px; }}"
                 f" QPushButton:hover {{ background-color: {hover}; }}")
+
+    @staticmethod
+    def _blink_qss(c: dict) -> str:
+        """闪烁的"亮"半周：换成强调色底，和普通提示区分开。"""
+        return (f"QPushButton {{ background-color: {c['accent_bg']};"
+                f" color: {c['accent_text']}; border: 1px solid {c['accent']};"
+                f" border-radius: 8px; padding: 4px 10px; font-size: {SIZE_BODY_S}px; }}")
 
     @staticmethod
     def _wrap_text(text: str) -> str:
@@ -79,6 +101,7 @@ class HintBar(FlowGrid):
                 child.deleteLater()
         c = get_colors()
         shown = 0
+        self._blink_chips = []
         for hint in self._hints:
             if hint.key in self._dismissed:
                 continue
@@ -88,10 +111,29 @@ class HintBar(FlowGrid):
             chip.setStyleSheet(self._chip_qss(hint.level, c))
             chip.clicked.connect(lambda _checked=False, k=hint.key: self._dismiss(k))
             chip.show()
+            if hint.blink:
+                self._blink_chips.append((chip, hint.level))
             shown += 1
+        self._toggle_blink(bool(self._blink_chips))
         self._layout_children()
         self.update()
         self.setVisible(bool(shown))
+
+    def _toggle_blink(self, active: bool) -> None:
+        """有会闪的提示才开定时器；没有就停掉（省电、也免打扰）。"""
+        if active:
+            self._blink_timer.start()
+            return
+        self._blink_timer.stop()
+        self._blink_on = False
+
+    def _blink_tick(self) -> None:
+        """低频闪烁：在"普通配色"和"强调配色"之间来回切（只动样式表，不动几何）。"""
+        c = get_colors()
+        self._blink_on = not self._blink_on
+        for chip, level in self._blink_chips:
+            chip.setStyleSheet(self._blink_qss(c) if self._blink_on
+                               else self._chip_qss(level, c))
 
     def _dismiss(self, key: str) -> None:
         self._dismissed.add(key)
