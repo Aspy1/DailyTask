@@ -5,8 +5,12 @@
 """
 
 import json
+from datetime import datetime
 
 from src.services.hints import Hint, is_rain, load_weather, today_hints, weather_hints
+
+# 固定一个**不在吃饭窗口**的时刻（否则"空目录也该是空列表"那条会随跑测试的时间变红 ✗）
+MORNING = datetime(2026, 10, 30, 9, 0)
 
 
 def test_rain_codes_give_an_umbrella_hint() -> None:
@@ -41,5 +45,5 @@ def test_today_hints_reads_the_cache(tmp_path) -> None:
     (tmp_path / "weather_cache.json").write_text(
         json.dumps({"now": {"weathercode": 61, "temp": 12}}), encoding="utf-8")
     assert load_weather(tmp_path)[0]["temp"] == 12
-    assert any("带伞" in h.text for h in today_hints(tmp_path))
-    assert today_hints(tmp_path / "空目录") == [], "读不到缓存就不提示（不报错）"
+    assert any("带伞" in h.text for h in today_hints(tmp_path, now=MORNING))
+    assert today_hints(tmp_path / "空目录", now=MORNING) == [], "读不到缓存就不提示（不报错）"
