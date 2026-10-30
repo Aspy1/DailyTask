@@ -45,6 +45,8 @@ ALLOWED_OPTIONS: dict[str, set[str]] = {
     "add_saving": {"amount", "note", "date"},
     "delete_expense": {"id"},
     "expense_summary": {"month"},
+    "finance_set": {"balance", "monthly_income", "fixed_expenses"},
+    "finance_summary": set(),
     "list_backups": {"name"},
     "restore": {"name", "stamp", "yes"},
 }
@@ -170,6 +172,9 @@ SPECS: dict[str, dict] = {
     },
     "delete_expense": {"required": ("id",), "id": ("id",)},
     "expense_summary": {"month": ("month",)},
+    # 收入 / 固定支出（A4）：都是可缺省的金额；一个都没给时由 handler 报错
+    "finance_set": {"balance": ("money_opt",), "monthly_income": ("money_opt",),
+                    "fixed_expenses": ("money_opt",)},
     "list_backups": {"name": ("text", MAX_TEXT)},
     "restore": {"required": ("name",), "name": ("text", MAX_TEXT),
                 "stamp": ("text", MAX_TEXT)},

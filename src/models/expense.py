@@ -20,7 +20,13 @@ DEFAULT_EXPENSES = {
     ],
     "budget": {"monthly": 1500, "by_category": {}},
     "records": [],
+    # 用户设的**初始值**（A4）：总余额 / 月收入 / 固定支出。只存用户给的数，
+    # "预计本月支出"等**算出来的**东西一律现算（`services/finance.py`），不落盘。
+    "finance": {},
 }
+
+# 用户可写的初始值字段（`set_finance` 的白名单）
+FINANCE_FIELDS = ("balance", "monthly_income", "fixed_expenses")
 
 
 class ExpenseModel(BaseJsonModel):
@@ -49,6 +55,18 @@ class ExpenseModel(BaseJsonModel):
     @property
     def budget(self) -> dict:
         return self._data.get("budget", {"monthly": 0, "by_category": {}})
+
+    @property
+    def finance(self) -> dict:
+        """用户设的初始值（总余额 / 月收入 / 固定支出）；没设过 → 空 dict。"""
+        return self._data.setdefault("finance", {})
+
+    def set_finance(self, changes: dict) -> None:
+        """只写**用户给的**那几项（白名单），别的键一律忽略。"""
+        target = self.finance
+        for key in FINANCE_FIELDS:
+            if key in changes and changes[key] is not None:
+                target[key] = changes[key]
 
     def add(self, expense: dict) -> str:
         records = self._data.setdefault("records", [])

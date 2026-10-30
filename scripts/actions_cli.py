@@ -85,6 +85,16 @@ def _add_routine_parsers(sub) -> None:
     p.add_argument("--index", type=int, required=True)
 
 
+def _add_finance_parsers(sub) -> None:
+    """收入 / 固定支出 / 预计支出（A4）：只设初始值，预计支出由代码算。"""
+    p = sub.add_parser("finance_set", help="设置总余额 / 月收入 / 固定支出")
+    p.add_argument("--balance", help="现在总余额（元）")
+    p.add_argument("--monthly-income", dest="monthly_income", help="每月收入（元）")
+    p.add_argument("--fixed-expenses", dest="fixed_expenses", help="每月固定支出（元）")
+
+    sub.add_parser("finance_summary", help="本月汇总：已花 / 预计 / 收入 / 结余 / 余额")
+
+
 def _add_item_parsers(sub) -> None:
     """有什么（库存物品）。"""
     p = sub.add_parser("add_item", help="添加物品")

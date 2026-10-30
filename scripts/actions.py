@@ -31,9 +31,14 @@ if __package__ in (None, ""):
 from scripts.actions_cli import (
     _add_backup_parsers,
     _add_expense_parsers,
+    _add_finance_parsers,
     _add_item_parsers,
     _add_routine_parsers,
     _add_task_parsers,
+)
+from scripts.actions_cmds_finance import (
+    cmd_finance_set,
+    cmd_finance_summary,
 )
 from scripts.actions_cmds_items import (
     cmd_add_item,
@@ -700,6 +705,7 @@ HANDLERS = {
     "status": cmd_status,
     "add_expense": cmd_add_expense, "add_saving": cmd_add_saving,
     "delete_expense": cmd_delete_expense, "expense_summary": cmd_expense_summary,
+    "finance_set": cmd_finance_set, "finance_summary": cmd_finance_summary,
     "list_backups": cmd_list_backups, "restore": cmd_restore,
 }
 
@@ -720,6 +726,7 @@ def build_parser() -> argparse.ArgumentParser:
     _add_routine_parsers(sub)
     _add_item_parsers(sub)
     _add_expense_parsers(sub)
+    _add_finance_parsers(sub)
     _add_backup_parsers(sub)
     return parser
 

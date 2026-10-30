@@ -169,16 +169,19 @@ ui ──→ services ──→ models ──→ base(BaseJsonModel)
    提示会**低频闪烁**，见 `services/hints.py` 的 `meal_hints()`）、**月付 / 分期到期**
    （`models/billing.due_today()`：每月 `due_day` 号扣一次，**补扣**同月一次；
    服务层自动记一笔支出 + 邮件，期数扣完自动停用 —— 用户 2026-10-31 口径）。
-8. **课程时段规则单一**：`models/course_rules.py`（`is_active_week` / `slots_of` /
+9. **课程时段规则单一**：`models/course_rules.py`（`is_active_week` / `slots_of` /
    `conflicts_by_cell`）。`time_slots` 的 `end` 是**闭区间**；**同一时段允许两门课**，
    冲突要检出并提示请假（见 `ERRORS #038`）。
-9. **按学期分文件**：课程表 / 作业 / 考试各自在 `data/semesters/<当前学期>/` 下，
+10. **按学期分文件**：课程表 / 作业 / 考试各自在 `data/semesters/<当前学期>/` 下，
    "有什么 / 记账 / 习惯 / 日程计划"跨学期共享（用户口径）。
    切学期**只能**走 `DataManager.switch_semester()` —— 它把三个模型重定向到新文件；
    直接改 `semesters.json` 的指针不会换数据（`ERRORS #040`）。
    旧布局由 `semester_paths.migrate_legacy()` 一次性迁移（先写新文件、校验、再删旧文件）。
-10. **`data/` 是用户数据**（含密钥 `settings.ini`），不进发行版（`Q-P2`）。
-11. **版本与损坏**（2026-10-17，审查 #5）：`migrate()` **逐步**执行且**缺一步就拒绝**
+11. **算数只在代码里**（用户口径 2026-10-31）：收入 / 预计支出 / 结余这类数字由
+   `services/finance.py` 的**纯函数**算（过去 3 个整月中位数），界面注明依据；
+   **AI 只解释、不许自己算** ✗ —— 它只能调 `finance_summary` 读结果。
+12. **`data/` 是用户数据**（含密钥 `settings.ini`），不进发行版（`Q-P2`）。
+13. **版本与损坏**（2026-10-17，审查 #5）：`migrate()` **逐步**执行且**缺一步就拒绝**
     （`MigrationUnavailable`，不写文件）—— 不许"找不到迁移函数也把 `_version` 抬上去"。
     文件**缺失** → 建默认值；**损坏** → 改名留档（`*.corrupt-<时间戳>.json`）+ 用默认值
     继续 + ERROR 日志（`DataManager._log_recoveries`）；**版本比本程序新** → 只警告、不改动。
@@ -214,7 +217,7 @@ data/
 | `semesters/<id>/tasks.json` | 2 | `tasks[]` `archived[]` | task: `id,title,course_name,due_date,status(pending/completed),priority,tags[],notes,created_at,completed_at,reminded` |
 | `semesters/<id>/exams.json` | 1 | `exams[]` | exam: `id,course_name,exam_date,scope,location,notes,tags[],created_at,updated_at` |
 | `habits.json` | 2 | `habits[]` `attached_task_templates[]` `logs{date:{hid:{completed,completed_at,note}}}` | habit: `id,name,schedule{type(daily/weekly/monthly/interval),days[],value,times_per_day,start_date},duration_minutes,reminder_time,streak,longest_streak,postpone_until,canceled_on[]` |
-| `expenses.json` | 1 | `categories[{id,name}]` `budget{monthly,by_category}` `records[]` | record: `id,amount,date,category,note,created_at`；分类里多一条 **`subscription`=「订阅/分期」**（月付/分期到期自动记的那些走它，A1） |
+| `expenses.json` | 1 | `categories[{id,name}]` `budget{monthly,by_category}` `records[]` `finance{balance,monthly_income,fixed_expenses,updated_at}` | record: `id,amount,date,category,note,created_at`；分类里多一条 **`subscription`=「订阅/分期」**（月付/分期到期自动记的那些走它，A1）；`finance` 是**用户设的初始值**，"预计本月支出"等**算出来的**一律现算（`services/finance.py`，A4），不落盘 |
 | `routines.json` | 1 | `items[]` `logs{date:{rid:"done"/"skipped"}}` | routine: `id,title,note,order,created_at` —— **「近期安排」**（2026-10-30 A3）：不是习惯、没有连续天数，三态按天存（空/✔/✗），`order` 就是拖动后的顺序 |
 | `daily_logs.json` | 4 | `logs{}` `plans{date:[...]}` `savings{date:[...]}` `reminders[]` | plan: `title,time_slot(1-6),type(custom/course_note),note,course_name,created_at`；**`category(study/life)`**（日程顶部的学习/生活筛选，视图状态 + 用户可改）、**`done`/`completed_at`**（2026-10-18 加）；reminder: `id,item_type,item_name,item_date,notify_time` |
 | `inventory.json` | 1 | `items[]` `categories[]` `locations[]` | item: `id,name,category,group,quantity,unit,status(充足/不足/需购),min_quantity,min_doses,doses_per_unit,location,notes,tags[],instances[],ignore_low_stock`；**到期类**：`membership{username,expires_on,auto_renew,renew_months}`、`runs_out_on`+`remind_before_days`（预计用完）、`expires_on`+`remind_before_days`（保质期）、**`stock_target`**（常备量，剩 1/4 提醒）；**月付/分期**（A1，2026-10-31）：`billing_type(monthly/installment)` + `amount`（每期金额）+ `due_day`（每月几号）+ `installments`（期数，月付填 0 = 不限期）+ `paid_count` + `billing_active` + `last_charged_on`；**衣物**：`worn_since`+`wash_after_days`+`needs_wash`（见 §11） |

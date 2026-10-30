@@ -229,8 +229,14 @@ python scripts/actions.py add_expense --amount 12.5 --category food [--note "午
 python scripts/actions.py add_saving --amount 30 [--note "自带午饭"]
 python scripts/actions.py delete_expense --id "e_001"
 python scripts/actions.py expense_summary [--month "2026-10"]
+python scripts/actions.py finance_set --balance 5000 --monthly-income 3000 --fixed-expenses 1200
+python scripts/actions.py finance_summary
 ```
 支出记 add_expense，存钱记 add_saving（两者是分开的两栏，不要混）。
+- **收入 / 固定支出 / 预计支出**：用户设**初始值**用 `finance_set`（只写他给的那几项）；
+  问"这个月预计花多少 / 还剩多少 / 结余多少"→ **`finance_summary`**，把输出**原样转述**。
+  ★ **不许自己算**（不要加总 records、不要乘除、不要估）—— 数字全由代码算好 ✓；
+  数据不够几个月时它会说"依据：本月已花（历史不足）"，你也要照说，不要编"3 个月平均"。
 
 ### 概览与备份
 ```sh
@@ -262,6 +268,7 @@ python scripts/actions.py restore --name "expenses.json" --yes  # 仅用户明�
 8. 花了/买了/支出/记账/消费/多少钱/吃饭花了/打车/话费 → add_expense
 9. 存钱/省钱/攒钱/今天没花钱/自带饭/没消费 → add_saving
 10. 这个月花了多少/分类统计/预算还剩/超支了吗 → expense_summary
+10b. 收入/工资/固定支出/房租/预计本月花多少/结余/总余额 → finance_set（设初始值）、finance_summary（读结果，**不许自己算**）
 11. 概览/统计/今天有什么/还有多少 → status
 12. 天气/气温/多少度/下雨/晴天 → 直接用下文「天气」段回答，**不要调用脚本**
 13. 余额/剩余/还剩/额度/多少钱（指卡余额）→ 直接用下文「余额」段回答，**不要调用脚本**

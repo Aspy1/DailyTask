@@ -21,6 +21,8 @@ from PySide6.QtWidgets import (
 
 from src.i18n.loader import tr
 from src.services.data_manager import DataManager
+from src.services.finance import summary as finance_summary
+from src.ui.panels.expense_cards import ForecastCard, summary_card
 from src.ui.styles.theme import (
     RADIUS,
     SIZE_BODY_S,
@@ -91,22 +93,7 @@ class ExpensePanel(QWidget):
         bar_layout.addWidget(refresh_btn)
         layout.addWidget(bar)
 
-        # ── Summary cards ────────────────────────────────────
-        cards = QWidget()
-        cards.setStyleSheet("background: transparent;")
-        cl = QHBoxLayout(cards)
-        cl.setContentsMargins(16, 12, 16, 8)
-        cl.setSpacing(12)
-        self._sum_month = self._summary_card("month", tr("panel.expense.sum_month"))
-        self._sum_today = self._summary_card("today", tr("panel.expense.sum_today"))
-        self._sum_budget = self._summary_card("budget", tr("panel.expense.sum_budget"))
-        self._sum_saved = self._summary_card("saved", tr("panel.expense.sum_saved"))
-        cl.addWidget(self._sum_month)
-        cl.addWidget(self._sum_today)
-        cl.addWidget(self._sum_budget)
-        cl.addWidget(self._sum_saved)
-        cl.addStretch()
-        layout.addWidget(cards)
+        layout.addWidget(self._build_summary_row())
 
         # ── Add row ──────────────────────────────────────────
         add_row = QWidget()
@@ -263,22 +250,23 @@ class ExpensePanel(QWidget):
         return (f"background-color: {get_colors()['card_bg']};"
                 f" border-radius: {RADIUS['radius_md']}px;")
 
-    def _summary_card(self, key: str, label: str) -> QWidget:
-        c = get_colors()
-        w = QWidget()
-        w.setStyleSheet(self._card_qss())
-        lay = QVBoxLayout(w)
-        lay.setContentsMargins(16, 8, 16, 8)
-        title = QLabel(label)
-        title.setStyleSheet(f"color: {c['fg_hint']}; font-size: 13px; border: none;")
-        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        lay.addWidget(title)
-        amount = QLabel("¥0")
-        amount.setStyleSheet(f"color: {c['fg_primary']}; font-size: 16px; font-weight: 600; border: none;")
-        amount.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        amount.setObjectName(f"sum_{key}")
-        lay.addWidget(amount)
-        return w
+    def _build_summary_row(self) -> QWidget:
+        """四张汇总卡 + 「预计本月支出」（A4：数值由 `services/finance` 算）。"""
+        cards = QWidget()
+        cards.setStyleSheet("background: transparent;")
+        cl = QHBoxLayout(cards)
+        cl.setContentsMargins(16, 12, 16, 8)
+        cl.setSpacing(12)
+        self._sum_month = summary_card("month", tr("panel.expense.sum_month"))
+        self._sum_today = summary_card("today", tr("panel.expense.sum_today"))
+        self._sum_budget = summary_card("budget", tr("panel.expense.sum_budget"))
+        self._sum_saved = summary_card("saved", tr("panel.expense.sum_saved"))
+        self._forecast = ForecastCard()
+        for widget in (self._sum_month, self._sum_today, self._sum_budget,
+                       self._sum_saved, self._forecast):
+            cl.addWidget(widget)
+        cl.addStretch()
+        return cards
 
     def _find_sum_label(self, key: str) -> QLabel:
         for child in self.findChildren(QLabel):
@@ -340,6 +328,8 @@ class ExpensePanel(QWidget):
         self._find_sum_label("today").setText(f"¥{today_total:.2f}")
         self._find_sum_label("budget").setText(f"¥{remaining:.2f}")
         self._find_sum_label("saved").setText(f"¥{today_saved:.2f}")
+        self._forecast.update_summary(finance_summary(
+            self._dm.expenses.records, self._dm.expenses.finance))
 
         # Footer: filtered total
         cat_info = f" ({self._filter_category})" if self._filter_category else ""
@@ -441,8 +431,10 @@ class ExpensePanel(QWidget):
 
     def _restyle_chrome(self) -> None:
         """重刷 __init__ 里写死颜色的静态骨架（汇总卡片 + 两条输入带）。"""
-        for card in (self._sum_month, self._sum_today, self._sum_budget, self._sum_saved):
+        for card in (self._sum_month, self._sum_today, self._sum_budget,
+                     self._sum_saved):
             card.setStyleSheet(self._card_qss())
+        self._forecast.refresh_theme()
         self._add_row.setStyleSheet(self._band_qss())
         self._sav_row.setStyleSheet(self._sub_band_qss())
 

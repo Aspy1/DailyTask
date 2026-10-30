@@ -32,6 +32,7 @@ IMPLEMENTED = [
     "add_location", "need_restock", "lookup_item",
     "status",
     "add_expense", "add_saving", "delete_expense", "expense_summary",
+    "finance_set", "finance_summary",
     "list_backups", "restore",
 ]
 

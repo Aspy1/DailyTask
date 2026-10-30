@@ -19,6 +19,10 @@
   "panel.expense.sum_today": "今日支出",
   "panel.expense.sum_budget": "预算剩余",
   "panel.expense.sum_saved": "今省",
+  "panel.expense.sum_forecast": "预计本月支出",
+  "panel.expense.forecast_meta": "收入 ¥{income} · 结余 ¥{left}",
+  "panel.expense.forecast_basis": "依据：过去 {n} 个月中位数",
+  "panel.expense.forecast_basis_short": "依据：本月已花（历史不足）",
 
   "panel.expense.label_saving": "存钱",
   "panel.expense.placeholder_note": "备注（可选）",
