@@ -509,7 +509,7 @@ QListWidget::item:selected {{ background-color: {t["accent_bg"]}; }}
 QListWidget::item:hover {{ background-color: {t["bg_hover"]}; }}
 
 /* ── Inputs ──────────────────────────────── */
-QTextEdit, QPlainTextEdit {{ background-color: {t["input_bg"]}; color: {t["fg_primary"]}; border: 1px solid {t["border"]}; border-radius: 4px; padding: 8px 12px; font-size: {SIZE_BODY}px; selection-background-color: {t["accent_bg"]}; }}
+QTextEdit, QPlainTextEdit {{ background-color: {t["input_bg"]}; color: {t["fg_primary"]}; border: 1px solid {t["border"]}; border-radius: 4px; padding: 8px 12px; font-size: {SIZE_BODY}px; selection-background-color: {t["selection_bg"]}; selection-color: {t["fg_primary"]}; }}
 QTextEdit:focus, QPlainTextEdit:focus {{ border-color: {t["focus_ring"]}; }}
 QLineEdit {{ background-color: {t["input_bg"]}; color: {t["fg_primary"]}; border: 1px solid {t["border"]}; border-radius: {RADIUS["radius_md"]}px; padding: 0 10px; font-size: {SIZE_BODY_S}px; min-height: {FIELD_H}px; }}
 QLineEdit:focus {{ border-color: {t["focus_ring"]}; }}
