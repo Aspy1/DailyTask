@@ -88,6 +88,9 @@ SAMPLES = {
     "expires_on": "2027-01-01", "runs_out_on": "2027-01-01", "remind_before_days": 10,
     "stock_target": 6, "worn_since": "2026-10-01", "wash_after_days": 7, "needs_wash": True,
     "status_locked": True,
+    # 月付 / 分期（A1，2026-10-31）
+    "billing_type": "monthly", "amount": 15.0, "due_day": 5, "installments": 0,
+    "paid_count": 2, "billing_active": True, "last_charged_on": "2026-10-05",
 }
 
 

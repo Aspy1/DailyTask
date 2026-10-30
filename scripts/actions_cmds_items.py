@@ -15,6 +15,7 @@ from scripts.actions_core import (
 )
 from src.models.inventory import (
     DEFAULT_LOCATION,
+    MEMBERSHIP_CATEGORY,
     SIDE_SCHOOL,
     InventoryModel,
     apply_consume,
@@ -27,6 +28,10 @@ from src.models.inventory import (
 # `--membership` 允许的键（用户名 / 到期日 / 自动续费 / 续费月数）。
 # **手机号不在这里** —— 它不进 `inventory.json`（见 `models/membership_contacts.py`）。
 MEMBERSHIP_KEYS = ("username", "expires_on", "auto_renew", "renew_months")
+
+# 账单（月付 / 分期）涉及的字段：`--billing-type none` 要把它们整组清掉。
+_BILLING_KEYS = ("billing_type", "amount", "due_day", "installments",
+                 "paid_count", "billing_active", "last_charged_on")
 
 
 def _default_location(item: dict, args) -> str:
@@ -197,6 +202,7 @@ def cmd_add_item(args) -> None:
               f"确实是**另一件**就加 --notes 或 --tags 区分")
         return
     _apply_membership(item, args)                         # 会员信息（有到期日就由它定状态）
+    _apply_billing(item, args)                            # 月付 / 分期（A1）
     InventoryModel.sync_units(item)                       # 精确余量（片）= 盒数 × 每份含量
     item["status"] = InventoryModel.derive_status(item)   # 建好再推导（规则只写一份）
     added_loc = _ensure_location(data, item["location"])
@@ -290,6 +296,44 @@ def _split_tag_list(tags: str) -> list[str]:
     return [t.strip() for t in tags.split(",") if t.strip()]
 
 
+def _apply_billing(item: dict, args) -> None:
+    """月付 / 分期（花呗，A1）：**只认「每月几号」**，不算手续费、不算利息。
+
+    - `--billing-type monthly`：月付（会员之类），不填期数 = 不限期数；
+    - `--billing-type installment --installments 6`：分期，6 期扣完自动停用（服务层做）；
+    - `--billing-type none`：取消账单字段（条目还留着，退回普通物品）。
+
+    ⚠ **不动** `paid_count` / `billing_active`：那是"扣了几期、停没停"的运行时状态，
+    由 `models/billing.apply_charge()` 维护 —— 命令行能改就乱账了 ✗。
+    """
+    btype = (getattr(args, "billing_type", None) or "").strip()
+    if btype == "none":
+        for key in _BILLING_KEYS:
+            item.pop(key, None)
+        return
+    if btype:
+        item["billing_type"] = btype
+    _apply_billing_numbers(item, args)
+    if item.get("billing_type") and "billing_active" not in item:
+        _init_billing_state(item)
+
+
+def _apply_billing_numbers(item: dict, args) -> None:
+    """金额 / 几号 / 期数：只写**显式传入**的（`update_item` 是部分更新）。"""
+    for field, cast in (("amount", float), ("due_day", int), ("installments", int)):
+        value = getattr(args, field, None)
+        if value is not None:
+            item[field] = cast(value)
+
+
+def _init_billing_state(item: dict) -> None:
+    """第一次建账单：打开开关、清零期数；没给分类就归到「订阅」。"""
+    item["billing_active"] = True
+    item.setdefault("paid_count", 0)
+    if (item.get("category") or "其他") in ("其他", ""):
+        item["category"] = MEMBERSHIP_CATEGORY
+
+
 def _apply_item_updates(item: dict, args) -> None:
     """把命令行传入的非空字段写回物品条目（保持原有字段写入顺序）。"""
     name = getattr(args, "name", None)
@@ -316,6 +360,7 @@ def _apply_item_updates(item: dict, args) -> None:
     if tags:
         item["tags"] = _split_tag_list(tags)
     _apply_membership(item, args)
+    _apply_billing(item, args)
 
 
 def cmd_update_item(args) -> None:

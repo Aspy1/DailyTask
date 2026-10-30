@@ -109,7 +109,10 @@ python scripts/actions.py add_location --name "卫生间柜子"
 系统会自动把查找结果发回，让你判断重复。然后你再回复确认并添加。
 ```sh
 python scripts/actions.py add_item --name "物品名" --category "分类" --quantity N --unit "盒" --min_qty N --location "位置" [--tags "标签1,标签2"] [--doses-per-unit N] [--min-doses N] [--instances '[{"tags":["Type-C"],"notes":"1米"},{"tags":["Lightning"]}]']
-python scripts/actions.py add_item --name "QQ音乐会员" --category "虚拟品类" --quantity 1 --membership '{"username":"my_qq","expires_on":"2027-03-15","auto_renew":true,"renew_months":12}'
+python scripts/actions.py add_item --name "QQ音乐会员" --category "订阅" --quantity 1 --membership '{"username":"my_qq","expires_on":"2027-03-15","auto_renew":true,"renew_months":12}'
+python scripts/actions.py add_item --name "网盘会员" --category "订阅" --billing-type monthly --amount 15 --due-day 5
+python scripts/actions.py add_item --name "耳机" --category "订阅" --billing-type installment --amount 100 --due-day 10 --installments 6 --notes "买了什么"
+python scripts/actions.py update_item --id "i_001" --billing-type none
 python scripts/actions.py update_item --id "i_001" --membership '{"username":"my_qq","expires_on":"2028-03-15","auto_renew":true,"renew_months":12}'
 python scripts/actions.py update_item --id "i_001" --location "新位置"
 python scripts/actions.py update_item --id "i_001" --quantity N
@@ -118,7 +121,12 @@ python scripts/actions.py delete_item --id "i_001"
 python scripts/actions.py set_locations --values "衣柜左1,衣柜左2,书架1"
 python scripts/actions.py need_restock
 ```
-分类: 日常消耗品/数码电子/衣物/虚拟品类/其他。
+分类: 日常消耗品/数码电子/衣物/订阅/其他。
+- **月付 / 分期（花呗）**：都挂在「订阅」品类下，**只填「每月几号」**（`--due-day`），
+  **不算手续费、不算利息** —— 用户说"分 6 期每期 100"就填 `--installments 6 --amount 100`，
+  别自己算总价/利率。到期由**代码**自动记一笔支出（分类「订阅/分期」）并发提醒邮件；
+  期数扣完自动停用。**用户问"这个月花了多少 / 还欠多少"时，读 `add_expense` 记录或
+  `lookup_item --category 订阅` 的结果再回答，不要自己算数**。
 - **数量与单位**：`--quantity` 是**几份**，`--unit` 说明单位（件/盒/提/片/瓶…）；
   一份里还有更小单位时用 `--doses-per-unit`（"1 盒 24 片" → `--quantity 1 --doses-per-unit 24`）。
 - **同类物品不同特征**：一条物品 + `--instances`（JSON 数组），**不要**拆成两条无关物品。
@@ -250,6 +258,7 @@ python scripts/actions.py restore --name "expenses.json" --yes  # 仅用户明�
   - 说"**常备 6 盒** / 家里常备两瓶" → `--stock-target 6`（**剩 1/4 时提醒** ✓，
     比"低于多少提醒"更贴用户说法 —— 他给的是"应该常备多少"）。
 7. 物品/存货/库存/还有多少/用完了/没货/该买/放在哪/在哪/挪到/拿到 → add_item、update_item、delete_item、lookup_item、need_restock
+7b. 会员/订阅/月付/每月扣/花呗/分期/几期/每期多少 → add_item（`--billing-type` / `--due-day` / `--installments`）、update_item、lookup_item
 8. 花了/买了/支出/记账/消费/多少钱/吃饭花了/打车/话费 → add_expense
 9. 存钱/省钱/攒钱/今天没花钱/自带饭/没消费 → add_saving
 10. 这个月花了多少/分类统计/预算还剩/超支了吗 → expense_summary

@@ -17,6 +17,10 @@
   "panel.inventory.qty_with_doses": "x{n} ({doses}次)",
   "panel.inventory.qty_pieces": "×{n}件",
   "panel.inventory.qty_virtual_items": "×{n}项",
+  "panel.inventory.billing_monthly": "¥{amount}/月 · 每月 {day} 号扣",
+  "panel.inventory.billing_installment": "¥{amount} × {total} 期 · 剩 {left} 期 · 每月 {day} 号",
+  "panel.inventory.billing_done": "{total} 期已扣完",
+  "panel.inventory.billing_stopped": "已停用",
 
   "panel.inventory.label_clothing_need_buy": "要买了",
   "panel.inventory.label_clothing_need_wash": "要洗了",

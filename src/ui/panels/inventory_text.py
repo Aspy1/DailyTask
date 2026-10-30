@@ -11,7 +11,15 @@
 """
 
 from src.i18n.loader import tr
-from src.models.inventory import InventoryModel
+from src.models.billing import (
+    due_day_of,
+    installments_of,
+    is_active,
+    is_billing,
+    monthly_amount,
+    remaining,
+)
+from src.models.inventory import MEMBERSHIP_CATEGORY, InventoryModel
 
 
 def quantity_text(it: dict) -> str:
@@ -21,8 +29,29 @@ def quantity_text(it: dict) -> str:
     否则读起来就是"没了"。
     """
     boxes, loose, dpu = InventoryModel.stock_parts(it)
-    if it.get("category", "") == "虚拟品类":
+    if it.get("category", "") == MEMBERSHIP_CATEGORY:
         return tr("panel.inventory.qty_virtual_items", n=boxes)
     if dpu > 1 and loose:
         return tr("panel.inventory.qty_with_doses", n=boxes, doses=loose)
     return tr("panel.inventory.qty_pieces", n=boxes)
+
+
+def billing_text(it: dict) -> str:
+    """月付 / 分期的账单行（不是账单 → 空串）。
+
+    用户口径（2026-10-31）：只填「每月几号」；分期**只填不算** —— 所以这里只复述
+    用户填的数字（几期、每期多少），不显示"总价 / 剩余本金"这类**算出来的**东西 ✗。
+    """
+    if not is_billing(it):
+        return ""
+    amount = f"{monthly_amount(it):g}"
+    day = due_day_of(it) or 0
+    total = installments_of(it)
+    if not is_active(it):
+        if total:
+            return tr("panel.inventory.billing_done", total=total)
+        return tr("panel.inventory.billing_stopped")
+    if total is None:
+        return tr("panel.inventory.billing_monthly", amount=amount, day=day)
+    return tr("panel.inventory.billing_installment", amount=amount, total=total,
+              left=remaining(it) or 0, day=day)

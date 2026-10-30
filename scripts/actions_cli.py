@@ -110,9 +110,19 @@ def _add_item_parsers(sub) -> None:
     p.add_argument("--remind-before", type=int, help="到期前 N 天提醒（默认 7）")
     p.add_argument("--stock-target", type=int, help="常备量（剩 1/4 时提醒补货）")
     p.add_argument("--membership",
-                   help='会员信息 JSON（虚拟品类）：{"username":"x","expires_on":"2027-03-15",'
+                   help='会员信息 JSON（订阅）：{"username":"x","expires_on":"2027-03-15",'
                         '"auto_renew":true,"renew_months":12}；手机号**不放这里**')
+    _add_billing_parsers(p)
     _update_item_parser(sub)
+
+
+def _add_billing_parsers(p) -> None:
+    """月付 / 分期（花呗，A1）：**只填每月几号**，不算手续费、不算利息。"""
+    p.add_argument("--billing-type", choices=["monthly", "installment", "none"],
+                   help="monthly=每月固定扣（会员）/ installment=分期（花呗）；none=取消账单")
+    p.add_argument("--amount", type=float, help="每期金额（元）")
+    p.add_argument("--due-day", type=int, help="每月几号扣（1-31；31 号在小月按月末）")
+    p.add_argument("--installments", type=int, help="分几期；月付不填（不限期数）")
 
 
 def _update_item_parser(sub) -> None:
@@ -140,6 +150,7 @@ def _update_item_parser(sub) -> None:
     p.add_argument("--min-doses", type=int)
     p.add_argument("--instances", help="JSON 数组（整组替换）")
     p.add_argument("--membership", help="会员信息 JSON（整组替换；空对象 = 清掉）")
+    _add_billing_parsers(p)
 
     p = sub.add_parser("consume", help="消耗 N 份（按每份含量扣减 + 重算状态）")
     p.add_argument("--id", required=True)

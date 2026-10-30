@@ -23,6 +23,7 @@ from src.models.inventory import (
     InventoryModel,
 )
 from src.services.data_manager import DataManager
+from src.ui.panels.inventory_cards import render_instance_card
 
 # 面板里"每张卡"的局部变量就叫 `card` → 工厂用**别名**导入，避免同名遮蔽（ERRORS #047）
 from src.ui.panels.inventory_dialogs import (
@@ -30,9 +31,15 @@ from src.ui.panels.inventory_dialogs import (
     edit_tags_dialog,
     email_reminder_dialog,
 )
-from src.ui.panels.inventory_text import quantity_text
+from src.ui.panels.inventory_text import billing_text, quantity_text
 from src.ui.styles.cards import card as make_card
-from src.ui.styles.theme import RADIUS, SPACING, font, get_colors, rgba
+from src.ui.styles.theme import (
+    RADIUS,
+    SIZE_CAPTION,
+    font,
+    get_colors,
+    rgba,
+)
 from src.ui.widgets.flow_grid import FlowGrid
 from src.ui.widgets.menu import (
     add_action,
@@ -585,6 +592,14 @@ class InventoryPanel(QWidget):
         name.setWordWrap(True)          # 长物品名换行（完整显示，不再被挤掉 —— U6）
         name.setStyleSheet(f"color: {c['fg_primary']}; font-size: 14px; font-weight: 600; border: none; background: transparent;")
         cl.addWidget(name)
+        billing = billing_text(it)
+        if billing:
+            bill_lbl = QLabel(billing)
+            bill_lbl.setWordWrap(True)
+            bill_lbl.setStyleSheet(
+                f"color: {c['fg_hint']}; font-size: {SIZE_CAPTION}px;"
+                " border: none; background: transparent;")
+            cl.addWidget(bill_lbl)
         cl.addStretch()
 
         # 单件展开：件数用 `quantity`（分装的"盒"就是件 ✓），数量**文字**才走 `remaining_doses`
@@ -604,60 +619,7 @@ class InventoryPanel(QWidget):
                               "notes": it.get("notes", ""), "location": it.get("location", "")}
                              for _ in range(qty)]
             for idx, inst in enumerate(instances):
-                self._render_instance_card(c, iid, idx, inst, it)
-
-    def _render_instance_card(self, c: dict, parent_id: str, idx: int, inst: dict, parent: dict) -> None:
-        """Render an individual instance card with tags and context menu."""
-        card = make_card("sub", pad="spacing_none")
-        card.setMinimumHeight(48)
-
-        cl = QHBoxLayout(card)
-        cl.setContentsMargins(12, 8, 12, 8)
-        cl.setSpacing(6)
-
-        label = QLabel(f"#{idx + 1}")
-        label.setStyleSheet(f"color: {c['fg_hint']}; font-size: 12px; font-weight: 600; border: none; background: transparent;")
-        cl.addWidget(label)
-
-        # Tags
-        tags = inst.get("tags", [])
-        if tags:
-            for tag in tags:
-                t = QLabel(tag)
-                t.setStyleSheet(f"color: {c['accent_text']}; font-size: 10px; font-weight: 500; background: {rgba(c['accent'], 0.1)}; border-radius: 8px; padding: 1px 8px; border: none;")
-                cl.addWidget(t)
-
-        # Status badge
-        status = inst.get("status", "充足")
-        bc = {"需购": c["red"], "不足": c["orange"], "充足": c["green"]}.get(status, c["green"])
-        badge = QLabel({"需购": "需购", "不足": "不足", "充足": "充足"}.get(status, status))
-        badge.setStyleSheet(f"color: {bc}; font-size: 10px; font-weight: 600; background: {rgba(bc, 0.1)}; border-radius: 8px; padding: 1px 6px; border: none;")
-        cl.addWidget(badge)
-
-        # Notes
-        note = inst.get("notes", "")
-        if note:
-            n = QLabel(note)
-            n.setStyleSheet(f"color: {c['fg_hint']}; font-size: 11px; border: none; background: transparent;")
-            cl.addWidget(n)
-
-        cl.addStretch()
-
-        # Instance context menu
-        inst_item = {"id": f"{parent_id}_{idx}", "parent_id": parent_id, "index": idx,
-                     "name": parent.get("name", ""), "tags": tags, "status": status, "notes": note,
-                     "inst_data": inst}
-        card.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        card.customContextMenuRequested.connect(lambda _, i=inst_item: self._context_menu(i))
-        # 层级缩进：QSS 的 `margin-left` 只改内容区，缩不了卡片本身 → 外面套一层带左边距的行。
-        # ⚠ 用**容器控件**而不是嵌套 layout：`_refresh()` 靠 `item.widget()` 清卡，
-        # 嵌套 layout 的 `item.widget()` 是 None → 旧卡不会被删、会留在屏幕上。
-        row = QWidget()
-        rl = QHBoxLayout(row)
-        rl.setContentsMargins(SPACING["spacing_xxl"], 0, 0, 0)
-        rl.setSpacing(0)
-        rl.addWidget(card)
-        self._card_layout.insertWidget(self._card_layout.count() - 1, row)
+                render_instance_card(self, c, iid, idx, inst, it)
 
     def _toggle_expand(self, iid: str) -> None:
         if iid in self._expanded_items:
@@ -671,7 +633,7 @@ class InventoryPanel(QWidget):
         "衣物":       {"需购": tr("panel.inventory.label_clothing_need_buy"),
                        "不足": tr("panel.inventory.label_clothing_need_wash"),
                        "充足": tr("panel.inventory.label_clothing_wearable")},
-        "虚拟品类":   {"需购": tr("panel.inventory.label_virtual_need_renew"),
+        MEMBERSHIP_CATEGORY: {"需购": tr("panel.inventory.label_virtual_need_renew"),
                        "不足": tr("panel.inventory.label_virtual_expiring"),
                        "充足": tr("panel.inventory.label_virtual_valid")},
         "数码电子":   {"需购": tr("panel.inventory.label_digital_need_repair"),
@@ -717,12 +679,12 @@ class InventoryPanel(QWidget):
                    lambda checked=False: self._email_reminder(item))
         add_action(menu, tr("panel.inventory.action_edit_tags"),
                    lambda checked=False: self._edit_tags(item))
-        # 会员（虚拟品类）：账号绑定信息（手机号只在这条弹窗里录）。
+        # 订阅 / 会员：账号绑定信息（手机号只在这条弹窗里录）。
         # 只对**真实条目**显示 —— 实例卡片传进来的是合成 dict（带 `parent_id`）。
         if cat == MEMBERSHIP_CATEGORY and "parent_id" not in item:
             add_action(menu, tr("panel.inventory.action_edit_membership"),
                        lambda checked=False: self._edit_membership(item))
-        if cat != "虚拟品类":
+        if cat != MEMBERSHIP_CATEGORY:
             add_action(menu, tr("panel.inventory.action_delete"),
                        lambda checked=False: self._delete_item(item["id"]))
         show_at_cursor(menu)

@@ -4,6 +4,7 @@ from datetime import date, datetime
 from pathlib import Path
 
 from src.models.base import BaseJsonModel, next_id
+from src.models.billing import BILLING_CATEGORY_ID, BILLING_CATEGORY_NAME
 from src.models.course import schedule_date
 
 DEFAULT_EXPENSES = {
@@ -14,6 +15,7 @@ DEFAULT_EXPENSES = {
         {"id": "study", "name": "学习"},
         {"id": "entertainment", "name": "娱乐"},
         {"id": "shopping", "name": "购物"},
+        {"id": BILLING_CATEGORY_ID, "name": BILLING_CATEGORY_NAME},
         {"id": "other", "name": "其他"},
     ],
     "budget": {"monthly": 1500, "by_category": {}},
@@ -24,6 +26,17 @@ DEFAULT_EXPENSES = {
 class ExpenseModel(BaseJsonModel):
     def __init__(self, file_path: Path) -> None:
         super().__init__(file_path, DEFAULT_EXPENSES)
+        self._ensure_billing_category()
+
+    def _ensure_billing_category(self) -> None:
+        """老数据里没有「订阅/分期」分类 → 补上（自愈，幂等）。
+
+        为什么必须补：自动记账用的是分类 **id**，界面按 id 找名字；没有这条，
+        到期扣款的那几笔会在界面上显示成 `subscription` 这种键名 ✗。
+        """
+        cats = self._data.setdefault("categories", [])
+        if not any(str(c.get("id")) == BILLING_CATEGORY_ID for c in cats):
+            cats.append({"id": BILLING_CATEGORY_ID, "name": BILLING_CATEGORY_NAME})
 
     @property
     def records(self) -> list[dict]:

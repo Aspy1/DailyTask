@@ -166,7 +166,9 @@ ui ──→ services ──→ models ──→ base(BaseJsonModel)
    **永远发**（漏掉的代价远大于被打扰，用户明确要求）。规则：点名课前 30 分钟、
    作业 3 天内 / 6 小时内、考试 14/7/3 天、习惯提前 5 分钟、余额低于阈值、自定义提醒、
    **午饭 / 晚饭 11:40 / 16:40**（整点后 90 分钟内算数，每天各一次；同一时刻首页那条
-   提示会**低频闪烁**，见 `services/hints.py` 的 `meal_hints()`）。
+   提示会**低频闪烁**，见 `services/hints.py` 的 `meal_hints()`）、**月付 / 分期到期**
+   （`models/billing.due_today()`：每月 `due_day` 号扣一次，**补扣**同月一次；
+   服务层自动记一笔支出 + 邮件，期数扣完自动停用 —— 用户 2026-10-31 口径）。
 8. **课程时段规则单一**：`models/course_rules.py`（`is_active_week` / `slots_of` /
    `conflicts_by_cell`）。`time_slots` 的 `end` 是**闭区间**；**同一时段允许两门课**，
    冲突要检出并提示请假（见 `ERRORS #038`）。
@@ -212,10 +214,10 @@ data/
 | `semesters/<id>/tasks.json` | 2 | `tasks[]` `archived[]` | task: `id,title,course_name,due_date,status(pending/completed),priority,tags[],notes,created_at,completed_at,reminded` |
 | `semesters/<id>/exams.json` | 1 | `exams[]` | exam: `id,course_name,exam_date,scope,location,notes,tags[],created_at,updated_at` |
 | `habits.json` | 2 | `habits[]` `attached_task_templates[]` `logs{date:{hid:{completed,completed_at,note}}}` | habit: `id,name,schedule{type(daily/weekly/monthly/interval),days[],value,times_per_day,start_date},duration_minutes,reminder_time,streak,longest_streak,postpone_until,canceled_on[]` |
-| `expenses.json` | 1 | `categories[{id,name}]` `budget{monthly,by_category}` `records[]` | record: `id,amount,date,category,note,created_at` |
+| `expenses.json` | 1 | `categories[{id,name}]` `budget{monthly,by_category}` `records[]` | record: `id,amount,date,category,note,created_at`；分类里多一条 **`subscription`=「订阅/分期」**（月付/分期到期自动记的那些走它，A1） |
 | `routines.json` | 1 | `items[]` `logs{date:{rid:"done"/"skipped"}}` | routine: `id,title,note,order,created_at` —— **「近期安排」**（2026-10-30 A3）：不是习惯、没有连续天数，三态按天存（空/✔/✗），`order` 就是拖动后的顺序 |
 | `daily_logs.json` | 4 | `logs{}` `plans{date:[...]}` `savings{date:[...]}` `reminders[]` | plan: `title,time_slot(1-6),type(custom/course_note),note,course_name,created_at`；**`category(study/life)`**（日程顶部的学习/生活筛选，视图状态 + 用户可改）、**`done`/`completed_at`**（2026-10-18 加）；reminder: `id,item_type,item_name,item_date,notify_time` |
-| `inventory.json` | 1 | `items[]` `categories[]` `locations[]` | item: `id,name,category,group,quantity,unit,status(充足/不足/需购),min_quantity,min_doses,doses_per_unit,location,notes,tags[],instances[],ignore_low_stock`；**到期类**：`membership{username,expires_on,auto_renew,renew_months}`、`runs_out_on`+`remind_before_days`（预计用完）、`expires_on`+`remind_before_days`（保质期）、**`stock_target`**（常备量，剩 1/4 提醒）；**衣物**：`worn_since`+`wash_after_days`+`needs_wash`（见 §11） |
+| `inventory.json` | 1 | `items[]` `categories[]` `locations[]` | item: `id,name,category,group,quantity,unit,status(充足/不足/需购),min_quantity,min_doses,doses_per_unit,location,notes,tags[],instances[],ignore_low_stock`；**到期类**：`membership{username,expires_on,auto_renew,renew_months}`、`runs_out_on`+`remind_before_days`（预计用完）、`expires_on`+`remind_before_days`（保质期）、**`stock_target`**（常备量，剩 1/4 提醒）；**月付/分期**（A1，2026-10-31）：`billing_type(monthly/installment)` + `amount`（每期金额）+ `due_day`（每月几号）+ `installments`（期数，月付填 0 = 不限期）+ `paid_count` + `billing_active` + `last_charged_on`；**衣物**：`worn_since`+`wash_after_days`+`needs_wash`（见 §11） |
 > **位置就是归属**（2026-10-18）：换季把部分衣物**寄回家**、来年寄回，所以"在哪一边"要能表达 ——
 > 但**不单独存字段**，一律由 `location` 推导（`InventoryModel.side_of()`）：位置是「家」→ 家侧，
 > 其余（宿舍格位 / 「学校」/ 空）→ 学校侧。

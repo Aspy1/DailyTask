@@ -19,11 +19,13 @@ HOME_LOCATIONS = (HOME_LOCATION, "老家")
 SIDE_SCHOOL = "school"
 SIDE_HOME = "home"
 
-# 会员（虚拟品类）：绑定账号 → 记用户名 / 到期日 / 自动续费 / 续费月数。
+# 会员 / 订阅（虚拟品类）：绑定账号 → 记用户名 / 到期日 / 自动续费 / 续费月数。
 # ⚠ **手机号不进这个文件** —— 它会被同步到 GitHub（`git_sync.DATA_FILES`），
 #   手机号单独放 `data/private/memberships.json`（.gitignore + `git_sync.PRIVATE_FILES`），
 #   也不进 AI 提示词（见 `models/membership_contacts.py` 的说明）。
-MEMBERSHIP_CATEGORY = "虚拟品类"
+MEMBERSHIP_CATEGORY = "订阅"
+# 旧名（2026-10-31 用户口径：虚拟品类正式叫「订阅」）—— `load()` 里就地改名，幂等。
+LEGACY_MEMBERSHIP_CATEGORY = "虚拟品类"
 # 到期前多少天算"不足（要到期了）"。R-005：阈值只有这一处，改这里即可。
 RENEW_WARNING_DAYS = 7
 
@@ -43,6 +45,9 @@ ITEM_FIELDS = (
     "worn_since", "wash_after_days", "needs_wash",
     # 手动状态锁定（2026-10-19 审查"遗留"）：用户显式给了 `status` 就锁住，不再自动推导
     "status_locked",
+    # 月付 / 分期（花呗，A1，2026-10-31）：挂在「订阅」品类下的条目上
+    "billing_type", "amount", "due_day", "installments",
+    "paid_count", "billing_active", "last_charged_on",
 )
 
 
@@ -58,9 +63,9 @@ def days_until(expires_on: str, today: date | None = None) -> int | None:
     return (target - (today or date.today())).days
 
 DEFAULT_INVENTORY = {
-    "_version": 1,
+    "_version": 2,
     "items": [],
-    "categories": ["日常消耗品", "数码电子", "衣物", "虚拟品类", "其他"],
+    "categories": ["日常消耗品", "数码电子", "衣物", MEMBERSHIP_CATEGORY, "其他"],
     # 允许的位置清单（用户定的固定格位 + 「学校」「家」两个粗格位）。位置本身仍是自由文本，
     # 但**AI 只应从这份清单里选** —— 提示词会把它带给模型（`AIService._inventory_prompt`）。
     "locations": [DEFAULT_LOCATION, *HOME_LOCATIONS],
@@ -141,6 +146,22 @@ def canonical_location(name: str) -> str:
     return LOCATION_ALIASES.get(value, value)
 
 
+def _rename_legacy_category(data: dict) -> None:
+    """旧名「虚拟品类」→「订阅」（2026-10-31 用户口径）。**就地改、幂等**。
+
+    只改内存态；下次 `save()` 时磁盘自然变成新名 —— 不用写一步"迁移"就能让老数据
+    跟着走，而且跑几遍结果都一样 ✓。
+    """
+    cats = data.get("categories")
+    if isinstance(cats, list):
+        for idx, name in enumerate(cats):
+            if name == LEGACY_MEMBERSHIP_CATEGORY:
+                cats[idx] = MEMBERSHIP_CATEGORY
+    for item in data.get("items") or []:
+        if isinstance(item, dict) and item.get("category") == LEGACY_MEMBERSHIP_CATEGORY:
+            item["category"] = MEMBERSHIP_CATEGORY
+
+
 class InventoryModel(BaseJsonModel):
     def __init__(self, file_path: Path) -> None:
         super().__init__(file_path, DEFAULT_INVENTORY)
@@ -156,6 +177,7 @@ class InventoryModel(BaseJsonModel):
         跨天不生效（2026-10-19 审查 R3）。
         """
         data = super().load()
+        _rename_legacy_category(data)
         for it in self.items:
             if InventoryModel.has_time_status(it) and not status_is_manual(it):
                 it["status"] = InventoryModel.derive_status(it)

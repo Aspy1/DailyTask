@@ -25,6 +25,12 @@ from email.mime.text import MIMEText
 
 from PySide6.QtCore import QObject, QTimer, Signal
 
+from src.models.billing import (
+    BILLING_CATEGORY_ID,
+    apply_charge,
+    charge_note,
+    due_today,
+)
 from src.models.course import schedule_date
 from src.services.reminder_rules import (
     DDL_REMIND_DAYS,
@@ -98,6 +104,33 @@ def _meal_reminder_notify(svc, now: datetime) -> None:
     for key, label in meal_slot_due(now, svc._meal_sent):
         svc._meal_sent.add(key)
         svc._notify(label, f"{label}时间到了 🍚 去吃点东西吧")
+
+
+def _billing_charges_notify(svc) -> None:
+    """月付 / 分期到期：**自动记一笔支出** + 发一封提醒邮件（用户 2026-10-31 A1）。
+
+    ★ 只认「每月几号」；那天没开机 → 之后打开会**补扣一次**（同月只一次）。
+    ★ 期数扣完 → `billing_active=False`（停用并保留，还能回查）。
+    ★ 记错可改：支出就是普通的一条记录，用户在记账面板里删/改都行。
+    """
+    today = schedule_date()
+    due = [it for it in svc._dm.inventory.items if due_today(it, today)]
+    if not due:
+        return
+    lines = []
+    for item in due:
+        info = apply_charge(item, today)
+        note = charge_note(info["title"], info["nth"], info["total"])
+        if info["amount"] > 0:
+            svc._dm.expenses.add({"amount": info["amount"], "date": today.isoformat(),
+                                  "category": BILLING_CATEGORY_ID, "note": note})
+        lines.append(f"{note} ¥{info['amount']:.2f}")
+    svc._dm.inventory.save()
+    svc._dm.expenses.save()
+    svc._dm.data_changed.emit("expense")
+    svc._dm.data_changed.emit("inventory")
+    svc._notify("账单扣款", "今天自动记了这些支出：\n" + "\n".join(lines),
+                email=True, subject="账单扣款提醒")
 
 
 class ReminderService(QObject):
@@ -196,6 +229,7 @@ class ReminderService(QObject):
         self._check_habits(now_str, early_str, now_minutes)
         self._check_water(now)     # 喝水 / 起身（C 类第 8 项）：复用这个 tick，不另开定时器
         _meal_reminder_notify(self, now)     # 午饭 / 晚饭（11:40 / 16:40，A2）
+        _billing_charges_notify(self)        # 月付 / 分期到期 → 自动记支出 + 邮件（A1）
 
         self._check_attendance(now)
 
