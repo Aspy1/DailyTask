@@ -24,6 +24,7 @@ from src.services.data_manager import DataManager
 from src.services.finance import summary as finance_summary
 from src.ui.panels.expense_cards import ForecastCard, summary_card
 from src.ui.styles.theme import (
+    LAYOUT,
     RADIUS,
     SIZE_BODY_S,
     combo_qss,
@@ -104,13 +105,13 @@ class ExpensePanel(QWidget):
         al.setSpacing(8)
         self._amount_input = RoundedLineEdit()
         self._amount_input.setPlaceholderText(tr("expense.amount"))
-        self._amount_input.setFixedWidth(80)
+        self._amount_input.setFixedWidth(LAYOUT["input_width_md"])
         self._amount_input.setStyleSheet(self._input_qss())
         al.addSpacing(80)
         al.addWidget(self._amount_input)
 
         self._cat_combo = RoundedComboBox()
-        self._cat_combo.setFixedWidth(100)
+        self._cat_combo.setFixedWidth(LAYOUT["input_width_lg"])
         self._cat_combo.setStyleSheet(self._combo_qss())
         cats = self._dm.expenses.categories
         for cat in cats:
@@ -127,7 +128,7 @@ class ExpensePanel(QWidget):
         c = get_colors()
         add_btn.setStyleSheet(f"""
             QPushButton {{ background-color: {c['accent']}; color: {c['fg_on_fill']}; border: none;
-                border-radius: 8px; padding: 5px 12px; font-weight: 600; font-size: 13px; }}
+                border-radius: 8px; padding: 5px 12px; font-weight: 600; font-size: {SIZE_BODY_S}px; }}
             QPushButton:hover {{ background-color: {c['accent_hover']}; }}
         """)
         add_btn.clicked.connect(self._add_expense)
@@ -160,7 +161,7 @@ class ExpensePanel(QWidget):
         sav_btn.setStyleSheet(f"""
             QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
                 border: 1px solid {c['border_strong']}; border-radius: 8px; padding: 5px 12px;
-                font-size: 13px; }}
+                font-size: {SIZE_BODY_S}px; }}
             QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; color: {c['btn_secondary_hover_fg']}; }}
         """)
         sav_btn.clicked.connect(self._add_saving)
@@ -212,7 +213,7 @@ class ExpensePanel(QWidget):
         c = get_colors()
         return f"""
             QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
-                border-radius: 8px; padding: 4px 12px; font-size: 13px; }}
+                border-radius: 8px; padding: 4px 12px; font-size: {SIZE_BODY_S}px; }}
             QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; color: {c['btn_secondary_hover_fg']}; }}
         """
 
@@ -348,6 +349,10 @@ class ExpensePanel(QWidget):
         except ValueError:
             QMessageBox.warning(self, tr("panel.expense.error_title"), tr("panel.expense.msg_invalid_amount"))
             return
+        if amount <= 0:
+            # 负金额 / 0 会让"本月支出"倒着走；CLI 已校验，界面也必须一致
+            QMessageBox.warning(self, tr("panel.expense.error_title"), tr("panel.expense.msg_invalid_amount"))
+            return
         category = self._cat_combo.currentData()
         note = self._note_input.text().strip()
         self._dm.expenses.add({"amount": amount, "category": category, "note": note})
@@ -364,6 +369,9 @@ class ExpensePanel(QWidget):
         try:
             amount = float(text)
         except ValueError:
+            QMessageBox.warning(self, tr("panel.expense.error_title"), tr("panel.expense.msg_invalid_amount"))
+            return
+        if amount <= 0:
             QMessageBox.warning(self, tr("panel.expense.error_title"), tr("panel.expense.msg_invalid_amount"))
             return
         note = self._sav_note.text().strip()

@@ -21,7 +21,7 @@ from PySide6.QtWidgets import (
 )
 
 from src.i18n.loader import tr
-from src.ui.styles.theme import get_colors
+from src.ui.styles.theme import LAYOUT, SIZE_BODY_S, get_colors
 from src.ui.widgets.dialog_shell import action_row
 
 logger = logging.getLogger(__name__)
@@ -134,14 +134,14 @@ def add_email_reminder_dialog(dm, parent, item_type: str, item_name: str,
     c = get_colors()
     dlg = QDialog(parent)
     dlg.setWindowTitle(tr("widget.schedule.dlg_add_email_reminder"))
-    dlg.setMinimumWidth(320)
+    dlg.setMinimumWidth(LAYOUT["dialog_width_sm"])
     dlg.setStyleSheet(f"""
         QDialog {{ background-color: {c['card_bg']}; }}
-        QLabel {{ color: {c['fg_primary']}; font-size: 13px; }}
+        QLabel {{ color: {c['fg_primary']}; font-size: {SIZE_BODY_S}px; }}
         QDateTimeEdit {{ background-color: {c['bg_elevated']}; color: {c['fg_primary']};
-            border-radius: 8px; padding: 6px 10px; font-size: 13px; }}
+            border-radius: 8px; padding: 6px 10px; font-size: {SIZE_BODY_S}px; }}
         QPushButton {{ background-color: {c['accent']}; color: white; border: none;
-            border-radius: 8px; padding: 6px 18px; font-size: 13px; font-weight: 600; }}
+            border-radius: 8px; padding: 6px 18px; font-size: {SIZE_BODY_S}px; font-weight: 600; }}
         QPushButton:hover {{ opacity: 0.9; }}
     """)
     layout = QVBoxLayout(dlg)

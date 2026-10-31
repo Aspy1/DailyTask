@@ -12,7 +12,7 @@ from PySide6.QtWidgets import (
 
 from src.i18n.loader import tr
 from src.services.api_service import ApiService
-from src.ui.styles.theme import SIZE_BODY, font, get_colors
+from src.ui.styles.theme import LAYOUT, SIZE_BODY, SIZE_BODY_S, SIZE_CAPTION, font, get_colors
 from src.ui.widgets.dialog_shell import action_row, form_row
 from src.ui.widgets.rounded_button import RoundedButton
 from src.ui.widgets.rounded_input import RoundedLineEdit
@@ -27,7 +27,7 @@ class ApiTestDialog(QDialog):
         c = get_colors()
 
         self.setWindowTitle(tr("dialog.api_test.title"))
-        self.setMinimumSize(600, 500)
+        self.setMinimumSize(LAYOUT["dialog_width_xxl"], LAYOUT["api_test_height"])
         self.setStyleSheet(f"""
             QDialog {{
                 background-color: {c['bg_card']};
@@ -43,7 +43,7 @@ class ApiTestDialog(QDialog):
                 border: 1px solid {c['border']};
                 border-radius: 4px;
                 padding: 6px 10px;
-                font-size: 13px;
+                font-size: {SIZE_BODY_S}px;
             }}
             QTextEdit {{
                 background-color: {c['bg_input']};
@@ -52,7 +52,7 @@ class ApiTestDialog(QDialog):
                 border-radius: 4px;
                 padding: 8px;
                 font-family: Consolas;
-                font-size: 12px;
+                font-size: {SIZE_CAPTION}px;
             }}
             QPushButton {{
                 background-color: {c['accent']};
@@ -60,7 +60,7 @@ class ApiTestDialog(QDialog):
                 border: none;
                 border-radius: 8px;
                 padding: 8px 16px;
-                font-size: 13px;
+                font-size: {SIZE_BODY_S}px;
                 font-weight: 500;
             }}
             QPushButton:hover {{
@@ -123,7 +123,7 @@ class ApiTestDialog(QDialog):
 
         self._result_text = QTextEdit()
         self._result_text.setReadOnly(True)
-        self._result_text.setMaximumHeight(150)
+        self._result_text.setMaximumHeight(LAYOUT["api_test_output_max_height"])
         layout.addWidget(self._result_text)
 
         # 按钮（只有"确定" → 主操作在最右）

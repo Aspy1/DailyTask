@@ -7,7 +7,7 @@
 import json
 from pathlib import Path
 
-from scripts.gen_design_tokens import _color_table, _size_table
+from scripts.gen_design_tokens import _color_table, _control_table, _size_table
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -18,3 +18,4 @@ def test_design_tokens_doc_in_sync() -> None:
 
     assert _color_table(data) in doc, "颜色表与 tokens.json 不同步 → 跑 gen_design_tokens.py"
     assert _size_table(data) in doc, "字号表与 tokens.json 不同步 → 跑 gen_design_tokens.py"
+    assert _control_table(data) in doc, "控件/布局表与 tokens.json 不同步 → 跑 gen_design_tokens.py"

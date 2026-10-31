@@ -21,10 +21,14 @@ from PySide6.QtWidgets import (
 from src.i18n.loader import tr
 from src.services.ai_service import AIService
 from src.services.api_service import ApiService
+from src.services.email_sender import EmailConfig
 from src.services.settings_manager import SettingsManager
+from src.ui.panels.provider_catalog import PROVIDERS
 from src.ui.styles.cards import card
 from src.ui.styles.theme import (
     FIELD_H,
+    LAYOUT,
+    SIZE_BODY,
     SIZE_BODY_L,
     SIZE_BODY_S,
     btn_secondary_qss,
@@ -36,6 +40,7 @@ from src.ui.styles.theme import (
 )
 from src.ui.widgets.api_test_dialog import ApiTestDialog
 from src.ui.widgets.dialog_shell import form_row
+from src.ui.widgets.email_test_worker import EmailTestWorker
 from src.ui.widgets.rounded_button import RoundedButton
 from src.ui.widgets.rounded_input import RoundedComboBox, RoundedLineEdit
 from src.ui.widgets.toggle_switch import ToggleSwitch
@@ -43,35 +48,19 @@ from src.ui.widgets.toggle_switch import ToggleSwitch
 # 数据目录（本文件在 src/ui/panels/ 下，往上 3 层是仓库根）
 _DATA_DIR = Path(__file__).resolve().parents[3] / "data"
 
-PROVIDERS = {
-    "deepseek": {
-        "name": "DeepSeek", "endpoint": "https://api.deepseek.com",
-        "model": "deepseek-chat", "key_placeholder": "sk-...",
-        "key_url": "https://platform.deepseek.com",
-    },
-    "claude": {
-        "name": "Claude (Anthropic)", "endpoint": "https://api.anthropic.com",
-        "model": "claude-sonnet-4-20250514", "key_placeholder": "sk-ant-...",
-        "key_url": "https://console.anthropic.com",
-    },
-    # 自定义端点：本地 / 自建 OpenAI 兼容服务（⚠ 端点必须以 `/v1` 结尾，少写会 404，
-    # 界面只表现为"AI 没反应"）。URL / 模型名由用户在设置页自己填。
-    "custom": {"name": "自定义端点（本地 / 自建）", "endpoint": "http://127.0.0.1:8000/v1",
-               "model": "", "key_placeholder": "按服务要求填，可留空", "key_url": ""},
-    # OpenCode Go（订阅制）：OpenAI 兼容端点 + 订阅 key。
-    # ⚠ 必须用 /inference/go/... 这个地址；免费模型在**按量付费**端点会被
-    # 403 FreeTierError 拦下（"free tier can only be used from within OpenCode"）。
-    # 代码侧会自动补 x-opencode-session 与自定义 UA（见 ai_service.provider_headers）。
-    "opencode": {
-        "name": "OpenCode Go", "endpoint": "https://opencode.ai/inference/go/openai/v1",
-        "model": "longcat-2.5-preview-free", "key_placeholder": "sk-...",
-        "key_url": "https://opencode.ai/console",
-    },
-}
-
-
 logger = logging.getLogger(__name__)
 
+
+def _show_test_email_result(parent, ok: bool, error: str, user: str) -> None:
+    """测试邮件的结果提示（放模块级：SettingsPanel 类已到尺寸上限）。"""
+    if ok:
+        QMessageBox.information(
+            parent, tr("panel.settings.dialog_title_success"),
+            tr("panel.settings.msg_test_email_sent", user=user))
+    else:
+        QMessageBox.warning(
+            parent, tr("panel.settings.dialog_title_failed"),
+            tr("panel.settings.msg_send_failed", error=error))
 
 
 class SettingsPanel(QWidget):
@@ -190,7 +179,7 @@ class SettingsPanel(QWidget):
         self._model_combo = RoundedComboBox()
         self._model_combo.setStyleSheet(self._combo_qss())
         self._model_combo.setEditable(True)
-        self._model_combo.setMinimumWidth(200)
+        self._model_combo.setMinimumWidth(LAYOUT["model_input_width"])
         self._model_combo.setFixedHeight(FIELD_H)
         layout.addWidget(self._row(tr("settings.model"), self._model_combo))
         layout.addWidget(self._divider())
@@ -212,7 +201,7 @@ class SettingsPanel(QWidget):
         save_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         save_btn.setStyleSheet(f"""
             QPushButton {{ background-color: {c['accent']}; color: {c['fg_on_fill']}; border: none;
-                border-radius: 8px; font-weight: 600; font-size: 13px; }}
+                border-radius: 8px; font-weight: 600; font-size: {SIZE_BODY_S}px; }}
             QPushButton:hover {{ background-color: {c['accent_hover']}; }}
             QPushButton:pressed {{ background-color: {c['accent_dim']}; }}
         """)
@@ -224,7 +213,7 @@ class SettingsPanel(QWidget):
         test_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         test_btn.setStyleSheet(f"""
             QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
-                border: none; border-radius: 8px; font-weight: 500; font-size: 13px; }}
+                border: none; border-radius: 8px; font-weight: 500; font-size: {SIZE_BODY_S}px; }}
             QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; }}
         """)
         test_btn.clicked.connect(self._open_api_test)
@@ -270,7 +259,7 @@ class SettingsPanel(QWidget):
         save_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         save_btn.setStyleSheet(f"""
             QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['fg_primary']}; border: none;
-                border-radius: 8px; font-weight: 600; font-size: 13px; }}
+                border-radius: 8px; font-weight: 600; font-size: {SIZE_BODY_S}px; }}
             QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; }}
         """)
         save_btn.clicked.connect(self._save_general_settings)
@@ -310,10 +299,10 @@ class SettingsPanel(QWidget):
         c = get_colors()
         if self._ai_service.is_configured:
             self._status_label.setText("● " + tr("settings.status.configured"))
-            self._status_label.setStyleSheet(f"color: {c['green']}; font-size: 13px; background: transparent;")
+            self._status_label.setStyleSheet(f"color: {c['green']}; font-size: {SIZE_BODY_S}px; background: transparent;")
         else:
             self._status_label.setText("● " + tr("settings.status.not_configured"))
-            self._status_label.setStyleSheet(f"color: {c['red']}; font-size: 13px; background: transparent;")
+            self._status_label.setStyleSheet(f"color: {c['red']}; font-size: {SIZE_BODY_S}px; background: transparent;")
 
     def _open_api_test(self) -> None:
         """打开 API 测试窗口"""
@@ -360,7 +349,7 @@ class SettingsPanel(QWidget):
         layout.addWidget(self._row(tr("panel.settings.label_smtp_pass"), self._smtp_pass))
 
         help_lbl = QLabel(tr("panel.settings.hint_email_help"))
-        help_lbl.setStyleSheet(f"color: {c['fg_hint']}; font-size: 13px; padding: 0 18px;")
+        help_lbl.setStyleSheet(f"color: {c['fg_hint']}; font-size: {SIZE_BODY_S}px; padding: 0 18px;")
         layout.addWidget(help_lbl)
 
         layout.addWidget(self._divider())
@@ -369,11 +358,11 @@ class SettingsPanel(QWidget):
         trl = QHBoxLayout(test_row)
         trl.setContentsMargins(16, 8, 16, 8)
         test_btn = RoundedButton(tr("panel.settings.btn_send_test_email"))
-        test_btn.setMinimumWidth(120)
+        test_btn.setMinimumWidth(LAYOUT["button_width_lg"])
         test_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         test_btn.setStyleSheet(f"""
             QPushButton {{ background-color: {c['accent']}; color: {c['fg_on_fill']}; border: none;
-                border-radius: 8px; padding: 6px 12px; font-weight: 600; font-size: 13px; }}
+                border-radius: 8px; padding: 6px 12px; font-weight: 600; font-size: {SIZE_BODY_S}px; }}
             QPushButton:hover {{ background-color: {c['accent_hover']}; }}
         """)
         test_btn.clicked.connect(self._send_test_email)
@@ -392,7 +381,7 @@ class SettingsPanel(QWidget):
         save_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         save_btn.setStyleSheet(f"""
             QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['fg_primary']}; border: none;
-                border-radius: 8px; font-weight: 600; font-size: 13px; }}
+                border-radius: 8px; font-weight: 600; font-size: {SIZE_BODY_S}px; }}
             QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; }}
         """)
         save_btn.clicked.connect(self._save_email_settings)
@@ -401,9 +390,7 @@ class SettingsPanel(QWidget):
         return card
 
     def _send_test_email(self) -> None:
-        import smtplib
-        from email.mime.text import MIMEText
-
+        """发送测试邮件 —— **后台线程**（SMTP 10s 超时不能卡住界面）。"""
         host = self._smtp_host.text().strip() or "smtp.qq.com"
         try:
             port = int(self._smtp_port.text().strip())
@@ -413,21 +400,20 @@ class SettingsPanel(QWidget):
         pwd = self._smtp_pass.text().strip()
 
         if not user or not pwd:
-            QMessageBox.warning(self, tr("panel.settings.dialog_title_error"), tr("panel.settings.msg_email_required"))
+            QMessageBox.warning(self, tr("panel.settings.dialog_title_error"),
+                                tr("panel.settings.msg_email_required"))
+            return
+        if getattr(self, "_email_test_worker", None) is not None and \
+                self._email_test_worker.isRunning():
             return
 
-        try:
-            msg = MIMEText(tr("panel.settings.email_test_body"), "plain", "utf-8")
-            msg["Subject"] = tr("panel.settings.email_test_subject")
-            msg["From"] = user
-            msg["To"] = user
-            with smtplib.SMTP(host, port, timeout=10) as s:
-                s.starttls()
-                s.login(user, pwd)
-                s.send_message(msg)
-            QMessageBox.information(self, tr("panel.settings.dialog_title_success"), tr("panel.settings.msg_test_email_sent", user=user))
-        except Exception as e:  # noqa: BLE001
-            QMessageBox.warning(self, tr("panel.settings.dialog_title_failed"), tr("panel.settings.msg_send_failed", error=e))
+        config = EmailConfig(host=host, port=port, user=user, password=pwd,
+                             recipient=user)
+        self._email_test_worker = EmailTestWorker(config, self)
+        self._email_test_worker.done.connect(
+            lambda ok, err: _show_test_email_result(self, ok, err, user))
+        self._email_test_worker.finished.connect(self._email_test_worker.deleteLater)
+        self._email_test_worker.start()
 
     def _save_email_settings(self) -> None:
         self._settings.set("Email", "smtp_host", self._smtp_host.text().strip())
@@ -490,7 +476,7 @@ class SettingsPanel(QWidget):
         sr = QHBoxLayout(stats_row)
         sr.setContentsMargins(16, 12, 16, 12)
         self._weather_stats_label = QLabel(tr("panel.settings.label_weather_stats", count=0))
-        self._weather_stats_label.setStyleSheet(f"color: {c['fg_hint']}; font-size: 13px;")
+        self._weather_stats_label.setStyleSheet(f"color: {c['fg_hint']}; font-size: {SIZE_BODY_S}px;")
         sr.addWidget(self._weather_stats_label)
         sr.addStretch()
         layout.addWidget(stats_row)
@@ -507,7 +493,7 @@ class SettingsPanel(QWidget):
         save_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         save_btn.setStyleSheet(f"""
             QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['fg_primary']}; border: none;
-                border-radius: 8px; font-weight: 600; font-size: 13px; }}
+                border-radius: 8px; font-weight: 600; font-size: {SIZE_BODY_S}px; }}
             QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; }}
         """)
         save_btn.clicked.connect(self._save_weather_settings)
@@ -521,11 +507,12 @@ class SettingsPanel(QWidget):
     def _update_weather_stats(self) -> None:
         """更新天气 API 调用统计显示（**坏文件不能让应用崩** —— 这是启动路径）。"""
         from datetime import datetime
-        from pathlib import Path
 
         from src.services.weather_store import read_json_safe
 
-        stats_file = Path(__file__).resolve().parents[3] / "data" / "weather_stats.json"
+        # 数据目录以 DataManager 为准（测试/自定义目录不再靠 `__file__` 猜）
+        data_dir = (getattr(self._data_manager, "data_dir", None) or _DATA_DIR)
+        stats_file = Path(data_dir) / "weather_stats.json"
         stats = read_json_safe(stats_file)          # 缺文件/损坏 → {}，不抛
         month = datetime.now().strftime("%Y-%m")
         monthly = stats.get("monthly", {}).get(month, {}).get("total", 0)
@@ -607,6 +594,7 @@ class SettingsPanel(QWidget):
             w = self._plugins_container.layout().itemAt(i).widget()
             if w:
                 w.setParent(None)
+                w.deleteLater()          # 不 deleteLater 会在反复刷新时累积孤儿控件
 
         if self._plugin_manager is None:
             return
@@ -618,12 +606,15 @@ class SettingsPanel(QWidget):
             rl.setContentsMargins(8, 8, 8, 8)
             rl.setSpacing(8)
             name_lbl = QLabel(pinfo.name)
-            name_lbl.setFixedWidth(180)
-            name_lbl.setStyleSheet("font-weight:600; font-size:14px; color: " + self._c()['fg_primary'] + "; background: transparent;")
+            name_lbl.setFixedWidth(LAYOUT["name_width"])
+            name_lbl.setStyleSheet(
+                f"font-weight: 600; font-size: {SIZE_BODY}px;"
+                f" color: {self._c()['fg_primary']}; background: transparent;")
             rl.addWidget(name_lbl)
             enabled_cb = ToggleSwitch()
             enabled_cb.setChecked(bool(pinfo.enabled))
-            enabled_cb.toggled.connect(lambda checked, n=pinfo.name: self._toggle_plugin(n, checked))
+            # R-008：复选框用 clicked(bool)，不用 toggled —— 后者会被程序化 setChecked 触发成回环
+            enabled_cb.clicked.connect(lambda checked, n=pinfo.name: self._toggle_plugin(n, checked))
             rl.addWidget(enabled_cb)
             panels = self._plugin_manager.get_panels(pinfo.name)
             open_btn = RoundedButton(tr("panel.settings.btn_open_plugin_panel"))
@@ -704,11 +695,11 @@ class SettingsPanel(QWidget):
             enabled_cb.setChecked(self._settings.get_bool("Balance", f"{key}_enabled"))
             balance_input = RoundedLineEdit(self._settings.get("Balance", f"{key}_balance"))
             balance_input.setStyleSheet(self._input_qss())
-            balance_input.setFixedWidth(100)
+            balance_input.setFixedWidth(LAYOUT["input_width_lg"])
             balance_input.setPlaceholderText(tr("panel.settings.placeholder_balance"))
             threshold_input = RoundedLineEdit(self._settings.get("Balance", f"{key}_threshold"))
             threshold_input.setStyleSheet(self._input_qss())
-            threshold_input.setFixedWidth(80)
+            threshold_input.setFixedWidth(LAYOUT["input_width_md"])
             threshold_input.setPlaceholderText(tr("panel.settings.placeholder_threshold"))
 
             row_w = QWidget()
@@ -716,8 +707,8 @@ class SettingsPanel(QWidget):
             rl = QHBoxLayout(row_w)
             rl.setContentsMargins(16, 8, 16, 8)
             lbl = QLabel(label)
-            lbl.setStyleSheet(f"color: {c['fg_primary']}; font-size: 13px; background: transparent;")
-            lbl.setFixedWidth(60)
+            lbl.setStyleSheet(f"color: {c['fg_primary']}; font-size: {SIZE_BODY_S}px; background: transparent;")
+            lbl.setFixedWidth(LAYOUT["input_width_sm"])
             rl.addWidget(lbl)
             rl.addWidget(enabled_cb)
             rl.addWidget(QLabel(tr("panel.settings.label_balance")))
@@ -741,7 +732,7 @@ class SettingsPanel(QWidget):
         br.setContentsMargins(16, 12, 16, 12)
 
         hint = QLabel(tr("panel.settings.hint_balance_electricity"))
-        hint.setStyleSheet(f"color: {c['fg_hint']}; font-size: 13px; background: transparent;")
+        hint.setStyleSheet(f"color: {c['fg_hint']}; font-size: {SIZE_BODY_S}px; background: transparent;")
         br.addWidget(hint)
 
         br.addStretch()
@@ -750,7 +741,7 @@ class SettingsPanel(QWidget):
         save_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         save_btn.setStyleSheet(f"""
             QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['fg_primary']}; border: none;
-                border-radius: 8px; font-weight: 600; font-size: 13px; }}
+                border-radius: 8px; font-weight: 600; font-size: {SIZE_BODY_S}px; }}
             QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; }}
         """)
         save_btn.clicked.connect(self._save_balance_settings)

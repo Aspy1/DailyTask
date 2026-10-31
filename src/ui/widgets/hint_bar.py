@@ -12,7 +12,8 @@ from datetime import date
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import QWidget
 
-from src.services.hints import Hint, today_hints
+from src.models.course import schedule_date
+from src.services.hints import Hint, load_weather, today_hints
 from src.ui.styles.theme import SIZE_BODY_S, get_colors
 from src.ui.widgets.flow_grid import FlowGrid
 from src.ui.widgets.rounded_button import RoundedButton
@@ -26,9 +27,12 @@ REFRESH_INTERVAL_MS = 60_000
 class HintBar(FlowGrid):
     """今天的提示（一行放不下就换行）；没有（或全点掉了）就整条隐藏。"""
 
-    def __init__(self, data_dir=None, parent=None) -> None:
+    def __init__(self, data_dir=None, data_manager=None, parent=None) -> None:
         super().__init__(uniform=False, parent=parent)
         self._data_dir = data_dir
+        # 有 DataManager 时直接读内存模型：提示条每次数据变化都会 refresh，
+        # 再读 5 个 JSON + 构造 CourseModel 等于把文件 IO 放进 UI 刷新路径（Q-C2）。
+        self._dm = data_manager
         self.setSpacing(6)
         self._dismissed: set[str] = set()
         self._dismissed_on = ""          # "已点掉"属于**哪一天**（跨天自动失效）
@@ -46,7 +50,23 @@ class HintBar(FlowGrid):
 
     def refresh(self) -> None:
         """重新算一遍今天的提示并重画（换主题 / 数据变化都走这里）。"""
-        self.show_hints(today_hints(self._data_dir) if self._data_dir else [])
+        if self._data_dir is None:
+            self.show_hints([])
+            return
+        weather = load_weather(self._data_dir)
+        if self._dm is None:
+            self.show_hints(today_hints(self._data_dir, weather=weather))
+            return
+        today = date.today().isoformat()
+        self.show_hints(today_hints(
+            self._data_dir,
+            items=self._dm.inventory.items,
+            plans=self._dm.daily_logs.get_plans(today),
+            courses=self._dm.courses.get_courses_for_date(schedule_date()),
+            records=self._dm.expenses.records,
+            budget=self._dm.expenses.budget.get("monthly", 0) or 0,
+            weather=weather,
+        ))
 
     @staticmethod
     def _chip_qss(level: str, c: dict) -> str:

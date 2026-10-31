@@ -49,6 +49,10 @@ SPACING: dict = _TOKENS_DATA["spacing"]
 # 控件规格（审查 §3）：输入框 / 按钮 / 开关 / 浮动按钮的统一尺寸。
 # **值在 `design/tokens.json` 的 `controls`** —— 此前它们是硬编码在这里的（FIELD_H = 34 …）。
 CONTROLS: dict = _TOKENS_DATA["controls"]
+# 布局规格：窗口 / 弹窗 / 列表 / 窄输入的固定尺寸。
+# 来历（2026-10-31 审查）：这些数字曾以 `setFixedWidth(184)` / `setMinimumWidth(420)`
+# 的形式散落在 20 个文件里（SIZE-LIT 44 处），改一个弹窗宽度要全局 grep。
+LAYOUT: dict = _TOKENS_DATA["layout"]
 # 输入类控件统一高度（一行一个字段；高度不一致会让文字被裁）
 FIELD_H = CONTROLS["field_height"]
 
@@ -566,7 +570,7 @@ QToolTip {{ background-color: {t["bg_elevated"]}; color: {t["fg_primary"]}; bord
 #aiHeader {{ background-color: {t["sidebar_bg"]}; border-bottom: 1px solid {t["border"]}; }}
 #aiInputContainer {{ background-color: {t["sidebar_bg"]}; border-top: 1px solid {t["border"]}; }}
 #courseCount, #taskCount {{ color: {t["fg_hint"]}; font-size: {SIZE_TINY}px; border: none; }}
-#taskTable {{ background-color: {t["bg_root"]}; color: {t["fg_primary"]}; border: none; font-size: 12px; }}
+#taskTable {{ background-color: {t["bg_root"]}; color: {t["fg_primary"]}; border: none; font-size: {SIZE_CAPTION}px; }}
 #taskTable::item {{ padding: 8px 12px; min-height: 32px; border-bottom: 1px solid {t["divider"]}; }}
 #taskTable::item:alternate {{ background-color: {t["table_alt"]}; }}
 """

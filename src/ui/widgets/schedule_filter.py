@@ -16,7 +16,7 @@ from PySide6.QtWidgets import QHBoxLayout, QPushButton, QWidget
 
 from src.i18n.loader import tr
 from src.models.daily_log import plan_category
-from src.ui.styles.theme import get_colors
+from src.ui.styles.theme import SIZE_BODY_S, get_colors
 from src.ui.widgets.rounded_button import RoundedButton
 
 ALL, STUDY, LIFE = "all", "study", "life"
@@ -87,4 +87,4 @@ class CategoryFilter(QWidget):
             fg = c["fg_on_fill"] if on else c["btn_secondary_fg"]
             btn.setStyleSheet(
                 f"QPushButton {{ background-color: {bg}; color: {fg}; border: none;"
-                f" border-radius: 8px; padding: 4px 12px; font-size: 13px; }}")
+                f" border-radius: 8px; padding: 4px 12px; font-size: {SIZE_BODY_S}px; }}")

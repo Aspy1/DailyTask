@@ -6,6 +6,8 @@
   "panel.settings.section_about": "关于",
 
   "panel.settings.label_provider": "提供商",
+  "panel.settings.provider_custom": "自定义端点（本地 / 自建）",
+  "panel.settings.provider_key_hint": "按服务要求填，可留空",
   "panel.settings.label_api_key": "API Key",
   "panel.settings.label_endpoint": "端点",
   "panel.settings.btn_save": "保存",

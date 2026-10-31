@@ -18,6 +18,7 @@
   "window.status.weather_placeholder": "天气: --",
   "window.status.weather": "天气: {temp}°C {text}",
   "window.status.week": "第{week}/{total}周 ",
+  "window.status.toggle_day_tooltip": "点击切换 今日 / 明日预告",
   "window.status.course_all_done": "共{total}节课，已上{finished}节，今日课已上完  ▸",
   "window.status.course_next": "共{total}节课，已上{finished}节，下一节: {name} {start}  ▸",
   "window.status.ddl_count": "  |  {n}项DDL",

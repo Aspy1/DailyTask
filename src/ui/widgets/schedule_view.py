@@ -21,7 +21,15 @@ from src.services.data_manager import DataManager
 from src.ui.components.click_label import ClickLabel
 from src.ui.panels.course_panel import CoursePanel
 from src.ui.styles.cards import card
-from src.ui.styles.theme import font, get_colors
+from src.ui.styles.theme import (
+    LAYOUT,
+    SIZE_BODY_L,
+    SIZE_BODY_M,
+    SIZE_BODY_S,
+    SIZE_CAPTION,
+    font,
+    get_colors,
+)
 from src.ui.widgets.hint_bar import HintBar
 from src.ui.widgets.menu import (
     add_action,
@@ -40,6 +48,28 @@ from src.ui.widgets.schedule_slots import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def slot_content_hash(items: list[dict], ddls: list[dict], is_current: bool) -> str:
+    """时段内容指纹，用于增量刷新时跳过未变的卡片。
+
+    ⚠ 完成状态（`done`）必须参与指纹：不参与时打卡后卡片不会重建，
+    显示仍是 ○ / 未划线 —— 这是 hash 增量刷新的经典漏项。
+    """
+    import hashlib
+    import json
+
+    content_key = json.dumps({
+        'items': [{'t': i['type'], 'n': i.get('name', '') or i.get('title', ''),
+                   'nt': i.get('note', ''), 'd': i.get('duration', 0),
+                   'l': i.get('location', ''), 'rt': i.get('reminder_time', ''),
+                   'pt': i.get('plan_type', ''), 'cn': i.get('course_name', ''),
+                   'done': bool(i.get('done'))}
+                  for i in items],
+        'ddls': [{'t': d.get('title', ''), 'd': d.get('due_date', '')[:16]} for d in ddls],
+        'cur': is_current,
+    }, sort_keys=True).encode()
+    return hashlib.md5(content_key, usedforsecurity=False).hexdigest()
 
 
 def slot_layout_index(slot_cards: dict, period: int) -> int:
@@ -65,7 +95,7 @@ def secondary_button(text: str, c: dict, slot=None) -> "RoundedButton":
     btn = RoundedButton(text)
     btn.setStyleSheet(f"""
         QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
-            border-radius: 8px; padding: 3px 10px; font-size: 13px; }}
+            border-radius: 8px; padding: 3px 10px; font-size: {SIZE_BODY_S}px; }}
         QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; color: {c['btn_secondary_hover_fg']}; }}
     """)
     if slot is not None:
@@ -78,6 +108,7 @@ class ScheduleView(QWidget):
     task_focus_requested = Signal(str)
     quick_adjust_requested = Signal(str)  # AI prompt for schedule optimization
     arrange_requested = Signal(str)       # Quick-arrange: snapshot prompt → AI service
+    fill_ai_prompt = Signal(str)          # 课程右键"布置了作业" → 填充 AI 输入框
 
     # 快速安排的撤销快照：只记 `plans`（撤销不该连带回滚 `logs`/`reminders`，审查 #3）。
     # 放**类级**而不是 `__init__`：`__init__` 是 SIZE 存量项，门禁只防新增/加重
@@ -123,7 +154,7 @@ class ScheduleView(QWidget):
         self._mode_week = RoundedButton(tr("widget.schedule.mode_week"))
         for btn, mode in ((self._mode_day, "day"), (self._mode_week, "week")):
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
-            btn.setFixedWidth(36)
+            btn.setFixedWidth(LAYOUT["view_mode_width"])
             btn.clicked.connect(lambda checked=False, m=mode: self._set_mode(m))
             bl.addWidget(btn)
 
@@ -143,7 +174,7 @@ class ScheduleView(QWidget):
         self._arrange_btn = RoundedButton(tr("widget.schedule.btn_quick_arrange"))
         self._arrange_btn.setStyleSheet(f"""
             QPushButton {{ background-color: {c['accent']}; color: {c['fg_on_fill']};
-                border-radius: 8px; padding: 3px 14px; font-size: 13px; font-weight: 600; }}
+                border-radius: 8px; padding: 3px 14px; font-size: {SIZE_BODY_S}px; font-weight: 600; }}
             QPushButton:hover {{ background-color: {c['accent_hover']}; }}
         """)
         self._arrange_btn.clicked.connect(self._quick_arrange)
@@ -158,13 +189,13 @@ class ScheduleView(QWidget):
             self._nav_buttons.append(btn)
 
         self._date_label = QLabel()
-        self._date_label.setStyleSheet(f"color: {c['fg_secondary']}; font-size: 13px; min-width: 100px;")
+        self._date_label.setStyleSheet(f"color: {c['fg_secondary']}; font-size: {SIZE_BODY_S}px; min-width: 100px;")
         self._date_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         bl2.addWidget(self._date_label)
 
         layout.addWidget(bar)
 
-        self._hint_bar = HintBar(self._dm.data_dir)
+        self._hint_bar = HintBar(self._dm.data_dir, data_manager=self._dm)
         layout.addWidget(self._hint_bar)
 
         # 日 / 周 两页：日 = 时段卡片；周 = 课程表（含"事项行"）
@@ -215,7 +246,7 @@ class ScheduleView(QWidget):
             btn.setStyleSheet(
                 f"QPushButton {{ background-color: {c[f'btn_{tone}_bg']};"
                 f" color: {c[f'btn_{tone}_fg']}; border: 1px solid {c[f'btn_{tone}_border']};"
-                f" border-radius: 8px; padding: 3px 10px; font-size: 13px; font-weight: 600; }}"
+                f" border-radius: 8px; padding: 3px 10px; font-size: {SIZE_BODY_S}px; font-weight: 600; }}"
                 f" QPushButton:hover {{ background-color: {c[f'btn_{tone}_bg_hover']}; }}")
             btn.clicked.connect(slot)
             btn.hide()
@@ -229,12 +260,12 @@ class ScheduleView(QWidget):
         active = f"""
             QPushButton {{ background-color: {c['accent']}; color: {c['fg_on_fill']};
                 border: none; border-radius: 8px; padding: 3px 10px;
-                font-size: 13px; font-weight: 600; }}
+                font-size: {SIZE_BODY_S}px; font-weight: 600; }}
             QPushButton:hover {{ background-color: {c['accent_hover']}; }}
         """
         idle = f"""
             QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
-                border-radius: 8px; padding: 3px 10px; font-size: 13px; }}
+                border-radius: 8px; padding: 3px 10px; font-size: {SIZE_BODY_S}px; }}
             QPushButton:hover {{ background-color: {c['btn_secondary_hover']};
                 color: {c['btn_secondary_hover_fg']}; }}
         """
@@ -389,26 +420,10 @@ class ScheduleView(QWidget):
         return ddl_by_slot
 
     @staticmethod
-    def _content_hash(items: list[dict], ddls: list[dict], is_current: bool) -> str:
-        """时段内容指纹，用于增量刷新时跳过未变的卡片。"""
-        import hashlib
-        import json
-        content_key = json.dumps({
-            'items': [{'t': i['type'], 'n': i.get('name', '') or i.get('title', ''),
-                       'nt': i.get('note', ''), 'd': i.get('duration', 0),
-                       'l': i.get('location', ''), 'rt': i.get('reminder_time', ''),
-                       'pt': i.get('plan_type', ''), 'cn': i.get('course_name', '')}
-                      for i in items],
-            'ddls': [{'t': d.get('title', ''), 'd': d.get('due_date', '')[:16]} for d in ddls],
-            'cur': is_current,
-        }, sort_keys=True).encode()
-        return hashlib.md5(content_key, usedforsecurity=False).hexdigest()
-
-    @staticmethod
     def _add_slot_empty(layout: QVBoxLayout, c: dict) -> None:
         """空态也是正文：fg_disabled 在浅色下只有 1.78:1（几乎看不见）。"""
         empty = QLabel(tr("widget.schedule.slot_empty"))
-        empty.setStyleSheet(f"color: {c['fg_hint']}; font-size: 13px; padding: 4px 0;")
+        empty.setStyleSheet(f"color: {c['fg_hint']}; font-size: {SIZE_BODY_S}px; padding: 4px 0;")
         layout.addWidget(empty)
 
     def _add_slot_items(self, layout: QVBoxLayout, items: list[dict],
@@ -417,7 +432,7 @@ class ScheduleView(QWidget):
         if len([i for i in items if i.get("type") == "course"]) > 1:
             warn = QLabel(tr("widget.schedule.slot_conflict"))
             warn.setStyleSheet(
-                f"color: {c['accent_text']}; font-size: 12px; font-weight: 600;"
+                f"color: {c['accent_text']}; font-size: {SIZE_CAPTION}px; font-weight: 600;"
                 f" background: transparent; padding: 2px 0;")
             layout.addWidget(warn)
         for item in items:
@@ -443,11 +458,11 @@ class ScheduleView(QWidget):
         hdr.setSpacing(6)
         if is_current:
             arrow = QLabel("▶")
-            arrow.setStyleSheet(f"color: {c['accent_text']}; font-size: 16px; font-weight: bold; border: none;")
+            arrow.setStyleSheet(f"color: {c['accent_text']}; font-size: {SIZE_BODY_L}px; font-weight: bold; border: none;")
             hdr.addWidget(arrow)
         time_label = QLabel(time_str)
         time_label.setStyleSheet(
-            f"color: {c['accent'] if is_current else c['fg_hint']}; font-size: 16px; font-weight: 600;"
+            f"color: {c['accent'] if is_current else c['fg_hint']}; font-size: {SIZE_BODY_L}px; font-weight: 600;"
         )
         hdr.addWidget(time_label)
         hdr.addStretch()
@@ -481,18 +496,18 @@ class ScheduleView(QWidget):
         ccl.setContentsMargins(12, 8, 12, 8)
         ccl.setSpacing(4)
         name_lbl = QLabel(f"📖 {item['name']}")
-        name_lbl.setStyleSheet(f"color: {c['fg_primary']}; font-size: 13px; font-weight: 600;")
+        name_lbl.setStyleSheet(f"color: {c['fg_primary']}; font-size: {SIZE_BODY_S}px; font-weight: 600;")
         name_lbl.setWordWrap(True)
         ccl.addWidget(name_lbl)
         loc = item.get("location", "")
         if loc:
             loc_lbl = QLabel(loc)
-            loc_lbl.setStyleSheet(f"color: {c['fg_hint']}; font-size: 13px;")
+            loc_lbl.setStyleSheet(f"color: {c['fg_hint']}; font-size: {SIZE_BODY_S}px;")
             ccl.addWidget(loc_lbl)
         for plan in plans:
             if plan.get("course_name") == item["name"] and plan.get("type") == "course_note":
                 note_lbl = QLabel(f"📌 {plan.get('title', '')}")
-                note_lbl.setStyleSheet(f"color: {c['accent_text']}; font-size: 16px; font-weight: 600;")
+                note_lbl.setStyleSheet(f"color: {c['accent_text']}; font-size: {SIZE_BODY_L}px; font-weight: 600;")
                 note_lbl.setWordWrap(True)
                 ccl.addWidget(note_lbl)
         return course_card
@@ -512,14 +527,14 @@ class ScheduleView(QWidget):
         strike = " text-decoration: line-through;" if done else ""
         title_lbl.setStyleSheet(
             f"color: {c['fg_hint'] if done else c['fg_primary']};"
-            f" font-size: 13px; font-weight: 600;{strike}")
+            f" font-size: {SIZE_BODY_S}px; font-weight: 600;{strike}")
         title_lbl.setWordWrap(True)
         pcl.addWidget(title_lbl)
         note = item.get("note", "")
         if note:
             n = QLabel(note)
             n.setStyleSheet(
-                f"color: {c['fg_hint'] if done else c['fg_secondary']}; font-size: 13px;")
+                f"color: {c['fg_hint'] if done else c['fg_secondary']}; font-size: {SIZE_BODY_S}px;")
             n.setWordWrap(True)
             pcl.addWidget(n)
         return plan_card
@@ -532,14 +547,14 @@ class ScheduleView(QWidget):
         hcl = QVBoxLayout(hab_card)
         hcl.setContentsMargins(12, 8, 12, 8)
         hcl.setSpacing(4)
-        done = self._dm.habits.is_done_today(item["habit"]["id"])
+        done = bool(item.get("done"))
         status = "✓" if done else "○"
         dur = item.get("duration", 30)
         rt = item.get("reminder_time", "")
         rt_str = f" {rt}" if rt else ""
         name_lbl = QLabel(f"{status} {item['name']}{rt_str}  ({tr('widget.schedule.habit_minutes', dur=dur)})")
         name_lbl.setStyleSheet(
-            f"color: {c['fg_hint'] if done else c['fg_primary']}; font-size: 13px;")
+            f"color: {c['fg_hint'] if done else c['fg_primary']}; font-size: {SIZE_BODY_S}px;")
         hcl.addWidget(name_lbl)
         return hab_card
 
@@ -556,13 +571,13 @@ class ScheduleView(QWidget):
         suffix = tr("widget.schedule.ddl_due", time=due_time) if due_time else ""
         ddl_label.setText(f"—— {t.get('title', '')}{suffix} ——")
         ddl_label.setStyleSheet(
-            f"color: {c['red']}; font-size: 15px; font-weight: 600; border: none; background: transparent; padding: 6px 0;")
+            f"color: {c['red']}; font-size: {SIZE_BODY_M}px; font-weight: 600; border: none; background: transparent; padding: 6px 0;")
         ddl_label.clicked.connect(lambda cn=course_name: self.task_focus_requested.emit(cn))
         return ddl_label
 
     def _refresh(self, force: bool = False) -> None:
-        self._hint_bar.refresh()
         """刷新**当前视图**：日视图重建时段卡片；周视图交给课程表面板。"""
+        self._hint_bar.refresh()
         if self._view_mode == "week":
             self._course_panel._refresh()
             return
@@ -598,7 +613,7 @@ class ScheduleView(QWidget):
             items = slot_data.get(period, [])
             ddls = ddl_by_slot.get(period, [])
             is_current = (period == current_slot and self._day_offset == 0)
-            new_hash = self._content_hash(items, ddls, is_current)
+            new_hash = slot_content_hash(items, ddls, is_current)
 
             if not force and period in self._slot_cards and self._slot_hashes.get(period) == new_hash:
                 continue  # 未变，跳过重建
@@ -698,8 +713,9 @@ class ScheduleView(QWidget):
         elif action_type == "fill":
             from src.ui.widgets.course_table import _build_context_prompt
             prompt = _build_context_prompt(item["course"], payload)
-            # Emit via a signal we need to add
-            self._dm.data_changed.emit("fill_prompt:" + prompt)
+            # 旧实现把 prompt 塞进 `data_changed.emit("fill_prompt:…")`：没人消费，
+            # 反而触发全界面刷新。现在走正式信号 → MainWindow 展开 AI 面板并填入。
+            self.fill_ai_prompt.emit(prompt)
 
     def _plan_menu(self, pos, item, widget) -> None:
         menu = new_menu()

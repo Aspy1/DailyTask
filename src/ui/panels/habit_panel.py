@@ -16,7 +16,16 @@ from src.i18n.loader import tr
 from src.services.data_manager import DataManager
 from src.ui.panels.habit_dialogs import HabitDialog
 from src.ui.styles.cards import Card
-from src.ui.styles.theme import FAB, SIZE_BODY, font, get_colors
+from src.ui.styles.theme import (
+    FAB,
+    SIZE_BODY,
+    SIZE_BODY_S,
+    SIZE_CAPTION,
+    SIZE_FAB,
+    SIZE_TINY,
+    font,
+    get_colors,
+)
 from src.ui.widgets.flow_grid import FlowGrid
 from src.ui.widgets.menu import (
     add_action,
@@ -94,7 +103,7 @@ class _HabitCard(Card):
 
         tag = QLabel(tag_text)
         tag.setStyleSheet(f"""
-            color: {tag_fg}; font-size: 11px; font-weight: 500;
+            color: {tag_fg}; font-size: {SIZE_TINY}px; font-weight: 500;
             padding: 2px 10px; border-radius: 4px;
             background-color: {tag_bg}; border: none;
         """)
@@ -106,7 +115,7 @@ class _HabitCard(Card):
         desc_lbl = QLabel(desc)
         desc_lbl.setWordWrap(True)
         desc_lbl.setStyleSheet(
-            f"color: {desc_fg}; font-size: 12px; border: none; background: transparent;")
+            f"color: {desc_fg}; font-size: {SIZE_CAPTION}px; border: none; background: transparent;")
         layout.addWidget(desc_lbl)
         layout.addStretch()
 
@@ -153,7 +162,7 @@ class _HabitCard(Card):
         done_btn.setStyleSheet(f"""
                 QPushButton {{
                     background-color: {c['accent']}; color: {c['fg_on_fill']}; border: none;
-                    border-radius: 8px; padding: 8px 12px; font-size: 13px; font-weight: 600;
+                    border-radius: 8px; padding: 8px 12px; font-size: {SIZE_BODY_S}px; font-weight: 600;
                 }}
                 QPushButton:hover {{ background-color: {c['accent_hover']}; }}
                 QPushButton:pressed {{ background-color: {c['accent_dim']}; }}
@@ -166,7 +175,7 @@ class _HabitCard(Card):
                 QPushButton {{
                     background: transparent; color: {c['fg_secondary']};
                     border: 1px solid {c['border_strong']};
-                    border-radius: 8px; padding: 8px 12px; font-size: 13px;
+                    border-radius: 8px; padding: 8px 12px; font-size: {SIZE_BODY_S}px;
                 }}
                 QPushButton:hover {{ background: {c['bg_input']}; }}
                 QPushButton:pressed {{ background: {c['accent_bg']}; }}
@@ -179,7 +188,7 @@ class _HabitCard(Card):
         skip_btn.setStyleSheet(f"""
                 QPushButton {{
                     background: transparent; color: {c['fg_hint']}; border: none;
-                    border-radius: 8px; padding: 8px 12px; font-size: 13px;
+                    border-radius: 8px; padding: 8px 12px; font-size: {SIZE_BODY_S}px;
                 }}
                 QPushButton:hover {{ color: {c['fg_secondary']}; }}
                 QPushButton:pressed {{ color: {c['fg_primary']}; }}
@@ -277,7 +286,7 @@ class HabitPanel(QWidget):
         self._fab.setFixedSize(FAB, FAB)
         self._fab.setStyleSheet(f"""
             QPushButton {{ background-color: {c['accent']}; color: {c['fg_on_fill']}; border: none;
-                border-radius: 24px; font-size: 24px; font-weight: 600; }}
+                border-radius: 24px; font-size: {SIZE_FAB}px; font-weight: 600; }}
             QPushButton:hover {{ background-color: {c['accent_hover']}; }}
             QPushButton:pressed {{ background-color: {c['accent_dim']}; }}
         """)
@@ -299,7 +308,7 @@ class HabitPanel(QWidget):
         c = get_colors()
         return f"""
             QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
-                border-radius: 8px; padding: 4px 12px; font-size: 13px; }}
+                border-radius: 8px; padding: 4px 12px; font-size: {SIZE_BODY_S}px; }}
             QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; }}
         """
 
@@ -339,7 +348,7 @@ class HabitPanel(QWidget):
         hint = QLabel(tr("panel.habit.empty_today"))
         hint.setWordWrap(True)
         hint.setStyleSheet(
-            f"color: {c['fg_hint']}; font-size: 13px; padding: 16px 4px;"
+            f"color: {c['fg_hint']}; font-size: {SIZE_BODY_S}px; padding: 16px 4px;"
             f" background: transparent;")
         hint.setParent(self._grid)
         hint.show()
@@ -350,7 +359,7 @@ class HabitPanel(QWidget):
         try:
             self._fab.setStyleSheet(f"""
                 QPushButton {{ background-color: {c['accent']}; color: {c['fg_on_fill']}; border: none;
-                    border-radius: 12px; font-size: 24px; font-weight: 600; }}
+                    border-radius: {FAB // 2}px; font-size: {FAB // 2}px; font-weight: 600; }}
                 QPushButton:hover {{ background-color: {c['accent_hover']}; }}
             """)
         except Exception:

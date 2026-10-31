@@ -25,7 +25,7 @@ from PySide6.QtWidgets import (
 
 from src.i18n.loader import tr
 from src.models.inventory import days_until
-from src.ui.styles.theme import RADIUS, get_colors
+from src.ui.styles.theme import LAYOUT, RADIUS, SIZE_BODY_S, get_colors
 from src.ui.widgets.dialog_shell import DialogShell, action_row, form_row
 from src.ui.widgets.rounded_button import RoundedButton
 from src.ui.widgets.rounded_input import RoundedLineEdit
@@ -116,8 +116,8 @@ def email_reminder_dialog(parent, dm, item: dict) -> None:
     c = get_colors()
     dlg = QDialog(parent)
     dlg.setWindowTitle(tr("panel.inventory.dialog_email_title", name=item.get('name', '')))
-    dlg.setMinimumWidth(320)
-    dlg.setStyleSheet(f"QDialog {{ background-color: {c['card_bg']}; }} QLabel {{ color: {c['fg_primary']}; font-size: 13px; }}")
+    dlg.setMinimumWidth(LAYOUT["dialog_width_sm"])
+    dlg.setStyleSheet(f"QDialog {{ background-color: {c['card_bg']}; }} QLabel {{ color: {c['fg_primary']}; font-size: {SIZE_BODY_S}px; }}")
     layout = QVBoxLayout(dlg)
     layout.setSpacing(12)
     layout.addWidget(QLabel(tr("panel.inventory.label_email_prompt", name=item.get('name', ''))))

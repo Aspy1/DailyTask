@@ -21,7 +21,7 @@ from PySide6.QtWidgets import (
 
 from src.i18n.loader import tr
 from src.services.data_manager import DataManager
-from src.ui.styles.theme import font, get_colors
+from src.ui.styles.theme import SIZE_BODY_S, font, get_colors
 from src.ui.widgets.menu import (
     add_action,
     add_separator,
@@ -196,7 +196,7 @@ class TaskPanel(QWidget):
         return f"""
             QPushButton {{ background-color: {c["btn_secondary_bg"]}; color: {c["fg_hint"]};
                 border-radius: 8px;
-                padding: 4px 12px; font-size: 13px; }}
+                padding: 4px 12px; font-size: {SIZE_BODY_S}px; }}
             QPushButton:hover {{ background-color: {c["btn_secondary_hover"]}; color: {c["fg_secondary"]}; }}
             QPushButton::menu-indicator {{ image: none; }}
         """
@@ -266,6 +266,8 @@ class TaskPanel(QWidget):
         self._selected_courses = {course_name}
         self._page = 0
         self._filter_btn.setText(tr("panel.task.filter_course_prefix", name=course_name))
+        # 旧实现只改了筛选项、没刷新表格：从课程表点"查看事项"后仍显示全部任务
+        self._refresh()
 
     def _apply_course_filter(self, sel: set[str]) -> None:
         self._selected_courses = sel
@@ -369,8 +371,8 @@ class TaskPanel(QWidget):
         lbl.setMinimumWidth(self._table.columnWidth(1) - 10)
         lbl.setWordWrap(False)
         lbl.setText(
-            f'<span style="color:{c["red"]};font-size: 13px;">{due_display}</span>'
-            f' <span style="color:{c["fg_secondary"]};font-size: 13px;">'
+            f'<span style="color:{c["red"]};font-size: {SIZE_BODY_S}px;">{due_display}</span>'
+            f' <span style="color:{c["fg_secondary"]};font-size: {SIZE_BODY_S}px;">'
             f'{tr("panel.task.days_left", days=days_left)}</span>'
         )
         return lbl
@@ -407,7 +409,7 @@ class TaskPanel(QWidget):
         # rebuild button qss based on colors
         btn_qss = f"""
             QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
-                border: 1px solid {c['border']}; border-radius: 8px; padding: 4px 12px; font-size: 13px; }}
+                border: 1px solid {c['border']}; border-radius: 8px; padding: 4px 12px; font-size: {SIZE_BODY_S}px; }}
             QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; color: {c['btn_secondary_hover_fg']}; }}
             QPushButton::menu-indicator {{ image: none; }}
         """
@@ -423,7 +425,7 @@ class TaskPanel(QWidget):
         try:
             for lbl in self.findChildren(QLabel):
                 if lbl.objectName() in ("taskCount",):
-                    lbl.setStyleSheet(f"color: {c['fg_hint']}; font-size: 13px;")
+                    lbl.setStyleSheet(f"color: {c['fg_hint']}; font-size: {SIZE_BODY_S}px;")
         except Exception:
             logger.debug("TaskPanel.refresh_theme 中忽略异常", exc_info=True)
 

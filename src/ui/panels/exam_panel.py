@@ -18,7 +18,15 @@ from PySide6.QtWidgets import (
 from src.i18n.loader import tr
 from src.services.data_manager import DataManager
 from src.ui.styles.cards import Card
-from src.ui.styles.theme import CIRCLE_BADGE, font, get_colors
+from src.ui.styles.theme import (
+    CIRCLE_BADGE,
+    LAYOUT,
+    SIZE_BODY_M,
+    SIZE_BODY_S,
+    SIZE_CAPTION,
+    font,
+    get_colors,
+)
 from src.ui.widgets.dialog_shell import action_row, cap_height, form_row, make_scrollable
 from src.ui.widgets.menu import (
     add_action,
@@ -43,7 +51,7 @@ class _ExamCard(Card):
                          hover_bg="accent_bg", parent=parent)
         self._exam = exam
 
-        self.setMinimumHeight(80)
+        self.setMinimumHeight(LAYOUT["card_min_height_xxl"])
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         # 识别钩子（不再是 QSS 选择器）：测试/调试按它找考试卡
@@ -61,11 +69,11 @@ class _ExamCard(Card):
         info.setSpacing(4)
 
         name_lbl = QLabel(exam.get("course_name", ""))
-        name_lbl.setStyleSheet(f"color: {c['fg_primary'] if days_left >= 0 else c['fg_secondary']}; font-size: 15px; font-weight: 600; border: none; background: transparent;")
+        name_lbl.setStyleSheet(f"color: {c['fg_primary'] if days_left >= 0 else c['fg_secondary']}; font-size: {SIZE_BODY_M}px; font-weight: 600; border: none; background: transparent;")
         info.addWidget(name_lbl)
 
         date_lbl = QLabel(f"📅 {exam.get('exam_date', '')}")
-        date_lbl.setStyleSheet(f"color: {accent_color}; font-size: 13px; border: none; background: transparent;")
+        date_lbl.setStyleSheet(f"color: {accent_color}; font-size: {SIZE_BODY_S}px; border: none; background: transparent;")
         info.addWidget(date_lbl)
 
         detail = self._make_detail_label(exam, c)
@@ -121,7 +129,7 @@ class _ExamCard(Card):
         badge.setFixedSize(CIRCLE_BADGE, CIRCLE_BADGE)
         badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
         badge.setStyleSheet(
-            f"color: {fg}; font-size: 13px; font-weight: {weight};"
+            f"color: {fg}; font-size: {SIZE_BODY_S}px; font-weight: {weight};"
             f" background: {bg}; border-radius: {CIRCLE_BADGE // 2}px;")
         return badge
 
@@ -139,7 +147,7 @@ class _ExamCard(Card):
             return None
         detail = QLabel(" · ".join(extras))
         detail.setWordWrap(True)
-        detail.setStyleSheet(f"color: {c['fg_hint']}; font-size: 12px; border: none; background: transparent;")
+        detail.setStyleSheet(f"color: {c['fg_hint']}; font-size: {SIZE_CAPTION}px; border: none; background: transparent;")
         return detail
 
     def contextMenuEvent(self, ev) -> None:
@@ -174,7 +182,7 @@ class ExamPanel(QWidget):
         add_btn = RoundedButton(tr("panel.exam.btn_add"))
         add_btn.setStyleSheet(f"""
             QPushButton {{ background-color: {c['accent']}; color: {c['fg_on_fill']}; border: none;
-                border-radius: 8px; padding: 4px 14px; font-size: 13px; font-weight: 600; }}
+                border-radius: 8px; padding: 4px 14px; font-size: {SIZE_BODY_S}px; font-weight: 600; }}
             QPushButton:hover {{ background-color: {c['accent_hover']}; }}
         """)
         add_btn.clicked.connect(lambda: self._add_exam())
@@ -183,7 +191,7 @@ class ExamPanel(QWidget):
         refresh_btn = RoundedButton(tr("panel.exam.btn_refresh"))
         refresh_btn.setStyleSheet(f"""
             QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
-                border-radius: 8px; padding: 4px 12px; font-size: 13px; }}
+                border-radius: 8px; padding: 4px 12px; font-size: {SIZE_BODY_S}px; }}
             QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; }}
         """)
         refresh_btn.clicked.connect(self._refresh)
@@ -273,13 +281,13 @@ class ExamDialog(QDialog):
         editing = exam is not None
         self.setWindowTitle(tr("panel.exam.dialog_title_edit") if editing
                             else tr("panel.exam.dialog_title_add"))
-        self.setMinimumWidth(420)
+        self.setMinimumWidth(LAYOUT["dialog_width_lg"])
         self.setStyleSheet(f"""
             QDialog {{ background-color: {c['bg_card']}; color: {c['fg_primary']}; }}
             QLabel {{ color: {c['fg_primary']}; background: transparent; border: none; }}
             QLineEdit {{
                 background-color: {c['bg_input']}; color: {c['fg_primary']};
-                border: 1px solid {c['border']}; padding: 6px 10px; font-size: 13px;
+                border: 1px solid {c['border']}; padding: 6px 10px; font-size: {SIZE_BODY_S}px;
                 border-radius: 6px;
             }}
         """)
@@ -316,9 +324,17 @@ class ExamDialog(QDialog):
             QMessageBox.warning(self, tr("panel.exam.msg_title_error"),
                                 tr("panel.exam.msg_need_course"))
             return
-        if not self._date.text().strip():
+        date_text = self._date.text().strip()
+        if not date_text:
             QMessageBox.warning(self, tr("panel.exam.msg_title_error"),
                                 tr("panel.exam.msg_need_date"))
+            return
+        try:
+            date.fromisoformat(date_text)
+        except ValueError:
+            # 以前随便写什么都存：倒计时算不出来就显示 999 天（静默错数据）
+            QMessageBox.warning(self, tr("panel.exam.msg_title_error"),
+                                tr("panel.exam.msg_bad_date"))
             return
         self.result_data = {
             "course_name": self._course.text().strip(),

@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (
 )
 
 from src.i18n.loader import tr
-from src.ui.styles.theme import SIZE_BODY_M, font, get_colors
+from src.ui.styles.theme import LAYOUT, SIZE_BODY_M, SIZE_CAPTION, font, get_colors
 from src.ui.widgets.rounded_button import RoundedButton
 
 # 导航分组：`(分组 id, 分组标题键, [(导航键, 文案键), …])` —— 顺序即界面顺序。
@@ -47,7 +47,7 @@ class SectionHeader(QPushButton):
         self.setStyleSheet(f"""
             QPushButton {{
                 background: transparent; border: none;
-                color: {c['fg_secondary']}; font-size: 12px; font-weight: 600;
+                color: {c['fg_secondary']}; font-size: {SIZE_CAPTION}px; font-weight: 600;
                 text-align: left; padding: 8px 16px;
             }}
             QPushButton:hover {{
@@ -170,7 +170,7 @@ class Sidebar(QWidget):
         super().__init__(parent)
         self.setObjectName("sidebar")
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-        self.setFixedWidth(184)
+        self.setFixedWidth(LAYOUT["sidebar_width"])
 
         self._sections: dict[str, SidebarSection] = {}
         self._nav_items: dict[str, NavItem] = {}
@@ -261,7 +261,7 @@ class Sidebar(QWidget):
         return f"""
             QPushButton {{
                 background: transparent; border: none;
-                color: {color}; font-size: 12px; {weight}
+                color: {color}; font-size: {SIZE_CAPTION}px; {weight}
                 text-align: center; padding: 8px 16px;
             }}
             QPushButton:hover {{ color: {c['accent_text']}; }}

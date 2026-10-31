@@ -153,6 +153,60 @@
 | `spacing_xxxl` | 32 | 首屏留白、弹窗与页面的最大边距 |
 <!-- TOKENS:spacing:END -->
 
+### 2.4 控件与布局规格（生成）
+
+`controls`（输入框/按钮/开关）与 `layout`（窗口/弹窗/列表/窄输入）都是**令牌**：
+代码里只写 `LAYOUT["dialog_width_lg"]`，不再写 `setMinimumWidth(420)`。
+
+<!-- TOKENS:layout:BEGIN -->
+| Token | px | 用途 |
+|---|---|---|
+| `field_height` | 34 | 输入框 / 下拉 / 数字控件的统一高度 |
+| `button_height_sm` | 30 | 小按钮（保存 / 测试 / 添加）的固定高 |
+| `button_width_sm` | 72 | 小按钮的**最小宽**（不要固定宽：文案换语言会裁） |
+| `toggle_width` | 44 | 开关宽度 |
+| `toggle_height` | 24 | 开关高度 |
+| `fab` | 48 | 浮动按钮（＋）边长 |
+| `circle_badge` | 52 | 圆形徽章（考试倒计时）的**直径**；圆角取它的一半（用 `radius_pill`=999 会被 Qt 画成圆角方块） |
+| `window_min_width` | 990 | 主窗口最小宽（三栏：侧边栏 + 内容 + AI 面板） |
+| `window_min_height` | 638 | 主窗口最小高 |
+| `sidebar_width` | 184 | 侧边栏固定宽 |
+| `ai_panel_min_width` | 260 | AI 面板最小宽（再窄消息会挤成竖条） |
+| `ai_input_min_height` | 36 | AI 输入框最小高 |
+| `ai_input_max_height` | 72 | AI 输入框最大高（超过后内部滚动） |
+| `ai_send_width` | 64 | AI 发送按钮宽 |
+| `about_width` | 360 | 关于弹窗宽 |
+| `about_height` | 240 | 关于弹窗高 |
+| `weather_dialog_min_width` | 360 | 天气详情弹窗最小宽 |
+| `dialog_width_xs` | 300 | 弹窗最小宽 · 小（选择列表） |
+| `dialog_width_sm` | 320 | 弹窗最小宽 · 常规（提醒 / 标签） |
+| `dialog_width_md` | 350 | 弹窗最小宽 · 中等（带多个输入） |
+| `dialog_width_lg` | 420 | 弹窗最小宽 · 大（课程 / 考试编辑） |
+| `dialog_width_xl` | 440 | 弹窗最小宽 · 很大（习惯编辑） |
+| `dialog_width_xxl` | 600 | 弹窗最小宽 · 最大（API 测试） |
+| `list_max_height_sm` | 80 | 列表/输出区最大高 · 小 |
+| `list_max_height_md` | 100 | 列表/输出区最大高 · 中 |
+| `input_width_sm` | 60 | 窄输入（次数 / 期数） |
+| `input_width_md` | 80 | 常规窄输入（金额 / 延迟） |
+| `input_width_lg` | 100 | 较宽输入（余额 / 分类下拉） |
+| `button_width_lg` | 120 | 宽按钮最小宽（发送测试邮件） |
+| `name_width` | 180 | 名称列固定宽（插件 / 设置行） |
+| `model_input_width` | 200 | 模型下拉最小宽 |
+| `card_min_height_sm` | 40 | 列表卡最小高 · 小 |
+| `card_min_height_md` | 52 | 列表卡最小高 · 中 |
+| `card_min_height_lg` | 56 | 列表卡最小高 · 大 |
+| `card_min_height_xl` | 64 | 列表卡最小高 · 很大 |
+| `card_min_height_xxl` | 80 | 考试卡最小高 |
+| `badge_width` | 42 | 状态徽章固定宽 |
+| `api_test_output_max_height` | 150 | API 测试输出区最大高 |
+| `api_test_height` | 500 | API 测试弹窗高 |
+| `course_detail_width` | 480 | 课程详情弹窗默认宽 |
+| `dialog_height_md` | 400 | 弹窗最小高 · 中 |
+| `dialog_height_lg` | 500 | 弹窗默认高 · 大 |
+| `course_header_min_width` | 64 | 课程表行头最小宽 |
+| `view_mode_width` | 36 | 日/周切换按钮宽 |
+<!-- TOKENS:layout:END -->
+
 
 标题/正文比：36/14 = **2.57×** ✓（要求 ≥ 2.5×）
 

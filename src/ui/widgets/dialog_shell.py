@@ -28,6 +28,7 @@ from PySide6.QtWidgets import (
 
 from src.i18n.loader import tr
 from src.ui.styles.theme import (
+    SIZE_BODY_S,
     btn_danger_qss,
     btn_primary_qss,
     btn_secondary_qss,
@@ -71,10 +72,10 @@ def dialog_qss() -> str:
     """弹窗的标准 QSS（**只有这一处** —— 原来每个弹窗各写一份内联样式）。"""
     c = get_colors()
     return (f"QDialog {{ background-color: {c['card_bg']}; }}"
-            f" QLabel {{ color: {c['fg_primary']}; font-size: 13px;"
+            f" QLabel {{ color: {c['fg_primary']}; font-size: {SIZE_BODY_S}px;"
             f" background: transparent; border: none; }}"
             f" QListWidget {{ background-color: {c['bg_input']}; color: {c['fg_primary']};"
-            f" border: 1px solid {c['border']}; font-size: 13px; }}")
+            f" border: 1px solid {c['border']}; font-size: {SIZE_BODY_S}px; }}")
 
 
 def form_row(label: str, field, label_width: int = 88) -> QWidget:

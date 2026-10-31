@@ -19,7 +19,7 @@ from PySide6.QtWidgets import (
 
 from src.i18n.loader import tr
 from src.services.data_manager import DataManager
-from src.ui.styles.theme import get_colors
+from src.ui.styles.theme import LAYOUT, SIZE_BODY_S, SIZE_CAPTION, get_colors
 from src.ui.widgets.dialog_shell import action_row, cap_height, form_row, make_scrollable
 from src.ui.widgets.rounded_button import RoundedButton
 from src.ui.widgets.rounded_input import RoundedComboBox, RoundedLineEdit
@@ -37,12 +37,12 @@ class HabitDialog(QDialog):
         editing = habit is not None
         self.setWindowTitle(tr("panel.habit.dialog_title_edit") if editing
                             else tr("panel.habit.dialog_title_add"))
-        self.setMinimumWidth(440)
+        self.setMinimumWidth(LAYOUT["dialog_width_xl"])
         self.setStyleSheet(
             f"QDialog {{ background-color: {c['bg_card']}; color: {c['fg_primary']}; }}"
             f" QLabel {{ color: {c['fg_primary']}; background: transparent; border: none; }}"
             f" QLineEdit, QComboBox {{ background-color: {c['bg_input']}; color: {c['fg_primary']};"
-            f" border: 1px solid {c['border']}; padding: 5px 8px; font-size: 13px; }}"
+            f" border: 1px solid {c['border']}; padding: 5px 8px; font-size: {SIZE_BODY_S}px; }}"
             f" QCheckBox {{ color: {c['fg_primary']}; spacing: 2px; }}")
 
         outer = QVBoxLayout(self)
@@ -90,7 +90,7 @@ class HabitDialog(QDialog):
         # Duration
         self._duration = RoundedComboBox()
         self._duration.setEditable(True)
-        self._duration.setFixedWidth(80)
+        self._duration.setFixedWidth(LAYOUT["input_width_md"])
         self._duration.addItems(["15", "30", "45", "60", "90", "120", "180"])
         self._duration.setCurrentText(str(habit.get("duration_minutes", 30) if habit else "30"))
         dur_layout = QHBoxLayout()
@@ -107,11 +107,11 @@ class HabitDialog(QDialog):
 
         # Attached tasks section
         sep = QLabel(tr("panel.habit.section_attached"))
-        sep.setStyleSheet(f"color: {c['section_heading']}; font-weight: 600; font-size: 13px;")
+        sep.setStyleSheet(f"color: {c['section_heading']}; font-weight: 600; font-size: {SIZE_BODY_S}px;")
         layout.addWidget(sep)
 
         at_list = QListWidget()
-        at_list.setMaximumHeight(100)
+        at_list.setMaximumHeight(LAYOUT["list_max_height_md"])
         at_list.setStyleSheet(f"""
             QListWidget {{ background-color: {c['bg_input']}; border: 1px solid {c['border']}; }}
             QListWidget::item {{ padding: 4px 8px; }}
@@ -127,7 +127,7 @@ class HabitDialog(QDialog):
             btn = RoundedButton(text)
             btn.setStyleSheet(f"""
                 QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
-                    border: none; border-radius: 4px; padding: 4px 10px; font-size: 12px; }}
+                    border: none; border-radius: 4px; padding: 4px 10px; font-size: {SIZE_CAPTION}px; }}
                 QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; }}
             """)
             btn.clicked.connect(slot)
@@ -137,10 +137,10 @@ class HabitDialog(QDialog):
 
         # ── Linked items ──
         sep2 = QLabel(tr("panel.habit.section_linked"))
-        sep2.setStyleSheet(f"color: {c['section_heading']}; font-weight: 600; font-size: 13px;")
+        sep2.setStyleSheet(f"color: {c['section_heading']}; font-weight: 600; font-size: {SIZE_BODY_S}px;")
         layout.addWidget(sep2)
         self._linked_list = QListWidget()
-        self._linked_list.setMaximumHeight(80)
+        self._linked_list.setMaximumHeight(LAYOUT["list_max_height_sm"])
         self._linked_list.setStyleSheet(f"QListWidget {{ background-color: {c['bg_input']}; border: 1px solid {c['border']}; }} QListWidget::item {{ padding: 4px 8px; }}")
         self._refresh_linked()
         layout.addWidget(self._linked_list)
@@ -166,7 +166,7 @@ class HabitDialog(QDialog):
         dl.addWidget(QLabel(tr("panel.habit.label_per_day")))
         self._times_per_day = RoundedComboBox()
         self._times_per_day.setEditable(True)
-        self._times_per_day.setFixedWidth(60)
+        self._times_per_day.setFixedWidth(LAYOUT["input_width_sm"])
         self._times_per_day.addItems(["1", "2", "3"])
         if sched_type in ("daily", "interval"):
             val = sched.get("times_per_day") or sched.get("value", 1)
@@ -207,7 +207,7 @@ class HabitDialog(QDialog):
         ml.addWidget(QLabel(tr("panel.habit.label_monthly")))
         self._monthly_times = RoundedComboBox()
         self._monthly_times.setEditable(True)
-        self._monthly_times.setFixedWidth(60)
+        self._monthly_times.setFixedWidth(LAYOUT["input_width_sm"])
         self._monthly_times.addItems(["1", "2", "3", "4", "5", "8", "10", "15", "20", "30"])
         if sched_type == "monthly":
             self._monthly_times.setCurrentText(str(sched.get("value", 4)))
@@ -226,7 +226,7 @@ class HabitDialog(QDialog):
         c = get_colors()
         return f"""
             QComboBox {{ background-color: {c['bg_input']}; color: {c['fg_primary']};
-                border: 1px solid {c['border']}; padding: 3px 4px; font-size: 13px; }}
+                border: 1px solid {c['border']}; padding: 3px 4px; font-size: {SIZE_BODY_S}px; }}
             QComboBox::drop-down {{ border: none; width: 16px; }}
         """
 
@@ -234,7 +234,7 @@ class HabitDialog(QDialog):
         c = get_colors()
         return f"""
             QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
-                border: none; border-radius: 8px; padding: 8px 12px; font-size: 13px; }}
+                border: none; border-radius: 8px; padding: 8px 12px; font-size: {SIZE_BODY_S}px; }}
             QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; }}
             QPushButton:pressed {{ background-color: {c['accent_bg']}; }}
         """
@@ -252,6 +252,10 @@ class HabitDialog(QDialog):
         dialog = _AttachedTaskDialog(self)
         if dialog.exec():
             self._attached.append(dialog.result)
+            # 「保存为模板」按钮以前只改了一个没人读的布尔值（死功能）；现在真的存模板
+            if getattr(dialog, "_save_template", False):
+                self._dm.habits.add_template(dict(dialog.result))
+                self._dm.habits.save()
             self._refresh_at_list()
 
     def _use_existing(self) -> None:
@@ -263,7 +267,7 @@ class HabitDialog(QDialog):
         c = get_colors()
         dialog = QDialog(self)
         dialog.setWindowTitle(tr("panel.habit.dialog_title_select_attached"))
-        dialog.setMinimumWidth(300)
+        dialog.setMinimumWidth(LAYOUT["dialog_width_xs"])
         dialog.setStyleSheet(f"background-color: {c['bg_card']}; color: {c['fg_primary']};")
         dl = QVBoxLayout(dialog)
         lst = QListWidget()
@@ -316,7 +320,7 @@ class HabitDialog(QDialog):
         c = get_colors()
         dlg = QDialog(self)
         dlg.setWindowTitle(tr("panel.habit.dialog_title_select_linked"))
-        dlg.setMinimumWidth(350)
+        dlg.setMinimumWidth(LAYOUT["dialog_width_md"])
         dlg.setStyleSheet(f"QDialog {{ background-color: {c['bg_card']}; color: {c['fg_primary']}; }}")
         layout = QVBoxLayout(dlg)
         lst = QListWidget()
@@ -395,11 +399,11 @@ class _AttachedTaskDialog(QDialog):
         num_qss = f"""
             QComboBox {{ background-color: {c['input_bg']}; color: {c['fg_primary']};
                 border-radius: 4px;
-                padding: 3px 4px; font-size: 13px; text-align: center; }}
+                padding: 3px 4px; font-size: {SIZE_BODY_S}px; text-align: center; }}
             QComboBox::drop-down {{ border: none; width: 16px; }}
         """
         self.setWindowTitle(tr("panel.habit.dialog_title_define_attached"))
-        self.setMinimumWidth(320)
+        self.setMinimumWidth(LAYOUT["dialog_width_sm"])
         self.setStyleSheet(f"""
             QDialog {{ background-color: {c['bg_surface']}; color: {c['fg_primary']}; }}
             QLabel {{ color: {c['fg_primary']}; }}
@@ -415,7 +419,7 @@ class _AttachedTaskDialog(QDialog):
 
         self._delay = RoundedComboBox()
         self._delay.setEditable(True)
-        self._delay.setFixedWidth(80)
+        self._delay.setFixedWidth(LAYOUT["input_width_md"])
         self._delay.setStyleSheet(num_qss)
         self._delay.addItems(["1", "2", "4", "6", "12", "24", "48", "72", "168"])
         self._delay.setCurrentText("24")
@@ -427,7 +431,7 @@ class _AttachedTaskDialog(QDialog):
 
         self._duration = RoundedComboBox()
         self._duration.setEditable(True)
-        self._duration.setFixedWidth(80)
+        self._duration.setFixedWidth(LAYOUT["input_width_md"])
         self._duration.setStyleSheet(num_qss)
         self._duration.addItems(["5", "10", "15", "20", "30", "45", "60", "90"])
         self._duration.setCurrentText("15")
@@ -439,29 +443,16 @@ class _AttachedTaskDialog(QDialog):
 
         save_tpl = RoundedButton(tr("panel.habit.btn_save_template"))
         save_tpl.setStyleSheet(f"""
-            QPushButton {{ background-color: transparent; color: {c['accent_text']}; border: none; font-size: 13px; text-align: left; }}
+            QPushButton {{ background-color: transparent; color: {c['accent_text']}; border: none; font-size: {SIZE_BODY_S}px; text-align: left; }}
         """)
         self._save_template = False
         save_tpl.clicked.connect(lambda: setattr(self, '_save_template', True))
         layout.addWidget(save_tpl)
 
-        # ── Linked items ──
-        sep2 = QLabel(tr("panel.habit.section_linked"))
-        sep2.setStyleSheet(f"color: {c['section_heading']}; font-weight: 600; font-size: 13px;")
-        layout.addWidget(sep2)
-        self._linked_list = QListWidget()
-        self._linked_list.setMaximumHeight(80)
-        self._linked_list.setStyleSheet(f"QListWidget {{ background-color: {c['bg_input']}; border: 1px solid {c['border']}; }} QListWidget::item {{ padding: 4px 8px; }}")
-        self._refresh_linked()
-        layout.addWidget(self._linked_list)
-        lk_btns = QHBoxLayout()
-        for text, slot in [(tr("panel.habit.btn_add_linked"), self._add_linked), (tr("panel.habit.btn_remove"), self._remove_linked)]:
-            btn = RoundedButton(text)
-            btn.setStyleSheet(f"QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']}; border: none; border-radius: 8px; padding: 8px 12px; font-size: 13px; }} QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; }} QPushButton:pressed {{ background-color: {c['accent_bg']}; }}")
-            btn.clicked.connect(slot)
-            lk_btns.addWidget(btn)
-        lk_btns.addStretch()
-        layout.addLayout(lk_btns)
+        # ⚠ 这里原先从 `HabitDialog` 复制了一段「关联物品」UI，但
+        # `_refresh_linked/_add_linked/_remove_linked` 只定义在 `HabitDialog` 上 →
+        # 打开本弹窗第一步就 AttributeError（功能直接崩）。附属事项本来也不消费
+        # `linked_items`，整段删除。
 
         layout.addWidget(action_row(tr("widget.dialog.btn_confirm"), self._ok,
                                     on_cancel=self.reject))

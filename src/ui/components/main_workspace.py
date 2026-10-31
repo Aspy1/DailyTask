@@ -2,7 +2,7 @@
 
 import logging
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QLabel,
     QStackedWidget,
@@ -23,7 +23,7 @@ from src.ui.panels.inventory_panel import InventoryPanel
 from src.ui.panels.routine_panel import RoutinePanel
 from src.ui.panels.settings_panel import SettingsPanel
 from src.ui.panels.task_panel import TaskPanel
-from src.ui.styles.theme import get_colors
+from src.ui.styles.theme import SIZE_BODY_S, SIZE_CAPTION, SIZE_SUBTITLE, get_colors
 from src.ui.widgets.course_detail_dialog import CourseDetailDialog
 from src.ui.widgets.schedule_view import ScheduleView
 
@@ -64,6 +64,10 @@ EVENT_PANELS: dict[str, frozenset[str]] = {
 
 class MainWorkspace(QWidget):
     """Content area that switches between panels based on sidebar selection."""
+
+    # 课程右键"布置了作业 / 考试通知" → MainWindow 展开 AI 面板并填入 prompt。
+    # 课程表（周视图）与日程（日视图）都走这条信号，不再一个发信号、一个借用 data_changed。
+    fill_ai_prompt = Signal(str)
 
     def __init__(self, settings: SettingsManager, ai_service: AIService,
                  dm: DataManager, plugin_manager=None, parent=None) -> None:
@@ -108,6 +112,7 @@ class MainWorkspace(QWidget):
         self._schedule_view.course_panel.on_view_tasks(self._on_view_course_tasks)
         self._schedule_view.task_focus_requested.connect(self._on_task_focus)
         self._schedule_view.quick_adjust_requested.connect(self._on_quick_adjust)
+        self._schedule_view.fill_ai_prompt.connect(self.fill_ai_prompt.emit)
 
         dm.data_changed.connect(self._on_data_changed)
 
@@ -136,14 +141,14 @@ class MainWorkspace(QWidget):
         title_lbl = QLabel(title)
         title_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title_lbl.setStyleSheet(
-            f"color: {c['fg_primary']}; font-size: 20px; font-weight: 600;")
+            f"color: {c['fg_primary']}; font-size: {SIZE_SUBTITLE}px; font-weight: 600;")
         desc_lbl = QLabel(desc)
         desc_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        desc_lbl.setStyleSheet(f"color: {c['fg_hint']}; font-size: 13px;")
+        desc_lbl.setStyleSheet(f"color: {c['fg_hint']}; font-size: {SIZE_BODY_S}px;")
         hint = QLabel(tr("workspace.placeholder.coming_soon"))
         hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
         hint.setStyleSheet(
-            f"color: {c['accent_text']}; font-size: 12px; margin-top: 8px;"
+            f"color: {c['accent_text']}; font-size: {SIZE_CAPTION}px; margin-top: 8px;"
             f"padding: 4px 16px; background: {c['accent_bg']}; border-radius: 12px;")
         layout.addWidget(title_lbl)
         layout.addWidget(desc_lbl)

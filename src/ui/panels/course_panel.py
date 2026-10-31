@@ -57,7 +57,7 @@ class CoursePanel(QWidget):
         semester_btn = RoundedButton(tr("panel.course.btn_semester"))
         semester_btn.setStyleSheet(f"""
             QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
-                border-radius: 8px; padding: 4px 12px; font-size: 13px; }}
+                border-radius: 8px; padding: 4px 12px; font-size: {SIZE_BODY_S}px; }}
             QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; color: {c['btn_secondary_hover_fg']}; }}
         """)
         semester_btn.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -67,7 +67,7 @@ class CoursePanel(QWidget):
         refresh_btn = RoundedButton(tr("panel.course.btn_refresh"))
         refresh_btn.setStyleSheet(f"""
             QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
-                border-radius: 8px; padding: 4px 12px; font-size: 13px; }}
+                border-radius: 8px; padding: 4px 12px; font-size: {SIZE_BODY_S}px; }}
             QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; color: {c['btn_secondary_hover_fg']}; }}
         """)
         refresh_btn.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -82,7 +82,7 @@ class CoursePanel(QWidget):
             btn = RoundedButton(text)
             btn.setStyleSheet(f"""
                 QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
-                    border-radius: 8px; padding: 4px 12px; font-size: 13px; }}
+                    border-radius: 8px; padding: 4px 12px; font-size: {SIZE_BODY_S}px; }}
                 QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; color: {c['btn_secondary_hover_fg']}; }}
             """)
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -115,21 +115,6 @@ class CoursePanel(QWidget):
         self._table.course_rename_requested.connect(self._rename_course)
         self._table.course_delete_requested.connect(self._delete_course)
         self._table.course_attendance_toggle_requested.connect(self._toggle_attendance)
-
-    @property
-    def _week_number(self) -> int:
-        semester = self._dm.courses.get_semester(self._dm.courses.current_semester)
-        if not semester:
-            return max(1, 1 + self._current_week_offset)
-        total = semester.get("total_weeks", 20)
-        try:
-            today = date.today()
-            start = date.fromisoformat(semester["start_date"])
-            delta = (today - start).days
-            base = max(1, delta // 7 + 1) if delta >= 0 else 1
-        except (KeyError, ValueError):
-            base = 1
-        return max(1, min(base + self._current_week_offset, total))
 
     @property
     def _week_number(self) -> int:
@@ -293,7 +278,7 @@ class CoursePanel(QWidget):
         # generic button style for this panel
         btn_qss = f"""
             QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
-                border-radius: 8px; padding: 4px 12px; font-size: 13px; }}
+                border-radius: 8px; padding: 4px 12px; font-size: {SIZE_BODY_S}px; }}
             QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; color: {c['btn_secondary_hover_fg']}; }}
         """
         for btn in self.findChildren(QPushButton):

@@ -29,7 +29,7 @@ from PySide6.QtWidgets import (
 from src.i18n.loader import tr
 from src.models.course import ATTENDANCE_LEAD_MINUTES, PERIOD_TIMES
 from src.models.course_rules import slots_of
-from src.ui.styles.theme import RADIUS, SIZE_BODY_S, SIZE_TINY, get_colors
+from src.ui.styles.theme import LAYOUT, RADIUS, SIZE_BODY_S, SIZE_TINY, get_colors
 from src.ui.widgets.menu import (
     add_action,
     add_separator,
@@ -90,7 +90,7 @@ class _CourseChip(QFrame):
         self.setObjectName("courseChip")
 
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        self.setMinimumHeight(40)
+        self.setMinimumHeight(LAYOUT["card_min_height_sm"])
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
 
         body = QVBoxLayout(self)
@@ -148,7 +148,7 @@ class _ConflictChip(QFrame):
         super().__init__(parent)
         self.setObjectName("courseConflictChip")
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        self.setMinimumHeight(40)
+        self.setMinimumHeight(LAYOUT["card_min_height_sm"])
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self._courses = courses
 
@@ -317,7 +317,7 @@ class CourseTable(QTableWidget):
         self.verticalHeader().setSectionResizeMode(
             self._marker_row, QHeaderView.ResizeMode.ResizeToContents)
         self.verticalHeader().setDefaultAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.verticalHeader().setMinimumWidth(64)
+        self.verticalHeader().setMinimumWidth(LAYOUT["course_header_min_width"])
 
         self.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)

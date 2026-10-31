@@ -27,5 +27,6 @@
 
   "panel.exam.msg_title_error": "错误",
   "panel.exam.msg_need_course": "请输入课程名称。",
-  "panel.exam.msg_need_date": "请输入考试日期。"
+  "panel.exam.msg_need_date": "请输入考试日期。",
+  "panel.exam.msg_bad_date": "考试日期格式应为 YYYY-MM-DD（例如 2026-12-20）。"
 }

@@ -10,15 +10,20 @@ from src.models.course import PERIOD_TIMES
 
 
 def add_course_to_slots(slot_data: dict[int, list[dict]], course: dict) -> None:
-    """把单门课程写入其占用的每个时段。"""
+    """把单门课程写入其占用的每个时段。
+
+    ⚠ 教室存在 `time_slots[].location`（AI 导入与课程弹窗都写在这里），
+    旧实现只读 `course["location"]` → **日视图永远不显示教室**。
+    """
     for slot in course.get("time_slots", []):
+        location = str(slot.get("location") or course.get("location") or "")
         for s in range(slot["start"], slot["end"] + 1):
             if 1 <= s <= 6:
                 slot_data[s].append({
                     "type": "course",
                     "course": course,
                     "name": course.get("name", ""),
-                    "location": course.get("location", ""),
+                    "location": location,
                 })
 
 def add_plan_to_slots(slot_data: dict[int, list[dict]], plan: dict) -> None:
@@ -66,4 +71,7 @@ def add_habit_to_slots(slot_data: dict[int, list[dict]], h: dict, dm) -> None:
             "name": h.get("name", ""),
             "duration": h.get("duration_minutes", 30),
             "reminder_time": rt,
+            # 完成状态必须进入 item：`_content_hash()` 拿它判断"这个时段要不要重建"，
+            # 否则打卡后卡片仍显示 ○（内容指纹没变 → 跳过重建）。
+            "done": dm.habits.is_done_today(h["id"]),
         })

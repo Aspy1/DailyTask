@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (
 
 from src.i18n.loader import tr
 from src.services.data_manager import DataManager
-from src.ui.styles.theme import SIZE_TITLE, font, get_colors
+from src.ui.styles.theme import LAYOUT, SIZE_BODY_S, SIZE_TITLE, font, get_colors
 from src.ui.widgets.rounded_button import RoundedButton
 
 logger = logging.getLogger(__name__)
@@ -32,12 +32,12 @@ class CourseDetailDialog(QDialog):
 
         c = get_colors()
         self.setWindowTitle(tr("dialog.course.window_title", name=course_name))
-        self.setMinimumSize(420, 400)
-        self.resize(480, 500)
+        self.setMinimumSize(LAYOUT["dialog_width_lg"], LAYOUT["dialog_height_md"])
+        self.resize(LAYOUT["course_detail_width"], LAYOUT["dialog_height_lg"])
         self.setStyleSheet(f"""
             QDialog {{ background-color: {c['bg_root']}; }}
             QListWidget {{ background-color: transparent; border: none; }}
-            QListWidget::item {{ padding: 8px 12px; border-radius: 8px; font-size: 13px; color: {c['fg_primary']}; }}
+            QListWidget::item {{ padding: 8px 12px; border-radius: 8px; font-size: {SIZE_BODY_S}px; color: {c['fg_primary']}; }}
             QListWidget::item:selected {{ background-color: {c['accent_bg']}; color: {c['fg_primary']}; }}
             QListWidget::item:hover {{ background-color: {c['bg_elevated']}; }}
         """)
@@ -53,7 +53,7 @@ class CourseDetailDialog(QDialog):
         tabs = QTabWidget()
         tabs.setStyleSheet(f"""
             QTabWidget::pane {{ border: none; background: transparent; }}
-            QTabBar::tab {{ padding: 6px 16px; font-size: 13px; color: {c['fg_secondary']}; border: none; }}
+            QTabBar::tab {{ padding: 6px 16px; font-size: {SIZE_BODY_S}px; color: {c['fg_secondary']}; border: none; }}
             QTabBar::tab:selected {{ color: {c['accent_text']}; font-weight: 600; border-bottom: 2px solid {c['accent']}; }}
         """)
 
@@ -80,7 +80,7 @@ class CourseDetailDialog(QDialog):
         close_btn = RoundedButton(tr("dialog.course.btn_close"))
         close_btn.setStyleSheet(f"""
             QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['fg_primary']};
-                border-radius: 8px; padding: 6px 20px; font-size: 13px; }}
+                border-radius: 8px; padding: 6px 20px; font-size: {SIZE_BODY_S}px; }}
             QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; }}
         """)
         close_btn.clicked.connect(self.accept)
@@ -151,7 +151,7 @@ class CourseDetailDialog(QDialog):
             self.setStyleSheet(f"""
                 QDialog {{ background-color: {c['bg_root']}; }}
                 QListWidget {{ background-color: transparent; border: none; }}
-                QListWidget::item {{ padding: 8px 12px; border-radius: 8px; font-size: 13px; color: {c['fg_primary']}; }}
+                QListWidget::item {{ padding: 8px 12px; border-radius: 8px; font-size: {SIZE_BODY_S}px; color: {c['fg_primary']}; }}
                 QListWidget::item:selected {{ background-color: {c['accent_bg']}; color: {c['fg_primary']}; }}
                 QListWidget::item:hover {{ background-color: {c['bg_elevated']}; }}
             """)

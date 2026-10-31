@@ -34,8 +34,14 @@ from src.ui.panels.inventory_dialogs import (
 from src.ui.panels.inventory_text import billing_text, quantity_text
 from src.ui.styles.cards import card as make_card
 from src.ui.styles.theme import (
+    LAYOUT,
     RADIUS,
+    SIZE_BODY,
+    SIZE_BODY_M,
+    SIZE_BODY_S,
     SIZE_CAPTION,
+    SIZE_ICON,
+    SIZE_TINY,
     font,
     get_colors,
     rgba,
@@ -156,14 +162,14 @@ class InventoryPanel(QWidget):
         fl.setContentsMargins(16, 4, 16, 4)
 
         self._count_label = QLabel()
-        self._count_label.setStyleSheet(f"color: {c['fg_hint']}; font-size: 13px; border: none;")
+        self._count_label.setStyleSheet(f"color: {c['fg_hint']}; font-size: {SIZE_BODY_S}px; border: none;")
         fl.addWidget(self._count_label)
         fl.addStretch()
 
         for text, slot in [(tr("panel.inventory.btn_prev_page"), self._prev_page),
                            (tr("panel.inventory.btn_next_page"), self._next_page)]:
             btn = RoundedButton(text)
-            btn.setStyleSheet(f"QPushButton {{ background: transparent; color: {c['fg_hint']}; border: none; padding: 4px 8px; font-size: 13px; }} QPushButton:hover {{ color: {c['fg_primary']}; }}")
+            btn.setStyleSheet(f"QPushButton {{ background: transparent; color: {c['fg_hint']}; border: none; padding: 4px 8px; font-size: {SIZE_BODY_S}px; }} QPushButton:hover {{ color: {c['fg_primary']}; }}")
             btn.clicked.connect(slot)
             fl.addWidget(btn)
 
@@ -182,34 +188,34 @@ class InventoryPanel(QWidget):
         bc_layout.setSpacing(4)
 
         self._back_btn = RoundedButton("←")
-        self._back_btn.setStyleSheet(f"QPushButton {{ background: transparent; color: {c['accent_text']}; border: none; padding: 2px 6px; font-size: 13px; font-weight: 600; }} QPushButton:hover {{ color: {c['fg_primary']}; }}")
+        self._back_btn.setStyleSheet(f"QPushButton {{ background: transparent; color: {c['accent_text']}; border: none; padding: 2px 6px; font-size: {SIZE_BODY_S}px; font-weight: 600; }} QPushButton:hover {{ color: {c['fg_primary']}; }}")
         self._back_btn.clicked.connect(self._go_back)
         bc_layout.addWidget(self._back_btn)
 
         self._bc_cat = RoundedButton()
-        self._bc_cat.setStyleSheet(f"QPushButton {{ background: {c['bg_elevated']}; color: {c['fg_primary']}; border: none; border-radius: 4px; padding: 2px 8px; font-size: 12px; }} QPushButton:hover {{ background: {c['accent_bg']}; }}")
+        self._bc_cat.setStyleSheet(f"QPushButton {{ background: {c['bg_elevated']}; color: {c['fg_primary']}; border: none; border-radius: 4px; padding: 2px 8px; font-size: {SIZE_CAPTION}px; }} QPushButton:hover {{ background: {c['accent_bg']}; }}")
         self._bc_cat.clicked.connect(lambda: self._navigate_to(1))
         self._bc_cat.hide()
         bc_layout.addWidget(self._bc_cat)
 
         self._bc_sep1 = QLabel("›")
-        self._bc_sep1.setStyleSheet(f"color: {c['fg_hint']}; font-size: 13px; border: none;")
+        self._bc_sep1.setStyleSheet(f"color: {c['fg_hint']}; font-size: {SIZE_BODY_S}px; border: none;")
         self._bc_sep1.hide()
         bc_layout.addWidget(self._bc_sep1)
 
         self._bc_group = RoundedButton()
-        self._bc_group.setStyleSheet(f"QPushButton {{ background: {c['bg_elevated']}; color: {c['fg_primary']}; border: none; border-radius: 4px; padding: 2px 8px; font-size: 12px; }} QPushButton:hover {{ background: {c['accent_bg']}; }}")
+        self._bc_group.setStyleSheet(f"QPushButton {{ background: {c['bg_elevated']}; color: {c['fg_primary']}; border: none; border-radius: 4px; padding: 2px 8px; font-size: {SIZE_CAPTION}px; }} QPushButton:hover {{ background: {c['accent_bg']}; }}")
         self._bc_group.clicked.connect(lambda: self._navigate_to(2))
         self._bc_group.hide()
         bc_layout.addWidget(self._bc_group)
 
         self._bc_sep2 = QLabel("›")
-        self._bc_sep2.setStyleSheet(f"color: {c['fg_hint']}; font-size: 13px; border: none;")
+        self._bc_sep2.setStyleSheet(f"color: {c['fg_hint']}; font-size: {SIZE_BODY_S}px; border: none;")
         self._bc_sep2.hide()
         bc_layout.addWidget(self._bc_sep2)
 
         self._bc_item = QLabel()
-        self._bc_item.setStyleSheet(f"color: {c['fg_secondary']}; font-size: 12px; border: none;")
+        self._bc_item.setStyleSheet(f"color: {c['fg_secondary']}; font-size: {SIZE_CAPTION}px; border: none;")
         self._bc_item.hide()
         bc_layout.addWidget(self._bc_item)
         bc_layout.addStretch()
@@ -217,7 +223,7 @@ class InventoryPanel(QWidget):
 
     def _btn_qss(self) -> str:
         c = get_colors()
-        return f"QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['fg_hint']}; border-radius: 8px; padding: 4px 12px; font-size: 13px; }} QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; color: {c['fg_secondary']}; }} QPushButton::menu-indicator {{ image: none; }}"
+        return f"QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['fg_hint']}; border-radius: 8px; padding: 4px 12px; font-size: {SIZE_BODY_S}px; }} QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; color: {c['fg_secondary']}; }} QPushButton::menu-indicator {{ image: none; }}"
 
     def _side_label(self) -> str:
         """切换按钮上的文字：学校 / 家（按 i18n 取，代码里不出现中文 —— Q-N5）。"""
@@ -391,7 +397,7 @@ class InventoryPanel(QWidget):
             count = counts.get(cat_name, 0)
 
             card = make_card("item", pad="spacing_none")
-            card.setMinimumHeight(56)
+            card.setMinimumHeight(LAYOUT["card_min_height_lg"])
             card.setCursor(Qt.CursorShape.PointingHandCursor)
             # Only left-click enters category; right-click is blocked
             def _on_click(e, cn=cat_name) -> None:
@@ -404,16 +410,16 @@ class InventoryPanel(QWidget):
             cl.setSpacing(8)
 
             name = QLabel(cat_name)
-            name.setStyleSheet(f"color: {c['fg_primary']}; font-size: 15px; font-weight: 600; border: none; background: transparent;")
+            name.setStyleSheet(f"color: {c['fg_primary']}; font-size: {SIZE_BODY_M}px; font-weight: 600; border: none; background: transparent;")
             cl.addWidget(name)
             cl.addStretch()
 
             cnt = QLabel(tr("panel.inventory.count_pieces", n=count))
-            cnt.setStyleSheet(f"color: {c['fg_hint']}; font-size: 13px; border: none; background: transparent;")
+            cnt.setStyleSheet(f"color: {c['fg_hint']}; font-size: {SIZE_BODY_S}px; border: none; background: transparent;")
             cl.addWidget(cnt)
 
             arrow = QLabel("›")
-            arrow.setStyleSheet(f"color: {c['fg_hint']}; font-size: 18px; border: none; background: transparent;")
+            arrow.setStyleSheet(f"color: {c['fg_hint']}; font-size: {SIZE_ICON}px; border: none; background: transparent;")
             cl.addWidget(arrow)
 
             self._card_layout.insertWidget(self._card_layout.count() - 1, card)
@@ -466,7 +472,7 @@ class InventoryPanel(QWidget):
     def _render_group_card(self, c: dict, d: dict) -> None:
         """Render a clickable group card at Level 1."""
         card = make_card("item", pad="spacing_none", bg="accent_bg")
-        card.setMinimumHeight(56)
+        card.setMinimumHeight(LAYOUT["card_min_height_lg"])
         card.setCursor(Qt.CursorShape.PointingHandCursor)
         # Only left-click enters group; right-click is blocked
         def _on_click(e, gn=d["name"]) -> None:
@@ -479,20 +485,21 @@ class InventoryPanel(QWidget):
         cl.setSpacing(8)
 
         icon = QLabel("📁")
-        icon.setStyleSheet("font-size: 18px; border: none; background: transparent;")
+        icon.setStyleSheet(
+            f"font-size: {SIZE_ICON}px; border: none; background: transparent;")
         cl.addWidget(icon)
 
         name = QLabel(d["name"])
-        name.setStyleSheet(f"color: {c['fg_primary']}; font-size: 15px; font-weight: 600; border: none; background: transparent;")
+        name.setStyleSheet(f"color: {c['fg_primary']}; font-size: {SIZE_BODY_M}px; font-weight: 600; border: none; background: transparent;")
         cl.addWidget(name)
         cl.addStretch()
 
         cnt = QLabel(tr("panel.inventory.count_pieces", n=d['count']))
-        cnt.setStyleSheet(f"color: {c['fg_hint']}; font-size: 13px; border: none; background: transparent;")
+        cnt.setStyleSheet(f"color: {c['fg_hint']}; font-size: {SIZE_BODY_S}px; border: none; background: transparent;")
         cl.addWidget(cnt)
 
         arrow = QLabel("›")
-        arrow.setStyleSheet(f"color: {c['fg_hint']}; font-size: 18px; border: none; background: transparent;")
+        arrow.setStyleSheet(f"color: {c['fg_hint']}; font-size: {SIZE_ICON}px; border: none; background: transparent;")
         cl.addWidget(arrow)
 
         self._card_layout.insertWidget(self._card_layout.count() - 1, card)
@@ -503,7 +510,7 @@ class InventoryPanel(QWidget):
         # 底色按状态取**令牌名**（此前是 `c["red"] + "10"` 这类派生色，绕过了令牌体系）
         bg_key = {"需购": "red_tint", "不足": "orange_tint"}.get(status, "bg_elevated")
         card = make_card("item", pad="spacing_none", bg=bg_key)
-        card.setMinimumHeight(64)
+        card.setMinimumHeight(LAYOUT["card_min_height_xl"])
         card.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
         cl = QVBoxLayout(card)
@@ -514,19 +521,19 @@ class InventoryPanel(QWidget):
         hdr.setSpacing(8)
         name = QLabel(it.get("name", ""))
         name.setWordWrap(True)          # 长物品名换行（完整显示，不再被挤掉 —— U6）
-        name.setStyleSheet(f"color: {c['fg_primary']}; font-size: 14px; font-weight: 600; border: none; background: transparent;")
+        name.setStyleSheet(f"color: {c['fg_primary']}; font-size: {SIZE_BODY}px; font-weight: 600; border: none; background: transparent;")
         hdr.addWidget(name)
         hdr.addStretch()
         qty_text = quantity_text(it)
         qty = QLabel(qty_text)
-        qty.setStyleSheet(f"color: {c['fg_secondary']}; font-size: 14px; font-weight: 700; border: none; background: transparent;")
+        qty.setStyleSheet(f"color: {c['fg_secondary']}; font-size: {SIZE_BODY}px; font-weight: 700; border: none; background: transparent;")
         hdr.addWidget(qty)
 
         bc = {"需购": c["red"], "不足": c["orange"], "充足": c["green"]}.get(status, c["green"])
         badge = QLabel({"需购": "需购", "不足": "不足", "充足": "充足"}.get(status, status))
-        badge.setFixedWidth(42)
+        badge.setFixedWidth(LAYOUT["badge_width"])
         badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        badge.setStyleSheet(f"color: {bc}; font-size: 11px; font-weight: 600; background: {rgba(bc, 0.1)}; border-radius: 10px; padding: 2px 0; border: none;")
+        badge.setStyleSheet(f"color: {bc}; font-size: {SIZE_TINY}px; font-weight: 600; background: {rgba(bc, 0.1)}; border-radius: 10px; padding: 2px 0; border: none;")
         hdr.addWidget(badge)
         cl.addLayout(hdr)
 
@@ -535,7 +542,7 @@ class InventoryPanel(QWidget):
         if parts:
             detail = QLabel(" · ".join(parts))
             detail.setWordWrap(True)
-            detail.setStyleSheet(f"color: {c['fg_hint']}; font-size: 12px; border: none; background: transparent;")
+            detail.setStyleSheet(f"color: {c['fg_hint']}; font-size: {SIZE_CAPTION}px; border: none; background: transparent;")
             cl.addWidget(detail)
 
         tags = it.get("tags", [])
@@ -544,7 +551,7 @@ class InventoryPanel(QWidget):
             tag_grid = FlowGrid(uniform=False)
             for tag in tags:
                 t = QLabel(tag)
-                t.setStyleSheet(f"color: {c['accent_text']}; font-size: 10px; font-weight: 500; background: {rgba(c['accent'], 0.1)}; border-radius: 8px; padding: 1px 8px; border: none;")
+                t.setStyleSheet(f"color: {c['accent_text']}; font-size: {SIZE_TINY}px; font-weight: 500; background: {rgba(c['accent'], 0.1)}; border-radius: 8px; padding: 1px 8px; border: none;")
                 t.setParent(tag_grid)
             cl.addWidget(tag_grid)
 
@@ -575,7 +582,7 @@ class InventoryPanel(QWidget):
 
         # Type card (always clickable)
         card = make_card("item", pad="spacing_none")
-        card.setMinimumHeight(52)
+        card.setMinimumHeight(LAYOUT["card_min_height_md"])
         card.setCursor(Qt.CursorShape.PointingHandCursor)
         card.mousePressEvent = lambda e, id=iid: self._toggle_expand(id)
 
@@ -585,12 +592,12 @@ class InventoryPanel(QWidget):
 
         arrow_icon = "▼" if expanded else "▶"
         arrow = QLabel(arrow_icon)
-        arrow.setStyleSheet(f"color: {c['accent_text']}; font-size: 12px; font-weight: bold; border: none; background: transparent;")
+        arrow.setStyleSheet(f"color: {c['accent_text']}; font-size: {SIZE_CAPTION}px; font-weight: bold; border: none; background: transparent;")
         cl.addWidget(arrow)
 
         name = QLabel(it.get("name", ""))
         name.setWordWrap(True)          # 长物品名换行（完整显示，不再被挤掉 —— U6）
-        name.setStyleSheet(f"color: {c['fg_primary']}; font-size: 14px; font-weight: 600; border: none; background: transparent;")
+        name.setStyleSheet(f"color: {c['fg_primary']}; font-size: {SIZE_BODY}px; font-weight: 600; border: none; background: transparent;")
         cl.addWidget(name)
         billing = billing_text(it)
         if billing:
@@ -605,7 +612,7 @@ class InventoryPanel(QWidget):
         # 单件展开：件数用 `quantity`（分装的"盒"就是件 ✓），数量**文字**才走 `remaining_doses`
         qty = it.get("quantity", 0)
         qty_label = QLabel(quantity_text(it))
-        qty_label.setStyleSheet(f"color: {c['fg_secondary']}; font-size: 14px; font-weight: 700; border: none; background: transparent;")
+        qty_label.setStyleSheet(f"color: {c['fg_secondary']}; font-size: {SIZE_BODY}px; font-weight: 700; border: none; background: transparent;")
         cl.addWidget(qty_label)
 
         self._card_layout.insertWidget(self._card_layout.count() - 1, card)
@@ -737,17 +744,17 @@ class InventoryPanel(QWidget):
         c = get_colors()
         self._back_btn.setStyleSheet(
             f"QPushButton {{ background: transparent; color: {c['accent_text']};"
-            f" border: none; padding: 2px 6px; font-size: 13px; font-weight: 600; }}"
+            f" border: none; padding: 2px 6px; font-size: {SIZE_BODY_S}px; font-weight: 600; }}"
             f" QPushButton:hover {{ color: {c['fg_primary']}; }}")
         bc_btn_qss = (
             f"QPushButton {{ background: {c['bg_elevated']}; color: {c['fg_primary']};"
             f" border: none; border-radius: {RADIUS['radius_sm']}px; padding: 2px 8px;"
-            f" font-size: 12px; }}"
+            f" font-size: {SIZE_CAPTION}px; }}"
             f" QPushButton:hover {{ background: {c['accent_bg']}; }}")
         for btn in (self._bc_cat, self._bc_group):
             btn.setStyleSheet(bc_btn_qss)
         for sep in (self._bc_sep1, self._bc_sep2):
-            sep.setStyleSheet(f"color: {c['fg_hint']}; font-size: 13px; border: none;")
+            sep.setStyleSheet(f"color: {c['fg_hint']}; font-size: {SIZE_BODY_S}px; border: none;")
 
     def refresh_theme(self) -> None:
         self._restyle_chrome()

@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (
 
 from src.i18n.loader import tr
 from src.ui.styles.cards import card
-from src.ui.styles.theme import get_colors
+from src.ui.styles.theme import LAYOUT, SIZE_BODY, get_colors
 from src.ui.widgets.rounded_button import RoundedButton
 
 logger = logging.getLogger(__name__)
@@ -60,6 +60,7 @@ class PluginsPanel(QWidget):
             w = item.widget()
             if w:
                 w.setParent(None)
+                w.deleteLater()
 
         if not self._pm:
             return
@@ -70,8 +71,8 @@ class PluginsPanel(QWidget):
             rl = QHBoxLayout(row)
             rl.setSpacing(10)
             name = QLabel(pinfo.name)
-            name.setStyleSheet(f"font-weight:600; color: {c['fg_primary']}; font-size:14px;")
-            name.setMinimumWidth(180)
+            name.setStyleSheet(f"font-weight:600; color: {c['fg_primary']}; font-size: {SIZE_BODY}px;")
+            name.setMinimumWidth(LAYOUT["name_width"])
             name.setWordWrap(True)
             rl.addWidget(name)
 
@@ -82,7 +83,8 @@ class PluginsPanel(QWidget):
 
             enabled_cb = QCheckBox(tr("panel.plugins.label_enabled"))
             enabled_cb.setChecked(bool(pinfo.enabled))
-            enabled_cb.stateChanged.connect(lambda s, n=pinfo.name: self._toggle(n, s == 2))
+            # R-008：用 clicked(bool)，`stateChanged` 也会被程序化 setChecked 触发
+            enabled_cb.clicked.connect(lambda checked, n=pinfo.name: self._toggle(n, checked))
             rl.addWidget(enabled_cb)
 
             panels = self._pm.get_panels(pinfo.name)

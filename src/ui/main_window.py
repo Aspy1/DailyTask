@@ -28,13 +28,94 @@ from src.ui.components.click_label import ClickLabel
 from src.ui.components.main_workspace import MainWorkspace
 from src.ui.components.semester_text import ALERT_STATES, semester_state_text
 from src.ui.components.sidebar import Sidebar
-from src.ui.styles.cards import card
-from src.ui.styles.theme import get_colors
+from src.ui.styles.theme import (
+    LAYOUT,
+    SIZE_BODY_S,
+    SIZE_CAPTION,
+    SIZE_SUBTITLE,
+    get_colors,
+)
 from src.ui.widgets.menu import add_action, new_menu, show_at_cursor, show_below
-from src.ui.widgets.rounded_button import RoundedButton
 from src.ui.widgets.semester_dialog import SemesterDialog
+from src.ui.widgets.weather_dialog import WeatherDetailDialog
 
 logger = logging.getLogger(__name__)
+
+
+def _statusbar_sep(c: dict) -> QLabel:
+    """状态栏分隔符（`|`，弱对比）。"""
+    sep = QLabel("|")
+    sep.setStyleSheet(f"color: {c['border_strong']}; margin: 0 5px;")
+    return sep
+
+
+def _install_statusbar(window) -> None:
+    """构建状态栏（从 `MainWindow` 抽出：类/函数尺寸门禁 Q-A1）。"""
+    window._statusbar = QStatusBar()
+    window.setStatusBar(window._statusbar)
+    c = get_colors()
+    window._statusbar.setStyleSheet(window._statusbar_qss(c))
+    _install_statusbar_left(window, c)
+    _install_statusbar_right(window, c)
+    window._showing_tomorrow = False
+
+
+def _install_statusbar_left(window, c: dict) -> None:
+    """左侧：课程信息 + 支出 + DDL 告警。"""
+    window._course_info_label = ClickLabel()
+    window._course_info_label.setCursor(Qt.CursorShape.PointingHandCursor)
+    window._course_info_label.setToolTip(tr("window.status.toggle_day_tooltip"))
+    window._course_info_label.clicked.connect(window._toggle_day_view)
+    window._statusbar.addWidget(window._course_info_label)
+
+    window._expense_label = QLabel()
+    window._statusbar.addPermanentWidget(window._expense_label)
+    window._statusbar.addPermanentWidget(_statusbar_sep(c))
+
+    window._ddl_alert_label = ClickLabel()
+    window._ddl_alert_label.setCursor(Qt.CursorShape.PointingHandCursor)
+    window._ddl_alert_label.setStyleSheet(
+        f"color: {c['red']}; font-size: {SIZE_CAPTION}px; font-weight: 600;"
+        f"padding: 0 3px;")
+    window._ddl_alert_label.clicked.connect(window._on_ddl_alert_click)
+    window._ddl_alert_label.hide()
+    window._statusbar.addPermanentWidget(window._ddl_alert_label)
+    window._statusbar.addPermanentWidget(_statusbar_sep(c))
+
+
+def _install_statusbar_right(window, c: dict) -> None:
+    """右侧：习惯 / 考试 / 天气 / 日期 / 学期。"""
+    window._habit_count_label = QLabel()
+    window._statusbar.addPermanentWidget(window._habit_count_label)
+    window._statusbar.addPermanentWidget(_statusbar_sep(c))
+
+    window._exam_alert_label = ClickLabel()
+    window._exam_alert_label.setStyleSheet(
+        f"color: {c['orange']}; font-size: {SIZE_CAPTION}px; font-weight: 600;"
+        f" padding: 0 3px;")
+    window._exam_alert_label.setCursor(Qt.CursorShape.PointingHandCursor)
+    window._exam_alert_label.clicked.connect(window._on_exam_alert_click)
+    window._statusbar.addPermanentWidget(window._exam_alert_label)
+    window._statusbar.addPermanentWidget(_statusbar_sep(c))
+
+    window._weather_label = ClickLabel()
+    window._weather_label.setCursor(Qt.CursorShape.PointingHandCursor)
+    window._weather_label.setStyleSheet(
+        f"color: {c['fg_secondary']}; font-size: {SIZE_CAPTION}px;")
+    window._weather_label.clicked.connect(window._on_weather_click)
+    window._weather_label.setText(tr("window.status.weather_placeholder"))
+    window._statusbar.addPermanentWidget(window._weather_label)
+    window._statusbar.addPermanentWidget(_statusbar_sep(c))
+
+    window._date_label = QLabel()
+    window._statusbar.addPermanentWidget(window._date_label)
+    window._statusbar.addPermanentWidget(_statusbar_sep(c))
+
+    window._semester_label = ClickLabel()
+    window._semester_label.setCursor(Qt.CursorShape.PointingHandCursor)
+    window._semester_label.setToolTip(tr("semester.tooltip"))
+    window._semester_label.clicked.connect(window._on_semester_click)
+    window._statusbar.addPermanentWidget(window._semester_label)
 
 
 class MainWindow(QMainWindow):
@@ -42,7 +123,7 @@ class MainWindow(QMainWindow):
                  data_manager: DataManager, plugin_manager=None) -> None:
         super().__init__()
         self.setWindowTitle(tr("app.name"))
-        self.setMinimumSize(990, 638)
+        self.setMinimumSize(LAYOUT["window_min_width"], LAYOUT["window_min_height"])
         self.resize(1210, 792)
 
         self._settings = settings
@@ -109,8 +190,9 @@ class MainWindow(QMainWindow):
         # 此前只靠 30s 定时器：切学期后会显示上一个学期的数字（全量验收发现）。
         self._data_manager.data_changed.connect(self._on_data_changed)
 
-        # Course table → AI prompt fill
+        # Course table / schedule day view → AI prompt fill
         self._connect_course_table()
+        self._workspace.fill_ai_prompt.connect(self._on_course_fill_ai)
 
     def _connect_course_table(self) -> None:
         cp = self._workspace.course_panel
@@ -194,11 +276,10 @@ class MainWindow(QMainWindow):
                 logger.debug("MainWindow.refresh_theme(%s) 中忽略异常", step, exc_info=True)
 
     def _show_about(self) -> None:
-        from PySide6.QtWidgets import QDialog, QVBoxLayout
         c = get_colors()
         dlg = QDialog(self)
         dlg.setWindowTitle(tr("menu.help.about"))
-        dlg.setFixedSize(360, 240)
+        dlg.setFixedSize(LAYOUT["about_width"], LAYOUT["about_height"])
         dlg.setStyleSheet(f"""
             QDialog {{
                 background-color: {c['bg_card']};
@@ -212,19 +293,19 @@ class MainWindow(QMainWindow):
 
         name = QLabel(tr("app.name"))
         name.setStyleSheet(
-            f"font-size: 20px; font-weight: 700; color: {c['fg_primary']};")
+            f"font-size: {SIZE_SUBTITLE}px; font-weight: 700; color: {c['fg_primary']};")
         layout.addWidget(name)
 
         ver = QLabel(f"v{tr('app.version')}")
         ver.setStyleSheet(
-            f"font-size: 13px; color: {c['fg_hint']};")
+            f"font-size: {SIZE_BODY_S}px; color: {c['fg_hint']};")
         layout.addWidget(ver)
 
         layout.addSpacing(12)
 
         desc = QLabel(tr("window.about.description"))
         desc.setStyleSheet(
-            f"font-size: 13px; color: {c['fg_secondary']};")
+            f"font-size: {SIZE_BODY_S}px; color: {c['fg_secondary']};")
         desc.setWordWrap(True)
         layout.addWidget(desc)
 
@@ -235,7 +316,7 @@ class MainWindow(QMainWindow):
             f'style="color: {c['accent_text']};text-decoration:none;">'
             f'{tr("window.about.github_link")}</a>')
         link.setOpenExternalLinks(True)
-        link.setStyleSheet("font-size: 12px;")
+        link.setStyleSheet(f"font-size: {SIZE_CAPTION}px;")
         layout.addWidget(link)
 
         dlg.exec()
@@ -247,89 +328,15 @@ class MainWindow(QMainWindow):
         return f"""
             QStatusBar {{
                 background-color: {c['status_bar_bg']};
-                color: {c['fg_secondary']}; font-size: 12px;
+                color: {c['fg_secondary']}; font-size: {SIZE_CAPTION}px;
                 border-top: 1px solid {c['border']};
                 padding: 4px 16px;
             }}
-            QLabel {{ color: {c['fg_secondary']}; font-size: 12px; border: none; background: transparent; }}
+            QLabel {{ color: {c['fg_secondary']}; font-size: {SIZE_CAPTION}px; border: none; background: transparent; }}
         """
 
     def _setup_statusbar(self) -> None:
-        self._statusbar = QStatusBar()
-        self.setStatusBar(self._statusbar)
-        c = get_colors()
-        self._statusbar.setStyleSheet(self._statusbar_qss(c))
-
-        self._course_info_label = QLabel()
-        self._statusbar.addWidget(self._course_info_label)
-
-        self._statusbar.addPermanentWidget(QLabel(""))  # spacer
-
-        self._expense_label = QLabel()
-        self._statusbar.addPermanentWidget(self._expense_label)
-
-        sep1 = QLabel("|")
-        sep1.setStyleSheet(f"color: {c['border_strong']}; margin: 0 5px;")
-        self._statusbar.addPermanentWidget(sep1)
-
-        self._ddl_alert_label = ClickLabel()
-        self._ddl_alert_label.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._ddl_alert_label.setStyleSheet(
-            f"color: {c['red']}; font-size: 12px; font-weight: 600;"
-            f"padding: 0 3px;")
-        self._ddl_alert_label.clicked.connect(self._on_ddl_alert_click)
-        self._ddl_alert_label.hide()
-        self._statusbar.addPermanentWidget(self._ddl_alert_label)
-
-        sep2 = QLabel("|")
-        sep2.setStyleSheet(f"color: {c['border_strong']}; margin: 0 5px;")
-        self._statusbar.addPermanentWidget(sep2)
-
-        self._habit_count_label = QLabel()
-        self._statusbar.addPermanentWidget(self._habit_count_label)
-
-        sep3 = QLabel("|")
-        sep3.setStyleSheet(f"color: {c['border_strong']}; margin: 0 5px;")
-        self._statusbar.addPermanentWidget(sep3)
-
-        self._exam_alert_label = ClickLabel()
-        self._exam_alert_label.setStyleSheet(
-            f"color: {c['orange']}; font-size: 12px; font-weight: 600; padding: 0 3px;")
-        self._exam_alert_label.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._exam_alert_label.clicked.connect(self._on_exam_alert_click)
-        self._statusbar.addPermanentWidget(self._exam_alert_label)
-
-        sep_exam = QLabel("|")
-        sep_exam.setStyleSheet(f"color: {c['border_strong']}; margin: 0 5px;")
-        self._statusbar.addPermanentWidget(sep_exam)
-
-        # 天气显示
-        self._weather_label = ClickLabel()
-        self._weather_label.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._weather_label.setStyleSheet(f"color: {c['fg_secondary']}; font-size: 12px;")
-        self._weather_label.clicked.connect(self._on_weather_click)
-        self._weather_label.setText(tr("window.status.weather_placeholder"))
-        self._statusbar.addPermanentWidget(self._weather_label)
-
-        sep_weather = QLabel("|")
-        sep_weather.setStyleSheet(f"color: {c['border_strong']}; margin: 0 5px;")
-        self._statusbar.addPermanentWidget(sep_weather)
-
-        self._date_label = QLabel()
-        self._statusbar.addPermanentWidget(self._date_label)
-
-        sep_semester = QLabel("|")
-        sep_semester.setStyleSheet(f"color: {c['border_strong']}; margin: 0 5px;")
-        self._statusbar.addPermanentWidget(sep_semester)
-
-        # 学期片段：可点击 → 学期管理（新建 / 切换 / 看数据问题）
-        self._semester_label = ClickLabel()
-        self._semester_label.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._semester_label.setToolTip(tr("semester.tooltip"))
-        self._semester_label.clicked.connect(self._on_semester_click)
-        self._statusbar.addPermanentWidget(self._semester_label)
-
-        self._showing_tomorrow = False
+        _install_statusbar(self)
 
 
     def _connect_ai(self) -> None:
@@ -440,7 +447,7 @@ class MainWindow(QMainWindow):
         self._semester_label.setText(semester_state_text(status))
         alert = status.get("state") in ALERT_STATES
         self._semester_label.setStyleSheet(
-            f"color: {c['accent_text'] if alert else c['fg_secondary']}; font-size: 12px;"
+            f"color: {c['accent_text'] if alert else c['fg_secondary']}; font-size: {SIZE_CAPTION}px;"
             + (" font-weight: 600;" if alert else ""))
 
     def _on_semester_click(self) -> None:
@@ -531,8 +538,11 @@ class MainWindow(QMainWindow):
             return
 
         first = courses[0]
-        slots = first.get("time_slots", [])
-        first_start = PERIOD_TIMES[slots[0]["start"] - 1][0] if slots else "08:30"
+        slots = first.get("time_slots") or []
+        try:
+            first_start = PERIOD_TIMES[int(slots[0]["start"]) - 1][0]
+        except (IndexError, KeyError, TypeError, ValueError):
+            first_start = "08:30"          # 坏数据不崩，按最早一节处理
         is_early = first_start <= "08:30"
 
         start_t = dt_time.fromisoformat(first_start)
@@ -573,10 +583,10 @@ class MainWindow(QMainWindow):
         if total > 0:
             self._habit_count_label.setText(
                 tr("window.status.habit_count", done=done, total=total))
-            self._habit_count_label.setStyleSheet(f"color: {c3['green'] if done == total else c3['fg_secondary']}; font-size: 12px; padding: 0 3px;")
+            self._habit_count_label.setStyleSheet(f"color: {c3['green'] if done == total else c3['fg_secondary']}; font-size: {SIZE_CAPTION}px; padding: 0 3px;")
         else:
             self._habit_count_label.setText(tr("window.status.habit_none"))
-            self._habit_count_label.setStyleSheet(f"color: {c3['fg_hint']}; font-size: 12px; padding: 0 3px;")
+            self._habit_count_label.setStyleSheet(f"color: {c3['fg_hint']}; font-size: {SIZE_CAPTION}px; padding: 0 3px;")
 
     def _update_exam_alert(self) -> None:
         today = date.today()
@@ -600,7 +610,7 @@ class MainWindow(QMainWindow):
             color = c["fg_secondary"]
         self._exam_alert_label.setText(tr("window.status.exam_count", n=count))
         self._exam_alert_label.setStyleSheet(
-            f"color: {color}; font-size: 12px; font-weight: 600; padding: 0 3px;")
+            f"color: {color}; font-size: {SIZE_CAPTION}px; font-weight: 600; padding: 0 3px;")
         self._exam_alert_label.show()
 
     def _on_exam_alert_click(self) -> None:
@@ -614,13 +624,13 @@ class MainWindow(QMainWindow):
         if count > 0:
             self._ddl_alert_label.setText(tr("window.status.ddl_alert", n=count))
             self._ddl_alert_label.setStyleSheet(
-                f"color: {c['red']}; font-size: 12px; font-weight: 600;"
+                f"color: {c['red']}; font-size: {SIZE_CAPTION}px; font-weight: 600;"
                 f"padding: 0 3px;")
             self._ddl_alert_label.setCursor(Qt.CursorShape.PointingHandCursor)
         else:
             self._ddl_alert_label.setText(tr("window.status.ddl_none"))
             self._ddl_alert_label.setStyleSheet(
-                f"color: {c['fg_hint']}; font-size: 12px;"
+                f"color: {c['fg_hint']}; font-size: {SIZE_CAPTION}px;"
                 f"padding: 0 3px;")
             self._ddl_alert_label.setCursor(Qt.CursorShape.ArrowCursor)
         self._ddl_alert_label.show()
@@ -628,244 +638,3 @@ class MainWindow(QMainWindow):
     @property
     def ai_panel(self) -> AIPanel:
         return self._ai_panel
-
-
-class WeatherDetailDialog(QDialog):
-    """天气详情对话框（支持刷新后自动更新）"""
-
-    def __init__(self, weather_service, parent=None) -> None:
-        super().__init__(parent)
-        self._ws = weather_service
-        c = get_colors()
-
-        self.setWindowTitle(tr("window.weather.title"))
-        self.setMinimumWidth(360)
-        self.setStyleSheet(f"""
-            QDialog {{ background-color: {c['bg_card']}; }}
-            QLabel {{ background: transparent; border: none; }}
-        """)
-
-        self._layout = QVBoxLayout(self)
-        self._layout.setContentsMargins(20, 20, 20, 20)
-        self._layout.setSpacing(16)
-
-        # 标题栏
-        title_row = QHBoxLayout()
-        self._title = QLabel(tr("window.weather.title"))
-        self._title.setStyleSheet(
-            f"font-size: 20px; font-weight: 700; color: {c['fg_primary']};")
-        title_row.addWidget(self._title)
-
-        # 最后更新时间
-        self._update_time_label = QLabel()
-        self._update_time_label.setStyleSheet(
-            f"font-size: 11px; color: {c['fg_hint']}; margin-left: 8px;")
-        title_row.addWidget(self._update_time_label)
-        title_row.addStretch()
-
-        self._refresh_btn = RoundedButton(tr("window.weather.refresh"))
-        self._refresh_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._refresh_btn.setStyleSheet(f"""
-            QPushButton {{
-                background-color: {c['accent']};
-                color: white;
-                border: none;
-                border-radius: 4px;
-                padding: 6px 16px;
-                font-size: 13px;
-            }}
-            QPushButton:hover {{ background-color: {c['accent_hover']}; }}
-            QPushButton:disabled {{
-                background-color: {c['fg_hint']};
-                color: {c['bg_card']};
-            }}
-        """)
-        self._refresh_btn.clicked.connect(self._on_refresh)
-        title_row.addWidget(self._refresh_btn)
-        self._layout.addLayout(title_row)
-
-        # 实时天气区域
-        self._now_card = None
-        self._temp_label = None
-        self._info_label = None
-        self._hum_label = None
-        self._wind_label = None
-        self._no_data_label = None
-
-        # 预报区域
-        self._forecast_rows = []  # 保存预报行的引用
-
-        # 首次加载
-        self._build_ui()
-        self._update_content()
-
-        # 连接信号
-        self._ws.weather_updated.connect(self._update_content)
-        self._ws.forecast_updated.connect(self._update_content)
-
-    def _build_ui(self) -> None:
-        """构建UI结构"""
-        c = get_colors()
-        self._layout.removeWidget(self._no_data_label) if self._no_data_label else None
-
-        # 实时天气卡片
-        if self._now_card:
-            self._layout.removeWidget(self._now_card)
-        self._now_card = card("item")
-        card_layout = QVBoxLayout(self._now_card)
-        card_layout.setSpacing(8)
-
-        self._temp_label = QLabel()
-        self._temp_label.setStyleSheet(
-            f"font-size: 28px; font-weight: 700; color: {c['fg_primary']};")
-        card_layout.addWidget(self._temp_label)
-
-        self._info_label = QLabel()
-        self._info_label.setStyleSheet(
-            f"font-size: 14px; color: {c['fg_secondary']};")
-        card_layout.addWidget(self._info_label)
-
-        row = QHBoxLayout()
-        row.setSpacing(16)
-        self._hum_label = QLabel()
-        self._hum_label.setStyleSheet(f"font-size: 13px; color: {c['fg_hint']};")
-        row.addWidget(self._hum_label)
-
-        self._wind_label = QLabel()
-        self._wind_label.setStyleSheet(f"font-size: 13px; color: {c['fg_hint']};")
-        row.addWidget(self._wind_label)
-        row.addStretch()
-        card_layout.addLayout(row)
-
-        self._layout.insertWidget(1, self._now_card)
-
-        # 预报标题
-        self._forecast_title = QLabel(tr("window.weather.forecast_title"))
-        self._forecast_title.setStyleSheet(
-            f"font-size: 15px; font-weight: 600; color: {c['fg_primary']};")
-        self._layout.insertWidget(2, self._forecast_title)
-
-        # 预报行（3天）
-        for i in range(3):
-            row_layout = QHBoxLayout()
-            row_layout.setSpacing(12)
-
-            date_lbl = QLabel()
-            date_lbl.setStyleSheet(
-                f"font-size: 13px; color: {c['fg_secondary']}; min-width: 80px;")
-            row_layout.addWidget(date_lbl)
-
-            text_lbl = QLabel()
-            text_lbl.setStyleSheet(f"font-size: 13px; color: {c['fg_primary']};")
-            row_layout.addWidget(text_lbl)
-
-            rain_lbl = QLabel()
-            rain_lbl.setStyleSheet(f"font-size: 12px; color: {c['accent_text']};")
-            row_layout.addWidget(rain_lbl)
-
-            temp_lbl = QLabel()
-            temp_lbl.setStyleSheet(
-                f"font-size: 13px; color: {c['fg_secondary']};")
-            temp_lbl.setAlignment(Qt.AlignmentFlag.AlignRight)
-            row_layout.addWidget(temp_lbl)
-
-            self._layout.insertWidget(3 + i, row_layout.itemAt(0).widget())
-            self._forecast_rows.append({
-                "date": date_lbl,
-                "text": text_lbl,
-                "rain": rain_lbl,
-                "temp": temp_lbl
-            })
-
-    def _update_content(self) -> None:
-        """更新内容"""
-
-        # 更新最后更新时间
-        now_cache_time = self._ws._now_cache_time
-        if now_cache_time:
-            self._update_time_label.setText(
-                tr("window.weather.updated_at",
-                   time=now_cache_time.strftime('%H:%M')))
-        else:
-            self._update_time_label.setText("")
-
-        # 恢复刷新按钮状态
-        self._refresh_btn.setEnabled(True)
-        self._refresh_btn.setText(tr("window.weather.refresh"))
-
-        # 更新实时天气
-        self._update_now_section()
-
-        # 更新预报
-        self._update_forecast_section()
-
-    def _update_now_section(self) -> None:
-        """更新实时天气卡片（无数据时隐藏卡片）。"""
-        now = self._ws.get_now()
-        if not now:
-            if self._now_card:
-                self._now_card.hide()
-            return
-        if self._now_card:
-            self._now_card.show()
-        if self._temp_label:
-            self._temp_label.setText(f"{now.get('temp', '?')}°C")
-        if self._info_label:
-            self._info_label.setText(
-                tr("window.weather.feels_like", text=now.get('text', '?'),
-                   feels=now.get('feelsLike', '?')))
-        if self._hum_label:
-            self._hum_label.setText(
-                tr("window.weather.humidity", value=now.get('humidity', '?')))
-        if self._wind_label:
-            self._wind_label.setText(
-                tr("window.weather.wind", direction=now.get('windDir', '?'),
-                   scale=now.get('windScale', '?')))
-
-    def _update_forecast_section(self) -> None:
-        """更新未来三天预报行。"""
-        forecast = self._ws.get_forecast()
-        for i, row in enumerate(self._forecast_rows):
-            if i < len(forecast):
-                self._fill_forecast_row(row, forecast[i])
-            else:
-                self._clear_forecast_row(row)
-
-    @staticmethod
-    def _fill_forecast_row(row: dict, day: dict) -> None:
-        """填充单行预报。"""
-        row["date"].setText(day.get('fxDate', '?'))
-        row["text"].setText(day.get('textDay', '?'))
-        precip = day.get('precip', '0')
-        if precip and float(precip) > 0:
-            row["rain"].setText(tr("window.weather.precip", value=precip))
-            row["rain"].show()
-        else:
-            row["rain"].hide()
-        row["temp"].setText(
-            f"{day.get('tempMin', '?')}°C ~ {day.get('tempMax', '?')}°C")
-
-    @staticmethod
-    def _clear_forecast_row(row: dict) -> None:
-        """清空无数据时的预报行。"""
-        row["date"].setText("")
-        row["text"].setText("")
-        row["rain"].hide()
-        row["temp"].setText("")
-
-    def _on_refresh(self) -> None:
-        """刷新按钮点击"""
-        # 禁用按钮并显示加载状态
-        self._refresh_btn.setEnabled(False)
-        self._refresh_btn.setText("...")
-        # 触发刷新
-        self._ws.refresh()
-
-    def closeEvent(self, event) -> None:
-        """关闭时断开信号连接"""
-        try:
-            self._ws.weather_updated.disconnect(self._update_content)
-            self._ws.forecast_updated.disconnect(self._update_content)
-        except RuntimeError:
-            logger.debug("WeatherDetailDialog.closeEvent 中忽略异常", exc_info=True)
-        super().closeEvent(event)
