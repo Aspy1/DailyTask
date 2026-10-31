@@ -7,7 +7,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-_log_dir = Path(__file__).parent / "data"
+from src.services.paths import get_data_dir  # noqa: E402
+
+_log_dir = get_data_dir()
 _log_dir.mkdir(parents=True, exist_ok=True)
 logging.basicConfig(
     level=logging.INFO,

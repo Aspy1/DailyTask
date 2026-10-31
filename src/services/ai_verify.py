@@ -116,6 +116,13 @@ def _observe_delete_item(args: dict, data_dir: Path) -> dict:
     return {"exists": any(it.get("id") == args.get("id") for it in items)}
 
 
+def _observe_complete_task(args: dict, data_dir: Path) -> dict:
+    data = _read_semester(data_dir, "tasks.json")
+    tid = args.get("id", "")
+    task = next((t for t in data.get("tasks") or [] if t.get("id") == tid), {})
+    return {"exists": bool(task), "completed": task.get("status") == "completed"}
+
+
 def _label_item(args: dict, data_dir: Path) -> str:
     item = _item(_read(data_dir, "inventory.json"), args.get("id", ""))
     return str(item.get("name") or "")
@@ -135,6 +142,19 @@ def _label_plan_index(args: dict, data_dir: Path) -> str:
 
 def _label_title_or_date(args: dict, data_dir: Path) -> str:
     return str(args.get("title") or args.get("date") or "")
+
+
+def _label_note(args: dict, data_dir: Path) -> str:
+    return str(args.get("note") or "")
+
+
+def _label_task(args: dict, data_dir: Path) -> str:
+    tid = args.get("id", "")
+    data = _read_semester(data_dir, "tasks.json")
+    for task in (data.get("tasks") or []) + (data.get("archived") or []):
+        if task.get("id") == tid:
+            return str(task.get("title") or "")
+    return ""
 
 
 def label_of(command: str, data_dir: Path) -> str:
@@ -200,6 +220,21 @@ def _check_add_task(before: dict, args: dict, data_dir: Path) -> tuple[str, str]
     if len(tasks) > int(before.get("count", -1)) and hit:
         return VERIFIED, f"作业「{title}」在列表里"
     return MISMATCH, f"作业列表里找不到新写入的「{title}」"
+
+
+def _check_complete_task(before: dict, args: dict, data_dir: Path) -> tuple[str, str]:
+    """完成作业：任务必须在 `archived` 里且状态为 completed。"""
+    tid = args.get("id", "")
+    data = _read_semester(data_dir, "tasks.json")
+    archived = next((t for t in data.get("archived") or []
+                     if t.get("id") == tid and t.get("status") == "completed"), None)
+    if archived:
+        if before.get("completed"):
+            return NOOP, "这条作业本来就已经完成"
+        return VERIFIED, f"作业「{archived.get('title', '')}」已完成"
+    if any(t.get("id") == tid for t in data.get("tasks") or []):
+        return MISMATCH, f"作业 {tid} 还在待办里"
+    return MISMATCH, f"作业 {tid} 不在列表里"
 
 
 def _check_delete_item(before: dict, args: dict, data_dir: Path) -> tuple[str, str]:
@@ -599,8 +634,11 @@ _LABELERS = {
     "add_exam": lambda args, _d: str(args.get("course") or ""),
     "add_plan": _label_title_or_date,
     "replace_plans": _label_title_or_date,
+    "add_expense": _label_note,
+    "add_saving": _label_note,
     "complete_plan": _label_plan_index,
     "delete_plan": _label_plan_index,
+    "complete_task": _label_task,
 }
 
 
@@ -611,6 +649,7 @@ _OBSERVERS = {
     "add_item": _observe_add_item,
     "add_task": _observe_add_task,
     "delete_item": _observe_delete_item,
+    "complete_task": _observe_complete_task,
     # 课程 / 考试 / 习惯 / 日程
     "add_course": _observe_add_course,
     "update_course": _observe_update_course,
@@ -638,6 +677,7 @@ _CHECKS = {
     "add_item": _check_add_item,
     "add_task": _check_add_task,
     "delete_item": _check_delete_item,
+    "complete_task": _check_complete_task,
     # 课程 / 考试 / 习惯 / 日程
     "add_course": _check_add_course,
     "update_course": _check_update_course,

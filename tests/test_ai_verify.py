@@ -178,3 +178,75 @@ def test_worker_reports_off_target_in_the_final_note(qapp) -> None:
                    write_failures=["命令说成功，但余量还是 24（没扣掉）"])
     assert seen and "没有生效或没达到预期" in seen[-1]
     assert "没扣掉" in seen[-1]
+
+
+# ── 全命令覆盖：每个写命令都必须有验收器（§3.3）──────────────
+
+def test_every_write_command_has_a_verifier() -> None:
+    """新增写命令时，忘记补验收器会在这里红 —— 防止"回执变少"悄悄退化。"""
+    from scripts.actions import HANDLERS
+
+    read_only = {"status", "need_restock", "lookup_item",
+                 "expense_summary", "finance_summary", "list_backups"}
+    manual = {"restore"}          # 用户手动恢复入口，AI 不该调用
+    missing = set(HANDLERS) - read_only - manual - set(ai_verify._CHECKS)
+    assert not missing, f"这些写命令没有验收器：{sorted(missing)}"
+
+
+def _verified(cmd: str, sandbox) -> str:
+    from scripts.actions import run_in_process
+
+    full = cmd if "actions.py" in cmd else f"python scripts/actions.py {cmd}"
+    before = ai_verify.observe(full, sandbox)
+    out = run_in_process(full)
+    state, detail = ai_verify.check(full, before, out, sandbox)
+    assert state == ai_verify.VERIFIED, (full, out, state, detail)
+    return out
+
+
+def test_all_write_commands_verify_against_real_data(sandbox) -> None:
+    """把每条写命令真跑一遍：验收结论必须是 `verified`（不是"看起来 OK"）。"""
+    import json
+
+    def ids(name: str, key: str) -> list[dict]:
+        return json.loads((sandbox / name).read_text(encoding="utf-8")).get(key) or []
+
+    _verified('add_task --course "算法" --title "作业一" --due 2026-12-01', sandbox)
+    task_id = ids("semesters/sem_default/tasks.json", "tasks")[0]["id"]
+    _verified(f"complete_task --id {task_id}", sandbox)
+
+    _verified('add_course --name "组成原理" --day 2 --weeks "1-16" --slots "1-2"', sandbox)
+    course_id = ids("semesters/sem_default/courses.json", "courses")[0]["id"]
+    _verified(f'update_course --id {course_id} --slots "3-4"', sandbox)
+    _verified(f"delete_course --id {course_id}", sandbox)
+
+    _verified('add_exam --course "操作系统" --date 2026-12-20', sandbox)
+    _verified('add_habit --name "背单词" --schedule "daily/1"', sandbox)
+    habit_id = ids("habits.json", "habits")[0]["id"]
+    _verified(f"log_habit --id {habit_id}", sandbox)
+
+    _verified('add_plan --date 2026-12-01 --title "真题" --slot 2', sandbox)
+    _verified('replace_plans --date 2026-12-01 --plans '
+              '\'[{"title":"真题","time_slot":3}]\'', sandbox)
+    _verified("delete_plan --date 2026-12-01 --index 0", sandbox)
+
+    _verified('add_expense --amount 12 --category food --note "午饭"', sandbox)
+    expense_id = ids("expenses.json", "records")[0]["id"]
+    _verified(f"delete_expense --id {expense_id}", sandbox)
+    _verified('add_saving --amount 30 --note "自带饭"', sandbox)
+    _verified("finance_set --balance 5000 --monthly-income 3000 --fixed-expenses 1200", sandbox)
+
+    _verified('add_item --name "抽纸" --quantity 5', sandbox)
+    _verified('update_item --id i_001 --location "书架2"', sandbox)
+    _verified("consume --id i_001 --amount 1", sandbox)
+    _verified("delete_item --id i_001", sandbox)
+    _verified('add_location --name "阳台柜"', sandbox)
+    _verified('set_locations --values "书架1,阳台柜"', sandbox)
+
+
+def test_claiming_ok_without_the_data_is_a_mismatch(sandbox) -> None:
+    """⭐ 最核心的防线：命令说 OK，但数据没变 → mismatch（不是通过）。"""
+    cmd = 'python scripts/actions.py add_item --name "不存在" --quantity 1'
+    before = ai_verify.observe(cmd, sandbox)
+    state, detail = ai_verify.check(cmd, before, "OK add_item i_001", sandbox)
+    assert state == ai_verify.MISMATCH and "找不到" in detail

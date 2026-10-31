@@ -3,6 +3,7 @@
 import json
 import time
 from datetime import datetime, timedelta
+from pathlib import Path
 
 from src.models.task import TaskModel
 from src.services.ai_service import AIService
@@ -37,6 +38,44 @@ def test_task_auto_archive_is_persisted(tmp_path) -> None:
     on_disk = json.loads(path.read_text(encoding="utf-8"))
     assert on_disk["tasks"] == [], "归档没有落盘"
     assert [t["id"] for t in on_disk["archived"]] == ["t_001"]
+
+
+def test_model_saves_after_actions_created_the_file(sandbox: Path) -> None:
+    """⭐ 回归：`actions.py` 写的文件缺 `_version`，模型补默认值后**指纹必须仍与磁盘一致**。
+
+    走查实测：旧实现先补 `_version` 再算指纹 → 第一次 UI 保存被误判成"外部改动"，
+    写了冲突副本、用户改动没落盘。
+    """
+    from scripts.actions import run_in_process
+    from src.models.task import DEFAULT_TASKS
+
+    assert run_in_process('add_task --title "图论作业" --due 2026-12-01').startswith("OK")
+    dm = DataManager(sandbox)
+    assert dm.tasks.save() is True, "actions 写的文件不能被误判为外部改动"
+    on_disk = json.loads((sandbox / "semesters" / "sem_default" / "tasks.json")
+                         .read_text(encoding="utf-8"))
+    assert on_disk["_version"] == DEFAULT_TASKS["_version"]
+
+
+def test_actions_save_writes_schema_version(sandbox: Path) -> None:
+    """所有 CLI 写入都必须带 schema 版本（否则模型/备份口径不一致）。"""
+    from scripts.actions import run_in_process
+
+    run_in_process('add_expense --amount 10 --category food')
+    data = json.loads((sandbox / "expenses.json").read_text(encoding="utf-8"))
+    assert data["_version"] == 1
+
+
+def test_flush_does_not_treat_missing_version_as_conflict(tmp_path) -> None:
+    """旧文件没有 `_version`：退出时不能因此写一份无用的冲突副本。"""
+    data = tmp_path / "data"
+    semester = data / "semesters" / "sem_default"
+    semester.mkdir(parents=True)
+    (semester / "tasks.json").write_text(
+        json.dumps({"tasks": [], "archived": []}), encoding="utf-8")
+    dm = DataManager(data)
+    dm.flush_on_exit()
+    assert not list((data / "backup" / "save_conflict").glob("tasks.*.json"))
 
 
 def test_gitsync_clears_finished_worker(tmp_path, qapp) -> None:

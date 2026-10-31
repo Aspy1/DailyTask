@@ -70,7 +70,8 @@ class Goal:
 # 操作 → 中文动词（事实行的开头）。没登记的退化成操作名本身。
 VERB = {
     "add_item": "记入", "update_item": "更新", "delete_item": "删除", "consume": "扣减",
-    "add_task": "记作业", "complete_plan": "标记完成", "delete_plan": "删除日程",
+    "add_task": "记作业", "complete_task": "完成作业",
+    "complete_plan": "标记完成", "delete_plan": "删除日程",
     "add_plan": "记日程", "replace_plans": "重排日程",
     "add_expense": "记支出", "delete_expense": "删除支出", "add_saving": "记存钱",
     "add_habit": "记习惯", "log_habit": "打卡",

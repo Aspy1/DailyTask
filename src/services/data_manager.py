@@ -257,6 +257,10 @@ class DataManager(QObject):
                 model.save()
                 continue
             on_disk = _read_doc(model.file_path)
+            if on_disk is not None and "_version" not in on_disk:
+                # 旧 CLI/外部写入没有 `_version`；模型读盘时补在内存里 → 直接比会
+                # 永远不相等，每次退出都写一份无用的冲突副本（2026-10-31 走查实测）。
+                on_disk["_version"] = model.version
             if on_disk is not None and on_disk == model.data:
                 continue
             path = _write_conflict_copy(model.data, name, folder)

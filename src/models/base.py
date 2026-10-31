@@ -161,6 +161,10 @@ class BaseJsonModel:
                     else "留档失败，现场仍在原处")
             raise DataCorrupted(
                 f"{self.file_path.name} 无法解析（{kept}）：{e}") from e
+        # ⚠ 指纹必须是**磁盘原文**的指纹：下面 `setdefault("_version", 1)` 会改内存态，
+        # 而由 `actions.py`/TG 写入的文件可能没有 `_version` → 用改过的内存指纹去比磁盘
+        # 永远不相等，第一次保存就被误判成"外部改动"（2026-10-31 全量走查实测）。
+        self._disk_fingerprint = self._fingerprint(self._data)
         # 自愈：旧文件可能早于版本键存在（Q-E4）；缺失即按 v1 处理
         self._data.setdefault("_version", 1)
         self._loaded_future = self.version > self.supported_version
@@ -169,8 +173,6 @@ class BaseJsonModel:
             note = (f"{self.file_path.name} 的 _version={self.version} "
                     f"比本程序支持的 v{self.supported_version} 新")
             logger.warning("%s —— 不做任何迁移，也不当作可覆盖的目标", note)
-        # 记下"我们看到的磁盘内容"：保存前拿它判断有没有别人改过（见 `save()`）
-        self._disk_fingerprint = self._fingerprint(self._data)
         return self._data
 
     def _quarantine(self) -> Path | None:

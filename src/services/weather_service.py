@@ -1,14 +1,14 @@
 """和风天气服务"""
 from datetime import datetime
-from pathlib import Path
 
 import requests
 from PySide6.QtCore import QObject, QThread, QTimer, Signal
 
 from src.services import weather_store
+from src.services.paths import get_data_dir
 
 # 绝对路径：应用可能被自启（CWD 非项目根），禁止用相对 "data/..."（见 CODE_STANDARDS Q-E2）
-_DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data"
+_DATA_DIR = get_data_dir()
 _STATS_FILE = _DATA_DIR / "weather_stats.json"
 _CACHE_FILE = _DATA_DIR / "weather_cache.json"
 

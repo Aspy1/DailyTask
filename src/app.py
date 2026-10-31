@@ -15,6 +15,7 @@ from src.i18n.loader import tr
 from src.services.ai_service import AIService
 from src.services.data_manager import DataManager
 from src.services.git_sync import GitSync
+from src.services.paths import get_data_dir
 from src.services.plugin_manager import PluginManager
 from src.services.reminder_service import ReminderService
 from src.services.settings_manager import SettingsManager, migrate_legacy_scene_location
@@ -28,7 +29,8 @@ from src.services.single_instance import (
 from src.ui.main_window import MainWindow
 from src.ui.styles.theme import FONT_CN, SIZE_TITLE, init_theme
 
-DATA_DIR = Path(__file__).parent.parent / "data"
+# 可用 `LIFE_ASSISTANT_DATA_DIR` 指向沙箱（全量回归不碰用户真实数据）
+DATA_DIR = get_data_dir()
 # 单实例通道的 key 与委派协议见 `src/services/single_instance.py`
 # （CLI 也要用同一个 key，所以别在这儿重定义 —— 见 PLAN.md P17 阶段 3）
 REGISTRY_RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"

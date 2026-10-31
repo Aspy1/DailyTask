@@ -34,8 +34,10 @@ from scripts.actions_specs import (  # noqa: F401
     SPECS,
 )
 from src.models.base import file_lock, fingerprint
+from src.services.paths import get_data_dir
 
-DATA = Path(__file__).parent.parent / "data"
+# 测试通过 monkeypatch 改这个模块级 `DATA`；启动时也可用环境变量指向沙箱
+DATA = get_data_dir()
 
 # ═══════════════════════════════════════════════════════════
 # Helpers
@@ -151,6 +153,36 @@ def _validate_payload(name: str, obj: dict) -> None:
             raise ActionError(f"{name}: {key} 必须是对象，收到 {type(obj[key]).__name__}")
 
 
+def _schema_version(name: str) -> int:
+    """文件对应的 schema 版本（来自模型默认值，**唯一真值**）。
+
+    旧实现写文件时**不写 `_version`**：模型读盘后会在内存里补 `_version=1`，
+    指纹与磁盘不一致 → 下一次 UI 保存被误判成"外部改动"（2026-10-31 走查实测）。
+    """
+    from src.models.course import DEFAULT_COURSES
+    from src.models.daily_log import DEFAULT_DAILY_LOGS
+    from src.models.exam import DEFAULT_EXAMS
+    from src.models.expense import DEFAULT_EXPENSES
+    from src.models.habit import DEFAULT_HABITS
+    from src.models.inventory import DEFAULT_INVENTORY
+    from src.models.membership_contacts import DEFAULT_CONTACTS
+    from src.models.routine import DEFAULT_ROUTINES
+    from src.models.task import DEFAULT_TASKS
+
+    versions = {
+        "courses.json": DEFAULT_COURSES["_version"],
+        "tasks.json": DEFAULT_TASKS["_version"],
+        "exams.json": DEFAULT_EXAMS["_version"],
+        "habits.json": DEFAULT_HABITS["_version"],
+        "routines.json": DEFAULT_ROUTINES["_version"],
+        "expenses.json": DEFAULT_EXPENSES["_version"],
+        "daily_logs.json": DEFAULT_DAILY_LOGS["_version"],
+        "inventory.json": DEFAULT_INVENTORY["_version"],
+        "memberships.json": DEFAULT_CONTACTS["_version"],
+    }
+    return versions.get(Path(name).name, 1)
+
+
 def save(name, obj) -> None:
     """原子写入：结构守卫 → 备份旧文件 → 写 .tmp → 回读自检 → 原子替换。
 
@@ -162,6 +194,7 @@ def save(name, obj) -> None:
     """
     p = _path(name)                 # 现在的解析结果
     _validate_payload(name, obj)
+    obj.setdefault("_version", _schema_version(name))
     with file_lock(p):
         seen = _LOADED.get(_load_key(name))
         if seen is not None:

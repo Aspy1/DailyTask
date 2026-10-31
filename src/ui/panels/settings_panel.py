@@ -22,6 +22,7 @@ from src.i18n.loader import tr
 from src.services.ai_service import AIService
 from src.services.api_service import ApiService
 from src.services.email_sender import EmailConfig
+from src.services.paths import get_data_dir
 from src.services.settings_manager import SettingsManager
 from src.ui.panels.provider_catalog import PROVIDERS
 from src.ui.styles.cards import card
@@ -45,8 +46,8 @@ from src.ui.widgets.rounded_button import RoundedButton
 from src.ui.widgets.rounded_input import RoundedComboBox, RoundedLineEdit
 from src.ui.widgets.toggle_switch import ToggleSwitch
 
-# 数据目录（本文件在 src/ui/panels/ 下，往上 3 层是仓库根）
-_DATA_DIR = Path(__file__).resolve().parents[3] / "data"
+# 数据目录（与 App / CLI 同一入口；可用环境变量指到沙箱）
+_DATA_DIR = get_data_dir()
 
 logger = logging.getLogger(__name__)
 
@@ -613,8 +614,8 @@ class SettingsPanel(QWidget):
             rl.addWidget(name_lbl)
             enabled_cb = ToggleSwitch()
             enabled_cb.setChecked(bool(pinfo.enabled))
-            # R-008：复选框用 clicked(bool)，不用 toggled —— 后者会被程序化 setChecked 触发成回环
-            enabled_cb.clicked.connect(lambda checked, n=pinfo.name: self._toggle_plugin(n, checked))
+            # ToggleSwitch 的 setChecked 不发信号（只有用户操作发 toggled），不会回环
+            enabled_cb.toggled.connect(lambda checked, n=pinfo.name: self._toggle_plugin(n, checked))
             rl.addWidget(enabled_cb)
             panels = self._plugin_manager.get_panels(pinfo.name)
             open_btn = RoundedButton(tr("panel.settings.btn_open_plugin_panel"))
