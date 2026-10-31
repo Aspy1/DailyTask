@@ -16,7 +16,6 @@ import logging
 import os
 import re
 import sys
-import threading
 from datetime import date
 from pathlib import Path
 
@@ -74,6 +73,7 @@ from scripts.actions_core import (  # noqa: F401
     _validate_args,
     _validate_payload,
     _weeks_range,
+    emit,
     gen_id,
     load,
     match_course,
@@ -83,13 +83,6 @@ from scripts.actions_core import (  # noqa: F401
 )
 
 logger = logging.getLogger(__name__)
-
-# run_in_process 用 redirect_stdout 捕获输出，而 sys.stdout 是进程级全局；
-# 加锁串行化，避免多个线程同时执行时互相污染（见 CODE_STANDARDS Q-B4）。
-_STDOUT_LOCK = threading.Lock()
-
-
-    # need_restock / status 无参数
 
 
 # ═══════════════════════════════════════════════════════════
@@ -102,11 +95,11 @@ def cmd_add_task(args) -> None:
     title = args.title
     due_raw = args.due or ""
     if not due_raw.strip():
-        print("ERROR add_task requires --due (YYYY-MM-DD)")
+        emit("ERROR add_task requires --due (YYYY-MM-DD)")
         return
     due = _normalize_due(due_raw)
     if due is None:
-        print(f"ERROR add_task 无法识别日期: {due_raw}")
+        emit(f"ERROR add_task 无法识别日期: {due_raw}")
         return
     priority = args.priority or "medium"
 
@@ -123,7 +116,7 @@ def cmd_add_task(args) -> None:
     }
     data["tasks"].append(task)
     save("tasks.json", data)
-    print(f"OK add_task {tid} | {matched} | {title} | DDL {due[:16]}")
+    emit(f"OK add_task {tid} | {matched} | {title} | DDL {due[:16]}")
 
 def cmd_complete_task(args) -> None:
     tid = args.id
@@ -137,14 +130,14 @@ def cmd_complete_task(args) -> None:
             data["tasks"].remove(t)
             data["archived"].append(t)
             save("tasks.json", data)
-            print(f"OK complete_task {tid}")
+            emit(f"OK complete_task {tid}")
             return
     # Check archived
     for t in data["archived"]:
         if t["id"] == tid:
-            print(f"ALREADY completed {tid}")
+            emit(f"ALREADY completed {tid}")
             return
-    print(f"ERROR task not found: {tid}")
+    emit(f"ERROR task not found: {tid}")
 
 def cmd_add_exam(args) -> None:
     course = args.course or ""
@@ -163,7 +156,7 @@ def cmd_add_exam(args) -> None:
     }
     data["exams"].append(exam)
     save("exams.json", data)
-    print(f"OK add_exam {eid} | {matched} | {exam_date}")
+    emit(f"OK add_exam {eid} | {matched} | {exam_date}")
 
 def cmd_add_habit(args) -> None:
     name = args.name
@@ -177,7 +170,7 @@ def cmd_add_habit(args) -> None:
     elif typ == "monthly":
         schedule = {"type": "monthly", "value": int(val)}
     else:
-        print(f"ERROR unknown schedule type: {typ}")
+        emit(f"ERROR unknown schedule type: {typ}")
         return
 
     data = load("habits.json")
@@ -192,7 +185,7 @@ def cmd_add_habit(args) -> None:
     }
     data["habits"].append(habit)
     save("habits.json", data)
-    print(f"OK add_habit {hid} | {name} ({typ})")
+    emit(f"OK add_habit {hid} | {name} ({typ})")
 
 def cmd_log_habit(args) -> None:
     hid = args.id
@@ -207,9 +200,9 @@ def cmd_log_habit(args) -> None:
             if h["streak"] > h.get("longest_streak", 0):
                 h["longest_streak"] = h["streak"]
             save("habits.json", data)
-            print(f"OK log_habit {hid} | {h['name']} | streak={h['streak']}")
+            emit(f"OK log_habit {hid} | {h['name']} | streak={h['streak']}")
             return
-    print(f"ERROR habit not found: {hid}")
+    emit(f"ERROR habit not found: {hid}")
 
 def cmd_add_plan(args) -> None:
     date_str = parse_date(args.date) if args.date else date.today().isoformat()
@@ -225,14 +218,14 @@ def cmd_add_plan(args) -> None:
     data.setdefault("plans", {}).setdefault(date_str, [])
     data["plans"][date_str].append(plan)
     save("daily_logs.json", data)
-    print(f"OK add_plan | {date_str} | slot={plan['time_slot']} | {plan['title']}")
+    emit(f"OK add_plan | {date_str} | slot={plan['time_slot']} | {plan['title']}")
 
 def cmd_replace_plans(args) -> None:
     date_str = parse_date(args.date) if args.date else date.today().isoformat()
     try:
         new_plans = json.loads(args.plans)
     except json.JSONDecodeError:
-        print("ERROR invalid plans JSON")
+        emit("ERROR invalid plans JSON")
         return
     data = load("daily_logs.json")
     data.setdefault("plans", {})
@@ -241,7 +234,7 @@ def cmd_replace_plans(args) -> None:
         p.setdefault("type", "custom")
         data["plans"][date_str].append(p)
     save("daily_logs.json", data)
-    print(f"OK replace_plans {date_str} | {len(new_plans)} items")
+    emit(f"OK replace_plans {date_str} | {len(new_plans)} items")
 
 def cmd_complete_plan(args) -> None:
     """把某天的第 `index` 条日程标记为完成（用户用例表第 10 条）。
@@ -254,12 +247,12 @@ def cmd_complete_plan(args) -> None:
     plans = data.get("plans", {}).get(date_str, [])
     idx = args.index
     if not (0 <= idx < len(plans)):
-        print(f"ERROR plan index out of range: {idx}（{date_str} 共 {len(plans)} 条）")
+        emit(f"ERROR plan index out of range: {idx}（{date_str} 共 {len(plans)} 条）")
         return
     plans[idx]["done"] = True
     plans[idx]["completed_at"] = now_iso()
     save("daily_logs.json", data)
-    print(f"OK complete_plan {date_str}[{idx}] | {plans[idx].get('title', '')}")
+    emit(f"OK complete_plan {date_str}[{idx}] | {plans[idx].get('title', '')}")
 
 def cmd_delete_plan(args) -> None:
     date_str = parse_date(args.date) if args.date else date.today().isoformat()
@@ -271,9 +264,9 @@ def cmd_delete_plan(args) -> None:
         if not plans:
             del data["plans"][date_str]
         save("daily_logs.json", data)
-        print(f"OK delete_plan {date_str}[{idx}] | {removed.get('title','')}")
+        emit(f"OK delete_plan {date_str}[{idx}] | {removed.get('title','')}")
     else:
-        print(f"ERROR plan index out of range: {date_str}[{idx}]")
+        emit(f"ERROR plan index out of range: {date_str}[{idx}]")
 
 def cmd_add_course(args) -> None:
     name = args.name
@@ -286,14 +279,14 @@ def cmd_add_course(args) -> None:
     # Parse weeks
     m = re.match(r'(\d+)-(\d+)', weeks_str)
     if not m:
-        print(f"ERROR invalid weeks: {weeks_str}")
+        emit(f"ERROR invalid weeks: {weeks_str}")
         return
     weeks = {"start": int(m.group(1)), "end": int(m.group(2))}
 
     # Parse slots
     m = re.match(r'(\d+)-(\d+)', slots_str)
     if not m:
-        print(f"ERROR invalid slots: {slots_str}")
+        emit(f"ERROR invalid slots: {slots_str}")
         return
     time_slots = [{"start": int(m.group(1)), "end": int(m.group(2)), "location": location}]
 
@@ -309,7 +302,7 @@ def cmd_add_course(args) -> None:
     }
     data["courses"].append(course)
     save("courses.json", data)
-    print(f"OK add_course {cid} | {name} | 周{day} 第{slots_str}节")
+    emit(f"OK add_course {cid} | {name} | 周{day} 第{slots_str}节")
 
 def cmd_delete_course(args) -> None:
     cid = args.id
@@ -319,9 +312,9 @@ def cmd_delete_course(args) -> None:
         if c["id"] == cid:
             removed = courses.pop(i)
             save("courses.json", data)
-            print(f"OK delete_course {cid} | {removed.get('name','')}")
+            emit(f"OK delete_course {cid} | {removed.get('name','')}")
             return
-    print(f"ERROR course not found: {cid}")
+    emit(f"ERROR course not found: {cid}")
 
 
 def _apply_course_updates(course: dict, args) -> None:
@@ -371,10 +364,10 @@ def cmd_update_course(args) -> None:
             _apply_course_updates(course, args)
             save("courses.json", data)
             slots = course.get("time_slots") or [{}]
-            print(f"OK update_course {cid} | {course.get('name', '')} | "
+            emit(f"OK update_course {cid} | {course.get('name', '')} | "
                   f"周{course.get('day_of_week')} 第{slots[0].get('start')}-{slots[0].get('end')}节")
             return
-    print(f"ERROR course not found: {cid}")
+    emit(f"ERROR course not found: {cid}")
 def cmd_status(args) -> None:
     t = load("tasks.json")
     h = load("habits.json")
@@ -384,7 +377,7 @@ def cmd_status(args) -> None:
     habits = len(h.get("habits", []))
     courses = len(c.get("courses", []))
     upcoming = [x for x in e.get("exams", []) if x.get("exam_date", "") >= date.today().isoformat()]
-    print(f"tasks={pending} habits={habits} courses={courses} exams={len(upcoming)}")
+    emit(f"tasks={pending} habits={habits} courses={courses} exams={len(upcoming)}")
 
 
 # ═══════════════════════════════════════════════════════════
@@ -425,7 +418,7 @@ def cmd_add_expense(args) -> None:
         "date": day, "note": note, "created_at": now_iso(),
     })
     save("expenses.json", data)
-    print(f"OK add_expense {rid} | {_category_name(data, cat_id)} | ¥{amount:.2f} | {day}")
+    emit(f"OK add_expense {rid} | {_category_name(data, cat_id)} | ¥{amount:.2f} | {day}")
 
 
 def cmd_add_saving(args) -> None:
@@ -445,7 +438,7 @@ def cmd_add_saving(args) -> None:
     sid = gen_id(day_sav, "s")
     day_sav.append({"id": sid, "amount": amount, "note": note, "created_at": now_iso()})
     save("daily_logs.json", data)
-    print(f"OK add_saving {sid} | ¥{amount:.2f} | {day}")
+    emit(f"OK add_saving {sid} | ¥{amount:.2f} | {day}")
 
 
 def cmd_delete_expense(args) -> None:
@@ -455,9 +448,9 @@ def cmd_delete_expense(args) -> None:
         if r.get("id") == rid:
             removed = data["records"].pop(i)
             save("expenses.json", data)
-            print(f"OK delete_expense {rid} | ¥{float(removed.get('amount', 0) or 0):.2f}")
+            emit(f"OK delete_expense {rid} | ¥{float(removed.get('amount', 0) or 0):.2f}")
             return
-    print(f"ERROR expense not found: {rid}")
+    emit(f"ERROR expense not found: {rid}")
 
 
 def _month_totals(records: list[dict], month: str) -> tuple[float, dict[str, float], int]:
@@ -483,9 +476,9 @@ def cmd_expense_summary(args) -> None:
     records = data.get("records", [])
     total, by_cat, count = _month_totals(records, month)
 
-    print(f"{month} 合计 ¥{total:.2f}（{count} 笔）")
+    emit(f"{month} 合计 ¥{total:.2f}（{count} 笔）")
     for cid, amt in sorted(by_cat.items(), key=lambda kv: -kv[1]):
-        print(f"  {_category_name(data, cid)}: ¥{amt:.2f}")
+        emit(f"  {_category_name(data, cid)}: ¥{amt:.2f}")
 
     today = date.today().isoformat()
     today_total = sum(float(r.get("amount", 0) or 0) for r in records if r.get("date") == today)
@@ -493,7 +486,7 @@ def cmd_expense_summary(args) -> None:
                 for s in load("daily_logs.json").get("savings", {}).get(today, []))
     budget = float((data.get("budget") or {}).get("monthly", 0) or 0)
     tail = f" | 月预算 ¥{budget:.0f}（剩余 ¥{budget - total:.2f}）" if budget else ""
-    print(f"今日支出 ¥{today_total:.2f} | 今日存钱 ¥{saved:.2f}{tail}")
+    emit(f"今日支出 ¥{today_total:.2f} | 今日存钱 ¥{saved:.2f}{tail}")
 
 
 # ═══════════════════════════════════════════════════════════
@@ -504,11 +497,11 @@ def cmd_list_backups(args) -> None:
     name = _text(getattr(args, "name", None), "name")
     files = sorted(_backup_dir().glob(f"{name}.*.json" if name else "*.json"))
     if not files:
-        print("NO_BACKUP" + (f" for {name}" if name else ""))
+        emit("NO_BACKUP" + (f" for {name}" if name else ""))
         return
     for f in files[-20:]:
-        print(f"  {f.name}  ({f.stat().st_size} 字节)")
-    print(f"共 {len(files)} 份（每个文件保留上限 {_max_backups()} 份）")
+        emit(f"  {f.name}  ({f.stat().st_size} 字节)")
+    emit(f"共 {len(files)} 份（每个文件保留上限 {_max_backups()} 份）")
 
 
 def cmd_restore(args) -> None:
@@ -519,7 +512,7 @@ def cmd_restore(args) -> None:
     """
     name = _text(args.name, "name", required=True)
     if not getattr(args, "yes", False):
-        print("ERROR restore 需要显式 --yes（手动恢复入口，避免误覆盖）")
+        emit("ERROR restore 需要显式 --yes（手动恢复入口，避免误覆盖）")
         return
 
     candidates = sorted(_backup_dir().glob(f"{name}.*.json"))
@@ -527,14 +520,14 @@ def cmd_restore(args) -> None:
     if stamp:
         candidates = [c for c in candidates if stamp in c.name]
     if not candidates:
-        print(f"ERROR 没有 {name} 的备份（先用 list_backups 查看）")
+        emit(f"ERROR 没有 {name} 的备份（先用 list_backups 查看）")
         return
 
     src = candidates[-1]
     try:
         data = json.loads(src.read_text(encoding="utf-8"))
     except json.JSONDecodeError as e:
-        print(f"ERROR 备份本身损坏：{src.name}（{e}）")
+        emit(f"ERROR 备份本身损坏：{src.name}（{e}）")
         return
     _validate_payload(name, data)
 
@@ -554,7 +547,7 @@ def cmd_restore(args) -> None:
         finally:
             tmp.unlink(missing_ok=True)
     forget_loaded(name)                 # 内容整份换了 → 丢掉旧基准
-    print(f"OK restore {name} ← {src.name}")
+    emit(f"OK restore {name} ← {src.name}")
 
 
 # ═══════════════════════════════════════════════════════════
@@ -652,17 +645,16 @@ def run_in_process(cmd_str: str) -> str:
 def run_argv_in_process(argv: list[str]) -> str:
     """执行已拆好的 argv（`run_in_process` 与"应用代 CLI 执行"**共用同一条路径**）。
 
-    Thread-safe: each call gets its own stdout buffer.
+    **线程安全**：输出走 `actions_core.capture_output()` 的线程局部缓冲，不再换
+    `sys.stdout`（Q-B4）。两个线程同时执行命令，各自拿到自己的输出。
     参数校验在 handler **之前**：非法输入只回 `ERROR ...`，**一个字节都不写**。
     """
-    import io
-    from contextlib import redirect_stdout
+    from scripts.actions_core import capture_output
 
     if not argv:
         return "ERROR: empty command"
 
-    buf = io.StringIO()
-    with _STDOUT_LOCK, redirect_stdout(buf):
+    with capture_output() as buf:
         _run_argv(argv)
     return buf.getvalue().strip()
 
@@ -673,15 +665,15 @@ def _run_argv(argv: list[str]) -> None:
     try:
         ns = _build_action_namespace(argv)
         if action not in HANDLERS:
-            print(f"ERROR unknown action: {action}")
+            emit(f"ERROR unknown action: {action}")
         else:
             _validate_args(action, ns)
             HANDLERS[action](ns)
     # 边界捕获：本层已处理/记录，不允许异常向上逃逸（CODE_STANDARDS Q-I1）
     except ActionError as e:
-        print(f"ERROR {e}")
+        emit(f"ERROR {e}")
     except Exception as e:  # noqa: BLE001
-        print(f"ERROR {e}")
+        emit(f"ERROR {e}")
 
 
 # ═══════════════════════════════════════════════════════════

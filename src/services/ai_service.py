@@ -1,12 +1,13 @@
 """AI service with pluggable backends (Anthropic, DeepSeek)."""
 
+import hashlib
+import json
 import logging
 import re
 import threading
 import time
-import uuid
 from datetime import date
-from typing import Any, Protocol
+from typing import Any
 
 from PySide6.QtCore import QObject, QThread, Signal
 
@@ -24,48 +25,18 @@ from src.services.ai_prompts import (
     expense_prompt,
 )
 
+# 提供方适配层已拆到 `ai_providers.py`（单文件 ≤800 行）；这里**重新导出**，
+# 既有 import（包括测试里的 `DeepSeekProvider` / `REASONING_EFFORT`）不用改。
+from src.services.ai_providers import (  # noqa: F401 — 兼容旧 import 路径
+    AI_REQUEST_TIMEOUT,
+    REASONING_EFFORT,
+    AIProvider,
+    AnthropicProvider,
+    DeepSeekProvider,
+    provider_headers,
+)
+
 logger = logging.getLogger(__name__)
-
-
-
-
-
-# ── Provider interface ─────────────────────────────────────────
-
-class AIProvider(Protocol):
-    def chat(self, system_prompt: str, messages: list[dict], model: str,
-             max_tokens: int, temperature: float) -> str: ...
-
-
-class AnthropicProvider:
-    def __init__(self, api_key: str) -> None:
-        from anthropic import Anthropic
-        self._client = Anthropic(api_key=api_key)
-
-    def chat(self, system_prompt: str, messages: list[dict], model: str,
-             max_tokens: int, temperature: float) -> str:
-        response = self._client.messages.create(
-            model=model,
-            max_tokens=max_tokens,
-            temperature=temperature,
-            system=system_prompt,
-            messages=messages,
-        )
-        return response.content[0].text
-
-
-# 进程级稳定会话 ID：OpenCode Go 要求客户端带一个**稳定**的会话标识，
-# 用于路由与 prompt 缓存优化（docs/go「Where can I use it?」）。
-_SESSION_ID = uuid.uuid4().hex
-
-# 单次模型请求的超时（秒）。SDK 默认是 10 分钟 —— 端点卡住时用户会干等十分钟
-# 且没有任何提示（2026-10-16 实测：用户以为应用卡死）。120s 足够覆盖
-# "导入 24 门课"这种长回复（实测 40–58s），超时则给出明确错误。
-AI_REQUEST_TIMEOUT = 120
-
-# 让模型**少想多做**：这类"翻译成命令"的任务不需要长篇推理，而推理会把输出预算
-# 吃光（实测 8192 全给推理 → content 为空）。只在 OpenCode 端点发这个参数。
-REASONING_EFFORT = "none"
 
 # 账本保留条数：它是"**最近实际做过什么**"（§2.4 的执行日志），不是流水账
 EXEC_LOG_KEEP = 5
@@ -98,86 +69,6 @@ def _strip_code_blocks(text: str) -> str:
 # 服务层沿用既有做法直接 emit 文案（与 `self.error.emit(str(e))` 一致）。
 _EMPTY_REPLY_NOTE = ("模型没有返回可执行内容（推理可能占满了输出预算）。"
                      "请重试，或提高设置里的 AI.max_tokens。")
-
-
-def provider_headers(base_url: str) -> dict | None:
-    """按端点补充请求头；不需要时返回 None。
-
-    OpenCode Go（`opencode.ai/inference/go/...`）明确要求客户端：
-
-    1. **自报身份**：用自定义 UA（`life-assistant/1.0`），而不是 SDK 默认的
-       HTTP 库名（openai-python/httpx 之类）；
-    2. 带 `x-opencode-session`：缺了它网关会返回
-       `400 MissingSessionID`（实测）。
-
-    DeepSeek 等其它端点不需要，返回 None 保持原样。
-    """
-    if "opencode.ai" not in base_url:
-        return None
-    return {"User-Agent": "life-assistant/1.0", "x-opencode-session": _SESSION_ID}
-
-
-class DeepSeekProvider:
-    """OpenAI 兼容端点客户端（DeepSeek / OpenCode Go / 其它兼容服务）。"""
-
-    def __init__(self, api_key: str, base_url: str = "https://api.deepseek.com",
-                 extra_headers: dict | None = None) -> None:
-        from openai import OpenAI
-        self._base_url = base_url or ""
-        self._client = OpenAI(api_key=api_key, base_url=base_url,
-                              default_headers=extra_headers or None,
-                              timeout=AI_REQUEST_TIMEOUT)
-
-    def chat(self, system_prompt: str, messages: list[dict], model: str,
-             max_tokens: int, temperature: float) -> str:
-        full_messages = [{"role": "system", "content": system_prompt}, *messages]
-        response = self._create(full_messages, model, max_tokens, temperature)
-        choice = response.choices[0]
-        # 关键诊断：`finish_reason=length` + content 为空 = 推理把输出预算吃光了
-        # （2026-10-16 用户报"连续返回空内容"，没有这行日志就只能靠猜）
-        usage = getattr(response, "usage", None)
-        details = getattr(usage, "completion_tokens_details", None)
-        logger.info("模型返回: finish_reason=%s | 补全 %s（推理 %s）| 提示 %s",
-                    choice.finish_reason,
-                    getattr(usage, "completion_tokens", "?"),
-                    getattr(details, "reasoning_tokens", "?"),
-                    getattr(usage, "prompt_tokens", "?"))
-        content = choice.message.content or ""
-        if not content.strip():
-            # ⚠ 推理文本**绝不能**当回答交出去：`InstructionParser.parse()` 会从任意
-            # 文本里抽含 `scripts/actions.py` 的行去执行，而推理里常有"比如可以这样
-            # 删…"这类**被否决或仅作举例**的命令 —— `actions.py` 只校验格式合法，
-            # 校验不了**意图**。空内容交给上层按"没有可执行内容"处理：
-            # `_should_continue()` 会要求模型直接输出命令（只重试一次），
-            # 仍为空则明确报错（`_EMPTY_REPLY_NOTE`）。
-            reasoning = getattr(choice.message, "reasoning_content", "") or ""
-            logger.warning("content 为空、推理 %d 字符 —— 推理不进执行通道，按空回复处理",
-                           len(reasoning))
-        return content
-
-    def _create(self, full_messages: list[dict], model: str,
-                max_tokens: int, temperature: float) -> Any:
-        """发一次请求。
-
-        OpenCode Go 上 `reasoning_effort="none"` 实测有效：推理 token 归零、
-        输出更长（生成命令这种任务不需要长篇思考）。端点若不认这个参数（400），
-        自动去掉重试一次，不影响可用性。
-        """
-        kwargs = {
-            "model": model or "deepseek-chat",
-            "messages": full_messages,
-            "max_tokens": max_tokens,
-            "temperature": temperature,
-        }
-        if "opencode.ai" not in self._base_url:
-            return self._client.chat.completions.create(**kwargs)
-        try:
-            return self._client.chat.completions.create(
-                **kwargs, reasoning_effort=REASONING_EFFORT)
-        except Exception:  # 端点可能不认这个参数，降级重试
-            logger.warning("端点不接受 reasoning_effort=%s，去掉重试", REASONING_EFFORT,
-                           exc_info=True)
-            return self._client.chat.completions.create(**kwargs)
 
 
 # ── Worker ─────────────────────────────────────────────────────
@@ -403,6 +294,103 @@ def _inventory_prompt(inventory) -> str:
     return inventory_prompt(inventory)
 
 
+# ── 提示词片段（模块级：AIService 类需要保持在 400 行以内，Q-A1）──
+
+def _prompt_cache_key(dm, settings, exec_log: list[str],
+                      weather_cache: dict, today: date) -> str:
+    """提示词缓存键：**内容指纹**（不是列表长度）。
+
+    旧实现用 `len(...)` 当键：改一条任务标题 / 把 5 元改成 50 元 / 同名替换，
+    长度都没变 → AI 继续拿到**旧上下文**（它会把旧值当成事实）。
+    """
+    payload = {
+        "today": today.isoformat(),
+        "semester": dm.courses.current_semester,
+        "courses": dm.courses.courses,
+        "tasks": dm.tasks.active,
+        "habits": dm.habits.habits,
+        "plans": dm.daily_logs._data.get("plans", {}),
+        "expenses": {"records": dm.expenses.records, "budget": dm.expenses.budget},
+        "inventory": dm.inventory.items,
+        "balances": {
+            key: [settings.get("Balance", f"{key}_balance"),
+                  settings.get("Balance", f"{key}_threshold")]
+            for key in ("campus_card", "water_card", "electricity")
+        },
+        "exec_log": exec_log,
+        "weather_ts": int(weather_cache.get("fetched_at", 0)),
+    }
+    blob = json.dumps(payload, ensure_ascii=False, sort_keys=True, default=str)
+    return hashlib.sha256(blob.encode("utf-8")).hexdigest()
+
+
+def _course_list(dm, weekday_names: list[str]) -> str:
+    """课程清单（用于系统提示词）。"""
+    course_lines = []
+    for c in dm.courses.courses:
+        day = c.get("day_of_week", 0)
+        day_str = weekday_names[day - 1] if 1 <= day <= 7 else "?"
+        weeks = c.get("weeks", {})
+        w_str = f"第{weeks.get('start','?')}-{weeks.get('end','?')}周" if weeks else ""
+        course_lines.append(f"  - {c.get('name','')} ({day_str} {w_str})")
+    return "\n".join(course_lines) if course_lines else "  （无课程）"
+
+
+def _plan_list(dm) -> str:
+    """日程计划清单（**今天起**最近 10 天，方括号内为 delete_plan 的 index）。"""
+    plan_lines = []
+    all_plans = dm.daily_logs._data.get("plans", {})
+    today = date.today().isoformat()
+    upcoming = sorted(day for day in all_plans if day >= today)[:10]
+    for day_str in upcoming:
+        for i, plan in enumerate(all_plans[day_str]):
+            plan_lines.append(
+                f"  [{i}] {day_str} 时段{plan.get('time_slot','?')} — "
+                f"{plan.get('title','')} ({plan.get('course_name','')})")
+    return "\n".join(plan_lines) if plan_lines else "  （无日程计划）"
+
+
+def _balance_info(settings, ds_balance_cache: dict) -> str:
+    """余额清单：校园卡/水卡/电费 + DeepSeek API（API 余额只读缓存）。"""
+    balance_lines = []
+    for key, label in [("campus_card", "校园卡"), ("water_card", "水卡"),
+                       ("electricity", "电费")]:
+        bal = settings.get("Balance", f"{key}_balance")
+        thr = settings.get("Balance", f"{key}_threshold")
+        if bal:
+            b = f"¥{bal}"
+            b += f" (低于{thr}元提醒)" if thr else ""
+        else:
+            b = "未设置"
+        balance_lines.append(f"  {label}: {b}")
+    ds_balance = ds_balance_cache.get("value", "")
+    if ds_balance:
+        balance_lines.append(f"  DeepSeek API: {ds_balance}")
+    return "\n".join(balance_lines)
+
+
+def _habit_list(dm) -> str:
+    """习惯清单（id 用于修改 / 推迟 / 取消）。"""
+    habits = dm.habits.habits
+    if not habits:
+        return "  （无习惯）"
+    day_names = ["一", "二", "三", "四", "五", "六", "日"]
+    lines = []
+    for habit in habits:
+        sched = habit.get("schedule", {})
+        if sched.get("type") == "weekly":
+            days = sched.get("days", [])
+            spec = "每周" + "".join(day_names[d - 1] for d in sorted(days))
+        else:
+            spec = f"每{sched.get('value', 1)}天"
+        rt = habit.get("reminder_time", "")
+        rt_str = f" {rt}" if rt else ""
+        pu = habit.get("postpone_until", "")
+        pu_str = f" [推迟至{pu[:10]}]" if pu else ""
+        lines.append(f"  [{habit['id']}] {habit.get('name','')} ({spec}{rt_str}){pu_str}")
+    return "\n".join(lines)
+
+
 class AIService(QObject):
     response_received = Signal(str)
     error_occurred = Signal(str)
@@ -418,6 +406,9 @@ class AIService(QObject):
         self._exec_log: list[str] = []
         self._thread: QThread | None = None
         self._worker: AIWorker | None = None
+        # 同一时刻只允许一个请求：旧实现无守卫，第二次 send_message 会**覆盖** `_thread`
+        # 引用，正在跑的 QThread 可能在 Python GC 时被销毁（崩溃/未定义行为）。
+        self._busy = False
         # 实例级缓存（原为类属性 → 跨实例共享可变状态，见 CODE_STANDARDS Q-B2 / RUF012）
         self._ds_balance_cache: dict[str, Any] = {}
         self._weather_cache: dict[str, Any] = {}
@@ -440,12 +431,16 @@ class AIService(QObject):
         return bool(self._settings.api_key)
 
     def send_message(self, text: str) -> None:
+        if self._busy:
+            # 不覆盖正在运行的 QThread：让用户等这一条结束（界面本来也禁用了输入）
+            self.error_occurred.emit("正在处理上一条消息，请稍候再发。")
+            return
         if not self.is_configured:
             self.error_occurred.emit("未配置 API 密钥，请在设置中填写。")
             return
-        self._auto_continue_count = 0
         self._history.append({"role": "user", "content": text})
         self._auto_compress()
+        self._busy = True
         self._send_to_ai()
 
     def _send_to_ai(self) -> None:
@@ -454,6 +449,7 @@ class AIService(QObject):
             provider = self._make_provider()
         # 边界捕获：本层已处理/记录，不允许异常向上逃逸（CODE_STANDARDS Q-I1）
         except Exception as e:  # noqa: BLE001
+            self._busy = False
             self.error_occurred.emit(f"创建 AI 连接失败: {e}")
             return
         model = self._settings.get("AI", "model", "deepseek-chat")
@@ -476,8 +472,22 @@ class AIService(QObject):
         self._worker.finished.connect(self._worker.deleteLater)
         self._worker.error.connect(self._worker.deleteLater)
         self._worker.finished_with_instructions.connect(self._worker.deleteLater)
+        # ⚠ 忙标记要等**线程真正结束**才放开（响应信号在 run() 结束前就发出了，
+        # 那时立刻再发一条仍会覆盖正在收尾的 QThread）
+        self._thread.finished.connect(self._on_thread_finished)
         self._thread.finished.connect(self._thread.deleteLater)
-        self._thread.start()
+        try:
+            self._thread.start()
+        # 边界捕获：线程起不来（系统资源耗尽）必须回到可重试状态，不能永久 busy
+        except Exception as e:  # noqa: BLE001
+            self._busy = False
+            self.error_occurred.emit(f"无法启动 AI 线程: {e}")
+
+    def _on_thread_finished(self) -> None:
+        """线程真正退出后才允许下一次请求。"""
+        self._busy = False
+        self._thread = None
+        self._worker = None
 
     def _fetch_deepseek_balance(self) -> str:
         """DeepSeek 余额文本（5 分钟缓存）。非 DeepSeek 端点直接返回空串。
@@ -541,60 +551,6 @@ class AIService(QObject):
             lat, lon = openmeteo.DEFAULT_LAT, openmeteo.DEFAULT_LON
         return openmeteo.fetch_text_for_ai(lat, lon)
 
-    def _compute_prompt_cache_key(self, today: date) -> tuple:
-        """提示词轻量缓存键：数据形状 + 天气缓存时间戳。"""
-        weather_ts = self._weather_cache.get("fetched_at", 0) if hasattr(self, '_weather_cache') else 0
-        return (
-            today.isoformat(),
-            len(self._dm.courses.courses),
-            len(self._dm.daily_logs._data.get("plans", {})),
-            len(self._dm.tasks.active),
-            len(self._dm.habits.habits),
-            len(self._dm.expenses.records),
-            len(self._dm.inventory.items),
-            self._dm.expenses.budget.get("monthly", 0),
-            int(weather_ts),  # 包含天气缓存时间戳
-        )
-
-    def _build_course_list(self, weekday_names: list[str]) -> str:
-        """课程清单（用于系统提示词）。"""
-        course_lines = []
-        for c in self._dm.courses.courses:
-            day = c.get("day_of_week", 0)
-            day_str = weekday_names[day - 1] if 1 <= day <= 7 else "?"
-            weeks = c.get("weeks", {})
-            w_str = f"第{weeks.get('start','?')}-{weeks.get('end','?')}周" if weeks else ""
-            course_lines.append(f"  - {c.get('name','')} ({day_str} {w_str})")
-        return "\n".join(course_lines) if course_lines else "  （无课程）"
-
-    def _build_plan_list(self) -> str:
-        """日程计划清单（最近10天，方括号内为 delete_plan 的 index）。"""
-        plan_lines = []
-        all_plans = self._dm.daily_logs._data.get("plans", {})
-        for day_str in sorted(all_plans.keys())[:10]:
-            plans = all_plans[day_str]
-            for i, p in enumerate(plans):
-                plan_lines.append(f"  [{i}] {day_str} 时段{p.get('time_slot','?')} — {p.get('title','')} ({p.get('course_name','')})")
-        return "\n".join(plan_lines) if plan_lines else "  （无日程计划）"
-
-    def _build_balance_info(self) -> str:
-        """余额清单：校园卡/水卡/电费 + DeepSeek API（API 余额只读缓存）。"""
-        balance_lines = []
-        for key, label in [("campus_card", "校园卡"), ("water_card", "水卡"), ("electricity", "电费")]:
-            bal = self._settings.get("Balance", f"{key}_balance")
-            thr = self._settings.get("Balance", f"{key}_threshold")
-            if bal:
-                b = f"¥{bal}"
-                b += f" (低于{thr}元提醒)" if thr else ""
-            else:
-                b = "未设置"
-            balance_lines.append(f"  {label}: {b}")
-        # DeepSeek API 余额：只读缓存，网络预热在后台线程（Q-C2）
-        ds_balance = self._ds_balance_cache.get("value", "")
-        if ds_balance:
-            balance_lines.append(f"  DeepSeek API: {ds_balance}")
-        return "\n".join(balance_lines)
-
     def _warm_context_cache(self) -> None:
         """后台线程预热余额 / 天气上下文，避免主线程同步网络请求（CODE_STANDARDS Q-C2）。
 
@@ -630,7 +586,8 @@ class AIService(QObject):
     def _build_system_prompt(self) -> str:
         today = date.today()
         # Lightweight cache: skip rebuild if data shape hasn't changed today
-        cache_key = self._compute_prompt_cache_key(today)
+        cache_key = _prompt_cache_key(self._dm, self._settings, self._exec_log,
+                                      self._weather_cache, today)
         if getattr(self, '_prompt_cache_key', None) == cache_key:
             return self._prompt_cache_value
 
@@ -638,9 +595,9 @@ class AIService(QObject):
         weekday_names = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
         weekday = weekday_names[today.weekday()]
 
-        course_list = self._build_course_list(weekday_names)
-        plan_list = self._build_plan_list()
-        balance_info = self._build_balance_info()
+        course_list = _course_list(self._dm, weekday_names)
+        plan_list = _plan_list(self._dm)
+        balance_info = _balance_info(self._settings, self._ds_balance_cache)
 
         # 获取天气信息（本地缓存；网络预热在后台线程）
         weather_info = self._weather_context_for_prompt()
@@ -666,7 +623,7 @@ class AIService(QObject):
 {expense_prompt(self._dm.expenses)}
 
 已有习惯（id 用于修改/推迟/取消）:
-{self._build_habit_list()}
+{_habit_list(self._dm)}
 
 余额:
 {balance_info}
@@ -686,26 +643,6 @@ class AIService(QObject):
         self._prompt_cache_key = cache_key
         self._prompt_cache_value = prompt
         return prompt
-
-    def _build_habit_list(self) -> str:
-        habits = self._dm.habits.habits
-        if not habits:
-            return "  （无习惯）"
-        day_names = ["一", "二", "三", "四", "五", "六", "日"]
-        lines = []
-        for h in habits:
-            sched = h.get("schedule", {})
-            if sched.get("type") == "weekly":
-                days = sched.get("days", [])
-                s = "每周" + "".join(day_names[d - 1] for d in sorted(days))
-            else:
-                s = f"每{sched.get('value', 1)}天"
-            rt = h.get("reminder_time", "")
-            rt_str = f" {rt}" if rt else ""
-            pu = h.get("postpone_until", "")
-            pu_str = f" [推迟至{pu[:10]}]" if pu else ""
-            lines.append(f"  [{h['id']}] {h.get('name','')} ({s}{rt_str}){pu_str}")
-        return "\n".join(lines)
 
     def _get_current_week(self) -> int:
         """当前教学周（**唯一口径**见 `models/semester.py`）；未知时按第 1 周。

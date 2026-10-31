@@ -6,10 +6,14 @@
 备份落在 `data/backup/actions/`（在 .gitignore 内），可用 `restore --name X --yes` 回滚。
 """
 
+import contextlib
+import io
 import json
 import logging
 import os
 import re
+import threading
+from collections.abc import Iterator
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
@@ -38,6 +42,37 @@ DATA = Path(__file__).parent.parent / "data"
 # ═══════════════════════════════════════════════════════════
 
 logger = logging.getLogger(__name__)
+
+# ── 命令输出（**线程局部**缓冲）──────────────────────────────
+#
+# 旧实现用 `contextlib.redirect_stdout` 捕获命令输出，而 `sys.stdout` 是**进程级全局**：
+# AI 工作线程正在重定向时，主线程/日志/其它线程的 print 会被错误地收进命令结果
+# （Q-B4；加一把锁只是让两个命令串行，挡不住非命令线程）。
+#
+# 现在 handler 统一写 `emit()`：默认走 `sys.stdout`（CLI 行为不变），
+# `capture_output()` 只给**当前线程**挂一个缓冲区 —— 别的线程完全不受影响。
+_EMIT = threading.local()
+
+
+def emit(*args: object, **kwargs: object) -> None:
+    """命令输出：当前线程有捕获缓冲区就写进去，否则写标准输出（CLI 契约）。"""
+    stream = getattr(_EMIT, "stream", None)
+    if stream is None:
+        print(*args, **kwargs)
+        return
+    print(*args, file=stream, **kwargs)
+
+
+@contextlib.contextmanager
+def capture_output() -> Iterator[io.StringIO]:
+    """当前线程的 `emit()` 输出捕获（可嵌套；退出时恢复上一层）。"""
+    buf = io.StringIO()
+    previous = getattr(_EMIT, "stream", None)
+    _EMIT.stream = buf
+    try:
+        yield buf
+    finally:
+        _EMIT.stream = previous
 
 
 def _path(name: str) -> Path:
@@ -165,17 +200,14 @@ def forget_loaded(name: str) -> None:
 
 
 def gen_id(items, prefix) -> str:
-    existing = set()
-    for it in items:
-        try:
-            num = int(it["id"].split("_")[1])
-            existing.add(num)
-        except (KeyError, ValueError):
-            logger.debug("gen_id 中忽略异常", exc_info=True)
-    n = 1
-    while n in existing:
-        n += 1
-    return f"{prefix}_{n:03d}"
+    """命令层生成 ID —— 与模型同一套规则（**最大后缀 +1**，R-008）。
+
+    旧实现是"最小空位"：删掉 `t_002` 后下一条会复用 `t_002`，而提醒去重集合、
+    动作账本、备份回执里都可能还引用着旧对象 → 指向错误的数据。
+    """
+    from src.models.base import next_id
+
+    return next_id(prefix, (str(it.get("id", "")) for it in items or []))
 
 def now_iso() -> str:
     return datetime.now().isoformat()

@@ -308,7 +308,11 @@ class WeatherService(QObject):
                 date = day.get('fxDate', '?')
                 text += f"{date}: {day.get('textDay', '?')} {day.get('tempMin', '?')}-{day.get('tempMax', '?')}°C"
                 precip = day.get('precip', '0')
-                if precip and float(precip) > 0:
+                try:
+                    has_rain = float(precip) > 0
+                except (TypeError, ValueError):
+                    has_rain = False
+                if has_rain:
                     text += f" 降雨{precip}mm"
                 text += "\n"
 

@@ -72,9 +72,11 @@ VERB = {
     "add_item": "记入", "update_item": "更新", "delete_item": "删除", "consume": "扣减",
     "add_task": "记作业", "complete_plan": "标记完成", "delete_plan": "删除日程",
     "add_plan": "记日程", "replace_plans": "重排日程",
-    "add_expense": "记支出", "add_habit": "记习惯",
+    "add_expense": "记支出", "delete_expense": "删除支出", "add_saving": "记存钱",
+    "add_habit": "记习惯", "log_habit": "打卡",
     "update_course": "改课表", "add_course": "加课程", "delete_course": "删课程",
     "add_exam": "记考试", "update_exam": "改考试",
+    "add_location": "加位置", "set_locations": "设置位置", "finance_set": "设财务",
 }
 
 

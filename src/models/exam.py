@@ -4,7 +4,7 @@ import logging
 from datetime import datetime
 from pathlib import Path
 
-from src.models.base import BaseJsonModel
+from src.models.base import BaseJsonModel, next_id
 
 DEFAULT_EXAMS = {
     "_version": 1,
@@ -29,18 +29,9 @@ class ExamModel(BaseJsonModel):
 
     def add_exam(self, data: dict) -> str:
         exams = self._data.setdefault("exams", [])
-        # Generate unique ID
-        existing = set()
-        for e in exams:
-            try:
-                num = int(e["id"].split("_")[1])
-                existing.add(num)
-            except (KeyError, ValueError):
-                logger.debug("ExamModel.add_exam 中忽略异常", exc_info=True)
-        n = 1
-        while n in existing:
-            n += 1
-        eid = f"e_{n:03d}"
+        # 统一走 `next_id()`（最大后缀 +1）：删过考试后不能复用旧 id，
+        # 否则提醒去重集合 / 备份回执会指向另一场考试（同 R-008）。
+        eid = next_id("e", (e.get("id", "") for e in exams))
         exam = {"id": eid}
         for k in EXAM_FIELDS:
             exam[k] = data.get(k, [] if k == "tags" else "")

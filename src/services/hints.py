@@ -117,16 +117,21 @@ def load_weather(data_dir: Path) -> tuple[dict, list]:
     return cache.get("now") or {}, cache.get("forecast") or []
 
 
-def budget_hints(data_dir: Path, items: list) -> list[Hint]:
+def budget_hints(data_dir: Path, items: list, records: list | None = None,
+                 budget: float | None = None) -> list[Hint]:
     """本月**预计超支** → 一条提示（C 类第 6 项，用例 16）。
 
     算不出来的东西（分期金额 / 续费金额 / 补货价格）**不硬编** —— 见 `services/budget.py`。
+    `records` / `budget` 可由调用方从内存模型直接传入（省掉一次读盘）。
     """
     from src.services.budget import forecast
 
-    data = read_json_safe(Path(data_dir) / "expenses.json")
-    result = forecast(data.get("records") or [],
-                      (data.get("budget") or {}).get("monthly") or 0, items)
+    if records is None:
+        data = read_json_safe(Path(data_dir) / "expenses.json")
+        records = data.get("records") or []
+        if budget is None:
+            budget = (data.get("budget") or {}).get("monthly") or 0
+    result = forecast(records, budget or 0, items)
     if not result["over"]:
         return []
     return [Hint("budget.over",
@@ -135,18 +140,33 @@ def budget_hints(data_dir: Path, items: list) -> list[Hint]:
                  "warn")]
 
 
-def today_hints(data_dir: Path, now: datetime | None = None) -> list[Hint]:
-    """今天该提示的东西：天气 + 该洗的衣物 + 预算超支 + 出门提醒 + 吃饭（继续加规则）。"""
+def today_hints(data_dir: Path, now: datetime | None = None, *,
+                items: list | None = None,
+                plans: list | None = None,
+                courses: list | None = None,
+                records: list | None = None,
+                budget: float | None = None,
+                weather: tuple[dict, list] | None = None) -> list[Hint]:
+    """今天该提示的东西：天气 + 该洗的衣物 + 预算超支 + 出门提醒 + 吃饭（继续加规则）。
+
+    ⚠ 参数 `items` / `plans` / `courses` / `records` / `budget` 允许调用方**直接传内存模型**
+    （`HintBar` 已经从 `DataManager` 拿到了），避免每次刷新都重读 5 个 JSON、还构造一遍
+    `CourseModel`（那会在 UI 刷新路径上做文件 IO，Q-C2）。不传时退回读盘（测试/独立脚本）。
+    """
     now = now or datetime.now()
-    now_weather, forecast_data = load_weather(data_dir)
-    inventory = read_json_safe(Path(data_dir) / "inventory.json")
-    items = inventory.get("items") or []
-    logs = read_json_safe(Path(data_dir) / "daily_logs.json")
-    today = date.today().isoformat()
-    plans = (logs.get("plans") or {}).get(today) or []
+    now_weather, forecast_data = weather if weather is not None else load_weather(data_dir)
+    if items is None:
+        inventory = read_json_safe(Path(data_dir) / "inventory.json")
+        items = inventory.get("items") or []
+    if plans is None:
+        logs = read_json_safe(Path(data_dir) / "daily_logs.json")
+        today = date.today().isoformat()
+        plans = (logs.get("plans") or {}).get(today) or []
+    if courses is None:
+        courses = _courses_today(data_dir, date.today())
     return (weather_hints(now_weather, forecast_data) + wash_hints(items)
-            + budget_hints(data_dir, items)
-            + outing_hints(plans, _courses_today(data_dir, date.today()))
+            + budget_hints(data_dir, items, records=records, budget=budget)
+            + outing_hints(plans, courses)
             + meal_hints(now))
 
 

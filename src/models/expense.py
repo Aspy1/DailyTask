@@ -29,6 +29,14 @@ DEFAULT_EXPENSES = {
 FINANCE_FIELDS = ("balance", "monthly_income", "fixed_expenses")
 
 
+def _amount(record: dict) -> float:
+    """一条支出的金额；解析不了按 0（统计不能因为一条脏数据整页崩）。"""
+    try:
+        return float(record.get("amount") or 0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
 class ExpenseModel(BaseJsonModel):
     def __init__(self, file_path: Path) -> None:
         super().__init__(file_path, DEFAULT_EXPENSES)
@@ -91,17 +99,15 @@ class ExpenseModel(BaseJsonModel):
         if month is None:
             month = date.today().month
         prefix = f"{year}-{month:02d}"
+        # 金额解析失败（手工编辑/旧数据）跳过，不让整页统计崩
         return sum(
-            r["amount"] for r in self.records
+            _amount(r) for r in self.records
             if r.get("date", "").startswith(prefix)
         )
 
     def today_total(self) -> float:
         today = schedule_date().isoformat()
-        return sum(
-            r["amount"] for r in self.records
-            if r.get("date") == today
-        )
+        return sum(_amount(r) for r in self.records if r.get("date") == today)
 
     def is_today_logged(self) -> bool:
         today = schedule_date().isoformat()
@@ -117,5 +123,5 @@ class ExpenseModel(BaseJsonModel):
         for r in self.records:
             if r.get("date", "").startswith(prefix):
                 cat = r.get("category", "other")
-                result[cat] = result.get(cat, 0) + r["amount"]
+                result[cat] = result.get(cat, 0) + _amount(r)
         return result

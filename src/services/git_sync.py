@@ -148,7 +148,12 @@ class GitSync(QObject):
         self._worker.start()
 
     def _on_done(self, ok: bool, error: str, state: str = "") -> None:
-        """三态：`done: pushed`（推送了提交）/ `done: up-to-date`（本来就没待推送）/ `error: …`。"""
+        """三态：`done: pushed`（推送了提交）/ `done: up-to-date`（本来就没待推送）/ `error: …`。
+
+        ⚠ 必须清掉 `_worker`：它同时连着 `deleteLater`，下一次 `sync_now()` 再碰
+        `self._worker.isRunning()` 会访问已删除的 C++ 对象（RuntimeError）。
+        """
+        self._worker = None
         if not ok:
             self.sync_status.emit(f"error: {error}")
             logger.warning("Git sync failed: %s", error)

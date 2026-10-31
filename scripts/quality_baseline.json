@@ -2,20 +2,16 @@
   "_note": "存量债台账（CODE_STANDARDS 门禁 baseline）：只防新增，修好后重写。",
   "log_sole_statement": 34,
   "sizes": {
-    "class:ExpensePanel@src/ui/panels/expense_panel.py": 432,
-    "class:InventoryPanel@src/ui/panels/inventory_panel.py": 720,
-    "class:MainWindow@src/ui/main_window.py": 591,
-    "class:ScheduleView@src/ui/widgets/schedule_view.py": 695,
-    "class:SettingsPanel@src/ui/panels/settings_panel.py": 707,
-    "file:src/ui/main_window.py": 871,
-    "func:__init__@src/app.py": 78,
+    "class:ExpensePanel@src/ui/panels/expense_panel.py": 429,
+    "class:InventoryPanel@src/ui/panels/inventory_panel.py": 676,
+    "class:MainWindow@src/ui/main_window.py": 520,
+    "class:ScheduleView@src/ui/widgets/schedule_view.py": 681,
+    "class:SettingsPanel@src/ui/panels/settings_panel.py": 704,
+    "func:__init__@src/app.py": 77,
     "func:__init__@src/ui/components/ai_panel.py": 79,
-    "func:__init__@src/ui/components/main_workspace.py": 61,
-    "func:__init__@src/ui/components/sidebar.py": 62,
-    "func:__init__@src/ui/main_window.py": 69,
     "func:__init__@src/ui/panels/course_panel.py": 77,
-    "func:__init__@src/ui/panels/expense_panel.py": 173,
-    "func:__init__@src/ui/panels/habit_dialogs.py": 76,
+    "func:__init__@src/ui/panels/expense_panel.py": 158,
+    "func:__init__@src/ui/panels/habit_dialogs.py": 63,
     "func:__init__@src/ui/panels/habit_panel.py": 73,
     "func:__init__@src/ui/panels/inventory_panel.py": 91,
     "func:__init__@src/ui/panels/task_panel.py": 105,
@@ -25,9 +21,7 @@
     "func:_build_ai_card@src/ui/panels/settings_panel.py": 73,
     "func:_build_balance_card@src/ui/panels/settings_panel.py": 70,
     "func:_build_email_card@src/ui/panels/settings_panel.py": 70,
-    "func:_build_ui@src/ui/main_window.py": 73,
     "func:_build_weather_card@src/ui/panels/settings_panel.py": 79,
-    "func:_setup_statusbar@src/ui/main_window.py": 76,
     "func:build_theme@src/ui/styles/theme.py": 109,
     "func:main@scripts/rewrite_history.py": 75
   },
@@ -45,12 +39,10 @@
   ],
   "ui_chinese_literals": {
     "src\\ui\\panels\\expense_panel.py": 1,
-    "src\\ui\\panels\\inventory_panel.py": 26,
-    "src\\ui\\panels\\inventory_text.py": 1,
-    "src\\ui\\panels\\settings_panel.py": 2,
+    "src\\ui\\panels\\inventory_panel.py": 21,
     "src\\ui\\styles\\theme.py": 1,
     "src\\ui\\widgets\\course_table.py": 20,
     "src\\ui\\widgets\\schedule_snapshot.py": 46,
-    "src\\ui\\widgets\\schedule_view.py": 5
+    "src\\ui\\widgets\\schedule_view.py": 4
   }
 }

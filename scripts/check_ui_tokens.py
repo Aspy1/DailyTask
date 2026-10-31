@@ -97,7 +97,11 @@ SKIP_FILES = {"tokens.json"}
 
 def load_tokens() -> tuple[set[str], dict[str, str]]:
     data = json.loads(TOKENS_FILE.read_text(encoding="utf-8"))
+    # 合法令牌名包括颜色，也包括 controls / layout / spacing / radius 的**键**
+    # （`LAYOUT["dialog_width_lg"]` 是合法用法，不应被当成拼写错误）
     names = set(data["colors"]["light"])
+    for section in ("controls", "layout", "spacing", "radius"):
+        names |= set(data.get(section, {}))
     value_to_name: dict[str, str] = {}
     for mode in ("light", "dark"):
         for name, value in data["colors"][mode].items():

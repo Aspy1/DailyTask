@@ -77,6 +77,17 @@ def _spacing_table(data: dict) -> str:
     return "\n".join(lines)
 
 
+def _control_table(data: dict) -> str:
+    """控件规格 + 布局规格（`controls` / `layout`）—— 与颜色/字号同样由真值生成。"""
+    lines = ["| Token | px | 用途 |", "|---|---|---|"]
+    for section, notes_key in (("controls", "control_notes"),
+                               ("layout", "layout_notes")):
+        notes = data.get(notes_key, {})
+        for name, value in data.get(section, {}).items():
+            lines.append(f"| `{name}` | {value} | {notes.get(name, '')} |")
+    return "\n".join(lines)
+
+
 def _replace_between(text: str, tag: str, body: str) -> str:
     begin = f"<!-- TOKENS:{tag}:BEGIN -->"
     end = f"<!-- TOKENS:{tag}:END -->"
@@ -94,12 +105,14 @@ def main() -> None:
     doc = _replace_between(doc, "colors", _color_table(data))
     doc = _replace_between(doc, "sizes", _size_table(data))
     doc = _replace_between(doc, "spacing", _spacing_table(data))
+    doc = _replace_between(doc, "layout", _control_table(data))
 
     DOC_FILE.write_text(doc, encoding="utf-8", newline="")
     print(f"updated {DOC_FILE.relative_to(ROOT)}")
     print(f"  colors: {len(data['colors']['light'])} tokens (light) / {len(data['colors']['dark'])} (dark)")
     print(f"  sizes : {len(data['sizes'])} tokens")
     print(f"  spacing: {len(data['spacing'])} tokens")
+    print(f"  controls/layout: {len(data.get('controls', {})) + len(data.get('layout', {}))} tokens")
 
 
 if __name__ == "__main__":

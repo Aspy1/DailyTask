@@ -8,7 +8,7 @@ import json
 
 from scripts.actions_core import (
     ActionError,
-    gen_id,
+    emit,
     load,
     now_iso,
     save,
@@ -20,6 +20,7 @@ from src.models.inventory import (
     InventoryModel,
     apply_consume,
     canonical_location,
+    next_item_id,
     runs_out_date,
     status_is_manual,
     worn_since_date,
@@ -44,7 +45,8 @@ def _default_location(item: dict, args) -> str:
     explicit = (getattr(args, "location", None) or "").strip()
     if explicit:
         return canonical_location(explicit)   # 同义归一：说"桌子"存"桌面"
-    if (item.get("category") or "") == "虚拟品类":
+    # 品类在 2026-10-31 改名为「订阅」；旧数据里还可能是「虚拟品类」
+    if (item.get("category") or "") in (MEMBERSHIP_CATEGORY, "虚拟品类"):
         return ""
     return DEFAULT_LOCATION
 
@@ -183,7 +185,9 @@ def _apply_membership(item: dict, args) -> None:
 def cmd_add_item(args) -> None:
     data = load("inventory.json")
     data.setdefault("items", [])
-    item = _new_item(gen_id(data["items"], "i"), args)
+    # 物品 id 用**单调计数器**（`item_seq`）而不是复用空位：私有手机号按 id 绑定，
+    # id 一旦复用，旧号码会挂到新物品上（审查 R9）。
+    item = _new_item(next_item_id(data, data["items"]), args)
     item["location"] = _default_location(item, args)      # 没说位置 → 默认「学校」
     _apply_runs_out(item, args)                           # 「还能用半年」→ 算成日期
     _apply_expiry(item, args)                             # 药品保质期（到期前 N 天提醒）
@@ -197,7 +201,7 @@ def cmd_add_item(args) -> None:
                 and it.get("notes", "") == item.get("notes", "")
                 and (it.get("tags") or []) == (item.get("tags") or [])), None)
     if dup:
-        print(f"ERROR 已有同名同位置且无区别的物品 {dup['id']}（{dup['name']} @{dup['location']}）："
+        emit(f"ERROR 已有同名同位置且无区别的物品 {dup['id']}（{dup['name']} @{dup['location']}）："
               f"要改数量用 update_item --id {dup['id']} --quantity N；"
               f"确实是**另一件**就加 --notes 或 --tags 区分")
         return
@@ -209,7 +213,7 @@ def cmd_add_item(args) -> None:
     data["items"].append(item)
     save("inventory.json", data)
     note = f" | 新增位置 {added_loc}" if added_loc else ""
-    print(f"OK add_item {item['id']} | {args.name}{note}")
+    emit(f"OK add_item {item['id']} | {args.name}{note}")
 
 
 def cmd_set_locations(args) -> None:
@@ -224,7 +228,7 @@ def cmd_set_locations(args) -> None:
     data["locations"] = InventoryModel.normalize_locations(
         _split_tag_list(getattr(args, "values", "") or ""))
     save("inventory.json", data)
-    print(f"OK set_locations | {len(data['locations'])} 个位置")
+    emit(f"OK set_locations | {len(data['locations'])} 个位置")
 
 
 def cmd_consume(args) -> None:
@@ -242,7 +246,7 @@ def cmd_consume(args) -> None:
         it["status"] = InventoryModel.derive_status(it)
         it["updated_at"] = now_iso()
         save("inventory.json", data)
-        print(f"OK consume {args.id} | 剩 {it['remaining_doses']} "
+        emit(f"OK consume {args.id} | 剩 {it['remaining_doses']} "
               f"（{it['quantity']}{it.get('unit', '件')} · {it['status']}）")
         return
     raise ActionError(f"没有 id 为 {args.id} 的物品 —— 先用 lookup_item 查一下")
@@ -377,9 +381,9 @@ def cmd_update_item(args) -> None:
         added_loc = _ensure_location(data, it.get("location", ""))
         save("inventory.json", data)
         note = f" | 新增位置 {added_loc}" if added_loc else ""
-        print(f"OK update_item {args.id}{note}")
+        emit(f"OK update_item {args.id}{note}")
         return
-    print(f"ERROR item not found: {args.id}")
+    emit(f"ERROR item not found: {args.id}")
 
 def cmd_delete_item(args) -> None:
     data = load("inventory.json")
@@ -390,9 +394,9 @@ def cmd_delete_item(args) -> None:
             removed = items.pop(i)
             save("inventory.json", data)
             _forget_private_phone(iid)          # 私有手机号跟着删（审查 R9）
-            print(f"OK delete_item {iid} | {removed.get('name','')}")
+            emit(f"OK delete_item {iid} | {removed.get('name','')}")
             return
-    print(f"ERROR item not found: {iid}")
+    emit(f"ERROR item not found: {iid}")
 
 
 def _forget_private_phone(iid: str) -> None:
@@ -415,9 +419,9 @@ def cmd_need_restock(args) -> None:
     data = load("inventory.json")
     needs = [it for it in data.get("items", []) if _needs_restock(it)]
     for it in needs:
-        print(f"  [{it['id']}] {it['name']} ({InventoryModel.stock_text(it)}) - {it['status']}")
+        emit(f"  [{it['id']}] {it['name']} ({InventoryModel.stock_text(it)}) - {it['status']}")
     if not needs:
-        print("无需购物品")
+        emit("无需购物品")
 
 def _membership_extra(it: dict) -> str:
     """会员摘要（用户名 / 到期日 / 自动续费）；不是会员就空串。
@@ -488,7 +492,7 @@ def cmd_add_location(args) -> None:
     name = canonical_location((getattr(args, "name", "") or "").strip())
     added = _ensure_location(data, name)
     save("inventory.json", data)
-    print(f"OK add_location {name}" if added else f"OK add_location {name}（已存在）")
+    emit(f"OK add_location {name}" if added else f"OK add_location {name}（已存在）")
 
 
 def _needs_restock(it: dict) -> bool:
@@ -537,8 +541,8 @@ def cmd_lookup_item(args) -> None:
                if all(f(it) for f in filters)]
 
     if not matches:
-        print("NOT_FOUND")
+        emit("NOT_FOUND")
         return
     for m in matches:
-        print(_item_line(m))
-    print(f"FOUND {len(matches)}")
+        emit(_item_line(m))
+    emit(f"FOUND {len(matches)}")

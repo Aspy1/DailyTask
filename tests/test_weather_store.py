@@ -46,7 +46,8 @@ def test_read_salvages_file_with_trailing_garbage(tmp_path) -> None:
     path = tmp_path / "weather_stats.json"
     _corrupt_like_concurrent_write(path)
     stats = weather_store.read_json_safe(path)
-    assert stats["monthly"]["2026-10"]["total"] == 1
+    month = datetime.now().strftime("%Y-%m")
+    assert stats["monthly"][month]["total"] == 1
 
 
 def test_read_totally_broken_returns_empty(tmp_path) -> None:

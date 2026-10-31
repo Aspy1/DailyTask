@@ -20,6 +20,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src.models import semester_paths
+from src.models.course_rules import is_active_week
+from src.models.inventory import InventoryModel
 from src.models.semester import week_number_for
 
 PERIOD_TIMES = [
@@ -51,6 +53,10 @@ def load_json(path: Path) -> dict:
             return json.load(f)
     except FileNotFoundError:
         logger.info("数据文件不存在，按空数据继续: %s", path.name)
+        return {}
+    except (OSError, json.JSONDecodeError):
+        # 一个坏文件不能让整封日报发不出去（提示词/应用侧已有留档机制）
+        logger.error("数据文件无法解析，按空数据继续: %s", path.name, exc_info=True)
         return {}
 
 
@@ -84,26 +90,8 @@ def _effective_day_of_week(courses_data: dict, target: date) -> int:
     return makeup.get(target.isoformat(), target.isoweekday())
 
 
-def _parity_matches(parity: str, week_number: int) -> bool:
-    """单双周过滤：odd 只上奇数周，even 只上偶数周，其余不限。"""
-    if parity == "odd":
-        return week_number % 2 == 1
-    if parity == "even":
-        return week_number % 2 == 0
-    return True
-
-
-def _course_matches_week(course: dict, week_number: int) -> bool:
-    """课程在指定周是否上课（周次区间 / 排除周 / 单双周）。"""
-    weeks = course.get("weeks", {})
-    if weeks and (week_number < weeks.get("start", 1) or week_number > weeks.get("end", 20)):
-        return False
-    if week_number in course.get("excluded_weeks", []):
-        return False
-    return _parity_matches(course.get("week_parity", "all"), week_number)
-
-
 def get_courses_for_date(courses_data: dict, target: date) -> list[dict]:
+    """某天的课 —— 周次/单双周/排除周统一走 `models/course_rules.py`（唯一实现）。"""
     week_number = _week_number_for(courses_data, target)
     if week_number is None or _is_off_day(courses_data, target):
         return []
@@ -111,10 +99,17 @@ def get_courses_for_date(courses_data: dict, target: date) -> list[dict]:
     day_of_week = _effective_day_of_week(courses_data, target)
     result = [
         c for c in courses_data.get("courses", [])
-        if c.get("day_of_week") == day_of_week and _course_matches_week(c, week_number)
+        if c.get("day_of_week") == day_of_week and is_active_week(c, week_number)
     ]
 
-    result.sort(key=lambda c: c.get("time_slots", [{"start": 0}])[0]["start"])
+    def _start(course: dict) -> int:
+        slots = course.get("time_slots") or [{}]
+        try:
+            return int(slots[0].get("start", 0))
+        except (TypeError, ValueError):
+            return 0
+
+    result.sort(key=_start)
     return result
 
 
@@ -236,19 +231,26 @@ def _digest_summary(courses_data: dict, pending: list, habits_data: dict, today)
     ]
 
 
+def _course_time_range(slots: list[dict]) -> str:
+    """课程时间文本（` 08:30-10:05`）；坏节次返回空串。"""
+    if not slots:
+        return ""
+    try:
+        start = int(slots[0].get("start", 0)) - 1
+        end = min(max(int(s.get("end", 0)) for s in slots) - 1, len(PERIOD_TIMES) - 1)
+    except (TypeError, ValueError, KeyError):
+        return ""
+    if 0 <= start < len(PERIOD_TIMES) and 0 <= end < len(PERIOD_TIMES):
+        return f" {PERIOD_TIMES[start][0]}-{PERIOD_TIMES[end][1]}"
+    return ""
+
+
 def _course_line(course: dict) -> str:
     """一节课在摘要里的一行：时间 + 地点 +（会点名标记）。"""
     slots = course.get("time_slots", [])
-    time_str = ""
-    if slots:
-        s_idx = slots[0]["start"] - 1
-        try:
-            e_idx = min(max(s["end"] for s in slots) - 1, len(PERIOD_TIMES) - 1)
-        except (IndexError, KeyError):
-            e_idx = s_idx
-        if 0 <= s_idx < len(PERIOD_TIMES) and 0 <= e_idx < len(PERIOD_TIMES):
-            time_str = f" {PERIOD_TIMES[s_idx][0]}-{PERIOD_TIMES[e_idx][1]}"
-    location = course.get("location", "")
+    time_str = _course_time_range(slots)
+    # 教室在 time_slots[].location（与桌面端同一份数据）；course["location"] 只是旧字段
+    location = (slots[0].get("location", "") if slots else "") or course.get("location", "")
     loc_str = f" ({location})" if location else ""
     # 会点名的课标出来：与桌面端同一份数据（course["reminders"]["attendance"]）
     mark = " · 会点名" if (course.get("reminders") or {}).get("attendance") else ""
@@ -392,8 +394,10 @@ def _digest_expenses(data_dir: Path, today_str: str) -> list[str]:
 
 def _digest_shopping(data_dir: Path) -> list[str]:
     try:
+        # 状态按**当前日期**重算（会员到期 / 保质期 / 预计用完）；旧数据里的 "need" 兼容保留
         needs = [i for i in load_json(data_dir / "inventory.json").get("items", [])
-                 if i.get("status") == "need"]
+                 if i.get("status") == "need"
+                 or InventoryModel.effective_status(i) in ("需购", "不足")]
         if not needs:
             return []
         lines = ["", "── 购物需求 ──"]

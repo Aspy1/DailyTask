@@ -10,6 +10,7 @@
 from scripts.actions_core import (
     ActionError,
     _money,
+    emit,
     load,
     now_iso,
     save,
@@ -32,7 +33,7 @@ def cmd_finance_set(args) -> None:
         raise ActionError("finance_set 至少要给一个：--balance / --income / --fixed")
     finance["updated_at"] = now_iso()
     save("expenses.json", data)
-    print("OK finance_set | " + "、".join(
+    emit("OK finance_set | " + "、".join(
         f"{name}={finance[name]:.2f}" for name in changed))
 
 
@@ -47,7 +48,7 @@ def cmd_finance_summary(args) -> None:
     result = summary(data.get("records") or [], data.get("finance") or {})
     basis = (f"过去 {result['basis_months']} 个月中位数"
              if result["basis_months"] else "本月已花（历史不足一个月）")
-    print(f"本月已花 ¥{result['spent']:.2f}")
-    print(f"预计本月支出 ¥{result['projected']:.2f}（依据：{basis}）")
-    print(f"月收入 ¥{result['income']:.2f} · 固定支出 ¥{result['fixed']:.2f}")
-    print(f"本月结余 ¥{result['left']:.2f} · 总余额 ¥{result['balance']:.2f}")
+    emit(f"本月已花 ¥{result['spent']:.2f}")
+    emit(f"预计本月支出 ¥{result['projected']:.2f}（依据：{basis}）")
+    emit(f"月收入 ¥{result['income']:.2f} · 固定支出 ¥{result['fixed']:.2f}")
+    emit(f"本月结余 ¥{result['left']:.2f} · 总余额 ¥{result['balance']:.2f}")

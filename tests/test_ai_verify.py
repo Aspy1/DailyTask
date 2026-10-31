@@ -102,7 +102,7 @@ def test_add_item_is_verified_by_presence(sandbox) -> None:
 
     cmd = 'python scripts/actions.py add_item --name "抽纸" --quantity 2'
     before = ai_verify.observe(cmd, sandbox)
-    assert before == {"exists": False}
+    assert before == {"count": 0}
     assert ai_verify.check(cmd, before, run_in_process(cmd), sandbox)[0] == ai_verify.VERIFIED
 
 

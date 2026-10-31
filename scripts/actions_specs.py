@@ -130,6 +130,12 @@ SPECS: dict[str, dict] = {
         "unit": ("text", MAX_TEXT), "doses_per_unit": ("int_opt", 1, MAX_QUANTITY),
         "min_doses": ("int_opt", 0, MAX_QUANTITY),   # 片级下限（0 = 不用）
         "instances": ("text", MAX_JSON),       # JSON 数组，handler 里解析
+        # 到期 / 衣物 / 常备量（此前只登记在 ALLOWED_OPTIONS，没进 SPECS → 不做范围校验）
+        # 0 个月 = 今天（"预估今天用完"），是合法输入
+        "runs_out": ("text", MAX_TEXT), "runs_out_months": ("int_opt", 0, 600),
+        "worn_days": ("int_opt", 0, 3650), "needs_wash": ("choice", ("yes", "no")),
+        "expires": ("text", MAX_TEXT), "remind_before": ("int_opt", 1, 3650),
+        "stock_target": ("int_opt", 1, MAX_QUANTITY),
         "billing_type": ("choice", ("monthly", "installment", "none")),
         "amount": ("money_opt",), "due_day": ("int_opt", 1, 31),
         "installments": ("int_opt", 0, 120),
@@ -146,7 +152,7 @@ SPECS: dict[str, dict] = {
         "unit": ("text", MAX_TEXT), "doses_per_unit": ("int_opt", 1, MAX_QUANTITY),
         "min_doses": ("int_opt", 0, MAX_QUANTITY),
         "instances": ("text", MAX_JSON), "runs_out": ("text", MAX_TEXT),
-        "runs_out_months": ("int_opt", 1, 600),
+        "runs_out_months": ("int_opt", 0, 600),
         "worn_days": ("int_opt", 0, 3650), "needs_wash": ("choice", ("yes", "no")),
         "expires": ("text", MAX_TEXT), "remind_before": ("int_opt", 1, 3650), "stock_target": ("int_opt", 1, MAX_QUANTITY),
         "billing_type": ("choice", ("monthly", "installment", "none")),

@@ -97,4 +97,6 @@ def test_balance_info_reads_cache_only(svc, monkeypatch) -> None:
     monkeypatch.setattr(svc, "_fetch_deepseek_balance",
                         lambda: pytest.fail("不应同步查余额"))
     svc._ds_balance_cache = {"value": "¥9.99", "fetched_at": time.time()}
-    assert "¥9.99" in svc._build_balance_info()
+    from src.services.ai_service import _balance_info
+
+    assert "¥9.99" in _balance_info(svc._settings, svc._ds_balance_cache)

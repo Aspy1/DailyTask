@@ -115,7 +115,7 @@ class CourseModel(BaseJsonModel):
 
     def update_course(self, course_id: str, changes: dict) -> bool:
         for course in self._data.get("courses", []):
-            if course["id"] == course_id:
+            if course.get("id") == course_id:
                 course.update(changes)
                 return True
         return False
@@ -123,7 +123,7 @@ class CourseModel(BaseJsonModel):
     def delete_course(self, course_id: str) -> bool:
         courses = self._data.get("courses", [])
         for i, course in enumerate(courses):
-            if course["id"] == course_id:
+            if course.get("id") == course_id:
                 courses.pop(i)
                 return True
         return False
@@ -140,7 +140,16 @@ class CourseModel(BaseJsonModel):
             if not self._is_active_week(course, week_number):
                 continue
             result.append(course)
-        result.sort(key=lambda c: c.get("time_slots", [{"start": 0}])[0]["start"])
+
+        def _first_start(course: dict) -> int:
+            """第一节的开始节次（坏数据 → 0，排序仍稳定，不抛 IndexError/KeyError）。"""
+            slots = course.get("time_slots") or [{}]
+            try:
+                return int(slots[0].get("start", 0))
+            except (TypeError, ValueError):
+                return 0
+
+        result.sort(key=_first_start)
         return result
 
     def get_today_courses(self) -> list[dict]:

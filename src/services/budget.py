@@ -45,7 +45,12 @@ def history_days(records: list, today: date | None = None) -> int:
     days = [str(r.get("date", ""))[:10] for r in records or [] if str(r.get("date", ""))]
     if not days:
         return 0
-    span = (today - date.fromisoformat(min(days)[:10])).days + 1
+    try:
+        earliest = date.fromisoformat(min(days)[:10])
+    except ValueError:
+        # 脏日期不能让整个提示条崩；退回最保守的 1 天（日均偏高，宁可早提醒）
+        return 1
+    span = (today - earliest).days + 1
     return max(1, min(HISTORY_DAYS, span))
 
 

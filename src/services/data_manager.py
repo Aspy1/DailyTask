@@ -19,6 +19,7 @@ from pathlib import Path
 from PySide6.QtCore import QObject, QTimer, Signal
 
 from src.models import semester_paths
+from src.models.base import DataCorrupted
 from src.models.course import CourseModel
 from src.models.daily_log import DailyLogModel
 from src.models.exam import ExamModel
@@ -152,9 +153,17 @@ class DataManager(QObject):
         ]
 
     def reload_all(self) -> None:
-        """Re-read all data files from disk."""
-        for model, _name in self._models():
-            model.reload()
+        """Re-read all data files from disk.
+
+        ⚠ 单个文件损坏**不能**让整次重载抛异常：`BaseJsonModel.load()` 会先留档再抛
+        `DataCorrupted`，这个异常若逃出 QTimer 槽 / AI 回调，会变成"界面不刷新"甚至崩溃。
+        这里逐个隔离：坏文件已在模型层留档，其余文件照常重载。
+        """
+        for model, name in self._models():
+            try:
+                model.reload()
+            except DataCorrupted as e:
+                logger.error("%s 重载失败（现场已留档）：%s", name, e)
         self._capture_mtimes()
 
     def _capture_mtimes(self) -> None:
@@ -172,7 +181,10 @@ class DataManager(QObject):
             try:
                 mtime = model.file_path.stat().st_mtime
                 if abs(mtime - self._file_mtimes.get(name, 0)) > 0.1:
-                    model.reload()
+                    try:
+                        model.reload()
+                    except DataCorrupted as e:
+                        logger.error("%s 外部写入后无法解析（现场已留档）：%s", name, e)
                     self._file_mtimes[name] = mtime
                     changed = True
             except OSError:

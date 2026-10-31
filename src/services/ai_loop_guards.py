@@ -70,9 +70,6 @@ def _continuation_nudge(text: str, truncated: bool, empty_retries: int = 0,
     """该不该要求模型"继续"？空回复 / 截断 / 声称写了却没命令 / 说"无需写入"却一条没执行 → 续跑；
     非空的普通提问**不**续跑（否则会把问题刷 5 遍）。
     """
-    """该不该要求模型"继续"？空回复 / 截断 / 声称写了却没命令 / 说"无需写入"却一条没执行 → 续跑；
-    非空的普通提问**不**续跑（否则会把问题刷 5 遍）。
-    """
     if not text.strip():
         if empty_retries >= 1:
             return None

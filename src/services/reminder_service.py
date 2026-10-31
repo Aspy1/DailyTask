@@ -19,9 +19,7 @@ checks that need sub-day granularity.
 """
 
 import logging
-import smtplib
 from datetime import date, datetime, timedelta
-from email.mime.text import MIMEText
 
 from PySide6.QtCore import QObject, QTimer, Signal
 
@@ -32,6 +30,7 @@ from src.models.billing import (
     due_today,
 )
 from src.models.course import schedule_date
+from src.services import email_sender
 from src.services.reminder_rules import (
     DDL_REMIND_DAYS,
     attendance_body,
@@ -55,7 +54,12 @@ logger = logging.getLogger(__name__)
 
 EARLY_NOTIFY_MINUTES = 5
 CATCHUP_THRESHOLD_MINUTES = 2
+# 补跑上限：应用关了一周再打开时，**不能**逐分钟扫一周（1440×N 次循环会卡死启动）。
+# 12 小时前的提醒已经没意义，直接跳过并记日志。
+CATCHUP_MAX_MINUTES = 720
 LOOKAHEAD_MINUTES = 60
+# `last_reminder_check` 只是"跨重启补跑"的锚点，不必每分钟写一次 settings.ini
+SETTINGS_SAVE_INTERVAL_MINUTES = 5
 EXAM_DAYS = [14, 7, 3]       # exam reminder thresholds (days before)
 
 
@@ -73,6 +77,58 @@ def _add_exam_item(items: dict[str, dict], name: str, date_str: str) -> None:
         return
     key = f"{name}@{day}"
     items.setdefault(key, {"key": key, "name": name, "date": day})
+
+
+def _persist_last_check(svc, force: bool = False) -> None:
+    """把补跑锚点写回 settings.ini（默认 5 分钟一次，避免每分钟写盘）。
+
+    放模块级：`ReminderService` 类正好卡在 400 行上限（Q-A1）。
+    """
+    now = datetime.now()
+    if not force and (now - svc._last_persist) < timedelta(
+            minutes=SETTINGS_SAVE_INTERVAL_MINUTES):
+        return
+    svc._settings.set("Email", "last_reminder_check", now.isoformat())
+    svc._settings.save()
+    svc._last_persist = now
+
+
+def _check_habits(svc, now_str: str, early_str: str, now_minutes: int) -> None:
+    """习惯托盘提醒：提前 5 分钟预告 + 到点合并批次通知。"""
+    for habit in svc._dm.habits.habits:
+        rt = habit.get("reminder_time", "").strip()
+        if not rt or not svc._dm.habits.is_active_today(habit["id"]):
+            continue
+        if rt == early_str:
+            svc._notify("即将开始",
+                        f"「{habit['name']}」将在 {EARLY_NOTIFY_MINUTES} 分钟后开始")
+        if rt == now_str and habit["id"] not in svc._notified_today:
+            batch = _collect_habit_batch(svc, habit, now_minutes)
+            for item in batch:
+                svc._notified_today.add(item["id"])
+            _send_habit_tray_batch(svc, batch)
+
+
+def _collect_habit_batch(svc, first: dict, now_minutes: int) -> list[dict]:
+    """收集 now 之后 LOOKAHEAD_MINUTES 内待提醒的习惯（含 first）。"""
+    batch = [first]
+    for habit in svc._dm.habits.habits:
+        if habit["id"] == first["id"]:
+            continue
+        rt = habit.get("reminder_time", "").strip()
+        if not rt or habit["id"] in svc._notified_today:
+            continue
+        if not svc._dm.habits.is_active_today(habit["id"]):
+            continue
+        minutes = parse_hhmm(rt)
+        if minutes is not None and 0 <= minutes - now_minutes <= LOOKAHEAD_MINUTES:
+            batch.append(habit)
+    return batch
+
+
+def _send_habit_tray_batch(svc, habits: list[dict]) -> None:
+    for habit in habits:
+        svc._notify("习惯提醒", f"该做「{habit.get('name', '')}」了")
 
 
 def _ddl_reminder_notify(svc) -> None:
@@ -141,9 +197,15 @@ class ReminderService(QObject):
         super().__init__(parent)
         self._settings = settings
         self._dm = data_manager
+        self._emailer = email_sender.get_sender()
+        self._last_persist = datetime.now()
 
         raw = self._settings.get("Email", "last_reminder_check", fallback="")
-        self._last_check = datetime.fromisoformat(raw) if raw else datetime.now()
+        try:
+            self._last_check = datetime.fromisoformat(raw) if raw else datetime.now()
+        except (TypeError, ValueError):
+            # 配置里是坏时间戳 → 当作"刚启动"，不要拿它去补跑几万分钟
+            self._last_check = datetime.now()
 
         self._notified_today: set[str] = set()
         self._notified_date = ""
@@ -177,6 +239,13 @@ class ReminderService(QObject):
         delta = now - self._last_check
         if delta <= timedelta(minutes=CATCHUP_THRESHOLD_MINUTES):
             return
+        if delta > timedelta(minutes=CATCHUP_MAX_MINUTES):
+            # 关了很久：逐分钟扫描会卡死启动，而且 12 小时前的提醒已经没有意义
+            logger.info("Catch-up skipped: gap %s > %d minutes",
+                        delta, CATCHUP_MAX_MINUTES)
+            self._last_check = now
+            _persist_last_check(self, force=True)
+            return
 
         logger.info("Catch-up: scanning from %s to %s (gap: %s)",
                      self._last_check.time(), now.time(), delta)
@@ -187,11 +256,10 @@ class ReminderService(QObject):
         if matched:
             for h in matched:
                 self._notified_today.add(h["id"])
-            self._send_habit_tray_batch(matched)
+            _send_habit_tray_batch(self, matched)
 
         self._last_check = now
-        self._settings.set("Email", "last_reminder_check", now.isoformat())
-        self._settings.save()
+        _persist_last_check(self, force=True)
 
     def _collect_catchup_habits(self, now: datetime) -> list[dict]:
         """逐分钟扫描 last_check→now，收集提醒时间命中且未通知的习惯。"""
@@ -226,7 +294,7 @@ class ReminderService(QObject):
         now_minutes = now.hour * 60 + now.minute
 
         # ── Habits: tray notification only ────────────────
-        self._check_habits(now_str, early_str, now_minutes)
+        _check_habits(self, now_str, early_str, now_minutes)
         self._check_water(now)     # 喝水 / 起身（C 类第 8 项）：复用这个 tick，不另开定时器
         _meal_reminder_notify(self, now)     # 午饭 / 晚饭（11:40 / 16:40，A2）
         _billing_charges_notify(self)        # 月付 / 分期到期 → 自动记支出 + 邮件（A1）
@@ -254,43 +322,7 @@ class ReminderService(QObject):
         self._check_restock()          # 补货（每天最多一次，函数自身幂等）
 
         self._last_check = now
-        self._settings.set("Email", "last_reminder_check", now.isoformat())
-        self._settings.save()
-
-    def _check_habits(self, now_str: str, early_str: str, now_minutes: int) -> None:
-        """习惯托盘提醒：提前 5 分钟预告 + 到点合并批次通知。"""
-        for h in self._dm.habits.habits:
-            rt = h.get("reminder_time", "").strip()
-            if not rt or not self._dm.habits.is_active_today(h["id"]):
-                continue
-
-            if rt == early_str:
-                self._notify("即将开始",
-                             f"「{h['name']}」将在 {EARLY_NOTIFY_MINUTES} 分钟后开始")
-
-            if rt == now_str and h["id"] not in self._notified_today:
-                batch = self._collect_habit_batch(h, now_minutes)
-                for bh in batch:
-                    self._notified_today.add(bh["id"])
-                self._send_habit_tray_batch(batch)
-
-    def _collect_habit_batch(self, first: dict, now_minutes: int) -> list[dict]:
-        """收集 now 之后 LOOKAHEAD_MINUTES 内待提醒的习惯（含 first）。"""
-        batch = [first]
-        for h2 in self._dm.habits.habits:
-            if h2["id"] == first["id"]:
-                continue
-            rt2 = h2.get("reminder_time", "").strip()
-            if not rt2 or h2["id"] in self._notified_today:
-                continue
-            if not self._dm.habits.is_active_today(h2["id"]):
-                continue
-            rt2_minutes = parse_hhmm(rt2)
-            if rt2_minutes is None:
-                continue
-            if 0 <= rt2_minutes - now_minutes <= LOOKAHEAD_MINUTES:
-                batch.append(h2)
-        return batch
+        _persist_last_check(self)
 
     def _check_water(self, now: datetime) -> None:
         """喝水 / 起身提醒（C 类第 8 项）：复用每分钟的 tick 只做判定，**不另开定时器** ✓。"""
@@ -306,13 +338,17 @@ class ReminderService(QObject):
         if today_str != self._notified_date:
             self._notified_today.clear()
             self._meal_sent.clear()      # 新的日期前缀本来就不会命中，这里顺手防无限增长
+            # 这些集合的键都带日期，常驻应用跨天后会无限增长；每天清一次
+            self._attendance_sent.clear()
+            self._ddl_emailed.clear()
+            self._ddl_mailed.clear()
+            self._custom_reminded.clear()
+            cutoff = now - timedelta(days=1)
+            self._ddl_last_notified = {
+                key: when for key, when in self._ddl_last_notified.items()
+                if when >= cutoff
+            }
             self._notified_date = today_str
-
-    # ── Habit tray (no email by default) ──────────────────
-
-    def _send_habit_tray_batch(self, habits: list[dict]) -> None:
-        for h in habits:
-            self._notify("习惯提醒", f"该做「{h.get('name', '')}」了")
 
     # ── DDL email (6 hours) ──────────────────────────────
 
@@ -428,12 +464,16 @@ class ReminderService(QObject):
     # ── Balance ───────────────────────────────────────────
 
     def _check_balances(self) -> None:
-        """余额低于阈值 → 邮件 + 托盘（每天一次）。规则见 `reminder_rules`。"""
-        alerts = balance_alerts(self._settings)
-        if alerts:
-            self._notify("余额不足", "\n".join(alerts), email=True, subject="余额不足提醒")
-            self._balance_notified_today = True
+        """余额低于阈值 → 邮件 + 托盘（每天一次）。规则见 `reminder_rules`。
 
+        ⚠ 没告警时**不写设置**：旧实现无条件写日期并 `save()`，等于每分钟重写一次
+        settings.ini（既费 IO，又放大了 ERRORS #044 的整份回滚问题）。
+        """
+        alerts = balance_alerts(self._settings)
+        if not alerts:
+            return
+        self._notify("余额不足", "\n".join(alerts), email=True, subject="余额不足提醒")
+        self._balance_notified_today = True
         self._settings.set("Balance", "last_balance_notify_date",
                            datetime.now().strftime("%Y-%m-%d"))
         self._settings.save()
@@ -509,26 +549,21 @@ class ReminderService(QObject):
             self._send_email(subject or title, email_body or body)
 
     def _send_email(self, subject: str, body: str) -> None:
-        smtp_host = self._settings.get("Email", "smtp_host", fallback="smtp.qq.com")
-        smtp_port = self._settings.get_int("Email", "smtp_port", fallback=587)
-        smtp_user = self._settings.get("Email", "smtp_user", fallback="")
-        smtp_pass = self._settings.get("Email", "smtp_pass", fallback="")
-        to_email = self._settings.get("Email", "recipient", fallback="") or smtp_user
+        """把邮件**入队**，不在主线程发 SMTP（Q-C2 / R-004）。
 
-        if not smtp_user or not smtp_pass:
-            logger.info("Email not configured, skipping: %s", subject)
-            return
+        测试把 `_send_email` 替换成 lambda 来断言"发了什么"，所以保留这个方法作为边界；
+        真正的发送在 `services/email_sender.py` 的后台线程里。
+        """
+        config = email_sender.EmailConfig(
+            host=self._settings.get("Email", "smtp_host", fallback="smtp.qq.com"),
+            port=self._settings.get_int("Email", "smtp_port", fallback=587),
+            user=self._settings.get("Email", "smtp_user", fallback=""),
+            password=self._settings.get("Email", "smtp_pass", fallback=""),
+            recipient=self._settings.get("Email", "recipient", fallback=""),
+        )
+        self._emailer.send(config, subject, body)
 
-        try:
-            msg = MIMEText(body, "plain", "utf-8")
-            msg["Subject"] = subject
-            msg["From"] = smtp_user
-            msg["To"] = to_email
-            with smtplib.SMTP(smtp_host, smtp_port, timeout=10) as s:
-                s.starttls()
-                s.login(smtp_user, smtp_pass)
-                s.send_message(msg)
-            logger.info("Email sent: %s", subject)
-        # 边界捕获：第三方/外部（插件代码、SMTP）异常不外逃（CODE_STANDARDS Q-I1）
-        except Exception as e:  # noqa: BLE001
-            logger.error("Failed to send email '%s': %s", subject, e)
+    def shutdown(self) -> None:
+        """应用退出前尽量把队列里的邮件发完（最多等 2 秒）。"""
+        self._timer.stop()
+        self._emailer.shutdown()

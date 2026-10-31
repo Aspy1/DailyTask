@@ -39,7 +39,8 @@ class HabitModel(BaseJsonModel):
         self._rebuild_index()
 
     def _rebuild_index(self) -> None:
-        self._habit_by_id = {h["id"]: h for h in self.habits}
+        # 坏数据（缺 id）不能让模型加载直接 KeyError；跳过即可（其余习惯照常工作）
+        self._habit_by_id = {h["id"]: h for h in self.habits if h.get("id")}
 
     @property
     def habits(self) -> list[dict]:

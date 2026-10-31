@@ -170,7 +170,7 @@ class DailyLogModel(BaseJsonModel):
     def delete_reminder(self, reminder_id: str) -> bool:
         reminders = self._data.get("reminders", [])
         for i, r in enumerate(reminders):
-            if r["id"] == reminder_id:
+            if r.get("id") == reminder_id:
                 reminders.pop(i)
                 return True
         return False

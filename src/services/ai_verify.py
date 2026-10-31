@@ -20,6 +20,7 @@
 
 import json
 import re
+from datetime import date
 from pathlib import Path
 
 VERIFIED = "verified"
@@ -47,8 +48,12 @@ def parse_command(command: str) -> tuple[str, dict[str, str]]:
 
 def _read(data_dir: Path, name: str) -> dict:
     """读一个数据文件；读不到 → 空 dict（验收读不到就报"未验收"，不猜 ✗）。"""
+    return _read_path(Path(data_dir) / name)
+
+
+def _read_path(path: Path) -> dict:
     try:
-        return json.loads((Path(data_dir) / name).read_text(encoding="utf-8"))
+        return json.loads(Path(path).read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return {}
 
@@ -98,12 +103,12 @@ def _observe_complete_plan(args: dict, data_dir: Path) -> dict:
 
 def _observe_add_item(args: dict, data_dir: Path) -> dict:
     items = _read(data_dir, "inventory.json").get("items") or []
-    return {"exists": any(it.get("name") == args.get("name") for it in items)}
+    return {"count": len(items)}
 
 
 def _observe_add_task(args: dict, data_dir: Path) -> dict:
     tasks = _read_semester(data_dir, "tasks.json").get("tasks") or []
-    return {"exists": any(t.get("title") == args.get("title") for t in tasks)}
+    return {"count": len(tasks)}
 
 
 def _observe_delete_item(args: dict, data_dir: Path) -> dict:
@@ -111,14 +116,25 @@ def _observe_delete_item(args: dict, data_dir: Path) -> dict:
     return {"exists": any(it.get("id") == args.get("id") for it in items)}
 
 
-_OBSERVERS = {
-    "consume": _observe_consume,
-    "update_item": _observe_update_item,
-    "complete_plan": _observe_complete_plan,
-    "add_item": _observe_add_item,
-    "add_task": _observe_add_task,
-    "delete_item": _observe_delete_item,
-}
+def _label_item(args: dict, data_dir: Path) -> str:
+    item = _item(_read(data_dir, "inventory.json"), args.get("id", ""))
+    return str(item.get("name") or "")
+
+
+def _label_course(args: dict, data_dir: Path) -> str:
+    return str(_course_by_id(data_dir, args.get("id", "")).get("name") or "")
+
+
+def _label_plan_index(args: dict, data_dir: Path) -> str:
+    plans = (_read(data_dir, "daily_logs.json").get("plans") or {}).get(args.get("date", ""))
+    try:
+        return str((plans or [])[int(args.get("index", "-1"))].get("title") or "")
+    except (IndexError, ValueError):
+        return ""
+
+
+def _label_title_or_date(args: dict, data_dir: Path) -> str:
+    return str(args.get("title") or args.get("date") or "")
 
 
 def label_of(command: str, data_dir: Path) -> str:
@@ -130,27 +146,23 @@ def label_of(command: str, data_dir: Path) -> str:
     fallback = str(args.get("name") or "")
     if not data_dir:
         return fallback
-    if operation in ("consume", "update_item", "delete_item"):
-        item = _item(_read(data_dir, "inventory.json"), args.get("id", ""))
-        return str(item.get("name") or fallback)
-    if operation in ("complete_plan", "delete_plan"):
-        plans = (_read(data_dir, "daily_logs.json").get("plans") or {}).get(args.get("date", ""))
-        try:
-            return str((plans or [])[int(args.get("index", "-1"))].get("title") or "")
-        except (IndexError, ValueError):
-            return ""
-    return fallback
+    labeler = _LABELERS.get(operation)
+    return (labeler(args, data_dir) if labeler is not None else "") or fallback
 
 
 def _read_semester(data_dir: Path, name: str) -> dict:
-    """读**按学期分**的数据文件（`tasks.json` 这类在 `semesters/<id>/` 下）。"""
+    """读**按学期分**的数据文件（`tasks.json` 这类在 `semesters/<id>/` 下）。
+
+    ⚠ 不调用 `semester_paths.resolve()`：它在注册表缺失时会**创建**默认学期（写盘）——
+    验收是只读路径，不该产生副作用。这里只按现有注册表**读**。
+    """
     from src.models import semester_paths
 
-    try:
-        return _read(data_dir, str(Path(semester_paths.resolve(Path(data_dir), name))
-                                  .relative_to(Path(data_dir))))
-    except (OSError, ValueError):
+    registry = semester_paths.read_registry(Path(data_dir))
+    sid = str(registry.get("current_semester") or "")
+    if not sid:
         return {}
+    return _read_path(semester_paths.semester_dir(Path(data_dir), sid) / name)
 
 
 def check(command: str, before: dict, result: str, data_dir: Path) -> tuple[str, str]:
@@ -171,21 +183,23 @@ def check(command: str, before: dict, result: str, data_dir: Path) -> tuple[str,
 
 
 def _check_add_item(before: dict, args: dict, data_dir: Path) -> tuple[str, str]:
-    """新增物品：那条**真的在**（名字对得上）—— 不是"handler 说 OK"。"""
+    """新增物品：**数量增加 + 名字对得上**（同名不同位置是两件独立物品）。"""
     name = args.get("name", "")
     items = _read(data_dir, "inventory.json").get("items") or []
-    if any(it.get("name") == name for it in items):
+    hit = any(it.get("name") == name for it in items)
+    if len(items) > int(before.get("count", -1)) and hit:
         return VERIFIED, f"「{name}」在清单里"
-    return MISMATCH, f"清单里找不到「{name}」"
+    return MISMATCH, f"清单里找不到新写入的「{name}」"
 
 
 def _check_add_task(before: dict, args: dict, data_dir: Path) -> tuple[str, str]:
-    """记作业：那条**真的在**（标题对得上）。"""
+    """记作业：**数量增加 + 标题对得上**（同名作业可能有多条）。"""
     title = args.get("title", "")
     tasks = _read_semester(data_dir, "tasks.json").get("tasks") or []
-    if any(t.get("title") == title for t in tasks):
+    hit = any(t.get("title") == title for t in tasks)
+    if len(tasks) > int(before.get("count", -1)) and hit:
         return VERIFIED, f"作业「{title}」在列表里"
-    return MISMATCH, f"作业列表里找不到「{title}」"
+    return MISMATCH, f"作业列表里找不到新写入的「{title}」"
 
 
 def _check_delete_item(before: dict, args: dict, data_dir: Path) -> tuple[str, str]:
@@ -266,6 +280,302 @@ def _check_complete_plan(before: dict, args: dict, data_dir: Path) -> tuple[str,
     return MISMATCH, "那条计划**没有**被标记完成"
 
 
+# ── 课程表 ──────────────────────────────────────────────────
+
+def _courses(data_dir: Path) -> list[dict]:
+    return _read_semester(data_dir, "courses.json").get("courses") or []
+
+
+def _course_by_id(data_dir: Path, cid: str) -> dict:
+    return next((c for c in _courses(data_dir) if c.get("id") == cid), {})
+
+
+def _observe_add_course(args: dict, data_dir: Path) -> dict:
+    return {"count": len(_courses(data_dir))}
+
+
+def _observe_update_course(args: dict, data_dir: Path) -> dict:
+    course = _course_by_id(data_dir, args.get("id", ""))
+    if not course:
+        return {}
+    return {
+        "name": course.get("name"),
+        "day": course.get("day_of_week"),
+        "weeks": course.get("weeks"),
+        "slots": [(s.get("start"), s.get("end"))
+                  for s in course.get("time_slots") or []],
+        "parity": course.get("week_parity"),
+        "teacher": course.get("teacher"),
+        "location": course.get("location"),
+    }
+
+
+def _observe_delete_course(args: dict, data_dir: Path) -> dict:
+    return {"exists": bool(_course_by_id(data_dir, args.get("id", "")))}
+
+
+def _check_add_course(before: dict, args: dict, data_dir: Path) -> tuple[str, str]:
+    name = args.get("name", "")
+    courses = _courses(data_dir)
+    if len(courses) > int(before.get("count", -1)) and any(
+            c.get("name") == name for c in courses):
+        return VERIFIED, f"课程「{name}」已写入"
+    return MISMATCH, f"课程表里找不到新写入的「{name}」"
+
+
+def _field_problem(label: str, want, actual) -> str | None:
+    """只在命令**显式传了**这个字段时比较；不一致时返回一句可读的差异。"""
+    if want in (None, ""):
+        return None
+    return None if str(want) == str(actual) else f"{label}是 {actual}"
+
+
+def _check_update_course(before: dict, args: dict, data_dir: Path) -> tuple[str, str]:
+    """改课程：逐个核对**显式传入**的字段（没传的字段不该被改）。"""
+    course = _course_by_id(data_dir, args.get("id", ""))
+    if not course:
+        return MISMATCH, f"课程 {args.get('id', '')} 不在了"
+    weeks = course.get("weeks") or {}
+    slot = (course.get("time_slots") or [{}])[0]
+    checks = (
+        _field_problem("名称", args.get("name"), course.get("name")),
+        _field_problem("星期", args.get("day"), course.get("day_of_week")),
+        _field_problem("单双周", args.get("parity"), course.get("week_parity")),
+        _field_problem("教师", args.get("teacher"), course.get("teacher")),
+        _field_problem("地点", args.get("location"), course.get("location")),
+        _field_problem("周次", args.get("weeks"),
+                       f"{weeks.get('start')}-{weeks.get('end')}"),
+        _field_problem("节次", args.get("slots"),
+                       f"{slot.get('start')}-{slot.get('end')}"),
+    )
+    problems = [problem for problem in checks if problem]
+    if problems:
+        return MISMATCH, "；".join(problems)
+    return VERIFIED, f"课程 {args.get('id', '')} 的改动已核对"
+
+
+def _check_delete_course(before: dict, args: dict, data_dir: Path) -> tuple[str, str]:
+    cid = args.get("id", "")
+    gone = not any(c.get("id") == cid for c in _courses(data_dir))
+    if gone and before.get("exists"):
+        return VERIFIED, f"课程 {cid} 已删除"
+    if not gone:
+        return MISMATCH, f"课程 {cid} 还在，没删掉"
+    return NOOP, f"本来就没有课程 {cid}"
+
+
+# ── 考试 / 习惯 / 日程计划 ──────────────────────────────────
+
+def _observe_add_exam(args: dict, data_dir: Path) -> dict:
+    return {"count": len(_read_semester(data_dir, "exams.json").get("exams") or [])}
+
+
+def _check_add_exam(before: dict, args: dict, data_dir: Path) -> tuple[str, str]:
+    course = args.get("course", "")
+    exams = _read_semester(data_dir, "exams.json").get("exams") or []
+    hit = any(e.get("course_name") == course and e.get("exam_date") == args.get("date")
+              for e in exams)
+    if len(exams) > int(before.get("count", -1)) and hit:
+        return VERIFIED, f"考试「{course}」已写入"
+    return MISMATCH, f"考试列表里找不到「{course}」"
+
+
+def _observe_add_habit(args: dict, data_dir: Path) -> dict:
+    return {"count": len(_read(data_dir, "habits.json").get("habits") or [])}
+
+
+def _check_add_habit(before: dict, args: dict, data_dir: Path) -> tuple[str, str]:
+    name = args.get("name", "")
+    habits = _read(data_dir, "habits.json").get("habits") or []
+    if len(habits) > int(before.get("count", -1)) and any(
+            h.get("name") == name for h in habits):
+        return VERIFIED, f"习惯「{name}」已写入"
+    return MISMATCH, f"习惯列表里找不到「{name}」"
+
+
+def _observe_log_habit(args: dict, data_dir: Path) -> dict:
+    hid = args.get("id", "")
+    entry = ((_read(data_dir, "habits.json").get("logs") or {})
+             .get(date.today().isoformat(), {}).get(hid) or {})
+    return {"completed": bool(entry.get("completed"))}
+
+
+def _check_log_habit(before: dict, args: dict, data_dir: Path) -> tuple[str, str]:
+    hid = args.get("id", "")
+    entry = ((_read(data_dir, "habits.json").get("logs") or {})
+             .get(date.today().isoformat(), {}).get(hid) or {})
+    if entry.get("completed"):
+        if before.get("completed"):
+            return NOOP, "今天本来就已经打过卡"
+        return VERIFIED, "习惯已打卡"
+    return MISMATCH, "习惯打卡没有生效"
+
+
+def _observe_add_plan(args: dict, data_dir: Path) -> dict:
+    day = args.get("date", "")
+    plans = (_read(data_dir, "daily_logs.json").get("plans") or {}).get(day) or []
+    return {"count": len(plans)}
+
+
+def _check_add_plan(before: dict, args: dict, data_dir: Path) -> tuple[str, str]:
+    day = args.get("date", "")
+    title = args.get("title", "")
+    plans = (_read(data_dir, "daily_logs.json").get("plans") or {}).get(day) or []
+    if len(plans) > int(before.get("count", -1)) and any(
+            p.get("title") == title for p in plans):
+        return VERIFIED, f"{day} 的计划「{title}」已写入"
+    return MISMATCH, f"{day} 的计划列表里找不到「{title}」"
+
+
+def _observe_replace_plans(args: dict, data_dir: Path) -> dict:
+    day = args.get("date", "")
+    plans = (_read(data_dir, "daily_logs.json").get("plans") or {}).get(day) or []
+    return {"titles": [p.get("title") for p in plans]}
+
+
+def _check_replace_plans(before: dict, args: dict, data_dir: Path) -> tuple[str, str]:
+    try:
+        wanted = json.loads(args.get("plans", "[]"))
+    except (TypeError, ValueError):
+        return UNVERIFIED, "未验收（--plans 不是合法 JSON，无法核对）"
+    if not isinstance(wanted, list):
+        return UNVERIFIED, "未验收（--plans 不是数组）"
+    want_titles = [str(p.get("title", "")) for p in wanted if isinstance(p, dict)]
+    day = args.get("date", "")
+    plans = (_read(data_dir, "daily_logs.json").get("plans") or {}).get(day) or []
+    got_titles = [p.get("title") for p in plans]
+    if got_titles == want_titles:
+        return VERIFIED, f"{day} 的计划已整体替换为 {len(got_titles)} 条"
+    return MISMATCH, f"{day} 的计划是 {len(got_titles)} 条，期望 {len(want_titles)} 条"
+
+
+def _observe_delete_plan(args: dict, data_dir: Path) -> dict:
+    day = args.get("date", "")
+    plans = (_read(data_dir, "daily_logs.json").get("plans") or {}).get(day) or []
+    return {"titles": [p.get("title") for p in plans]}
+
+
+def _check_delete_plan(before: dict, args: dict, data_dir: Path) -> tuple[str, str]:
+    try:
+        idx = int(args.get("index", "-1"))
+    except ValueError:
+        return UNVERIFIED, "未验收（index 不是整数）"
+    before_titles = list(before.get("titles") or [])
+    if not 0 <= idx < len(before_titles):
+        return NOOP, "本来就没有这条计划"
+    expected = before_titles[:idx] + before_titles[idx + 1:]
+    day = args.get("date", "")
+    plans = (_read(data_dir, "daily_logs.json").get("plans") or {}).get(day) or []
+    got = [p.get("title") for p in plans]
+    if got == expected:
+        return VERIFIED, f"计划「{before_titles[idx]}」已删除"
+    return MISMATCH, "计划列表与预期不一致（可能删错了那条）"
+
+
+# ── 记账 / 存钱 / 财务 / 位置 ────────────────────────────────
+
+def _observe_add_expense(args: dict, data_dir: Path) -> dict:
+    return {"count": len(_read(data_dir, "expenses.json").get("records") or [])}
+
+
+def _check_add_expense(before: dict, args: dict, data_dir: Path) -> tuple[str, str]:
+    records = _read(data_dir, "expenses.json").get("records") or []
+    try:
+        want = float(args.get("amount", "0"))
+    except ValueError:
+        return UNVERIFIED, "未验收（amount 不是数字）"
+    day = args.get("date") or date.today().isoformat()
+    hit = any(abs(float(r.get("amount") or 0) - want) < 0.005
+              and str(r.get("date") or "")[:10] == day for r in records)
+    if len(records) > int(before.get("count", -1)) and hit:
+        return VERIFIED, f"支出 ¥{want:.2f}（{day}）已写入"
+    return MISMATCH, "支出记录里找不到这一笔"
+
+
+def _observe_add_saving(args: dict, data_dir: Path) -> dict:
+    day = args.get("date") or date.today().isoformat()
+    savings = (_read(data_dir, "daily_logs.json").get("savings") or {}).get(day) or []
+    return {"count": len(savings)}
+
+
+def _check_add_saving(before: dict, args: dict, data_dir: Path) -> tuple[str, str]:
+    day = args.get("date") or date.today().isoformat()
+    try:
+        want = float(args.get("amount", "0"))
+    except ValueError:
+        return UNVERIFIED, "未验收（amount 不是数字）"
+    savings = (_read(data_dir, "daily_logs.json").get("savings") or {}).get(day) or []
+    hit = any(abs(float(s.get("amount") or 0) - want) < 0.005 for s in savings)
+    if len(savings) > int(before.get("count", -1)) and hit:
+        return VERIFIED, f"存钱 ¥{want:.2f}（{day}）已写入"
+    return MISMATCH, "存钱记录里找不到这一笔"
+
+
+def _observe_delete_expense(args: dict, data_dir: Path) -> dict:
+    return {"exists": any(r.get("id") == args.get("id")
+                          for r in _read(data_dir, "expenses.json").get("records") or [])}
+
+
+def _check_delete_expense(before: dict, args: dict, data_dir: Path) -> tuple[str, str]:
+    rid = args.get("id", "")
+    gone = not any(r.get("id") == rid
+                   for r in _read(data_dir, "expenses.json").get("records") or [])
+    if gone and before.get("exists"):
+        return VERIFIED, f"支出 {rid} 已删除"
+    if not gone:
+        return MISMATCH, f"支出 {rid} 还在，没删掉"
+    return NOOP, f"本来就没有支出 {rid}"
+
+
+def _observe_finance_set(args: dict, data_dir: Path) -> dict:
+    return {"finance": dict(_read(data_dir, "expenses.json").get("finance") or {})}
+
+
+def _check_finance_set(before: dict, args: dict, data_dir: Path) -> tuple[str, str]:
+    after = _read(data_dir, "expenses.json").get("finance") or {}
+    failed = []
+    for field in ("balance", "monthly_income", "fixed_expenses"):
+        if field not in args:
+            continue
+        try:
+            want = float(args[field])
+        except ValueError:
+            continue
+        if abs(float(after.get(field) or 0) - want) >= 0.005:
+            failed.append(field)
+    if failed:
+        return MISMATCH, f"没写进去：{'、'.join(failed)}"
+    return VERIFIED, "财务初始值已核对"
+
+
+def _observe_add_location(args: dict, data_dir: Path) -> dict:
+    return {"locations": list(_read(data_dir, "inventory.json").get("locations") or [])}
+
+
+def _check_add_location(before: dict, args: dict, data_dir: Path) -> tuple[str, str]:
+    from src.models.inventory import canonical_location
+
+    want = canonical_location(args.get("name", ""))
+    locations = _read(data_dir, "inventory.json").get("locations") or []
+    if want in locations:
+        if want in (before.get("locations") or []):
+            return NOOP, f"位置「{want}」本来就在清单里"
+        return VERIFIED, f"位置「{want}」已加入清单"
+    return MISMATCH, f"位置清单里找不到「{want}」"
+
+
+def _observe_set_locations(args: dict, data_dir: Path) -> dict:
+    return {"locations": list(_read(data_dir, "inventory.json").get("locations") or [])}
+
+
+def _check_set_locations(before: dict, args: dict, data_dir: Path) -> tuple[str, str]:
+    want = [v.strip() for v in str(args.get("values", "")).split(",") if v.strip()]
+    got = _read(data_dir, "inventory.json").get("locations") or []
+    if got == want:
+        return VERIFIED, f"位置清单已设为 {len(got)} 项"
+    return MISMATCH, f"位置清单是 {got}，期望 {want}"
+
+
 def summarize(verdicts: list[tuple[str, str]]) -> str:
     """把一批验收结论拼成给模型看的一段（附在工具结果后面）。"""
     if not verdicts:
@@ -281,6 +591,46 @@ def mismatches(verdicts: list[tuple[str, str]]) -> list[str]:
     return [detail for state, detail in verdicts if state == MISMATCH]
 
 
+_LABELERS = {
+    "consume": _label_item,
+    "update_item": _label_item,
+    "delete_item": _label_item,
+    "update_course": _label_course,
+    "add_exam": lambda args, _d: str(args.get("course") or ""),
+    "add_plan": _label_title_or_date,
+    "replace_plans": _label_title_or_date,
+    "complete_plan": _label_plan_index,
+    "delete_plan": _label_plan_index,
+}
+
+
+_OBSERVERS = {
+    "consume": _observe_consume,
+    "update_item": _observe_update_item,
+    "complete_plan": _observe_complete_plan,
+    "add_item": _observe_add_item,
+    "add_task": _observe_add_task,
+    "delete_item": _observe_delete_item,
+    # 课程 / 考试 / 习惯 / 日程
+    "add_course": _observe_add_course,
+    "update_course": _observe_update_course,
+    "delete_course": _observe_delete_course,
+    "add_exam": _observe_add_exam,
+    "add_habit": _observe_add_habit,
+    "log_habit": _observe_log_habit,
+    "add_plan": _observe_add_plan,
+    "replace_plans": _observe_replace_plans,
+    "delete_plan": _observe_delete_plan,
+    # 记账 / 财务 / 位置
+    "add_expense": _observe_add_expense,
+    "add_saving": _observe_add_saving,
+    "delete_expense": _observe_delete_expense,
+    "finance_set": _observe_finance_set,
+    "add_location": _observe_add_location,
+    "set_locations": _observe_set_locations,
+}
+
+
 _CHECKS = {
     "consume": _check_consume,
     "complete_plan": _check_complete_plan,
@@ -288,4 +638,21 @@ _CHECKS = {
     "add_item": _check_add_item,
     "add_task": _check_add_task,
     "delete_item": _check_delete_item,
+    # 课程 / 考试 / 习惯 / 日程
+    "add_course": _check_add_course,
+    "update_course": _check_update_course,
+    "delete_course": _check_delete_course,
+    "add_exam": _check_add_exam,
+    "add_habit": _check_add_habit,
+    "log_habit": _check_log_habit,
+    "add_plan": _check_add_plan,
+    "replace_plans": _check_replace_plans,
+    "delete_plan": _check_delete_plan,
+    # 记账 / 财务 / 位置
+    "add_expense": _check_add_expense,
+    "add_saving": _check_add_saving,
+    "delete_expense": _check_delete_expense,
+    "finance_set": _check_finance_set,
+    "add_location": _check_add_location,
+    "set_locations": _check_set_locations,
 }

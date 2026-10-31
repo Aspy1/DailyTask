@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import ClassVar
 
-from src.models.base import BaseJsonModel
+from src.models.base import BaseJsonModel, next_id
 
 DEFAULT_TASKS = {
     "_version": 2,
@@ -18,10 +18,15 @@ class TaskModel(BaseJsonModel):
 
     def __init__(self, file_path: Path) -> None:
         super().__init__(file_path, DEFAULT_TASKS)
-        self._auto_archive()
-        self._repair_course_names()
+        repaired = self._repair_course_names()
+        # `_auto_archive()` 改的是**内存**，不落盘的话退出时 `flush_on_exit()` 会把它
+        # 当成"磁盘被外部改过"→ 写一份冲突副本，真正的归档永远不生效。
+        archived = self._auto_archive()
+        if repaired or archived:
+            self.save()
 
-    def _repair_course_names(self) -> None:
+    def _repair_course_names(self) -> bool:
+        """老数据里 `course_name` 缺失 → 从标签/标题补；返回是否有改动（由调用方保存）。"""
         changed = False
         for t in self._data.get("tasks", []):
             if t.get("course_name"):
@@ -39,8 +44,7 @@ class TaskModel(BaseJsonModel):
                         t["course_name"] = tag
                         changed = True
                         break
-        if changed:
-            self.save()
+        return changed
 
     @property
     def tasks(self) -> list[dict]:
@@ -61,15 +65,14 @@ class TaskModel(BaseJsonModel):
     def add(self, task: dict) -> str:
         tasks = self._data.setdefault("tasks", [])
         # Generate unique ID — check existing tasks + archived
-        existing_ids = {t["id"] for t in tasks}
-        existing_ids.update(t["id"] for t in self._data.get("archived", []))
+        existing_ids = {t.get("id", "") for t in tasks}
+        existing_ids.update(t.get("id", "") for t in self._data.get("archived", []))
         if "id" in task and task["id"] in existing_ids:
             task["id"] = ""  # Force regeneration
         if not task.get("id"):
-            n = 1
-            while f"t_{n:03d}" in existing_ids:
-                n += 1
-            task["id"] = f"t_{n:03d}"
+            # 统一走 `next_id()`（最大后缀 +1）。旧实现是"最小空位"，删掉 t_002 后
+            # 新任务会复用 t_002，历史引用（提醒/账本）会指向另一条任务。
+            task["id"] = next_id("t", existing_ids)
         task_id = task["id"]
         task.setdefault("status", "pending")
         task.setdefault("priority", "medium")
@@ -124,19 +127,22 @@ class TaskModel(BaseJsonModel):
             if t.get("status") == "pending" and t.get("due_date", "") < now
         ]
 
-    def _auto_archive(self) -> None:
-        """Move completed tasks to archive 3 days after completion."""
+    def _auto_archive(self) -> bool:
+        """Move completed tasks to archive 3 days after completion. Returns changed."""
         now = datetime.now()
         threshold = (now - timedelta(days=3)).isoformat()
         active = []
+        changed = False
         for t in self._data.get("tasks", []):
             if t.get("status") == "completed":
                 completed_at = t.get("completed_at", "")
                 if completed_at and completed_at < threshold:
                     self._data.setdefault("archived", []).append(t)
+                    changed = True
                     continue
             active.append(t)
         self._data["tasks"] = active
+        return changed
 
     @property
     def active(self) -> list[dict]:

@@ -131,8 +131,9 @@ class App(QApplication):
         configure_locale()
         super().__init__(args)
 
-        # Single-instance: try to contact existing instance
-        QLocalServer.removeServer(SINGLE_INSTANCE_KEY)
+        # Single-instance: first try to contact an existing instance.
+        # ⚠ `removeServer()` 必须放在"确认没有人在听"之后 —— 先删再连会破坏
+        # 正在运行实例的命名管道（单实例保护反过来失效）。
         sock = QLocalSocket()
         sock.connectToServer(SINGLE_INSTANCE_KEY)
         if sock.waitForConnected(1000):
@@ -141,6 +142,7 @@ class App(QApplication):
             self.is_secondary = True
             return
         sock.close()
+        QLocalServer.removeServer(SINGLE_INSTANCE_KEY)
         self.is_secondary = False
 
         self.setApplicationName(tr("app.name"))
@@ -324,6 +326,7 @@ class App(QApplication):
 
     def _restart(self) -> None:
         self._data_manager.flush_on_exit()
+        self._reminder.shutdown()
         self._settings.save()
         self._window.hide()
         self._instance_server.close()
@@ -333,6 +336,7 @@ class App(QApplication):
 
     def quit(self) -> None:
         self._data_manager.flush_on_exit()
+        self._reminder.shutdown()
         self._settings.save()
         self._window.close()
         super().quit()

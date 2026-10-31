@@ -23,10 +23,40 @@ data/
 import json
 import logging
 import os
+import threading
+import time
 from datetime import datetime
 from pathlib import Path
 
 from src.models.semester import DEFAULT_SEMESTER_ID, default_semester
+
+# 当前学期 id 的进程内缓存：`resolve()` 每次 `load("tasks.json")` 都要读注册表，
+# 一条命令可能调十几次。按 mtime 失效 —— 外部切学期仍能立刻看到。
+_CURRENT_CACHE: dict[Path, tuple[int, str]] = {}
+_CACHE_LOCK = threading.Lock()
+
+
+def _signature(path: Path) -> int:
+    """文件 mtime_ns；不存在返回 0。"""
+    try:
+        return path.stat().st_mtime_ns
+    except OSError:
+        return 0
+
+
+def _atomic_write_text(path: Path, text: str) -> None:
+    """原子写文本（`.tmp` → `os.replace`）。
+
+    注册表/学期文件也会被 CLI 与应用同时访问；非原子写会让对方读到半份 JSON，
+    `read_registry()` 便会把它当损坏留档 → 看起来像"学期丢了"。
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + ".tmp")
+    try:
+        tmp.write_text(text, encoding="utf-8", newline="")
+        os.replace(tmp, path)
+    finally:
+        tmp.unlink(missing_ok=True)
 
 logger = logging.getLogger(__name__)
 
@@ -52,12 +82,21 @@ def read_registry(data_dir: Path) -> dict:
     path = registry_path(data_dir)
     if not path.exists():
         return {}
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        keep = _quarantine(path)
-        logger.error("学期注册表无法解析，现场已留档到 %s（将重建一份）", keep)
-        return {}
+    for attempt in range(2):
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except OSError:
+            return {}
+        except json.JSONDecodeError:
+            if attempt == 0:
+                # 可能是另一个进程刚写完（旧版本非原子写）→ 50ms 后重试一次，
+                # 避免把"正在写"误判成"已损坏"而留档重建。
+                time.sleep(0.05)
+                continue
+            keep = _quarantine(path)
+            logger.error("学期注册表无法解析，现场已留档到 %s（将重建一份）", keep)
+            return {}
+    return {}
 
 
 def _quarantine(path: Path) -> Path:
@@ -76,26 +115,49 @@ def read_current_id(data_dir: Path) -> str:
     return str(read_registry(data_dir).get("current_semester") or "")
 
 
-def ensure_current(data_dir: Path) -> str:
-    """保证存在一个"当前学期"，返回其 id（幂等）。
-
-    用于：全新目录（CLI / 测试 / 首次运行）第一次写按学期的文件时。
-    """
-    data_dir.mkdir(parents=True, exist_ok=True)
-    registry = read_registry(data_dir)
+def _valid_current(registry: dict) -> str:
+    """注册表里的当前学期 id（指向不存在的学期 → 空串，触发自愈）。"""
     semesters = registry.get("semesters") or []
     current = str(registry.get("current_semester") or "")
-    if current and any(s.get("id") == current for s in semesters):
-        return current
-    if not semesters:
-        semesters = [default_semester()]
+    return current if current and any(s.get("id") == current for s in semesters) else ""
+
+
+def _with_default_semester(registry: dict) -> tuple[dict, str]:
+    """补一个默认学期并设为当前（不改写磁盘，调用方负责写）。"""
+    semesters = registry.get("semesters") or [default_semester()]
     current = semesters[-1].get("id") or DEFAULT_SEMESTER_ID
     registry.update({"_version": registry.get("_version", 1),
                      "semesters": semesters, "current_semester": current})
-    registry_path(data_dir).write_text(
-        json.dumps(registry, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8", newline="")
-    logger.info("已建立默认学期 %s（%s）", current, data_dir)
+    return registry, current
+
+
+def ensure_current(data_dir: Path) -> str:
+    """保证存在一个"当前学期"，返回其 id（幂等、**线程/进程安全**）。
+
+    用于：全新目录（CLI / 测试 / 首次运行）第一次写按学期的文件时。
+    缓存按 mtime 失效，写用原子替换 —— 避免"读到半份注册表 → 留档重建"的事故。
+    """
+    data_dir.mkdir(parents=True, exist_ok=True)
+    path = registry_path(data_dir)
+    signature = _signature(path)
+    with _CACHE_LOCK:
+        cached = _CURRENT_CACHE.get(path)
+        if cached is not None and cached[0] == signature and cached[1]:
+            return cached[1]
+
+    from src.models.base import file_lock
+
+    with file_lock(path):
+        registry = read_registry(data_dir)
+        current = _valid_current(registry)
+        if not current:
+            registry, current = _with_default_semester(registry)
+            _atomic_write_text(
+                path, json.dumps(registry, ensure_ascii=False, indent=2) + "\n")
+            logger.info("已建立默认学期 %s（%s）", current, data_dir)
+
+    with _CACHE_LOCK:
+        _CURRENT_CACHE[path] = (_signature(path), current)
     return current
 
 
@@ -131,19 +193,18 @@ def _write_new_layout(data_dir: Path, old: dict, semesters: list[dict],
     """写新布局（注册表 + 当前学期的三个文件），返回学期目录。"""
     target = semester_dir(data_dir, current)
     target.mkdir(parents=True, exist_ok=True)
-    (target / "courses.json").write_text(json.dumps({
+    _atomic_write_text(target / "courses.json", json.dumps({
         "_version": 1,
         "courses": old.get("courses", []),
         "holidays": old.get("holidays", {"excluded": [], "makeup": {}}),
-    }, ensure_ascii=False, indent=2) + "\n", encoding="utf-8", newline="")
+    }, ensure_ascii=False, indent=2) + "\n")
     for name in ("tasks.json", "exams.json"):
         source = data_dir / name
         if source.exists():
-            (target / name).write_text(source.read_text(encoding="utf-8"),
-                                       encoding="utf-8", newline="")
-    registry_path(data_dir).write_text(json.dumps({
+            _atomic_write_text(target / name, source.read_text(encoding="utf-8"))
+    _atomic_write_text(registry_path(data_dir), json.dumps({
         "_version": 1, "semesters": semesters, "current_semester": current,
-    }, ensure_ascii=False, indent=2) + "\n", encoding="utf-8", newline="")
+    }, ensure_ascii=False, indent=2) + "\n")
     return target
 
 

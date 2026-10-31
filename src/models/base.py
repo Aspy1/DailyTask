@@ -112,6 +112,10 @@ class BaseJsonModel:
     recovered_from: Path | None = None
     # 载入时损坏且**留档失败** → 拒绝一切写入（不许毁现场，审查 2026-10-17 #3）
     _write_blocked: bool = False
+    # 载入时磁盘版本**比程序支持的新** → 拒绝普通 save，避免静默降级。
+    # 单独一个标志而不是每次比较 `self.version`：`migrate()` 会把内存版本抬到
+    # 目标版本，那时 `version > supported` 是正常的（测试也覆盖了这一点）。
+    _loaded_future: bool = False
 
     def __init__(self, file_path: Path, default_data: dict[str, Any] | None = None) -> None:
         self.file_path = file_path
@@ -159,7 +163,8 @@ class BaseJsonModel:
                 f"{self.file_path.name} 无法解析（{kept}）：{e}") from e
         # 自愈：旧文件可能早于版本键存在（Q-E4）；缺失即按 v1 处理
         self._data.setdefault("_version", 1)
-        if self.version > self.supported_version:
+        self._loaded_future = self.version > self.supported_version
+        if self._loaded_future:
             # 比本程序认识的版本还新（可能是更新版应用写的）→ 只警告，不改动数据
             note = (f"{self.file_path.name} 的 _version={self.version} "
                     f"比本程序支持的 v{self.supported_version} 新")
@@ -205,6 +210,13 @@ class BaseJsonModel:
         with file_lock(self.file_path):
             if self._write_blocked:
                 # 载入时损坏且留档失败 → 一律不写（审查 2026-10-17 #3）
+                self._report_conflict()
+                return False
+            if self._loaded_future:
+                # 文件是**更新版应用**写的：本程序不认识新字段，写回去等于静默降级
+                # （文档一直这么承诺，但旧实现只警告、`save()` 照样覆盖 ✗）
+                logger.error("%s 的 _version=%d 比本程序支持的新，拒绝写入以免丢字段",
+                             self.file_path.name, self.version)
                 self._report_conflict()
                 return False
             if self._disk_fingerprint is not None:
@@ -318,13 +330,17 @@ class BaseJsonModel:
             raise
         # 最终写盘也在事务边界内：被拒（磁盘被外部改过）或抛错 → 内存一并回滚，
         # 并明确报"迁移没完成"（审查 2026-10-17 第三轮 #3）
+        was_future = self._loaded_future
+        self._loaded_future = False       # 迁移是显式动作，目标版本可以高于默认版本
         try:
             saved = self.save()
         except Exception as e:
             self._data = original
+            self._loaded_future = was_future
             raise MigrationFailed(f"迁移结果写盘失败：{e}") from e
         if not saved:
             self._data = original
+            self._loaded_future = was_future
             raise MigrationFailed(
                 "迁移结果没能写盘（磁盘内容已被外部改动）—— 内存与磁盘都保持原样")
 
