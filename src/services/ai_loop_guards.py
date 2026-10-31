@@ -40,7 +40,8 @@ def _claims_done(text: str) -> bool:
 def _has_write_cmd(commands: list) -> bool:
     """这批命令里有没有**用户可见的写操作**（记账类不算）。"""
     names = [str(c).split("actions.py", 1)[-1].strip().split()[:1] for c in commands]
-    skip = ("lookup_item", "need_restock", "status", "add_location", "set_locations")
+    skip = ("lookup_item", "need_restock", "status", "add_location", "set_locations",
+            "list_mistakes", "study_summary")
     return any(n and n[0] not in skip for n in names)
 
 def cmds_key(commands: list) -> str:

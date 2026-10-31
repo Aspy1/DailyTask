@@ -78,6 +78,8 @@ VERB = {
     "update_course": "改课表", "add_course": "加课程", "delete_course": "删课程",
     "add_exam": "记考试", "update_exam": "改考试",
     "add_location": "加位置", "set_locations": "设置位置", "finance_set": "设财务",
+    "log_study": "记学习", "add_mistake": "记错题", "review_mistake": "复习错题",
+    "master_mistake": "标记掌握", "add_mock": "记模考", "study_set_target": "设目标",
 }
 
 

@@ -238,6 +238,26 @@ python scripts/actions.py finance_summary
   ★ **不许自己算**（不要加总 records、不要乘除、不要估）—— 数字全由代码算好 ✓；
   数据不够几个月时它会说"依据：本月已花（历史不足）"，你也要照说，不要编"3 个月平均"。
 
+### 考研备考（11408）
+```sh
+python scripts/actions.py log_study --subject "数学一" --minutes 90 [--date "YYYY-MM-DD" --note "高数极限"]
+python scripts/actions.py add_mistake --subject "408" --topic "页面置换" [--question "题干" --answer "正确思路"]
+python scripts/actions.py review_mistake --id "m_001"
+python scripts/actions.py master_mistake --id "m_001"
+python scripts/actions.py add_mock --subject "数学一" --score 120 [--full-score 150 --duration 180 --date "YYYY-MM-DD"]
+python scripts/actions.py list_mistakes [--subject "数学一" --due yes]
+python scripts/actions.py study_summary
+python scripts/actions.py study_set_target --date "2027-12-25" [--daily-goal 360]
+```
+- 科目：`math`=数学一、`english`=英语一、`politics`=政治、`cs408`=408（用中文名也可以）。
+- "今天学了 X 小时 / 刷了 N 题" → `log_study`（分钟数由你换算，**不要**自己编时长）。
+- "这道题错了 / 记个错题" → `add_mistake`；错题会按 1/2/4/7/15/30 天自动安排复习。
+- "今天该复习什么 / 我的进度 / 还有多久考试" → `study_summary`（或 `list_mistakes --due yes`），
+  **把输出的数字原样转述**；**不许自己加总/估算**（和财务同一条原则）。
+- "这套卷子考了 X 分" → `add_mock`。模考趋势由 `study_summary` 给出。
+- "复习完了" → `review_mistake --id …`；"已经掌握了" → `master_mistake --id …`。
+- 目标日期只在用户明确说"考试是 X 月 X 日 / 倒计时设为"时改；不要自己猜年份。
+
 ### 概览与备份
 ```sh
 python scripts/actions.py status  # 今日概览（课/任务/习惯/支出）

@@ -349,6 +349,8 @@ def _observe_delete_course(args: dict, data_dir: Path) -> dict:
     return {"exists": bool(_course_by_id(data_dir, args.get("id", "")))}
 
 
+# ── 考研备考（11408）─────────────────────────────────────────
+
 def _check_add_course(before: dict, args: dict, data_dir: Path) -> tuple[str, str]:
     name = args.get("name", "")
     courses = _courses(data_dir)
@@ -696,3 +698,15 @@ _CHECKS = {
     "add_location": _check_add_location,
     "set_locations": _check_set_locations,
 }
+
+# 考研备考的验收器单独成模块（本文件 ≤800 行）；在**所有映射定义之后**合并，
+# 避免循环导入（子模块会从这个模块取状态常量与 `_read`）。
+from src.services.ai_verify_study import (  # noqa: E402
+    STUDY_CHECKS,
+    STUDY_LABELERS,
+    STUDY_OBSERVERS,
+)
+
+_LABELERS.update(STUDY_LABELERS)
+_OBSERVERS.update(STUDY_OBSERVERS)
+_CHECKS.update(STUDY_CHECKS)

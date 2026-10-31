@@ -16,7 +16,7 @@ def test_sidebar_nav_keys_are_all_routed(qapp) -> None:
     routed_by_mainwindow = {"more"}
     nav_keys = set(Sidebar()._nav_items)
     panel_keys = {"schedule", "tasks", "exams", "daily", "routines",
-                  "expenses", "inventory", "meals", "settings"}
+                  "study", "expenses", "inventory", "meals", "settings"}
 
     assert nav_keys - panel_keys == routed_by_mainwindow, nav_keys
 

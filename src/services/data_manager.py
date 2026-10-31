@@ -34,6 +34,7 @@ from src.models.semester import (
     DEFAULT_TOTAL_WEEKS,
 )
 from src.models.semester_registry import SemesterRegistry
+from src.models.study import StudyModel
 from src.models.task import TaskModel
 
 logger = logging.getLogger(__name__)
@@ -87,6 +88,8 @@ class DataManager(QObject):
         self.expenses = ExpenseModel(data_dir / "expenses.json")
         self.daily_logs = DailyLogModel(data_dir / "daily_logs.json")
         self.inventory = InventoryModel(data_dir / "inventory.json")
+        # 考研备考（跨学期共享）：学习时长 / 错题间隔复习 / 模考
+        self.study = StudyModel(data_dir / "study.json")
         # 会员手机号：**私有**文件（不进仓库、不进 AI 提示词）——
         # 见 `git_sync.PRIVATE_FILES` 与 `models/membership_contacts.py`
         self.membership_contacts = MembershipContactsModel(
@@ -148,7 +151,8 @@ class DataManager(QObject):
             (self.habits, "habits"), (self.routines, "routines"),
             (self.expenses, "expenses"),
             (self.daily_logs, "daily_logs"), (self.exams, "exams"),
-            (self.inventory, "inventory"), (self.semesters, "semesters"),
+            (self.inventory, "inventory"), (self.study, "study"),
+            (self.semesters, "semesters"),
             (self.membership_contacts, "membership_contacts"),
         ]
 

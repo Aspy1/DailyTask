@@ -203,6 +203,7 @@
 | `course_detail_width` | 480 | 课程详情弹窗默认宽 |
 | `dialog_height_md` | 400 | 弹窗最小高 · 中 |
 | `dialog_height_lg` | 500 | 弹窗默认高 · 大 |
+| `progress_height` | 6 | 进度条高度 |
 | `course_header_min_width` | 64 | 课程表行头最小宽 |
 | `view_mode_width` | 36 | 日/周切换按钮宽 |
 <!-- TOKENS:layout:END -->

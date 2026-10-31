@@ -185,6 +185,48 @@ def _update_item_parser(sub) -> None:
     sub.add_parser("need_restock", help="查看需购物品")
 
 
+def _add_study_parsers(sub) -> None:
+    """考研备考：学习记录 / 错题 / 模考 / 汇总。"""
+    p = sub.add_parser("log_study", help="记一段学习时长")
+    p.add_argument("--subject", required=True, help="math/english/politics/cs408 或中文名")
+    p.add_argument("--minutes", type=int, required=True, help="分钟（1-1440）")
+    p.add_argument("--date", help="YYYY-MM-DD，默认今天")
+    p.add_argument("--note")
+
+    p = sub.add_parser("add_mistake", help="记一道错题（自动安排间隔复习）")
+    p.add_argument("--subject", required=True)
+    p.add_argument("--topic", required=True, help="知识点，如 极限/页面置换")
+    p.add_argument("--question")
+    p.add_argument("--answer")
+    p.add_argument("--note")
+    p.add_argument("--date", help="YYYY-MM-DD，默认今天")
+
+    p = sub.add_parser("review_mistake", help="复习一次错题（推进一档）")
+    p.add_argument("--id", required=True)
+
+    p = sub.add_parser("master_mistake", help="直接标记错题已掌握")
+    p.add_argument("--id", required=True)
+
+    p = sub.add_parser("add_mock", help="记一次模拟考试")
+    p.add_argument("--subject", required=True)
+    p.add_argument("--score", type=int, required=True)
+    p.add_argument("--full-score", dest="full_score", type=int, default=150)
+    p.add_argument("--duration", type=int, default=180, help="分钟")
+    p.add_argument("--date", help="YYYY-MM-DD，默认今天")
+    p.add_argument("--note")
+
+    p = sub.add_parser("list_mistakes", help="列出未掌握错题")
+    p.add_argument("--subject")
+    p.add_argument("--due", choices=["yes", "no"], help="只看今天该复习的")
+
+    p = sub.add_parser("study_summary", help="今日/本周学习、待复习、模考与倒计时")
+    p.add_argument("--date", help="按某天算，默认今天")
+
+    p = sub.add_parser("study_set_target", help="设置目标考试日期 / 每日目标")
+    p.add_argument("--date", required=True, help="YYYY-MM-DD")
+    p.add_argument("--daily-goal", dest="daily_goal", type=int, help="每日目标分钟")
+
+
 def _add_expense_parsers(sub) -> None:
     """记账 / 存钱。"""
     p = sub.add_parser("add_expense", help="记一笔支出")

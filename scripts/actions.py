@@ -33,6 +33,7 @@ from scripts.actions_cli import (
     _add_finance_parsers,
     _add_item_parsers,
     _add_routine_parsers,
+    _add_study_parsers,
     _add_task_parsers,
 )
 from scripts.actions_cmds_finance import (
@@ -48,6 +49,16 @@ from scripts.actions_cmds_items import (
     cmd_need_restock,
     cmd_set_locations,
     cmd_update_item,
+)
+from scripts.actions_cmds_study import (
+    cmd_add_mistake,
+    cmd_add_mock,
+    cmd_list_mistakes,
+    cmd_log_study,
+    cmd_master_mistake,
+    cmd_review_mistake,
+    cmd_study_set_target,
+    cmd_study_summary,
 )
 from scripts.actions_core import (  # noqa: F401
     ALLOWED_OPTIONS,
@@ -698,6 +709,11 @@ HANDLERS = {
     "add_expense": cmd_add_expense, "add_saving": cmd_add_saving,
     "delete_expense": cmd_delete_expense, "expense_summary": cmd_expense_summary,
     "finance_set": cmd_finance_set, "finance_summary": cmd_finance_summary,
+    # 考研备考（11408）
+    "log_study": cmd_log_study, "add_mistake": cmd_add_mistake,
+    "review_mistake": cmd_review_mistake, "master_mistake": cmd_master_mistake,
+    "add_mock": cmd_add_mock, "list_mistakes": cmd_list_mistakes,
+    "study_summary": cmd_study_summary, "study_set_target": cmd_study_set_target,
     "list_backups": cmd_list_backups, "restore": cmd_restore,
 }
 
@@ -717,6 +733,7 @@ def build_parser() -> argparse.ArgumentParser:
     _add_task_parsers(sub)
     _add_routine_parsers(sub)
     _add_item_parsers(sub)
+    _add_study_parsers(sub)
     _add_expense_parsers(sub)
     _add_finance_parsers(sub)
     _add_backup_parsers(sub)

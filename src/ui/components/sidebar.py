@@ -25,6 +25,7 @@ _SECTION_ITEMS = (
     ("life", "sidebar.section.life", (
         ("daily", "sidebar.nav.daily"),
         ("routines", "sidebar.nav.routines"),
+        ("study", "sidebar.nav.study"),
         ("expenses", "sidebar.nav.expenses"),
         ("inventory", "sidebar.nav.inventory"),
         ("meals", "sidebar.nav.meals"),

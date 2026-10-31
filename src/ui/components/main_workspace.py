@@ -22,6 +22,7 @@ from src.ui.panels.habit_panel import HabitPanel
 from src.ui.panels.inventory_panel import InventoryPanel
 from src.ui.panels.routine_panel import RoutinePanel
 from src.ui.panels.settings_panel import SettingsPanel
+from src.ui.panels.study_panel import StudyPanel
 from src.ui.panels.task_panel import TaskPanel
 from src.ui.styles.theme import SIZE_BODY_S, SIZE_CAPTION, SIZE_SUBTITLE, get_colors
 from src.ui.widgets.course_detail_dialog import CourseDetailDialog
@@ -37,7 +38,8 @@ logger = logging.getLogger(__name__)
 # 匹配不上任何面板 → **切学期后作业/考试面板不刷新**；`"saving"` 也匹配不上记账面板。
 # 现在显式登记，`tests/test_data_events.py` 扫全仓 emit 守住它。
 # 未登记的事件 → `_on_data_changed` 保守全刷（不会漏，但浪费一次重绘）。
-ALL_PANELS = frozenset({"task", "expense", "habit", "routine", "exam", "inventory"})
+ALL_PANELS = frozenset({"task", "expense", "habit", "routine", "exam",
+                        "inventory", "study"})
 EVENT_PANELS: dict[str, frozenset[str]] = {
     # 域名本身（面板直接用自己的域发事件）
     "task": frozenset({"task"}),
@@ -46,6 +48,7 @@ EVENT_PANELS: dict[str, frozenset[str]] = {
     "routine": frozenset({"routine"}),
     "expense": frozenset({"expense"}),
     "inventory": frozenset({"inventory"}),
+    "study": frozenset({"study"}),
     # 历史事件名（同一个域的不同写法，别让它们掉进"保守全刷"）
     "task_status": frozenset({"task"}),
     "saving": frozenset({"expense"}),      # 存钱也显示在记账面板（原来漏刷）
@@ -97,6 +100,7 @@ class MainWorkspace(QWidget):
         self._routine_panel = RoutinePanel(dm)
         self._exam_panel = ExamPanel(dm)
         self._expense_panel = ExpensePanel(dm)
+        self._study_panel = StudyPanel(dm)
 
         # Placeholder panels (will be replaced with real ones later)
         self._inventory_panel = InventoryPanel(dm)
@@ -124,6 +128,7 @@ class MainWorkspace(QWidget):
             ("exams", self._exam_panel),
             ("daily", self._habit_panel),          # 习惯
             ("routines", self._routine_panel),     # 近期安排（每日固定任务）
+            ("study", self._study_panel),          # 考研备考（11408）
             ("expenses", self._expense_panel),
             ("inventory", self._inventory_panel),
             ("meals", self._meal_panel),
@@ -198,6 +203,7 @@ class MainWorkspace(QWidget):
             (self._routine_panel, "routine"),
             (self._exam_panel, "exam"),
             (self._inventory_panel, "inventory"),
+            (self._study_panel, "study"),
         ):
             if key in keys:
                 panel._refresh()
@@ -210,7 +216,7 @@ class MainWorkspace(QWidget):
         for attr in (
             "_task_panel", "_schedule_view",
             "_habit_panel", "_expense_panel", "_inventory_panel",
-            "_routine_panel", "_meal_panel", "_settings_panel",
+            "_routine_panel", "_study_panel", "_meal_panel", "_settings_panel",
         ):
             w = getattr(self, attr, None)
             if w is None:

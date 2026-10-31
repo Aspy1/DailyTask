@@ -33,6 +33,8 @@ IMPLEMENTED = [
     "status",
     "add_expense", "add_saving", "delete_expense", "expense_summary",
     "finance_set", "finance_summary",
+    "log_study", "add_mistake", "review_mistake", "master_mistake",
+    "add_mock", "list_mistakes", "study_summary", "study_set_target",
     "list_backups", "restore",
 ]
 

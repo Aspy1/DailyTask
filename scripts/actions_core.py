@@ -167,6 +167,7 @@ def _schema_version(name: str) -> int:
     from src.models.inventory import DEFAULT_INVENTORY
     from src.models.membership_contacts import DEFAULT_CONTACTS
     from src.models.routine import DEFAULT_ROUTINES
+    from src.models.study import DEFAULT_STUDY
     from src.models.task import DEFAULT_TASKS
 
     versions = {
@@ -178,6 +179,7 @@ def _schema_version(name: str) -> int:
         "expenses.json": DEFAULT_EXPENSES["_version"],
         "daily_logs.json": DEFAULT_DAILY_LOGS["_version"],
         "inventory.json": DEFAULT_INVENTORY["_version"],
+        "study.json": DEFAULT_STUDY["_version"],
         "memberships.json": DEFAULT_CONTACTS["_version"],
     }
     return versions.get(Path(name).name, 1)

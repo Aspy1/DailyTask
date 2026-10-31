@@ -187,7 +187,8 @@ def test_every_write_command_has_a_verifier() -> None:
     from scripts.actions import HANDLERS
 
     read_only = {"status", "need_restock", "lookup_item",
-                 "expense_summary", "finance_summary", "list_backups"}
+                 "expense_summary", "finance_summary", "list_backups",
+                 "list_mistakes", "study_summary"}
     manual = {"restore"}          # 用户手动恢复入口，AI 不该调用
     missing = set(HANDLERS) - read_only - manual - set(ai_verify._CHECKS)
     assert not missing, f"这些写命令没有验收器：{sorted(missing)}"
@@ -242,6 +243,16 @@ def test_all_write_commands_verify_against_real_data(sandbox) -> None:
     _verified("delete_item --id i_001", sandbox)
     _verified('add_location --name "阳台柜"', sandbox)
     _verified('set_locations --values "书架1,阳台柜"', sandbox)
+
+    # 考研备考
+    _verified("study_set_target --date 2027-12-25 --daily-goal 300", sandbox)
+    _verified('log_study --subject "数学一" --minutes 90', sandbox)
+    _verified('add_mistake --subject "408" --topic "页面置换"', sandbox)
+    mistake_id = json.loads((sandbox / "study.json").read_text(encoding="utf-8"))[
+        "mistakes"][0]["id"]
+    _verified(f"review_mistake --id {mistake_id}", sandbox)
+    _verified(f"master_mistake --id {mistake_id}", sandbox)
+    _verified('add_mock --subject "数学一" --score 120 --full-score 150', sandbox)
 
 
 def test_claiming_ok_without_the_data_is_a_mismatch(sandbox) -> None:

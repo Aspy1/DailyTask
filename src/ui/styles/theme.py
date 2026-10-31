@@ -15,6 +15,8 @@ from PySide6.QtGui import QColor, QFont, QFontDatabase
 from PySide6.QtWidgets import QApplication
 from shiboken6 import isValid
 
+from src.ui.styles.color import qcolor, rgba  # noqa: F401 - re-export
+
 # ── Tokens：从单一真值 design/tokens.json 加载（CODE_STANDARDS Q-H8）──
 # src/ui/styles/theme.py → 上溯 3 层是仓库根，令牌真值在 design/
 _TOKENS_FILE = Path(__file__).resolve().parents[3] / "design" / "tokens.json"
@@ -90,48 +92,6 @@ def get_colors() -> dict:
     return _color_cache
 
 
-def _qcolor_from_hash(css: str, alpha: float | None) -> QColor:
-    """`#rrggbb` / `#rrggbbaa`（**CSS 语义：alpha 在后**）。
-
-    ⚠ Qt 的 `QColor` 把 8 位 hex 按 `#AARRGGBB` 读，而 QSS 按 CSS 的 `#RRGGBBAA` 读 ——
-    同一串颜色两种含义，混用会**静默画错色**（实测 `QColor("#d6454512")` →
-    `rgba(69,69,18,214)`，一个橄榄绿）。这里统一按 CSS 语义解释。
-    """
-    if len(css) == 9:
-        css = "#" + css[7:9] + css[1:7]
-    color = QColor(css)
-    if alpha is not None:
-        color.setAlphaF(alpha)
-    return color
-
-
-def _qcolor_from_rgb(css: str, alpha: float | None) -> QColor:
-    """`rgba(r,g,b,a)` / `rgb(r,g,b)`。"""
-    parts = [p.strip() for p in css[css.index("(") + 1:css.rindex(")")].split(",")]
-    r, g, b = (int(float(p)) for p in parts[:3])
-    a = float(parts[3]) if len(parts) > 3 else 1.0
-    if alpha is not None:
-        a = alpha
-    return QColor(r, g, b, int(a * 255))
-
-
-def qcolor(css: str, alpha: float | None = None) -> QColor:
-    """token 色值 → QColor（`#rrggbb` / `#rrggbbaa` / `rgba(...)`）。
-
-    自绘控件族（输入/按钮/卡片）都要把令牌值交给 QPainter，`QColor("#rrggbb")`
-    能直接吃，但 `rgba(...)` 不行 —— 所以统一在这里解析（此前
-    `rounded_input` 与 `rounded_button` 各有一份私有实现）。
-    """
-    css = css.strip()
-    if css.startswith("#"):
-        return _qcolor_from_hash(css, alpha)
-    if css.startswith("rgb"):
-        return _qcolor_from_rgb(css, alpha)
-    if css in ("transparent", "none", ""):
-        return QColor(0, 0, 0, 0)
-    return QColor(css)
-
-
 def elide_text(text: str, font: QFont, max_width: int) -> str:
     """Ellipsize text to fit within max_width pixels.
 
@@ -171,17 +131,6 @@ def _is_color(value: object) -> bool:
 def _is_text_token(key: str) -> bool:
     """这个 token 是**文字色**吗（`fg_*` / `*_text`）—— 用来消解"两个 token 同色"的歧义。"""
     return key.startswith("fg_") or key.endswith("_text")
-
-
-def rgba(color: str, alpha: float) -> str:
-    """把 `#RRGGBB` 加透明度 → `rgba(r, g, b, a)`。
-
-    ⚠ 别写 `f"{color}18"`：Qt 的 QSS 把 8 位十六进制当 **AARRGGBB**（不是 RRGGBBAA），
-    于是 `#B93B3B18` 被解释成"透明橄榄色"而不是"浅红"（审查 U4）。
-    """
-    col = qcolor(color)
-    return (f"rgba({col.red()}, {col.green()}, {col.blue()}, "
-            f"{max(0.0, min(1.0, alpha)):.3f})")
 
 
 _DECL_RE = re.compile(r"(?P<prop>[a-zA-Z-]+)\s*:\s*(?P<value>[^;{}]+)")
@@ -367,7 +316,7 @@ def apply_palette(app: QApplication, mode: str) -> None:
     平台默认调色板 —— 暗色模式下就是一块块浅灰（2026-10-16 视觉审查的
     主要问题）。QSS 负责"长相"，QPalette 负责"底座"。
     """
-    from PySide6.QtGui import QColor, QPalette
+    from PySide6.QtGui import QPalette
     t = TOKENS.get(mode, TOKENS["light"])
     pal = QPalette()
     role = QPalette.ColorRole
@@ -646,6 +595,18 @@ def input_qss() -> str:
             background: transparent; color: {c['fg_primary']};
             border: none;
             padding: 0 10px; font-size: {SIZE_BODY_S}px;
+            min-height: {FIELD_H}px;
+        }}
+    """
+
+
+def spin_qss() -> str:
+    """数字输入（QSpinBox）样式 —— 与 `input_qss()` 同高同字号（Q-H12/Q-H18）。"""
+    c = get_colors()
+    return f"""
+        QSpinBox {{
+            background: transparent; color: {c['fg_primary']};
+            border: none; padding: 0 10px; font-size: {SIZE_BODY_S}px;
             min-height: {FIELD_H}px;
         }}
     """

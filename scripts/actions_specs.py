@@ -47,6 +47,14 @@ ALLOWED_OPTIONS: dict[str, set[str]] = {
     "expense_summary": {"month"},
     "finance_set": {"balance", "monthly_income", "fixed_expenses"},
     "finance_summary": set(),
+    # 考研备考（11408）
+    "log_study": {"subject", "minutes", "date", "note"},
+    "add_mistake": {"subject", "topic", "question", "answer", "note", "date"},
+    "review_mistake": {"id"}, "master_mistake": {"id"},
+    "add_mock": {"subject", "score", "full_score", "duration", "date", "note"},
+    "list_mistakes": {"subject", "due"},
+    "study_summary": {"date"},
+    "study_set_target": {"date", "daily_goal"},
     "list_backups": {"name"},
     "restore": {"name", "stamp", "yes"},
 }
@@ -181,6 +189,33 @@ SPECS: dict[str, dict] = {
     # 收入 / 固定支出（A4）：都是可缺省的金额；一个都没给时由 handler 报错
     "finance_set": {"balance": ("money_opt",), "monthly_income": ("money_opt",),
                     "fixed_expenses": ("money_opt",)},
+    # 考研备考（11408）
+    "log_study": {
+        "required": ("subject", "minutes"),
+        "subject": ("text", MAX_TEXT), "minutes": ("int", 1, 1440),
+        "date": ("date_opt",), "note": ("text", MAX_NOTE),
+    },
+    "add_mistake": {
+        "required": ("subject", "topic"),
+        "subject": ("text", MAX_TEXT), "topic": ("text", MAX_NOTE),
+        "question": ("text", MAX_NOTE), "answer": ("text", MAX_NOTE),
+        "note": ("text", MAX_NOTE), "date": ("date_opt",),
+    },
+    "review_mistake": {"required": ("id",), "id": ("id",)},
+    "master_mistake": {"required": ("id",), "id": ("id",)},
+    "add_mock": {
+        "required": ("subject", "score"),
+        "subject": ("text", MAX_TEXT), "score": ("int", 0, 1000),
+        "full_score": ("int_opt", 1, 1000), "duration": ("int_opt", 1, 1440),
+        "date": ("date_opt",), "note": ("text", MAX_NOTE),
+    },
+    "list_mistakes": {"subject": ("text", MAX_TEXT),
+                      "due": ("choice", ("yes", "no"))},
+    "study_summary": {"date": ("date_opt",)},
+    "study_set_target": {
+        "required": ("date",), "date": ("date",),
+        "daily_goal": ("int_opt", 1, 1440),
+    },
     "list_backups": {"name": ("text", MAX_TEXT)},
     "restore": {"required": ("name",), "name": ("text", MAX_TEXT),
                 "stamp": ("text", MAX_TEXT)},
