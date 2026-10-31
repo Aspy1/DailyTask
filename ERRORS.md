@@ -67,6 +67,11 @@
 | 只跑单元测试就以为 git 同步好了 → 两个真 bug | #050 | 验证 |
 | 编辑时 `newString` 写成 `oldString` 的前缀 → 静默删掉一个换行 | #051 | 工具 |
 | 测试依赖真实时钟 → 吃饭提醒窗口内 CI 变红 | #052 | 测试 |
+| actions 写入缺 `_version` → 第一次 UI 保存被误判冲突 | #053 | 数据 |
+| 自绘 ToggleSwitch 没有 clicked → 启动即崩 | #054 | UI/信号 |
+| 补跑逐分钟扫几天 → 启动卡死 | #055 | 性能 |
+| 邮件在主线程同步 SMTP → UI 冻结 | #056 | 线程 |
+| 日视图 hash 漏 done / prompt 借 data_changed | #057 | UI |
 
 ---
 
@@ -947,6 +952,85 @@ Python 看到函数体里有 `card = …` 就把 `card` 判为**局部名**，�
   `oldString`**，再在 `newString` 里完整写回来；
 - 这类错误**编译就能发现**（`compileall` 报语法错）→ "改完先 compile"不是形式主义；
 - 想插新函数时，最稳的锚是"下一个函数的完整签名 + 它的第一行"。
+
+---
+
+### #053 | 2026-11-01 | actions 写入缺 `_version` → 第一次 UI 保存被误判成"外部改动"
+
+**症状**：走查里 AI/CLI 刚写完 `tasks/habits/daily_logs/inventory`，用户在界面做第一次修改时
+`save()` 返回 False，改动只落到 `backup/save_conflict/`，磁盘不变。
+
+**根因**：`actions_core.save()` **不写 `_version`**；`BaseJsonModel.load()` 读盘后在**内存**里
+补 `_version=1`，然后才计算磁盘指纹 → 内存指纹 ≠ 磁盘指纹，`save()` 永远判"冲突"。
+
+**修复**：
+- `load()` 在补默认值**之前**算磁盘指纹（指纹 = 磁盘原文）；
+- `actions_core.save()` 按模型 `DEFAULT_*["_version"]` 写版本（唯一真值）；
+- `flush_on_exit()` 对旧文件缺失的 `_version` 做同口径归一。
+
+**涉及**：`models/base.py`、`scripts/actions_core.py`、`services/data_manager.py`
+**教训**：**指纹的基准必须与磁盘字节一致**。任何"读入后规范化再算指纹"的写法，
+都会把"规范化"误判成"外部改动"。
+
+---
+
+### #054 | 2026-11-01 | 自绘 `ToggleSwitch` 没有 `clicked` → 真实应用启动即崩
+
+**症状**：设置页有插件时启动 `main.py` 抛
+`AttributeError: 'ToggleSwitch' object has no attribute 'clicked'`；
+离屏走查的沙箱没有插件，所以没暴露。
+
+**根因**：上一轮按 `QCheckBox` 的惯例把 `toggled` 改成 `clicked`，但 `ToggleSwitch` 是自绘
+`QWidget`，只暴露 `toggled`，且 `setChecked()` **不发**信号（正是为了防回环）。
+
+**修复**：设置页插件开关改回 `toggled`；注释写明该控件 `setChecked()` 是静默的。
+`QCheckBox`（插件面板）仍用 `clicked`。
+
+**教训**：**按控件族遵守信号约定**。用 `QCheckBox` 的规则套自绘控件前，先看它暴露了哪些信号；
+"沙箱没这个数据/插件"的走查不能替代真实启动。
+
+---
+
+### #055 | 2026-11-01 | 提醒补跑逐分钟扫几天 → 启动卡死
+
+**症状**：应用关了几天再打开，`ReminderService.start()` 逐分钟遍历
+`last_check → now`（最多 N 天 × 习惯数），主线程迟迟不进事件循环。
+
+**修复**：补跑窗口上限 **12 小时**（`CATCHUP_MAX_MINUTES`）；超出直接跳过并记日志。
+同时 `last_reminder_check` 改为每 5 分钟落一次盘，不再每分钟写 `settings.ini`。
+
+**教训**：凡是"从上次时间补到现在"的循环，都必须有**窗口上限**；否则用户的
+"几天没开"会变成启动耗时。
+
+---
+
+### #056 | 2026-11-01 | 邮件在主线程同步 SMTP → UI 冻结最长 10s
+
+**症状**：提醒 tick 或设置页「发送测试邮件」时界面卡住；SMTP 超时 10s 就等于 10s 未响应。
+
+**修复**：新增 `services/email_sender.py`（后台串行队列）：提醒服务只**入队**，
+退出时 `shutdown()` 最多等 2s；设置页用 `EmailTestWorker(QThread)`，结果信号回主线程。
+
+**教训**：**网络/外部进程一律不放在 UI 线程**，包括"只是发一封邮件"。
+
+---
+
+### #057 | 2026-11-01 | 日视图 hash 漏 `done` + prompt 借 `data_changed`
+
+**症状**：
+1. 习惯打卡 / 计划完成后，日视图卡片仍显示 ○ / 未划线（内容指纹没变，hash 增量刷新跳过重建）；
+2. 课程右键「布置了作业」没有填充 AI 输入框，反而触发了全界面刷新。
+
+**根因**：
+1. `_content_hash()` 没把 `done` 纳入指纹；
+2. `_handle_course_action("fill")` 把 prompt 塞进 `data_changed.emit("fill_prompt:…")`，
+   没有任何消费者。
+
+**修复**：`done` 进入指纹；新增 `ScheduleView.fill_ai_prompt` 信号 →
+`MainWorkspace` → `MainWindow` 展开 AI 面板并填入。
+
+**教训**：**hash 增量刷新要把"显示相关的所有字段"纳入指纹**；
+新增 UI 事件要走**正式信号**，不要借用 `data_changed` 这种"数据域"通道。
 
 ---
 

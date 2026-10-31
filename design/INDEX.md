@@ -3,13 +3,14 @@
 > **动 UI 之前先读这个文件。** 这里列出所有"令牌 / 模板 / 规范"的**权威位置**。
 > 如果这里**没有**你要的规范：**先问用户**，确认后再创建，并把新条目补进本文件（见 `AGENTS.md` §9）。
 >
-> 最后更新：2026-10-16
+> 最后更新：2026-11-01
 
 ## 1. 按"我要改什么"查
 
 | 我要改… | 权威位置 | 说明 |
 |---|---|---|
 | **颜色 / 字号 / 圆角** 的具体值 | `design/tokens.json` | **唯一真值**（51 键 × 深浅两模式 + 字号 + 圆角刻度）。改完跑 `scripts/gen_design_tokens.py` 同步文档 |
+| **控件 / 布局尺寸**（窗口、弹窗、列表、窄输入） | `design/tokens.json` 的 `controls` / `layout` → `theme.CONTROLS` / `theme.LAYOUT` | 代码只写 `LAYOUT["dialog_width_lg"]`，不写 `setMinimumWidth(420)`（`Q-H20`） |
 | 令牌的**用途说明** | `design/tokens.json` 的 `color_notes` / `size_notes` | 与值同文件，避免两处漂移 |
 | 令牌的**人类可读表** | `design/DESIGN_TOKENS.md` | **由脚本生成，不要手改**；`tests/test_design_tokens_sync.py` 守卫漂移 |
 | **全局 QSS**（控件长相） | `src/ui/styles/theme.py` 的 `build_theme()` | 只有 `#objectName` 选择器（R-008） |

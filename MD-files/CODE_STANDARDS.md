@@ -27,10 +27,10 @@
 - 阈值：**采用默认（2026-10-15 定）**。
 - 为什么：超过认知上限后，改动成本与 bug 率非线性上升。
 - 检查：`scripts/check_quality.py`（`SIZE` 项，2026-10-16 起接 CI）、`radon`、`vulture`。
-- 现状：`✗` 2026-10-16 实测超限 **36 项**：文件 4（`habit_panel.py` 907、`schedule_view.py` 877、
-  `main_window.py` 828、`actions.py` 825）；类 6（`ScheduleView` 844、`SettingsPanel` 705、
-  `InventoryPanel` 713、`MainWindow` 552、`AIService` 475、`ReminderService` 420）；函数 ~26（多为 `__init__`）。
-  **已记入 `scripts/quality_baseline.json` 防新增**；全量拆分见 `PLAN P3`。
+- 现状：`🔄` 2026-11-01：审查后超限 **22 项**（此前 28；无新增）。
+  本轮拆出 `ai_providers.py` / `weather_dialog.py` / `email_test_worker.py` /
+  `provider_catalog.py` / `ai_verify_study.py` / `color.py`，并把状态栏、提示词片段、
+  习惯提醒、内容指纹改为模块级函数。存量记入 `scripts/quality_baseline.json` 防新增。
 
 **Q-A2 依赖单向：UI → Service → Model，禁止反向 import**
 - 为什么：反向依赖使分层失效、难以测试。
@@ -80,8 +80,9 @@
 - 现状：`✔` 2026-10-16：已移除，改为按 `sender()` 丢弃过期请求的结果。
 
 **Q-B4 禁止在 worker 中改动进程级全局状态**（`sys.stdout`、`os.environ`、模块级缓存）
-- 现状：`🔄` 2026-10-16：类属性缓存已改实例属性；`redirect_stdout` 仍用于捕获 CLI 输出，
-  已加模块级锁串行化。**彻底消除**需把 handler 从 `print` 改为返回字符串（列入待办）。
+- 现状：`✔` 2026-11-01：命令输出改为 `actions_core.emit()` + **线程局部**缓冲
+  （`capture_output()`），不再换全局 `sys.stdout`；两个线程同时执行命令互不串线
+  （`tests/test_actions_thread_safety.py`）。类属性缓存已改实例属性。
 
 **Q-B5 QObject/QThread 生命周期必须显式回收**（`deleteLater` / 单一归属），禁止反复 `new` 不释放
 - 现状：`✔` 2026-10-16：`weather_service` 改为**按接口类型**管理 worker（顺带修掉"7 天预报永不刷新"的 bug）；
@@ -101,8 +102,9 @@
   拆分中抽出约 40 个语义化辅助函数；期间发现并修复 1 个真实崩溃（见 dev-log）。
 
 **Q-C2 主线程禁止阻塞**（网络/IO/大循环）
-- 现状：`✔` 2026-10-16：系统提示词构建改为**只读缓存**，余额/天气由一次性守护线程预热
-  （`AIService._warm_context_cache`，预热不触碰主线程属主的 `WeatherService`）；
+- 现状：`✔` 2026-11-01：系统提示词构建只读缓存；余额/天气守护线程预热；
+  **邮件发送**改后台串行队列（`services/email_sender.py`），设置页测试邮件用 QThread；
+  提醒补跑有 12 小时窗口上限（不再逐分钟扫几天）。
   `tests/test_ai_service_context.py` 断言构建期间任何 `requests` 调用都算失败。
 
 **Q-C3 全表扫描类统计需评估规模上限或加缓存**
@@ -163,6 +165,9 @@
 
 **Q-E5 版本号单一来源**：以 `pyproject.toml` 的 `version` 为准，`i18n` / `README` / 发行包名由其派生
 - 现状：`✗` 曾出现 `app.version` 0.3.0 与 README v0.9.0 不一致（已临时对齐，尚未做到派生）。
+- 2026-11-01 补充：**数据文件的 `_version` 也必须有单一来源** —— `actions_core.save()`
+  现在按各模型 `DEFAULT_*["_version"]` 写入，不再产出"没有版本键"的文件
+  （`ERRORS #053`）。
 
 ## F. 测试与可验证性
 
@@ -210,10 +215,13 @@
 
 ## H. UI 与设计令牌
 
-**Q-H1 颜色 / 字号 / 间距 / 圆角一律走 token，禁止字面量**（`#hex`、`rgb()/rgba()`、`Npx`、`QFont(..., int)`）
-- 检查：`scripts/check_ui_tokens.py`（见 PLAN G-2）；或先 `grep -rn "#[0-9a-fA-F]\{3,8\}" src/ui`。
-- 现状：`✔` 2026-10-16：`scripts/check_ui_tokens.py` 巡检 **0 违规**（由 `tests/test_ui_tokens_clean.py` 守卫）；
-  清理过程中新增了令牌 `fg_on_fill` / `code_bg` / `bg_hover`（违规暴露出的缺失语义）。
+**Q-H1 颜色 / 字号 / 间距 / 圆角 / 布局尺寸一律走 token，禁止字面量**
+（`#hex`、`rgb()/rgba()`、`Npx`、`QFont(..., int)`、`setFixedWidth(420)`）
+- 检查：`scripts/check_ui_tokens.py --strict --check-px`（见 PLAN G-2）；
+  布局键存在性由 `tests/test_layout_tokens.py` 守卫。
+- 现状：`✔` 2026-11-01：**PX 153 + SIZE-LIT 45 → 0**（`ui_tokens_baseline.json` 已清零）；
+  按钮文字色新增 `fg_on_fill`，布局尺寸统一走 `LAYOUT[...]`。
+- 历史：2026-10-16 清理颜色字面量为 0；2026-11-01 清掉字号/固定尺寸存量。
 
 **Q-H2 令牌单一真值**：规格文档由令牌文件**生成**，禁止规格与实现两份手写
 - 现状：`✔` 2026-10-16：`tokens.json` 为唯一真值，`DESIGN_TOKENS.md` 的令牌表由 `scripts/gen_design_tokens.py` 生成，并由 `tests/test_design_tokens_sync.py` 守卫漂移。
@@ -327,6 +335,13 @@
 - 为什么：2026-10-16 实测同时存在 5 套输入框样式、菜单有 5 种坐标写法、令牌文档与实现漂移多年，
   根因都是"没有单一入口，各处各写一套"
 - 检查：`design/INDEX.md` 存在且含权威位置表；`AGENTS.md` §3「UI 规范入口」为流程约束
+
+**Q-H20 布局尺寸也是令牌**：窗口 / 弹窗 / 列表 / 窄输入的固定尺寸写在
+`design/tokens.json` 的 `layout` 段，代码里用 `LAYOUT["..."]`
+- 为什么：`setMinimumWidth(420)` 这类数字曾散在 20 个文件（SIZE-LIT 44 处），改一个弹窗宽度要全局 grep；
+  而且"只检查颜色/字号"的门禁看不见它们
+- 检查：`check_ui_tokens.py` 的 `SIZE-LIT`（必须 0）+ `tests/test_layout_tokens.py`（键必须存在）
+- 现状：`✔` 2026-11-01：44 处 → 0；`DESIGN_TOKENS.md` 的控件/布局表由生成器产出
 
 ## I. 异常与错误处理
 

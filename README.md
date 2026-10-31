@@ -1,6 +1,7 @@
 # 生活助手
 
-AI 驱动的 PySide6 桌面日程管理应用。自然语言交互管理课程、作业、考试、日常、记账。
+AI 驱动的 PySide6 桌面日程管理应用。自然语言交互管理课程、作业、考试、日常、记账，
+以及**考研 11408 备考**（学习时长 / 错题间隔复习 / 模考趋势 / 倒计时）。
 
 ## 技术栈
 
@@ -45,8 +46,8 @@ python -m venv .venv
 ├── requirements.lock.txt           # 精确锁定版本
 ├── src/
 │   ├── app.py                      # 应用入口 · 托盘 · 单实例
-│   ├── models/                     # 数据模型 (7 models + base)
-│   │   ├── base.py                 #   BaseJsonModel (原子写入)
+│   ├── models/                     # 数据模型（11 models + base）
+│   │   ├── base.py                 #   BaseJsonModel (原子写入 + 指纹冲突检测)
 │   │   ├── course.py               #   课程 · 学期 · 假期
 │   │   ├── task.py                 #   作业 · DDL
 │   │   ├── habit.py                #   日常 · 周期 · 打卡
@@ -54,11 +55,15 @@ python -m venv .venv
 │   │   ├── expense.py              #   支出 · 预算 · 余额
 │   │   ├── exam.py                 #   考试 · 日期 · 范围
 │   │   ├── daily_log.py            #   日程计划 · 储蓄 · 自定义提醒
-│   │   └── inventory.py            #   物品库存 · 5 分类
-│   ├── services/                   # 业务服务 (8)
+│   │   ├── study.py                #   考研备考 · 学习记录 / 错题阶梯 / 模考
+│   │   └── inventory.py            #   物品库存 · 分类 / 位置 / 账单
+│   ├── services/                   # 业务服务
 │   │   ├── ai_service.py           #   AI 对话 · Agent Loop · DeepSeek 余额
+│   │   ├── ai_providers.py         #   模型提供方适配（唯一实现）
 │   │   ├── ai_prompts.py           #   系统提示词（唯一处：命令口径/关键词映射/数据安全）
+│   │   ├── ai_verify*.py           #   写命令的回读验收（汇报权归代码）
 │   │   ├── data_manager.py         #   数据聚合 · 3s 自动 reload
+│   │   ├── email_sender.py         #   后台邮件队列（不阻塞 UI）
 │   │   ├── reminder_service.py     #   提醒 · 邮件 · DDL（接线 + 总开关）
 │   │   ├── reminder_rules.py       #   提醒规则（纯函数：点名/3 天/6 小时/余额/自定义）
 │   │   ├── settings_manager.py     #   配置读写
@@ -73,7 +78,7 @@ python -m venv .venv
 │       ├── main_window.py          #   主窗口 · 状态栏 · AI 调整链路
 │       ├── components/             #   布局组件
 │       │   ├── sidebar.py          #     手风琴侧边栏（含「更多」菜单）
-│       │   ├── main_workspace.py   #     面板切换 (9 面板)
+│       │   ├── main_workspace.py   #     面板切换 (10 面板)
 │       │   ├── ai_panel.py         #     AI 助手聊天面板
 │       │   └── click_label.py      #     可点击 Label 公共组件
 │       ├── panels/                 #   功能面板
@@ -83,6 +88,8 @@ python -m venv .venv
 │       │   ├── habit_panel.py      #     日常 (卡片网格)
 │       │   ├── routine_panel.py    #     近期安排 (可拖动排序 + 三态框)
 │       │   ├── routine_dialog.py   #     近期安排 新增/编辑弹窗
+│       │   ├── study_panel.py      #     考研备考 (倒计时 / 待复习 / 各科 / 模考)
+│       │   ├── study_dialogs.py    #     学习 / 错题 / 模考 / 目标弹窗
 │       │   ├── expense_panel.py    #     记账 (6 分类)
 │       │   ├── inventory_panel.py  #     有什么 (分类筛选 + 标签编辑)
 │       │   ├── settings_panel.py   #     设置
@@ -101,8 +108,9 @@ python -m venv .venv
 │       └── styles/
 │           └── theme.py            #     令牌加载 · QSS（真值见 design/tokens.json）
 ├── scripts/
-│   ├── actions.py                  # 数据操作命令层（23 命令 + 内存调用）
+│   ├── actions.py                  # 数据操作命令层（37 命令 + 内存调用）
 │   ├── actions_cmds_items.py       #   物品（有什么）命令：增/改/删/查/需购
+│   ├── actions_cmds_study.py       #   考研备考命令：学习/错题/模考/汇总
 │   ├── actions_core.py             #   核心层：读写（原子+写前备份）/ 参数校验 / 日期与课程匹配
 │   ├── actions_cli.py              #   argparse 子命令定义
 │   ├── build_index.py              # 模糊搜索索引
@@ -110,10 +118,12 @@ python -m venv .venv
 │   ├── gen_design_tokens.py        # 从 tokens.json 生成 DESIGN_TOKENS.md
 │   ├── check_ui_tokens.py          # UI 令牌约束检查（--strict 供 CI）
 │   ├── check_quality.py            # 工程规范门禁（尺寸/异常/ID/命名/i18n/目录 + vulture/radon）
-│   ├── acceptance_check.py         # 全量功能验收（用户视角走一遍，沙箱隔离，80 项断言）
+│   ├── acceptance_check.py         # 全量功能验收（用户视角走一遍，沙箱隔离）
+│   ├── ui_walkthrough.py           # 真实 MainWindow 走查（39 项）+ AI 离线场景
+│   ├── study_month_simulation.py   # 考研一个月模拟（生成 dev-log 报告）
 │   ├── quality_baseline.json       #   门禁存量债台账（只防新增）
 │   └── rewrite_history.py          # 历史重写脚本（一次性工具）
-├── tests/                          # pytest 测试（22 个测试文件 + conftest/helpers）
+├── tests/                          # pytest 平铺测试（conftest / helpers）
 ├── MD-files/                       # 文档体系
 │   ├── ARCHITECTURE.md             #   项目运作原理（分层/数据流/信号/不变量/schema）
 │   ├── CODE_STANDARDS.md           #   代码与工程规范（Q-xxx，可检查）

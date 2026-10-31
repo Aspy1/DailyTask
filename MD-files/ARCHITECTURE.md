@@ -4,7 +4,7 @@
 > 只写**代码表达不了的东西**（跨文件时序、不变量、为什么、外部契约）；函数签名/参数/字段结构不在此重复。
 > 相关文档：`AGENTS.md`（流程/环境）· `CODE_STANDARDS.md`（规范）· `PLAN.md`（计划/体检）· `ERRORS.md`（坑）。
 >
-> 最后更新：2026-10-19
+> 最后更新：2026-11-01
 
 ---
 
@@ -51,7 +51,8 @@ ui ──→ services ──→ models ──→ base(BaseJsonModel)
    合并加载）；语言包缺失时**回退 zh-CN**（不抛异常）。UI 文本一律 `tr("键")`，见 `CODE_STANDARDS Q-N5`
 7. `init_theme(app, theme_mode)` + `setStyleSheet`
 8. `set_autostart(auto_start)`（写注册表 Run 项）
-9. **`DataManager(DATA_DIR)`** —— 创建 7 个 Model，并启动 **3s 轮询 QTimer**
+9. **`DataManager(DATA_DIR)`** —— 创建 11 个 Model（含按学期的 3 个、共享的 6 个、
+   `semesters` 注册表与私有 `membership_contacts`），并启动 **3s 轮询 QTimer**
 10. `AIService(settings, data_manager)`
 11. `ReminderService(settings, data_manager)` + 连接 `reminder_notify` / `ddl_alert`
 12. `GitSync(repo=DATA_DIR.parent, data_dir)` + 连接 `data_changed` / `sync_status`
@@ -68,14 +69,15 @@ ui ──→ services ──→ models ──→ base(BaseJsonModel)
 | | 路径 A：UI | 路径 B：AI / TG | 路径 C：外部修改 |
 |---|---|---|---|
 | 入口 | Panel 直接调 Model（如 `dm.courses.update_course(...)`） | `scripts/actions.py` 命令 | 其它进程（TG bot）写文件 |
-| 持久化 | `model.save()` → `atomic_write()` | 脚本内 `open()/json.dump()` **直接写** | —— |
+| 持久化 | `model.save()` → `atomic_write()` | `actions_core.save()`（写前备份 + 指纹校验 + 原子写） | —— |
 | 通知 | `dm.data_changed.emit("<域>")` | `InstructionParser.execute` 调 `dm.reload_all()` + `emit("ai_action")` | `DataManager._auto_reload` 每 3s 比对 mtime（差 >0.1s）→ `reload()` + `emit("external")` |
 
-**`data_changed(str)` 参数约定**：域名字符串（`course` / `task` / `habit` / `exam` / `expense` / `plan` / `inventory`）
-或特殊值 `external` / `ai_action` / `internal`。
+**`data_changed(str)` 参数约定**：域名字符串（`course` / `task` / `habit` / `exam` / `expense` / `plan` /
+`inventory` / `study`）或特殊值 `external` / `ai_action` / `internal`。
 
 **消费方**：
-- `MainWorkspace._on_data_changed` —— 按子串匹配刷新面板（`"task" in action or is_ai`）
+- `MainWorkspace._on_data_changed` —— 按 `EVENT_PANELS` **显式映射**刷新（未登记事件保守全刷；
+  日程视图总是刷）
 - `GitSync.on_data_changed` —— 启动 30s 防抖计时，随后 `git add -A -- <用户数据清单> && commit && push`
   （范围见 `git_sync.DATA_FILES` / `DATA_DIRS` —— **唯一清单**，自动与手动同步共用；
   手动同步**不再** `git add -A`，源码由开发时显式提交。派生文件不进库，见 `.gitignore`）
@@ -97,6 +99,8 @@ ui ──→ services ──→ models ──→ base(BaseJsonModel)
 | `AIService` | `instructions_executed(str,list)` | `MainWindow._on_instructions_done` | 指令执行结果 |
 | `ScheduleView` | `arrange_requested(str)` | `MainWindow._on_quick_arrange` | 快速安排 prompt |
 | `ScheduleView` | `course_table_requested` / `task_focus_requested(str)` | `MainWorkspace` | 日/周 切换通知 / 跨面板跳转 |
+| `ScheduleView` | `fill_ai_prompt(str)` | `MainWorkspace` → `MainWindow._on_course_fill_ai` | 日视图课程右键填充 AI |
+| `MainWorkspace` | `fill_ai_prompt(str)` | `MainWindow._on_course_fill_ai` | 周视图课程右键填充 AI |
 | `Sidebar` | `nav_changed(str)` / `ai_toggled(bool)` | `MainWindow` | 导航 / AI 面板开关 |
 | `CourseTable` | `fill_ai_prompt(str)` | `MainWindow._on_course_fill_ai` | 右键填充 AI 提示词 |
 | `WeatherService` | `weather_updated(dict)` / `forecast_updated(list)` | `MainWindow` / `WeatherDetailDialog` | 天气刷新 |
@@ -181,7 +185,10 @@ ui ──→ services ──→ models ──→ base(BaseJsonModel)
    `services/finance.py` 的**纯函数**算（过去 3 个整月中位数），界面注明依据；
    **AI 只解释、不许自己算** ✗ —— 它只能调 `finance_summary` 读结果。
 12. **`data/` 是用户数据**（含密钥 `settings.ini`），不进发行版（`Q-P2`）。
-13. **版本与损坏**（2026-10-17，审查 #5）：`migrate()` **逐步**执行且**缺一步就拒绝**
+13. **备考统计只在代码里**（2026-11-01）：学习分钟 / 待复习 / 模考趋势 / 倒计时全部由
+   `StudyModel.summary()` 现算，不落派生值；AI 只能调 `study_summary` 读结果，
+   **不许自己加总/估算**（与财务 A4 同一口径）。
+14. **版本与损坏**（2026-10-17，审查 #5）：`migrate()` **逐步**执行且**缺一步就拒绝**
     （`MigrationUnavailable`，不写文件）—— 不许"找不到迁移函数也把 `_version` 抬上去"。
     文件**缺失** → 建默认值；**损坏** → 改名留档（`*.corrupt-<时间戳>.json`）+ 用默认值
     继续 + ERROR 日志（`DataManager._log_recoveries`）；**版本比本程序新** → 只警告、不改动。
@@ -198,6 +205,7 @@ data/
 │   ├── tasks.json                     该学期作业
 │   └── exams.json                     该学期考试
 ├── habits.json / routines.json / expenses.json / inventory.json / daily_logs.json    跨学期共享
+├── study.json                         考研备考：学习记录 / 错题 / 模考（跨学期）
 ├── private/memberships.json           会员手机号（**私有**：不进仓库、不进 AI 提示词）
 └── search_index.json / weather_*.json / scenes_meta.json             派生或遗留
 ```
@@ -220,6 +228,7 @@ data/
 | `expenses.json` | 1 | `categories[{id,name}]` `budget{monthly,by_category}` `records[]` `finance{balance,monthly_income,fixed_expenses,updated_at}` | record: `id,amount,date,category,note,created_at`；分类里多一条 **`subscription`=「订阅/分期」**（月付/分期到期自动记的那些走它，A1）；`finance` 是**用户设的初始值**，"预计本月支出"等**算出来的**一律现算（`services/finance.py`，A4），不落盘 |
 | `routines.json` | 1 | `items[]` `logs{date:{rid:"done"/"skipped"}}` | routine: `id,title,note,order,created_at` —— **「近期安排」**（2026-10-30 A3）：不是习惯、没有连续天数，三态按天存（空/✔/✗），`order` 就是拖动后的顺序 |
 | `daily_logs.json` | 4 | `logs{}` `plans{date:[...]}` `savings{date:[...]}` `reminders[]` | plan: `title,time_slot(1-6),type(custom/course_note),note,course_name,created_at`；**`category(study/life)`**（日程顶部的学习/生活筛选，视图状态 + 用户可改）、**`done`/`completed_at`**（2026-10-18 加）；reminder: `id,item_type,item_name,item_date,notify_time` |
+| `study.json` | 1 | `target_date` `daily_goal_minutes` `subjects[]` `sessions[]` `mistakes[]` `mocks[]` | session: `id,date,subject,minutes,note,created_at`；mistake: `id,subject,topic,question,answer,note,stage,interval_days,reviewed_count,next_review,mastered`（阶梯 `1/2/4/7/15/30` 天）；mock: `id,date,subject,score,full_score,duration_minutes,note`。**所有统计现算**（`StudyModel.summary()`），不落派生值 |
 | `inventory.json` | 1 | `items[]` `categories[]` `locations[]` | item: `id,name,category,group,quantity,unit,status(充足/不足/需购),min_quantity,min_doses,doses_per_unit,location,notes,tags[],instances[],ignore_low_stock`；**到期类**：`membership{username,expires_on,auto_renew,renew_months}`、`runs_out_on`+`remind_before_days`（预计用完）、`expires_on`+`remind_before_days`（保质期）、**`stock_target`**（常备量，剩 1/4 提醒）；**月付/分期**（A1，2026-10-31）：`billing_type(monthly/installment)` + `amount`（每期金额）+ `due_day`（每月几号）+ `installments`（期数，月付填 0 = 不限期）+ `paid_count` + `billing_active` + `last_charged_on`；**衣物**：`worn_since`+`wash_after_days`+`needs_wash`（见 §11） |
 > **位置就是归属**（2026-10-18）：换季把部分衣物**寄回家**、来年寄回，所以"在哪一边"要能表达 ——
 > 但**不单独存字段**，一律由 `location` 推导（`InventoryModel.side_of()`）：位置是「家」→ 家侧，
@@ -314,9 +323,10 @@ data/
 ```
 用户一句话
   └→ 组装 system prompt + 快照 → 模型（第 1 轮）
-       └→ 模型回 JSON：{reply, commands[]}
+       └→ 模型回文本 + sh 命令块
             └→ 代码逐条执行（scripts/actions.py）
-                 └→ 把**命令的结果**（OK / ERROR 原文）回喂给模型 → 第 2 轮 …
+                 └→ 回读数据**验收**（ai_verify，所有写命令都有验收器）
+                      └→ 把命令结果 + 验收结论回喂给模型 → 第 2 轮 …
                       └→ 直到：模型说结束 / 没有写命令 / 轮次或时间预算耗尽
 ```
 
@@ -332,6 +342,7 @@ data/
 | **部分完成是常态** | 被轮次/时限切断时必须**量化上报**（"执行 N 条、写命令成功 K 条"），不笼统说"部分完成" |
 | **重复阶梯** | 同一批命令重复出现时逐级加码提醒（`repeat_nudge`），不是无限重发同样的提示 |
 | **守护状态可诊断** | 每批记录 `本批重复=N` + 触发护栏时的首句，出问题能回看 |
+| **每条写命令都要验收** | `ai_verify._CHECKS` 覆盖全部写命令（新增命令漏验收器会被测试拦下）；`ai_ledger` 把事实写在模型说明之前 |
 
 **提示不是安全机制**：写数据的强制点在 `scripts/actions.py`（同名同位置硬护栏），
 prompt 里的话只是"劝"，护栏才是"挡"。

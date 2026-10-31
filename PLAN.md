@@ -1146,3 +1146,19 @@ execution`（`cc6a9e4`，2026-10-17）：`chat()` 不再把 `reasoning_content` 
       （四条一次做完：`dev-logs/2026-10-19-批次三遗留一次做完.md`）
 - [x] AI 后续：**② 回执 + 回读验收 ✅** → **③ 动作账本 + 分类恢复 ✅** → **④ 执行日志独立 ✅** → **§5 评估集 ✅**（`scripts/ai_eval.py`，9 场景 × k=4，deepseek）
 
+---
+
+## P24 全量审查 · 全量回归 · 考研 11408（2026-11-01）`[已完成]`
+
+> 详细报告：`dev-logs/2026-10-31-三步整改总报告.md`；分支 `dev`。
+
+- **第一步 基础整改**：settings 脏键合并 + 原子写（#044）；邮件后台队列；提醒补跑 12h 上限；
+  AI 忙守卫 / 提示词内容指纹；`emit()` 线程局部输出；ID 统一 max+1；数据指纹按磁盘原文
+  （#053）；所有写命令回读验收；UI 令牌存量 **198 → 0**。
+- **第二步 回归**：`scripts/ui_walkthrough.py`（真实 `MainWindow`，39 项）+
+  AI 四场景（正常 / 只说不动 / 命令失败 / 批量）；抓出并修复 #053 / #054 / #057。
+- **第三步 考研**：`models/study.py` + `StudyPanel` + 8 条命令 + AI 验收 + 一个月模拟
+  （`dev-logs/2026-10-31-考研一个月模拟.md`，104 条记录 / 7600 分钟 / 192 次复习）。
+- 门禁：`compileall` / ruff / `check_ui_tokens --strict --check-px` / `check_quality --strict` /
+  `pytest`（876 passed）全绿。
+
