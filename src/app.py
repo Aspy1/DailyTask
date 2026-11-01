@@ -26,6 +26,7 @@ from src.services.single_instance import (
     encode_reply,
     feed_buffer,
 )
+from src.ui import animations
 from src.ui.main_window import MainWindow
 from src.ui.styles.theme import FONT_CN, SIZE_TITLE, init_theme
 
@@ -132,7 +133,6 @@ class App(QApplication):
         # 必须在任何控件创建前：本机 zh_HK 会让日期/数字控件显示 CJK 数字
         configure_locale()
         super().__init__(args)
-
         # Single-instance: first try to contact an existing instance.
         # ⚠ `removeServer()` 必须放在"确认没有人在听"之后 —— 先删再连会破坏
         # 正在运行实例的命名管道（单实例保护反过来失效）。
@@ -146,11 +146,9 @@ class App(QApplication):
         sock.close()
         QLocalServer.removeServer(SINGLE_INSTANCE_KEY)
         self.is_secondary = False
-
         self.setApplicationName(tr("app.name"))
         _set_windows_app_id()          # 托盘通知标题显示「生活助手」而不是注册键名 ✓
         self.setQuitOnLastWindowClosed(False)
-
         app_icon = _make_icon()
         self._icon_normal = app_icon
         self._icon_alert = _make_icon("#e74856")  # token-check: ignore（告警图标，非 QSS）
@@ -166,6 +164,9 @@ class App(QApplication):
         theme_mode = self._settings.get("General", "theme", "dark")
         qss = init_theme(self, theme_mode)
         self.setStyleSheet(qss)
+        # 动效总开关（设置 → 通用）：对"减少动态效果"的用户/低配机器可一键关掉
+        animations.set_enabled(
+            self._settings.get_bool("General", "animations_enabled", True))
 
         # Sync auto-start registry entry on every launch
         set_autostart(self._settings.get_bool("General", "auto_start"))
@@ -329,6 +330,7 @@ class App(QApplication):
     def _restart(self) -> None:
         self._data_manager.flush_on_exit()
         self._reminder.shutdown()
+        self._window.shutdown()
         self._settings.save()
         self._window.hide()
         self._instance_server.close()
@@ -339,6 +341,7 @@ class App(QApplication):
     def quit(self) -> None:
         self._data_manager.flush_on_exit()
         self._reminder.shutdown()
+        self._window.shutdown()
         self._settings.save()
         self._window.close()
         super().quit()

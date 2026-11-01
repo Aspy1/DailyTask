@@ -53,13 +53,15 @@ def weather_hints(now: dict | None, forecast: list | None = None) -> list[Hint]:
     out: list[Hint] = []
     code = int(now.get("weathercode") or 0)
     temp = now.get("temp")
+    # ⚠ 不要在这里放 emoji：Windows 的 QSS 字体回退不稳定，☔/🧺 会显示成方框
+    # （2026-11-01 截图实测）。提示文案本身已经说清楚了。
     if is_rain(code):
-        out.append(Hint("weather.rain", "今天有雨，记得带伞 ☔", "warn"))
+        out.append(Hint("weather.rain", "今天有雨，记得带伞", "warn"))
     if isinstance(temp, (int, float)):
         if temp >= HOT_C:
-            out.append(Hint("weather.hot", f"今天 {temp:.0f}°C，注意防暑 🥵", "warn"))
+            out.append(Hint("weather.hot", f"今天 {temp:.0f}°C，注意防暑", "warn"))
         elif temp < COLD_C:
-            out.append(Hint("weather.cold", f"今天 {temp:.0f}°C，注意保暖 🧣", "warn"))
+            out.append(Hint("weather.cold", f"今天 {temp:.0f}°C，注意保暖", "warn"))
     return out
 
 
@@ -73,7 +75,7 @@ def wash_hints(items: list) -> list[Hint]:
     out = []
     for it in items or []:
         if it.get("id") and needs_wash_now(it):
-            out.append(Hint(f"wash.{it['id']}", f"{it.get('name', '')} 该洗了 🧺", "info"))
+            out.append(Hint(f"wash.{it['id']}", f"{it.get('name', '')} 该洗了", "info"))
     return out
 
 
@@ -102,9 +104,9 @@ def outing_hints(plans: list, courses: list, today: date | None = None) -> list[
     if not reason:
         return []
     return [
-        Hint("outing.keys", f"{reason} —— 出门前把钥匙串 / 卡包放回右手架子上 🔑", "info"),
-        Hint("outing.trash", "出门顺手带垃圾 🗑", "info"),
-        Hint("outing.charge", "出门前检查设备电量、带上充电宝 🔋", "info"),
+        Hint("outing.keys", f"{reason} —— 出门前把钥匙串 / 卡包放回右手架子上", "info"),
+        Hint("outing.trash", "出门顺手带垃圾", "info"),
+        Hint("outing.charge", "出门前检查设备电量、带上充电宝", "info"),
     ]
 
 
@@ -178,7 +180,7 @@ def meal_hints(now: datetime) -> list[Hint]:
     """
     from src.services.reminder_rules import meal_slot_due
 
-    return [Hint(key, f"{label}时间到了 🍚", "info", blink=True)
+    return [Hint(key, f"{label}时间到了", "info", blink=True)
             for key, label in meal_slot_due(now, set())]
 
 

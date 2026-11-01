@@ -2,6 +2,8 @@
   "widget.schedule.title": "日程",
   "widget.schedule.mode_day": "日",
   "widget.schedule.mode_week": "周",
+  "widget.schedule.mode_day_tip": "切换到日视图",
+  "widget.schedule.mode_week_tip": "切换到周视图",
   "widget.schedule.btn_undo": "撤销",
   "widget.schedule.btn_save": "保存",
   "widget.schedule.btn_refresh": "刷新",

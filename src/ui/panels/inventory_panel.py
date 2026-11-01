@@ -95,11 +95,9 @@ class InventoryPanel(QWidget):
         self._page = 0
         self._side = SIDE_SCHOOL   # 看哪一边（**视图状态**，不写数据文件）
         c = get_colors()
-
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
-
         # === Breadcrumb (hidden in category view) ===
         layout.addWidget(self._build_breadcrumb())
 
@@ -188,6 +186,8 @@ class InventoryPanel(QWidget):
         bc_layout.setSpacing(4)
 
         self._back_btn = RoundedButton("←")
+        self._back_btn.setAccessibleName(tr("panel.inventory.btn_back_tip"))
+        self._back_btn.setToolTip(tr("panel.inventory.btn_back_tip"))
         self._back_btn.setStyleSheet(f"QPushButton {{ background: transparent; color: {c['accent_text']}; border: none; padding: 2px 6px; font-size: {SIZE_BODY_S}px; font-weight: 600; }} QPushButton:hover {{ color: {c['fg_primary']}; }}")
         self._back_btn.clicked.connect(self._go_back)
         bc_layout.addWidget(self._back_btn)

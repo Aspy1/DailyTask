@@ -238,6 +238,14 @@ class ExamPanel(QWidget):
                 lambda pos, ex=e, c=card: self._context_menu(pos, ex, c))
             self._card_layout.insertWidget(self._card_layout.count() - 1, card)
 
+        if not exams:
+            from src.ui.widgets.empty_state import empty_state
+
+            self._card_layout.insertWidget(0, empty_state(
+                tr("panel.exam.empty_title"), tr("panel.exam.empty_body"),
+                tr("panel.exam.btn_add"), lambda: self._add_exam(), self),
+                alignment=Qt.AlignmentFlag.AlignHCenter)
+
     def _add_exam(self, exam: dict | None = None) -> None:
         dlg = ExamDialog(exam, self)
         if dlg.exec():

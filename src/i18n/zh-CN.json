@@ -76,6 +76,7 @@
   "settings.auto_start": "开机自启动",
   "settings.minimize_to_tray": "最小化到托盘",
   "settings.reminder_enabled": "启用提醒",
+  "settings.animations_enabled": "界面动效",
   "settings.provider": "AI 提供商",
   "settings.api_key": "API 密钥",
   "settings.model": "模型",

@@ -1,6 +1,8 @@
 {
   "panel.exam.title": "考试",
   "panel.exam.btn_add": "添加",
+  "panel.exam.empty_title": "还没有考试安排",
+  "panel.exam.empty_body": "添加考试后，这里会按日期倒计时显示；也可以在课程表右键课程快速添加。",
   "panel.exam.btn_refresh": "刷新",
   "panel.exam.menu_edit": "编辑",
   "panel.exam.menu_delete": "删除",

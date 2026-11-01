@@ -32,6 +32,7 @@ from src.ui.styles.theme import (
     SIZE_BODY,
     SIZE_BODY_L,
     SIZE_BODY_S,
+    btn_primary_qss,
     btn_secondary_qss,
     combo_qss,
     font,
@@ -72,7 +73,6 @@ class SettingsPanel(QWidget):
         self._plugin_manager = plugin_manager
         self._data_manager = data_manager
         self._api_service = ApiService()  # API 服务
-        # Keep references to opened plugin windows to avoid GC closing them
         self._open_plugin_windows = []
 
         scroll = QScrollArea()
@@ -92,7 +92,6 @@ class SettingsPanel(QWidget):
         layout.addWidget(self._build_balance_card())
         layout.addWidget(self._section_heading(tr("panel.settings.section_weather")))
         layout.addWidget(self._build_weather_card())
-        # 插件管理
         if self._plugin_manager is not None:
             layout.addWidget(self._section_heading(tr("panel.settings.section_plugins")))
             layout.addWidget(self._build_plugins_card())
@@ -105,7 +104,6 @@ class SettingsPanel(QWidget):
         outer.setContentsMargins(0, 0, 0, 0)
         outer.addWidget(scroll)
 
-    # ── helpers ────────────────────────────────────────────
 
     def _c(self) -> dict:
         return get_colors()
@@ -225,7 +223,6 @@ class SettingsPanel(QWidget):
         self._update_status()
         return card
 
-    # ── General card ───────────────────────────────────────
 
     def _build_general_card(self) -> QFrame:
         c = get_colors()
@@ -250,6 +247,12 @@ class SettingsPanel(QWidget):
         layout.addWidget(self._row(tr("settings.reminder_enabled"), self._reminder))
         layout.addWidget(self._divider())
 
+        self._animations = ToggleSwitch()
+        self._animations.setChecked(
+            self._settings.get_bool("General", "animations_enabled", True))
+        layout.addWidget(self._row(tr("settings.animations_enabled"), self._animations))
+        layout.addWidget(self._divider())
+
         btn_row = QWidget()
         btn_row.setStyleSheet("background: transparent;")
         br = QHBoxLayout(btn_row)
@@ -268,7 +271,6 @@ class SettingsPanel(QWidget):
         layout.addWidget(btn_row)
         return card
 
-    # ── Provider logic ─────────────────────────────────────
 
     def _on_provider_changed(self) -> None:
         key = self._provider_combo.currentData()
@@ -361,11 +363,7 @@ class SettingsPanel(QWidget):
         test_btn = RoundedButton(tr("panel.settings.btn_send_test_email"))
         test_btn.setMinimumWidth(LAYOUT["button_width_lg"])
         test_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        test_btn.setStyleSheet(f"""
-            QPushButton {{ background-color: {c['accent']}; color: {c['fg_on_fill']}; border: none;
-                border-radius: 8px; padding: 6px 12px; font-weight: 600; font-size: {SIZE_BODY_S}px; }}
-            QPushButton:hover {{ background-color: {c['accent_hover']}; }}
-        """)
+        test_btn.setStyleSheet(btn_secondary_qss())
         test_btn.clicked.connect(self._send_test_email)
         trl.addWidget(test_btn)
         trl.addStretch()
@@ -380,11 +378,7 @@ class SettingsPanel(QWidget):
         save_btn = RoundedButton(tr("panel.settings.btn_save"))
         size_small_button(save_btn)
         save_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        save_btn.setStyleSheet(f"""
-            QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['fg_primary']}; border: none;
-                border-radius: 8px; font-weight: 600; font-size: {SIZE_BODY_S}px; }}
-            QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; }}
-        """)
+        save_btn.setStyleSheet(btn_primary_qss())
         save_btn.clicked.connect(self._save_email_settings)
         br.addWidget(save_btn)
         layout.addWidget(btn_row)
@@ -424,7 +418,6 @@ class SettingsPanel(QWidget):
         self._settings.save()
         QMessageBox.information(self, tr("panel.settings.dialog_title"), tr("panel.settings.msg_email_saved"))
 
-    # ── 天气设置卡片 ────────────────────────────────────────
     def _build_weather_card(self) -> QFrame:
         """天气设置卡片"""
         c = self._c()
@@ -511,7 +504,6 @@ class SettingsPanel(QWidget):
 
         from src.services.weather_store import read_json_safe
 
-        # 数据目录以 DataManager 为准（测试/自定义目录不再靠 `__file__` 猜）
         data_dir = (getattr(self._data_manager, "data_dir", None) or _DATA_DIR)
         stats_file = Path(data_dir) / "weather_stats.json"
         stats = read_json_safe(stats_file)          # 缺文件/损坏 → {}，不抛
@@ -536,7 +528,6 @@ class SettingsPanel(QWidget):
         self._update_weather_stats()
         QMessageBox.information(self, tr("panel.settings.dialog_title"), tr("panel.settings.msg_weather_saved"))
 
-    # ── 关于卡片 ────────────────────────────────────────────
     def _build_about_card(self) -> QFrame:
         """关于：版本 / 说明 / 仓库链接 / 数据目录（原侧边栏弹窗并入设置）。"""
         c = self._c()
@@ -572,7 +563,6 @@ class SettingsPanel(QWidget):
         """在文件管理器里打开 data/（数据是本地 JSON，用户可能想直接看）。"""
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(_DATA_DIR)))
 
-    # ── 插件卡片 ────────────────────────────────────────────
     def _build_plugins_card(self) -> QFrame:
         self._c()
         card = self._card()
@@ -677,7 +667,6 @@ class SettingsPanel(QWidget):
         except Exception:
             logger.debug("SettingsPanel.refresh_theme 中忽略异常", exc_info=True)
 
-    # ── Balance card ───────────────────────────────────────
 
     def _build_balance_card(self) -> QFrame:
         c = get_colors()
@@ -758,12 +747,16 @@ class SettingsPanel(QWidget):
         self._settings.save()
         QMessageBox.information(self, tr("panel.settings.dialog_title"), tr("panel.settings.msg_balance_saved"))
 
-    # ── General card ───────────────────────────────────────
 
     def _save_general_settings(self) -> None:
+        from src.ui import animations
+
         self._settings.set("General", "auto_start", str(self._auto_start.isChecked()).lower())
         self._settings.set("General", "minimize_to_tray", str(self._minimize_tray.isChecked()).lower())
         self._settings.set("General", "reminder_enabled", str(self._reminder.isChecked()).lower())
+        self._settings.set("General", "animations_enabled",
+                           str(self._animations.isChecked()).lower())
+        animations.set_enabled(self._animations.isChecked())
         self._settings.save()
         from src.app import set_autostart
         set_autostart(self._auto_start.isChecked())

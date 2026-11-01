@@ -277,7 +277,7 @@ class StudyPanel(QWidget):
     @staticmethod
     def _progress_qss() -> str:
         c = get_colors()
-        return (f"QProgressBar {{ background-color: {c['item_bg']}; border: none;"
+        return (f"QProgressBar {{ background-color: {c['border']}; border: none;"
                 f" border-radius: {RADIUS['radius_sm']}px; }}"
                 f" QProgressBar::chunk {{ background-color: {c['accent']};"
                 f" border-radius: {RADIUS['radius_sm']}px; }}")

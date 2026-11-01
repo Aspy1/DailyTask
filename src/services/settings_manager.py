@@ -27,6 +27,7 @@ DEFAULT_SETTINGS = {
         "minimize_to_tray": "true",
         "reminder_enabled": "true",
         "reminder_check_interval_minutes": "1",
+        "animations_enabled": "true",
         "first_run": "true",
     },
     "AI": {

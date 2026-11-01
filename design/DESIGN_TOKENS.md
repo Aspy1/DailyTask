@@ -204,6 +204,8 @@
 | `dialog_height_md` | 400 | 弹窗最小高 · 中 |
 | `dialog_height_lg` | 500 | 弹窗默认高 · 大 |
 | `progress_height` | 6 | 进度条高度 |
+| `stat_card_min_width` | 140 | 汇总卡最小宽（窄窗口时自动换行） |
+| `forecast_card_min_width` | 180 | 预计支出卡最小宽（内容最多） |
 | `course_header_min_width` | 64 | 课程表行头最小宽 |
 | `view_mode_width` | 36 | 日/周切换按钮宽 |
 <!-- TOKENS:layout:END -->

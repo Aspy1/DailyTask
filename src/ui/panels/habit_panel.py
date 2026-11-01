@@ -283,10 +283,12 @@ class HabitPanel(QWidget):
         # Floating + button
         c = get_colors()
         self._fab = RoundedButton("+", self)
+        self._fab.setAccessibleName(tr("habit.add"))
+        self._fab.setToolTip(tr("habit.add"))
         self._fab.setFixedSize(FAB, FAB)
         self._fab.setStyleSheet(f"""
             QPushButton {{ background-color: {c['accent']}; color: {c['fg_on_fill']}; border: none;
-                border-radius: 24px; font-size: {SIZE_FAB}px; font-weight: 600; }}
+                border-radius: {FAB // 2}px; font-size: {SIZE_FAB}px; font-weight: 600; }}
             QPushButton:hover {{ background-color: {c['accent_hover']}; }}
             QPushButton:pressed {{ background-color: {c['accent_dim']}; }}
         """)

@@ -8,6 +8,7 @@ import contextlib
 import json
 import logging
 import re
+import sys
 from pathlib import Path
 
 from PySide6.QtCore import QEvent, QLocale, QObject, Qt
@@ -362,10 +363,26 @@ def font(size: int | str, weight: int | QFont.Weight | None = None) -> QFont:
         if weight is None:
             weight = spec.get("weight")
     f = QFont(FONT_CN)
+    # 中文主字体没有 emoji 字形（提示条里的 ☔/🧺/🔑 会显示成方框）→ 显式 fallback
+    f.setFamilies([FONT_CN, "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji"])
     f.setPixelSize(int(size))
     if weight is not None:
         f.setWeight(QFont.Weight(weight))
     return f
+
+
+def _translation_dirs() -> list[str]:
+    """Candidate dirs: QLibraryInfo may point at another Qt install (user log, 2026-11-01)."""
+    import PySide6
+    from PySide6.QtCore import QLibraryInfo
+
+    candidates = [
+        QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath),
+        str(Path(PySide6.__file__).resolve().parent / "translations"),
+        str(Path(PySide6.__file__).resolve().parent / "Qt" / "translations"),
+        str(Path(sys.prefix) / "share" / "qt6" / "translations"),
+    ]
+    return list(dict.fromkeys(c for c in candidates if c))
 
 
 def _install_qt_translations(app: QApplication) -> None:
@@ -375,17 +392,18 @@ def _install_qt_translations(app: QApplication) -> None:
     加载 `.qm` 比逐个 `setText` 干净：日历、上下文菜单等 Qt 内部字符串也一并中文化。
     `.qm` 随 PySide6 分发（`PySide6/translations/qt_zh_CN.qm`）。
     """
-    from PySide6.QtCore import QLibraryInfo, QTranslator
+    from PySide6.QtCore import QTranslator
 
     translator = QTranslator(app)
-    path = QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)
-    if translator.load("qt_zh_CN", path):
-        app.installTranslator(translator)
-        # ⚠ 必须留引用：translator 被回收后翻译就失效了（Qt 的经典坑）
-        app._qt_translator = translator
-    else:
-        log = logging.getLogger(__name__)
-        log.warning("qt_zh_CN.qm 加载失败（%s）", path)
+    tried: list[str] = []
+    for path in _translation_dirs():
+        tried.append(path)
+        if (Path(path) / "qt_zh_CN.qm").exists() and translator.load("qt_zh_CN", path):
+            app.installTranslator(translator)
+            # ⚠ 必须留引用：translator 被回收后翻译就失效了（Qt 的经典坑）
+            app._qt_translator = translator
+            return
+    logging.getLogger(__name__).warning("qt_zh_CN.qm load failed (tried %s)", tried)
 
 
 def init_theme(app: QApplication, mode: str = "light") -> str:
@@ -417,7 +435,7 @@ def init_theme(app: QApplication, mode: str = "light") -> str:
 def build_theme(mode: str) -> str:
     t = TOKENS.get(mode, TOKENS["light"])
     return f"""
-* {{ font-family: "{FONT_CN}", "Microsoft YaHei", sans-serif; }}
+* {{ font-family: "{FONT_CN}", "Segoe UI Emoji", "Segoe UI Symbol", "Microsoft YaHei", sans-serif; }}
 
 /* ── Base ────────────────────────────────── */
 

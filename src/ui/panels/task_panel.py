@@ -163,10 +163,7 @@ class TaskPanel(QWidget):
         self._table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self._table.setShowGrid(False)
         self._table.setAlternatingRowColors(True)
-        self._table.setSortingEnabled(False)
-        self._table.horizontalHeader().setSortIndicatorShown(False)
         self._table.horizontalHeader().setSectionsClickable(False)
-        self._table.horizontalHeader().setSortIndicatorShown(False)
         layout.addWidget(self._table, stretch=1)
 
         # ── Footer ───────────────────────────────────────────
@@ -336,7 +333,6 @@ class TaskPanel(QWidget):
 
             self._set_check_cell(i, t)
 
-        self._table.setSortingEnabled(True)
         page_str = (tr("panel.task.page_info", page=self._page + 1, total=max_page + 1)
                     if total > PAGE_SIZE else "")
         self._count_label.setText(tr("panel.task.count", total=total, page=page_str))

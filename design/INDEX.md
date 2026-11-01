@@ -21,6 +21,8 @@
 | **弹窗规范** | `MD-files/CODE_STANDARDS.md` → `Q-H9 ~ Q-H14` | 结构/尺寸/按钮区/输入高度/配色/跟主题 |
 | **圆角绘制** | `CODE_STANDARDS` `Q-H17` + `theme.install_rounded_frame_fixer()` | 原生方框会露出方角（`ERRORS #032`） |
 | **卡片 / 圆角框**（内容展示类） | `src/ui/styles/cards.py` 的 `card()` | **唯一实现**（自绘抗锯齿）。变体 `panel`/`item`/`sub`/`chip`/`bubble`/`pill`；**不传像素尺寸**（长宽交给 layout）；`pad=`/`bg=`/`hover_bg=` 只接受令牌名 |
+| **空态卡片**（无数据页面） | `src/ui/widgets/empty_state.py` → `empty_state()` | 标题 + 说明 + 可选主操作；尺寸/颜色走令牌（`Q-H21`） |
+| **现代化审查标准 / 结果** | `MD-files/MODERNIZATION.md` | 动效、空/错/载三态、响应式、可访问性、维护性（M-xxx） |
 | **设计原型**（意图参考） | `design/showcase.html`、`design/sidebar-preview.html` | 2026-06 的原型，**只作意图与结构参考**，数值以 `tokens.json` 为准（见 §3） |
 | 视觉审查记录 / 决策 | `dev-logs/2026-10-16-UI视觉审查与设置改造.md` | 每个"为什么这么改"都在里面 |
 

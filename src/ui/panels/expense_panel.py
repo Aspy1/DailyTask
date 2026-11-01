@@ -32,9 +32,8 @@ from src.ui.styles.theme import (
     get_colors,
     input_qss,
     is_accent_button,
-    mark_accent_button,
-    size_small_button,
 )
+from src.ui.widgets.flow_grid import FlowGrid
 from src.ui.widgets.menu import (
     add_action,
     add_separator,
@@ -42,7 +41,6 @@ from src.ui.widgets.menu import (
     show_below,
 )
 from src.ui.widgets.rounded_button import RoundedButton
-from src.ui.widgets.rounded_input import RoundedComboBox, RoundedLineEdit
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +48,6 @@ logger = logging.getLogger(__name__)
 class ExpensePanel(QWidget):
     def __init__(self, dm: DataManager, parent=None) -> None:
         super().__init__(parent)
-        c = get_colors()
         self._dm = dm
         self._filter_category: str = ""
         self._filter_start: str = ""
@@ -96,78 +93,18 @@ class ExpensePanel(QWidget):
 
         layout.addWidget(self._build_summary_row())
 
-        # ── Add row ──────────────────────────────────────────
-        add_row = QWidget()
-        self._add_row = add_row
-        add_row.setStyleSheet(self._band_qss())
-        al = QHBoxLayout(add_row)
-        al.setContentsMargins(16, 4, 16, 4)
-        al.setSpacing(8)
-        self._amount_input = RoundedLineEdit()
-        self._amount_input.setPlaceholderText(tr("expense.amount"))
-        self._amount_input.setFixedWidth(LAYOUT["input_width_md"])
-        self._amount_input.setStyleSheet(self._input_qss())
-        al.addSpacing(80)
-        al.addWidget(self._amount_input)
+        # ── Add / savings rows（拆到 expense_inputs.py，控制类行数 Q-A1）──
+        from src.ui.panels.expense_inputs import build_add_row, build_savings_row
 
-        self._cat_combo = RoundedComboBox()
-        self._cat_combo.setFixedWidth(LAYOUT["input_width_lg"])
-        self._cat_combo.setStyleSheet(self._combo_qss())
-        cats = self._dm.expenses.categories
-        for cat in cats:
-            self._cat_combo.addItem(cat.get("name", cat["id"]), cat["id"])
-        al.addWidget(self._cat_combo)
-
-        self._note_input = RoundedLineEdit()
-        self._note_input.setPlaceholderText(tr("panel.expense.placeholder_note"))
-        self._note_input.setStyleSheet(self._input_qss())
-        al.addWidget(self._note_input)
-
-        add_btn = RoundedButton(tr("panel.expense.btn_add"))
-        size_small_button(add_btn, 56)
-        c = get_colors()
-        add_btn.setStyleSheet(f"""
-            QPushButton {{ background-color: {c['accent']}; color: {c['fg_on_fill']}; border: none;
-                border-radius: 8px; padding: 5px 12px; font-weight: 600; font-size: {SIZE_BODY_S}px; }}
-            QPushButton:hover {{ background-color: {c['accent_hover']}; }}
-        """)
-        add_btn.clicked.connect(self._add_expense)
-        mark_accent_button(add_btn)          # 主按钮：强调色填充（刷新时按属性判断，不看文案）
-        al.addWidget(add_btn)
-        layout.addWidget(add_row)
-
-        # ── Savings row ───────────────────────────────────────
-        sav_row = QWidget()
-        self._sav_row = sav_row
-        sav_row.setStyleSheet(self._sub_band_qss())
-        sl = QHBoxLayout(sav_row)
-        sl.setContentsMargins(16, 4, 16, 4)
-        sl.setSpacing(8)
-        sav_label = QLabel(tr("panel.expense.label_saving"))
-        sav_label.setFixedWidth(80)              # 两个金额框**左对齐**（add 行也有 80px 缩进）
-        sav_label.setStyleSheet(self._sub_label_qss())
-        sl.addWidget(sav_label)
-        self._sav_amount = RoundedLineEdit()
-        self._sav_amount.setPlaceholderText(tr("panel.expense.placeholder_saving_amount"))
-        self._sav_amount.setFixedWidth(80)       # 与上面「金额」输入框同宽
-        self._sav_amount.setStyleSheet(self._input_qss())
-        sl.addWidget(self._sav_amount)
-        self._sav_note = RoundedLineEdit()
-        self._sav_note.setPlaceholderText(tr("panel.expense.placeholder_saving_note"))
-        self._sav_note.setStyleSheet(self._input_qss())
-        sl.addWidget(self._sav_note)
-        sav_btn = RoundedButton(tr("panel.expense.btn_record_saving"))
-        size_small_button(sav_btn, 70)
-        sav_btn.setStyleSheet(f"""
-            QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
-                border: 1px solid {c['border_strong']}; border-radius: 8px; padding: 5px 12px;
-                font-size: {SIZE_BODY_S}px; }}
-            QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; color: {c['btn_secondary_hover_fg']}; }}
-        """)
-        sav_btn.clicked.connect(self._add_saving)
-        sl.addWidget(sav_btn)
-        sl.addStretch()
-        layout.addWidget(sav_row)
+        self._add_row, self._amount_input, self._cat_combo, self._note_input = (
+            build_add_row(self._dm.expenses.categories, self._input_qss(),
+                          self._combo_qss(), self._band_qss(), self._sub_label_qss(),
+                          self._add_expense))
+        layout.addWidget(self._add_row)
+        self._sav_row, self._sav_amount, self._sav_note = build_savings_row(
+            self._input_qss(), self._sub_band_qss(), self._sub_label_qss(),
+            self._add_saving)
+        layout.addWidget(self._sav_row)
 
         # ── Table ────────────────────────────────────────────
         self._table = QTableWidget(0, 4)
@@ -252,22 +189,30 @@ class ExpensePanel(QWidget):
                 f" border-radius: {RADIUS['radius_md']}px;")
 
     def _build_summary_row(self) -> QWidget:
-        """四张汇总卡 + 「预计本月支出」（A4：数值由 `services/finance` 算）。"""
-        cards = QWidget()
-        cards.setStyleSheet("background: transparent;")
-        cl = QHBoxLayout(cards)
-        cl.setContentsMargins(16, 12, 16, 8)
-        cl.setSpacing(12)
+        """四张汇总卡 + 「预计本月支出」（A4：数值由 `services/finance` 算）。
+
+        ⚠ 用 `FlowGrid` 而不是 `QHBoxLayout`：窄窗口 + 展开 AI 时（约 725px 内容宽）
+        5 张卡放不下，横排会把「预计本月支出」挤到裁切（2026-11-01 截图实测）。
+        """
         self._sum_month = summary_card("month", tr("panel.expense.sum_month"))
         self._sum_today = summary_card("today", tr("panel.expense.sum_today"))
         self._sum_budget = summary_card("budget", tr("panel.expense.sum_budget"))
         self._sum_saved = summary_card("saved", tr("panel.expense.sum_saved"))
         self._forecast = ForecastCard()
-        for widget in (self._sum_month, self._sum_today, self._sum_budget,
-                       self._sum_saved, self._forecast):
-            cl.addWidget(widget)
-        cl.addStretch()
-        return cards
+        grid = FlowGrid(uniform=False)
+        grid.setSpacing(12)
+        for widget, min_width in (
+            (self._sum_month, LAYOUT["stat_card_min_width"]),
+            (self._sum_today, LAYOUT["stat_card_min_width"]),
+            (self._sum_budget, LAYOUT["stat_card_min_width"]),
+            (self._sum_saved, LAYOUT["stat_card_min_width"]),
+            (self._forecast, LAYOUT["forecast_card_min_width"]),
+        ):
+            widget.setParent(grid)
+            widget.setMinimumWidth(min_width)
+            widget.show()
+        grid._layout_children()
+        return grid
 
     def _find_sum_label(self, key: str) -> QLabel:
         for child in self.findChildren(QLabel):

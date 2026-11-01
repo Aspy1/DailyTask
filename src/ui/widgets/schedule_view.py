@@ -120,7 +120,6 @@ class ScheduleView(QWidget):
         super().__init__(parent)
         self._dm = dm
         self._day_offset = 0
-
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
@@ -155,6 +154,7 @@ class ScheduleView(QWidget):
         for btn, mode in ((self._mode_day, "day"), (self._mode_week, "week")):
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
             btn.setFixedWidth(LAYOUT["view_mode_width"])
+            btn.setToolTip(tr(f"widget.schedule.mode_{mode}_tip"))
             btn.clicked.connect(lambda checked=False, m=mode: self._set_mode(m))
             bl.addWidget(btn)
 

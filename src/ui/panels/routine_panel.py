@@ -195,8 +195,12 @@ class RoutineBoard(QWidget):
         self._layout.insertWidget(len(self._cards), card)
         self._cards.append(card)
 
+    def add_empty(self, widget: QWidget) -> None:
+        """空态卡片（没有卡片时才加）。"""
+        self._layout.insertWidget(0, widget, alignment=Qt.AlignmentFlag.AlignHCenter)
+
     def add_note(self, text: str) -> None:
-        """空态提示（没有卡片时才加）。"""
+        """兼容旧调用的纯文本空态。"""
         note = QLabel(text)
         note.setWordWrap(True)
         note.setStyleSheet(
@@ -302,7 +306,11 @@ class RoutinePanel(QWidget):
             card.show()
             self._board.add_card(card)
         if not items:
-            self._board.add_note(tr("panel.routine.empty"))
+            from src.ui.widgets.empty_state import empty_state
+
+            self._board.add_empty(empty_state(
+                tr("panel.routine.empty_title"), tr("panel.routine.empty"),
+                tr("panel.routine.btn_add"), self._on_add, self._board))
         self._update_count()
 
     def _update_count(self) -> None:

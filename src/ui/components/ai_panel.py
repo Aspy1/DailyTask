@@ -64,7 +64,7 @@ class _ChatInput(QTextEdit):
                 border: 1px solid {c['input_border']};
                 border-radius: 8px;
                 padding: 6px 10px;
-                font-family: "Microsoft YaHei UI", "Consolas", sans-serif;
+                font-family: "Microsoft YaHei UI", "Segoe UI Emoji", "Consolas", sans-serif;
                 font-size: {SIZE_BODY}px;
             }}
             QTextEdit:focus {{ border-color: {c['focus_ring']}; }}
