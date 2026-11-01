@@ -89,10 +89,13 @@
 .venv/Scripts/python.exe scripts/ui_button_smoke.py     # 131 buttons / 0 errors
 QT_QPA_FONTDIR=C:\Windows\Fonts \
   .venv/Scripts/python.exe scripts/ui_render.py --out shots-modern   # 49 张
-.venv/Scripts/python.exe -m pytest -q                    # 892 passed
+.venv/Scripts/python.exe -m pytest -q                    # 895 passed
 .venv/Scripts/python.exe scripts/ui_walkthrough.py       # 39/39
 .venv/Scripts/python.exe scripts/acceptance_check.py     # 79/79
+.venv/Scripts/python.exe scripts/ui_visual_audit.py     # 18/18
 ```
+
+原始输出与关键截图：`dev-logs/evidence/2026-11-01/`。
 
 结果记录在 `dev-logs/2026-11-01-全量冒烟测试报告.md` 与
 `dev-logs/2026-11-01-现代化整改报告.md`。

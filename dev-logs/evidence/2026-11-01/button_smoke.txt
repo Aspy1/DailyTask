@@ -1,0 +1,3 @@
+buttons clicked: 131
+errors: 0
+BUTTON_SMOKE_EXIT=0

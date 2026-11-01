@@ -1,0 +1,29 @@
+== compileall ==
+COMPILEALL_EXIT=0
+== ruff ==
+All checks passed!
+RUFF_EXIT=0
+== ui tokens ==
+
+—— 汇总 ——
+检查文件: 102 | 违规: 0
+TOKENS_EXIT=0
+== quality ==
+— 工程规范门禁 —
+BASELINE  存量基线文件存在
+SIZE       超限 21 项（baseline 22）；新增/加重 0 项
+SILENT     `except: pass` 0 处（必须 0）
+ID-GEN     `len()+1` 生成 ID 0 处（必须 0）
+LOG-STRIP  日志嵌在表达式里 0 处（必须 0）
+LOG-ONLY   日志是块内唯一语句 34 处（baseline 34，未增加）
+TOKEN-NAME 违规 10 项（baseline 10）；新增 0 项
+I18N       src/ui 中文字面量 93 处（按文件比 baseline）；新增/加重 0 个文件
+TOP-DIR    通过
+SECRET     通过（settings.ini 未入库）
+SECRETS    新出现的疑似密钥 0 处（必须 0）
+VULTURE    通过
+RADON      通过
+IMPORT-LINTER 通过
+
+✓ 全部通过
+QUALITY_EXIT=0

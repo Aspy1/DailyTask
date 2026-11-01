@@ -1,0 +1,46 @@
+sandbox: C:\Users\ASUS\AppData\Local\Temp\lifeassistant-walkthrough-b8192ldy
+PASS  window/show
+PASS  nav/schedule
+PASS  nav/tasks
+PASS  nav/exams
+PASS  nav/daily
+PASS  nav/routines
+PASS  nav/study
+PASS  nav/expenses
+PASS  nav/inventory
+PASS  nav/meals
+PASS  nav/settings
+PASS  schedule/week
+PASS  schedule/day
+PASS  ai/visible
+PASS  task/complete
+PASS  task/filter
+PASS  habit/log
+PASS  routine/cycle
+PASS  expense/add
+PASS  expense/saving
+PASS  inventory/status
+PASS  inventory/side
+PASS  theme/dark
+PASS  theme/light
+PASS  ai/thread-finished
+PASS  ai/executed-task
+PASS  ai/facts
+PASS  ai/no-false-claim
+AI 第 1 轮没有可执行命令，要求继续：[系统] 你说了"已记录/已完成"，但这一轮**没有任何命令** —— 数据不会
+AI 第 2 轮没有可执行命令，要求继续：[系统] 你说了"已记录/已完成"，但这一轮**没有任何命令** —— 数据不会
+PASS  ai/thread-finished
+PASS  ai/claims-without-command
+PASS  ai/thread-finished
+PASS  ai/failed-command
+PASS  ai/thread-finished
+PASS  ai/batch-course
+PASS  ai/batch-task
+PASS  ai/batch-expense
+PASS  ai/batch-facts
+PASS  app/launch
+PASS  app/no-traceback
+
+39/39 checks passed
+ALL CHECKS PASSED
+WALKTHROUGH_EXIT=0

@@ -1,0 +1,21 @@
+PASS  状态栏加载离线天气 — weather_label='天气: 8°C 小雨'
+PASS  天气详情有 3 行预报 — rows=3
+PASS  第1行日期/天气/温度非空 — date='2026-11-02' text='多云' temp='7°C ~ 15°C'
+PASS  第1行天气标签可见 — visible=True
+PASS  第2行日期/天气/温度非空 — date='2026-11-03' text='晴' temp='8°C ~ 17°C'
+PASS  第2行天气标签可见 — visible=True
+PASS  第3行日期/天气/温度非空 — date='2026-11-04' text='小雨' temp='9°C ~ 14°C'
+PASS  第3行天气标签可见 — visible=True
+PASS  窄窗口汇总卡不越界 — panel_width=545 rights=[139, 291, 443, 139, 360]
+PASS  程序化跳转同步侧栏 — sidebar='expenses'
+PASS  近期安排空态存在 — labels=['还没有近期安排']
+PASS  设置页界面动效开关存在 — labels=['界面动效']
+PASS  任务表排序确实关闭 — isSortingEnabled=False
+PASS  截图集数量 >= 40 — count=49
+PASS  截图 dialog-weather.png 可读/非空 — size=360x366 colors=18
+PASS  截图 light-narrow-expenses-ai.png 可读/非空 — size=990x638 colors=70
+PASS  截图 light-routines.png 可读/非空 — size=1210x792 colors=40
+PASS  截图 light-settings-0.5.png 可读/非空 — size=1210x792 colors=81
+
+VISUAL_AUDIT PASS (18/18)
+VISUAL_AUDIT_EXIT=0
