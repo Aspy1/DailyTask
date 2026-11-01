@@ -101,6 +101,7 @@ ui ──→ services ──→ models ──→ base(BaseJsonModel)
 | `ScheduleView` | `course_table_requested` / `task_focus_requested(str)` | `MainWorkspace` | 日/周 切换通知 / 跨面板跳转 |
 | `ScheduleView` | `fill_ai_prompt(str)` | `MainWorkspace` → `MainWindow._on_course_fill_ai` | 日视图课程右键填充 AI |
 | `MainWorkspace` | `fill_ai_prompt(str)` | `MainWindow._on_course_fill_ai` | 周视图课程右键填充 AI |
+| `MainWorkspace` | `panel_changed(str)` | `Sidebar.set_active` | 程序化跳转（状态栏/课程）同步左侧高亮 |
 | `Sidebar` | `nav_changed(str)` / `ai_toggled(bool)` | `MainWindow` | 导航 / AI 面板开关 |
 | `CourseTable` | `fill_ai_prompt(str)` | `MainWindow._on_course_fill_ai` | 右键填充 AI 提示词 |
 | `WeatherService` | `weather_updated(dict)` / `forecast_updated(list)` | `MainWindow` / `WeatherDetailDialog` | 天气刷新 |
@@ -133,6 +134,11 @@ ui ──→ services ──→ models ──→ base(BaseJsonModel)
 - ✅ 余额/天气缓存由类属性改为实例属性；`RUF012` 清零
 - ✅ `QThread.terminate()` 已移除（改按 `sender()` 丢弃过期结果）
 - ✅ `weather_service` 按接口类型管理 worker；`git_sync` 等均 `deleteLater`
+- ✅ **QThread 结果信号不遮蔽基类 `finished`**（`ERRORS #058`）：`WeatherWorker.result` /
+  `_ApiWorker.result` / `_GitWorker.done`；回收统一连 `QThread.finished`；
+  `WeatherService.shutdown()` / `MainWindow.shutdown()` 在退出前 `wait()` 线程
+- ✅ 天气派生缓存（`weather_cache.json`）启动即加载，离线也能显示状态栏与详情；
+  `WeatherService(settings, data_dir=...)` 可注入沙箱目录（测试不碰真实 `data/`）
 - ✅ **系统提示词构建不再同步发网络请求**：余额/天气缓存改由一次性守护线程预热
   （`AIService._warm_context_cache`），`_build_system_prompt` 只读缓存；预热不触碰主线程属主的 `WeatherService`
 - 🔄 `actions.run_in_process` 仍用 `contextlib.redirect_stdout`（已加锁串行化；彻底修复需 handler 返回字符串）

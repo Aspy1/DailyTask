@@ -93,6 +93,15 @@
 - 检查：`ruff --select B023`（在固定规则集内，已接 CI）。
 - 现状：`✔` 2026-10-16：**3 处已修**（`a189421`），ruff `B023` 现为 **0**。
 
+**Q-B7 QThread 子类的自定义信号不得叫 `finished` / `error`**
+- 为什么：`QThread` 自带 `finished`；同名信号会**遮蔽**基类信号，`worker.finished.connect(worker.deleteLater)`
+  实际连到"run() 里刚发出、线程还没结束"的结果信号 → QThread 在运行中被销毁，打印
+  `QThread: Destroyed while thread '' is still running` 并可能崩溃（2026-11-01 用户日志）。
+- 做法：结果信号用 `result` / `failed` / `done`；对象回收连 **`QThread.finished`**；服务退出时
+  `shutdown()` 先停定时器再 `wait()` 线程。
+- 检查：`tests/test_weather_dialog.py::test_qthread_subclasses_do_not_shadow_finished`
+  （`WeatherWorker` / `_ApiWorker` / `_GitWorker` 结构断言）。
+
 ## C. 复杂度与资源
 
 **Q-C1 圈复杂度 ≤ 10（B 级）**
@@ -342,6 +351,18 @@
   而且"只检查颜色/字号"的门禁看不见它们
 - 检查：`check_ui_tokens.py` 的 `SIZE-LIT`（必须 0）+ `tests/test_layout_tokens.py`（键必须存在）
 - 现状：`✔` 2026-11-01：44 处 → 0；`DESIGN_TOKENS.md` 的控件/布局表由生成器产出
+
+**Q-H21 空态 / 加载 / 错误三态必须可见**
+- 每个数据页面至少要有：有数据、**空数据**（说明 + 下一步）、**失败**（原因 + 可重试）。
+  典型反例：天气弹窗没配置 Key 时刷新按钮永远停在 `...`；预报无数据时只留三行空白。
+- 做法：空态统一用 `src/ui/widgets/empty_state.py`；错误态给可操作文案；加载态结束后必须恢复按钮。
+- 检查：`tests/test_weather_dialog.py`（刷新无凭证恢复 + 错误文案）、`scripts/ui_button_smoke.py`。
+
+**Q-H22 窄窗口下列表/卡片必须换行，不得裁切**
+- 判据：`990×638` + 展开 AI（内容宽约 725px）时，`expenses` 的 5 张汇总卡、工具栏、状态栏
+  都不能越界。横排固定 `QHBoxLayout` 在卡片数量多时必裁 → 用 `FlowGrid` 或响应式列数。
+- 检查：`tests/test_ui_modernization.py::test_expense_summary_wraps_in_narrow_window` +
+  `scripts/ui_render.py` 的 `*-narrow-*` 截图。
 
 ## I. 异常与错误处理
 

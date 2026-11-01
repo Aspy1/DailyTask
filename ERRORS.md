@@ -72,6 +72,8 @@
 | 补跑逐分钟扫几天 → 启动卡死 | #055 | 性能 |
 | 邮件在主线程同步 SMTP → UI 冻结 | #056 | 线程 |
 | 日视图 hash 漏 done / prompt 借 data_changed | #057 | UI |
+| QThread 自定义 finished 遮蔽基类 → 运行中被 deleteLater | #058 | 线程 |
+| 只插入行内第一个控件 → 天气预报只剩日期 | #059 | UI |
 
 ---
 
@@ -1052,3 +1054,38 @@ Python 看到函数体里有 `card = …` 就把 `card` 判为**局部名**，�
 - **凡是"按当前时刻出结果"的函数，测试一律传 `now`**；不传就等于让跑测试的时刻决定成败；
 - 本地绿 ≠ CI 绿 —— 与时间相关的断言先问一句"如果现在是 11:45 会怎样"；
 - 加时间窗口类功能时，`grep -rn "today_hints\|now=" tests/` 把老测试一并改掉。
+
+---
+
+### #058 | 2026-11-01 | QThread 自定义 `finished` 遮蔽基类信号 → 线程运行中被销毁
+
+**症状**：点天气「刷新」后退出/刷新，控制台出现
+`QThread: Destroyed while thread '' is still running`，偶发崩溃。
+
+**根因**：`WeatherWorker` / `_ApiWorker` / `_GitWorker` 都继承 `QThread` 并声明了
+`finished = Signal(...)`。同名信号**遮蔽**了 `QThread.finished`，于是
+`worker.finished.connect(worker.deleteLater)` 连到的是 `run()` 内刚发出的结果信号——
+此时线程还没真正结束，QThread 对象被删 → Qt 报 "Destroyed while running"。
+
+**修复**：结果信号改名 `result` / `failed` / `done`；回收统一连基类 `QThread.finished`；
+`WeatherService.shutdown()` 先停定时器再 `wait()` 线程；`MainWindow.shutdown()` 在退出时调用。
+结构测试：`tests/test_weather_dialog.py::test_qthread_subclasses_do_not_shadow_finished`。
+
+**教训**：**子类不要复用 Qt 基类的信号名**（`finished` / `error` / `clicked` 等）。
+QThread 的清理只能等 `QThread.finished`，结果信号发出 ≠ 线程结束。
+
+---
+
+### #059 | 2026-11-01 | 天气「未来3天」只显示日期
+
+**症状**：打开天气详情，未来三天只有日期列，天气文字、温度、降雨都不显示。
+
+**根因**：`_build_forecast_rows()` 每行建了 `QHBoxLayout`，但只把
+`row_layout.itemAt(0).widget()`（日期 QLabel）插进主布局；其余三个标签没有父控件/布局，
+永远不会显示。
+
+**修复**：每行包一个 `QWidget` 容器，把**整行**插进主布局；补测试断言日期/天气/温度
+都非空且 `isVisible()`。
+
+**教训**：**布局里"加了一个控件的子控件"不等于加了整行**；容器要么 `insertLayout`，
+要么先包 QWidget。截图审查必须覆盖弹窗内容，不能只看主面板。
