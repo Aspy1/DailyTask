@@ -48,7 +48,8 @@ from src.ui import animations  # noqa: E402
 from src.ui.main_window import MainWindow  # noqa: E402
 from src.ui.styles import theme  # noqa: E402
 
-PANELS = ["schedule", "tasks", "exams", "daily", "expenses", "inventory", "settings", "meals"]
+PANELS = ["schedule", "tasks", "exams", "daily", "routines", "study",
+          "expenses", "inventory", "settings", "meals"]
 LONG_COURSE = "计算机系统结构与并行程序设计实验"
 LONG_TASK = "完成计算机系统结构综合实验报告并提交源代码与完整测试说明"
 LONG_ITEM = "多功能 USB-C 数据线（2 米编织款，兼容平板与笔记本电脑）"
@@ -131,8 +132,20 @@ class _Renderer:
         settings.set("AI", "api_key", "sk-" + "render" + "0" * 24)
         # 天气派生缓存：没有它「今日提示」条整条隐藏（截图里看不到）
         (sandbox / "weather_cache.json").write_text(
-            json.dumps({"now": {"weathercode": 61, "temp": 8, "text": "小雨"},
-                        "forecast": []}, ensure_ascii=False), encoding="utf-8")
+            json.dumps({
+                "now": {"weathercode": 61, "temp": 8, "text": "小雨",
+                        "feelsLike": 6, "humidity": 82, "windDir": "北", "windScale": "3"},
+                "now_time": "2026-11-01T11:30:00",
+                "forecast": [
+                    {"fxDate": "2026-11-02", "textDay": "多云", "tempMin": 7,
+                     "tempMax": 15, "precip": "0.0"},
+                    {"fxDate": "2026-11-03", "textDay": "晴", "tempMin": 8,
+                     "tempMax": 17, "precip": "0.0"},
+                    {"fxDate": "2026-11-04", "textDay": "小雨", "tempMin": 9,
+                     "tempMax": 14, "precip": "2.4"},
+                ],
+                "forecast_time": "2026-11-01T11:30:00",
+            }, ensure_ascii=False), encoding="utf-8")
         self.mw = MainWindow(settings, AIService(settings, self.dm), self.dm)
         self.mw.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
         self.mw._status_timer.stop()
@@ -229,11 +242,14 @@ class _Renderer:
         from src.ui.panels.habit_panel import HabitDialog
         from src.ui.widgets.course_detail_dialog import CourseDetailDialog
         from src.ui.widgets.semester_dialog import SemesterDialog
+        from src.ui.widgets.weather_dialog import WeatherDetailDialog
 
         self.mw._switch_theme("light")
         for name, build in (("semester", lambda: SemesterDialog(self.dm)),
                             ("habit", lambda: HabitDialog(self.dm)),
                             ("exam", ExamDialog),
+                            ("weather", lambda: WeatherDetailDialog(
+                                self.mw._weather_service)),
                             ("course", lambda: CourseDetailDialog(self.dm, "计算机系统结构"))):
             dlg = build()
             dlg.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
