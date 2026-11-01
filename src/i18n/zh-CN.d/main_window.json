@@ -34,8 +34,11 @@
   "window.status.ddl_none": "暂无DDL",
 
   "window.weather.title": "天气详情",
+  "window.weather.now_title": "实时天气",
   "window.weather.refresh": "刷新",
+  "window.weather.not_configured": "未配置天气服务（API Host / Key），请先在设置里填写。",
   "window.weather.forecast_title": "未来3天预报",
+  "window.weather.forecast_empty": "暂无预报数据，点击「刷新」获取。",
   "window.weather.updated_at": "最后更新: {time}",
   "window.weather.feels_like": "{text}  ·  体感 {feels}°C",
   "window.weather.humidity": "湿度 {value}%",

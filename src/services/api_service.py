@@ -18,9 +18,14 @@ from src.services import deepseek, openmeteo
 
 
 class _ApiWorker(QThread):
-    """异步 API 请求 Worker"""
-    finished = Signal(dict)
-    error = Signal(str)
+    """异步 API 请求 Worker。
+
+    ⚠ 自定义信号不能叫 `finished` / `error`（会遮蔽 `QThread.finished`，
+    导致线程运行中被 `deleteLater`，见 `WeatherWorker` 的说明）。
+    """
+
+    result = Signal(dict)
+    failed = Signal(str)
 
     def __init__(self, api_type: str, **kwargs: Any) -> None:
         super().__init__()
@@ -35,10 +40,10 @@ class _ApiWorker(QThread):
                 result = deepseek.fetch_balance(**self._kwargs)
             else:
                 result = {"error": f"Unknown API type: {self._api_type}"}
-            self.finished.emit(result)
+            self.result.emit(result)
         # 边界捕获：本层已处理/记录，不允许异常向上逃逸（CODE_STANDARDS Q-I1）
         except Exception as e:  # noqa: BLE001
-            self.error.emit(str(e))
+            self.failed.emit(str(e))
 
 
 class ApiService(QObject):
@@ -81,10 +86,10 @@ class ApiService(QObject):
         """
         worker = _ApiWorker(api_type, **kwargs)
         self._current_worker = worker
-        worker.finished.connect(self._on_worker_finished)
-        worker.error.connect(self._on_worker_error)
+        worker.result.connect(self._on_worker_finished)
+        worker.failed.connect(self._on_worker_error)
+        # 回收连 QThread.finished（线程真正结束后）；不能连结果信号
         worker.finished.connect(worker.deleteLater)
-        worker.error.connect(worker.deleteLater)
         worker.start()
 
     def _on_worker_finished(self, result: dict) -> None:

@@ -133,8 +133,8 @@ class MainWindow(QMainWindow):
         self._ai_visible = False
         self._arrange_pending = False
 
-        # 天气服务
-        self._weather_service = WeatherService(settings)
+        self._weather_service = WeatherService(
+            settings, data_dir=self._data_manager.data_dir)
         if settings.weather_api_key and settings.weather_api_host:
             self._weather_service.set_credentials(
                 settings.weather_api_host, settings.weather_api_key)
@@ -142,11 +142,12 @@ class MainWindow(QMainWindow):
                 self._weather_service.start_auto_update()
         self._weather_service.weather_updated.connect(self._on_weather_updated)
 
-        # 将天气服务传递给AI服务
         ai_service.set_weather_service(self._weather_service)
 
         self._setup_ui()
         self._setup_statusbar()
+        if self._weather_service.get_now():
+            self._on_weather_updated(self._weather_service.get_now())
         self._connect_ai()
 
         self._status_timer = QTimer(self)
@@ -186,8 +187,9 @@ class MainWindow(QMainWindow):
         # ── Wire sidebar signals ───────────────────────────────
         self._sidebar.nav_changed.connect(self._on_sidebar_nav)
         self._sidebar.ai_toggled.connect(self._on_ai_toggle)
+        # 程序化跳转（状态栏 DDL/考试、课程"查看事项"）也同步侧边栏高亮
+        self._workspace.panel_changed.connect(self._sidebar.set_active)
         # 数据变化 → **立即**刷新状态栏。
-        # 此前只靠 30s 定时器：切学期后会显示上一个学期的数字（全量验收发现）。
         self._data_manager.data_changed.connect(self._on_data_changed)
 
         # Course table / schedule day view → AI prompt fill
@@ -204,7 +206,6 @@ class MainWindow(QMainWindow):
             self._on_ai_toggle(True)
         self._ai_panel.fill_input(prompt)
 
-    # ── Navigation ─────────────────────────────────────────────
 
     def _on_sidebar_nav(self, key: str) -> None:
         if key == "more":
@@ -321,7 +322,6 @@ class MainWindow(QMainWindow):
 
         dlg.exec()
 
-    # ── Status bar ─────────────────────────────────────────────
 
     @staticmethod
     def _statusbar_qss(c: dict) -> str:
@@ -347,11 +347,9 @@ class MainWindow(QMainWindow):
         self._ai_service.instructions_executed.connect(
             self._on_instructions_done)
 
-        # Schedule quick arrange
         self._workspace._schedule_view.arrange_requested.connect(
             self._on_quick_arrange)
 
-    # ── AI ─────────────────────────────────────────────────────
 
     def _on_ai_message(self, text: str) -> None:
         if not self._ai_visible:
@@ -399,7 +397,6 @@ class MainWindow(QMainWindow):
         self._ai_panel.append_message("ai", text)
         self._ai_panel._on_response_done()
 
-    # ── Status refresh ─────────────────────────────────────────
 
     def _refresh_status(self) -> None:
         self._update_date()
@@ -412,7 +409,6 @@ class MainWindow(QMainWindow):
         """数据变更时刷新状态栏（`data_changed` 带一个字符串参数，故用带参槽）。"""
         self._refresh_status()
 
-    # ── Weather ───────────────────────────────────────────────
 
     def _on_weather_updated(self, data: dict) -> None:
         """天气数据更新"""
@@ -525,7 +521,6 @@ class MainWindow(QMainWindow):
                                     "day.thursday", "day.friday", "day.saturday",
                                     "day.sunday")][tomorrow.weekday()]
 
-        # DDL
         threshold = (tomorrow + timedelta(days=2)).isoformat()
         pending = self._data_manager.tasks.pending
         urgent = [t for t in pending
@@ -638,3 +633,8 @@ class MainWindow(QMainWindow):
     @property
     def ai_panel(self) -> AIPanel:
         return self._ai_panel
+
+    def shutdown(self) -> None:
+        """退出前停掉本窗口的定时器与后台线程（不等 QThread 会报 still running）。"""
+        self._status_timer.stop()
+        self._weather_service.shutdown()

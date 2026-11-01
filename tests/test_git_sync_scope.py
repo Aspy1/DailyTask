@@ -117,7 +117,7 @@ def _init_repo(tmp_path: Path) -> Path:
 def _run_sync(repo: Path) -> tuple[bool, str, str]:
     out: list[tuple[bool, str, str]] = []
     worker = _GitWorker(repo, build_sync_commands("data", "data: auto-sync [skip ci]"))
-    worker.finished.connect(lambda ok, detail, state: out.append((ok, detail, state)))
+    worker.done.connect(lambda ok, detail, state: out.append((ok, detail, state)))
     worker.run()
     return out[-1]
 

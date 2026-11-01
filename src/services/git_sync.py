@@ -61,7 +61,13 @@ def classify_sync(pushed: bool) -> str:
 
 
 class _GitWorker(QThread):
-    finished = Signal(bool, str, str)   # (ok, 失败详情, 状态：pushed / up-to-date)
+    """git add/commit/push 子进程。
+
+    ⚠ 自定义信号不能叫 `finished`（会遮蔽 `QThread.finished`，线程运行中被删）。
+    结果信号叫 `done`；回收统一连基类 `QThread.finished`。
+    """
+
+    done = Signal(bool, str, str)   # (ok, 失败详情, 状态：pushed / up-to-date)
 
     def __init__(self, repo_path: Path, commands: list[list[str]], parent=None) -> None:
         super().__init__(parent)
@@ -90,15 +96,15 @@ class _GitWorker(QThread):
                         # 之前可能攒着未推送的提交（旧实现在这里直接 return → push 不执行）
                         logger.info("git 无改动可提交，继续推送：%s", " ".join(cmd))
                         continue
-                    self.finished.emit(False, f"{' '.join(cmd)}: {detail[-300:]}", "")
+                    self.done.emit(False, f"{' '.join(cmd)}: {detail[-300:]}", "")
                     return
                 if cmd[:2] == ["git", "push"]:
                     # stdout + stderr 合并：git 的推送信息走 stderr（实测）
                     pushed = not is_up_to_date(result.stdout + result.stderr)
-            self.finished.emit(True, "", classify_sync(pushed))
+            self.done.emit(True, "", classify_sync(pushed))
         # 边界捕获：本层已处理/记录，不允许异常向上逃逸（CODE_STANDARDS Q-I1）
         except Exception as e:  # noqa: BLE001
-            self.finished.emit(False, str(e), "")
+            self.done.emit(False, str(e), "")
 
 
 class GitSync(QObject):
@@ -143,7 +149,8 @@ class GitSync(QObject):
         message = "data: manual sync [skip ci]" if manual else "data: auto-sync [skip ci]"
         cmds = build_sync_commands(self._data_rel(), message)
         self._worker = _GitWorker(self._repo, cmds, self)
-        self._worker.finished.connect(self._on_done)
+        self._worker.done.connect(self._on_done)
+        # 回收连基类 QThread.finished（结果信号发出时线程还没结束）
         self._worker.finished.connect(self._worker.deleteLater)  # 生命周期回收（Q-B5）
         self._worker.start()
 

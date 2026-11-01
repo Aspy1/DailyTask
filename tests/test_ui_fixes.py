@@ -84,7 +84,7 @@ def test_git_failure_message_includes_reason_from_stdout(tmp_path) -> None:
     worker = _GitWorker(tmp_path, [[sys.executable, "-c",
                                     "print('reason-on-stdout'); raise SystemExit(3)"]])
     seen: list[tuple] = []
-    worker.finished.connect(lambda ok, msg: seen.append((ok, msg)))
+    worker.done.connect(lambda ok, msg, _state: seen.append((ok, msg)))
     worker.run()                                   # 同步跑，避免线程
     assert seen and seen[0][0] is False
     assert "reason-on-stdout" in seen[0][1], seen[0][1]
@@ -97,7 +97,7 @@ def test_git_worker_survives_non_ascii_output(tmp_path) -> None:
     worker = _GitWorker(tmp_path, [[sys.executable, "-c",
                                     "print('中文输出 规划书.md'); raise SystemExit(0)"]])
     seen: list[tuple] = []
-    worker.finished.connect(lambda ok, msg: seen.append((ok, msg)))
+    worker.done.connect(lambda ok, msg, _state: seen.append((ok, msg)))
     worker.run()
     assert seen and seen[0][0] is True, seen          # 不该因为编码而失败
 

@@ -23,6 +23,11 @@ logging.basicConfig(
 for _noisy in ("httpx", "httpcore", "urllib3", "requests"):
     logging.getLogger(_noisy).setLevel(logging.WARNING)
 
+# 未捕获异常（主线程 + 子线程）统一进 app.log，用户报障时可直接查
+from src.services.error_hook import install_exception_hooks  # noqa: E402
+
+install_exception_hooks()
+
 os.environ["QT_ENABLE_HIGHDPI_SCALING"] = "1"
 os.environ["QT_AUTO_SCREEN_SCALE_FACTOR"] = "1"
 

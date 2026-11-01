@@ -71,6 +71,8 @@ class MainWorkspace(QWidget):
     # 课程右键"布置了作业 / 考试通知" → MainWindow 展开 AI 面板并填入 prompt。
     # 课程表（周视图）与日程（日视图）都走这条信号，不再一个发信号、一个借用 data_changed。
     fill_ai_prompt = Signal(str)
+    # 面板切换（包括状态栏「DDL / 考试」跳转）→ 侧边栏高亮同步。
+    panel_changed = Signal(str)
 
     def __init__(self, settings: SettingsManager, ai_service: AIService,
                  dm: DataManager, plugin_manager=None, parent=None) -> None:
@@ -169,6 +171,7 @@ class MainWorkspace(QWidget):
             if hasattr(w, "_refresh") and callable(w._refresh):
                 w._refresh()
             fade_in(w)          # 动效模板（Q-H16）：只淡入，不动几何
+            self.panel_changed.emit(key)
 
     def _on_view_course_tasks(self, course_name: str) -> None:
         dlg = CourseDetailDialog(self._dm, course_name, self)

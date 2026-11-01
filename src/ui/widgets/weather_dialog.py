@@ -6,7 +6,7 @@
 import logging
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QDialog, QHBoxLayout, QLabel, QVBoxLayout
+from PySide6.QtWidgets import QDialog, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 from src.i18n.loader import tr
 from src.ui.styles.cards import card
@@ -65,11 +65,13 @@ class WeatherDetailDialog(QDialog):
         # 连接信号
         self._ws.weather_updated.connect(self._update_content)
         self._ws.forecast_updated.connect(self._update_content)
+        self._ws.error_occurred.connect(self._on_weather_error)
 
     def _build_title_row(self, c: dict) -> QHBoxLayout:
         """标题 + 更新时间 + 刷新按钮（从 `__init__` 抽出，控制函数长度）。"""
         title_row = QHBoxLayout()
-        self._title = QLabel(tr("window.weather.title"))
+        # ⚠ 系统标题栏已经是「天气详情」，内容区不再重复同名大标题（Q-H10）
+        self._title = QLabel(tr("window.weather.now_title"))
         self._title.setStyleSheet(
             f"font-size: {SIZE_SUBTITLE}px; font-weight: 700; color: {c['fg_primary']};")
         title_row.addWidget(self._title)
@@ -143,6 +145,21 @@ class WeatherDetailDialog(QDialog):
             f"font-size: {SIZE_BODY_M}px; font-weight: 600; color: {c['fg_primary']};")
         self._layout.insertWidget(2, self._forecast_title)
 
+        # 错误/空态提示（刷新未配置、网络失败时给用户一个原因，而不是永远“...”）
+        self._error_label = QLabel("")
+        self._error_label.setWordWrap(True)
+        self._error_label.setStyleSheet(
+            f"color: {c['red']}; font-size: {SIZE_BODY_S}px;")
+        self._error_label.hide()
+        self._layout.insertWidget(3, self._error_label)
+
+        self._forecast_empty = QLabel(tr("window.weather.forecast_empty"))
+        self._forecast_empty.setWordWrap(True)
+        self._forecast_empty.setStyleSheet(
+            f"color: {c['fg_hint']}; font-size: {SIZE_BODY_S}px;")
+        self._forecast_empty.hide()
+        self._layout.insertWidget(4, self._forecast_empty)
+
         self._build_forecast_rows(c)
 
     def _build_forecast_rows(self, c: dict) -> None:
@@ -171,8 +188,15 @@ class WeatherDetailDialog(QDialog):
             temp_lbl.setAlignment(Qt.AlignmentFlag.AlignRight)
             row_layout.addWidget(temp_lbl)
 
-            self._layout.insertWidget(3 + i, row_layout.itemAt(0).widget())
+            # ⚠ 必须把**整行**加进布局。旧实现只插入了 `row_layout.itemAt(0).widget()`
+            # （日期标签），text/rain/temp 三个标签没有父控件、永远不会显示 →
+            # “近三天预报只显示日期”（2026-11-01 用户报障）。
+            row_widget = QWidget()
+            row_widget.setStyleSheet("background: transparent;")
+            row_widget.setLayout(row_layout)
+            self._layout.insertWidget(5 + i, row_widget)
             self._forecast_rows.append({
+                "widget": row_widget,
                 "date": date_lbl,
                 "text": text_lbl,
                 "rain": rain_lbl,
@@ -181,7 +205,7 @@ class WeatherDetailDialog(QDialog):
 
     def _update_content(self) -> None:
         """更新内容。"""
-        now_cache_time = self._ws._now_cache_time
+        now_cache_time = self._ws.get_now_updated_at()
         if now_cache_time:
             self._update_time_label.setText(
                 tr("window.weather.updated_at",
@@ -220,10 +244,13 @@ class WeatherDetailDialog(QDialog):
                    scale=now.get('windScale', '?')))
 
     def _update_forecast_section(self) -> None:
-        """更新未来三天预报行。"""
+        """更新未来三天预报行；没有数据时显示明确的空态，而不是三行空白。"""
         forecast = self._ws.get_forecast()
+        self._forecast_empty.setVisible(not forecast)
         for i, row in enumerate(self._forecast_rows):
-            if i < len(forecast):
+            visible = i < len(forecast)
+            row["widget"].setVisible(visible)
+            if visible:
                 self._fill_forecast_row(row, forecast[i])
             else:
                 self._clear_forecast_row(row)
@@ -256,15 +283,29 @@ class WeatherDetailDialog(QDialog):
 
     def _on_refresh(self) -> None:
         """刷新按钮点击。"""
+        self._error_label.hide()
         self._refresh_btn.setEnabled(False)
         self._refresh_btn.setText("...")
-        self._ws.refresh()
+        if not self._ws.refresh() and not self._error_label.isVisible():
+            # 未配置/拒绝发起：立即恢复按钮并显示原因（旧实现会永远停在“...”）
+            self._on_weather_error(tr("window.weather.not_configured"))
+
+    def _on_weather_error(self, message: str) -> None:
+        """请求失败/未配置：恢复按钮 + 显示可操作的原因。"""
+        self._refresh_btn.setEnabled(True)
+        self._refresh_btn.setText(tr("window.weather.refresh"))
+        self._error_label.setText(message)
+        self._error_label.show()
 
     def closeEvent(self, event) -> None:
         """关闭时断开信号连接。"""
-        try:
-            self._ws.weather_updated.disconnect(self._update_content)
-            self._ws.forecast_updated.disconnect(self._update_content)
-        except RuntimeError:
-            logger.debug("WeatherDetailDialog.closeEvent 中忽略异常", exc_info=True)
+        for signal, slot in (
+            (self._ws.weather_updated, self._update_content),
+            (self._ws.forecast_updated, self._update_content),
+            (self._ws.error_occurred, self._on_weather_error),
+        ):
+            try:
+                signal.disconnect(slot)
+            except RuntimeError:
+                logger.debug("WeatherDetailDialog.closeEvent 中忽略异常", exc_info=True)
         super().closeEvent(event)

@@ -1,5 +1,7 @@
 """和风天气服务"""
+import contextlib
 from datetime import datetime
+from pathlib import Path
 
 import requests
 from PySide6.QtCore import QObject, QThread, QTimer, Signal
@@ -14,16 +16,26 @@ _CACHE_FILE = _DATA_DIR / "weather_cache.json"
 
 
 class WeatherWorker(QThread):
-    """天气API请求工作线程"""
-    finished = Signal(dict, str)  # (data, api_type)
-    error = Signal(str, str)  # (error_msg, api_type)
+    """天气 API 请求工作线程。
 
-    def __init__(self, host: str, key: str, location: str, api_type: str) -> None:
+    ⚠ 自定义信号**不能叫 `finished` / `error`**：`QThread` 自带 `finished`，
+    子类同名信号会把它**遮蔽**。旧代码 `worker.finished.connect(worker.deleteLater)`
+    连的是自定义信号（在 `run()` 里发出、此时线程还没结束）→ QThread 在运行中被删，
+    触发 `QThread: Destroyed while thread '' is still running`（2026-11-01 用户日志）。
+    清理必须连 **QThread.finished**（线程真正结束后才发）。
+    """
+
+    result = Signal(dict, str)  # (data, api_type)
+    failed = Signal(str, str)  # (error_msg, api_type)
+
+    def __init__(self, host: str, key: str, location: str, api_type: str,
+                 stats_file: Path) -> None:
         super().__init__()
         self._host = host
         self._key = key
         self._location = location
         self._api_type = api_type
+        self._stats_file = stats_file
 
     def run(self) -> None:
         try:
@@ -32,27 +44,27 @@ class WeatherWorker(QThread):
             elif self._api_type == "7d":
                 url = f"https://{self._host}/v7/weather/7d?location={self._location}&key={self._key}"
             else:
-                self.error.emit(f"未知API类型: {self._api_type}", self._api_type)
+                self.failed.emit(f"未知API类型: {self._api_type}", self._api_type)
                 return
 
             resp = requests.get(url, timeout=10)
             if resp.status_code == 200:
                 data = resp.json()
                 if data.get("code") == "200":
-                    self.finished.emit(data, self._api_type)
+                    self.result.emit(data, self._api_type)
                     # 记录调用统计
                     self._record_request()
                 else:
-                    self.error.emit(f"API返回错误: {data.get('code')}", self._api_type)
+                    self.failed.emit(f"API返回错误: {data.get('code')}", self._api_type)
             else:
-                self.error.emit(f"HTTP错误: {resp.status_code}", self._api_type)
+                self.failed.emit(f"HTTP错误: {resp.status_code}", self._api_type)
         except Exception as e:  # noqa: BLE001
             # 边界捕获：Worker 线程入口，异常经信号回传，不允许逃逸（Q-I1）
-            self.error.emit(str(e), self._api_type)
+            self.failed.emit(str(e), self._api_type)
 
     def _record_request(self) -> None:
         """记录 API 调用次数（原子写 + 加锁，见 `services/weather_store.py`）。"""
-        weather_store.record_request(_STATS_FILE, self._api_type)
+        weather_store.record_request(self._stats_file, self._api_type)
 
 
 class WeatherService(QObject):
@@ -76,8 +88,13 @@ class WeatherService(QObject):
     DEFAULT_LAT = "31.23"
     DEFAULT_LON = "121.47"
 
-    def __init__(self, settings=None) -> None:
+    def __init__(self, settings=None, data_dir: Path | None = None) -> None:
         super().__init__()
+        # 数据目录可注入：应用传 DataManager.data_dir，测试传 tmp_path。
+        # 不注入时退回模块默认（仓库 data/），与旧行为一致。
+        self._data_dir = Path(data_dir) if data_dir is not None else _DATA_DIR
+        self._cache_file = self._data_dir / "weather_cache.json"
+        self._stats_file = self._data_dir / "weather_stats.json"
         self._settings = settings
         self._host = ""
         self._key = ""
@@ -96,6 +113,28 @@ class WeatherService(QObject):
 
         # 当前工作线程（按接口类型分开，避免 now/7d 互相覆盖）
         self._workers: dict[str, WeatherWorker] = {}
+        # 离线也有数据：读上次成功写下的派生缓存（启动/断网时状态栏与详情不再空白）
+        self._load_cache()
+
+    def _load_cache(self) -> None:
+        cache = weather_store.read_json_safe(self._cache_file)
+        if not cache:
+            return
+        now = cache.get("now")
+        if isinstance(now, dict) and now:
+            self._now_cache = now
+        forecast = cache.get("forecast")
+        if isinstance(forecast, list) and forecast:
+            self._7d_cache = forecast
+        for key, attr in (("now_time", "_now_cache_time"),
+                          ("forecast_time", "_7d_cache_time")):
+            raw = str(cache.get(key) or "")
+            if not raw:
+                continue
+            try:
+                setattr(self, attr, datetime.fromisoformat(raw))
+            except ValueError:
+                continue
 
     def set_credentials(self, host: str, key: str) -> None:
         """设置API凭证"""
@@ -147,7 +186,7 @@ class WeatherService(QObject):
 
     def check_quota(self) -> tuple[bool, str]:
         """检查调用配额"""
-        stats_file = _STATS_FILE
+        stats_file = self._stats_file
         if not stats_file.exists():
             return True, "OK"
 
@@ -173,7 +212,7 @@ class WeatherService(QObject):
 
     def get_stats(self) -> dict:
         """获取调用统计"""
-        stats_file = _STATS_FILE
+        stats_file = self._stats_file
         if not stats_file.exists():
             return {"daily": 0, "monthly": 0}
 
@@ -188,25 +227,34 @@ class WeatherService(QObject):
             "monthly_by_type": stats.get("monthly", {}).get(month, {})
         }
 
-    def _start_worker(self, api_type: str, on_ok) -> None:
-        """按接口类型管理 worker：同类型不并发，结束即回收。
+    def _start_worker(self, api_type: str, on_ok) -> bool:
+        """按接口类型管理 worker：同类型不并发，**线程结束后**才回收。
 
         原实现共用一个 `self._worker` 槽，导致 `start_auto_update()` 里
-        `_fetch_now()` 后紧跟的 `_fetch_7d()` 被 `isRunning()` 挡掉（**预报永不刷新**），
-        且反复 new 不 `deleteLater`（CODE_STANDARDS Q-B5）。
+        `_fetch_now()` 后紧跟的 `_fetch_7d()` 被 `isRunning()` 挡掉（**预报永不刷新**）。
+        清理连 `QThread.finished`（不是自定义结果信号）—— 见 `WeatherWorker` 的说明。
         """
         running = self._workers.get(api_type)
         if running is not None and running.isRunning():
-            return
-        worker = WeatherWorker(self._host, self._key, self.get_location(), api_type)
+            return False
+        worker = WeatherWorker(self._host, self._key, self.get_location(), api_type,
+                               self._stats_file)
         self._workers[api_type] = worker
-        worker.finished.connect(on_ok)
-        worker.error.connect(self._on_error)
+        worker.result.connect(on_ok)
+        worker.failed.connect(self._on_error)
+        worker.finished.connect(lambda t=api_type: self._workers.pop(t, None))
         worker.finished.connect(worker.deleteLater)
-        worker.error.connect(worker.deleteLater)
-        worker.finished.connect(lambda *_, t=api_type: self._workers.pop(t, None))
-        worker.error.connect(lambda *_, t=api_type: self._workers.pop(t, None))
         worker.start()
+        return True
+
+    def shutdown(self) -> None:
+        """停止定时器并**等线程收尾**（退出时不能让 QThread 在运行中被销毁）。"""
+        self.stop_auto_update()
+        for worker in list(self._workers.values()):
+            with contextlib.suppress(RuntimeError):
+                # 单次请求 10s 超时；最多等 11s，不用 terminate（Q-B3）
+                worker.wait(11_000)
+        self._workers.clear()
 
     def _fetch_now(self, force: bool = False) -> None:
         """获取实时天气"""
@@ -271,7 +319,7 @@ class WeatherService(QObject):
             "forecast": self._7d_cache or [],
             "forecast_time": self._7d_cache_time.isoformat() if self._7d_cache_time else "",
         }
-        weather_store.write_json_atomic(_CACHE_FILE, cache_data)
+        weather_store.write_json_atomic(self._cache_file, cache_data)
 
     def _on_error(self, msg: str, api_type: str) -> None:
         """错误处理"""
@@ -281,14 +329,26 @@ class WeatherService(QObject):
         """获取当前实时天气（同步，返回缓存）"""
         return self._now_cache or {}
 
+    def get_now_updated_at(self) -> datetime | None:
+        """实时天气缓存的更新时间（UI 不直接读私有字段）。"""
+        return self._now_cache_time
+
     def get_forecast(self) -> list:
         """获取7天预报（同步，返回缓存）"""
         return self._7d_cache or []
 
-    def refresh(self) -> None:
-        """强制刷新所有天气数据（用户主动触发）"""
+    def refresh(self) -> bool:
+        """强制刷新所有天气数据（用户主动触发）。
+
+        返回是否**发起**了请求；未配置凭证时发 `error_occurred` 并返回 False，
+        让界面可以把"..."恢复成"刷新"并显示原因（旧实现会永远卡在"..."）。
+        """
+        if not self._host or not self._key:
+            self.error_occurred.emit("未配置天气服务（API Host / Key），请先在设置里填写。")
+            return False
         self._fetch_now(force=True)
         self._fetch_7d(force=True)
+        return True
 
     def get_weather_text_for_ai(self) -> str:
         """生成AI助手可用的天气文本"""

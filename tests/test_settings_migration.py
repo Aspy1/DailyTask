@@ -69,5 +69,5 @@ def test_weather_service_location_follows_settings(tmp_path, qapp) -> None:
     s = _settings(tmp_path)
     s.weather_lat, s.weather_lon = "30.25", "120.15"
 
-    assert WeatherService(s).get_location() == "120.15,30.25"   # 和风要求「经度,纬度」
-    assert WeatherService().get_location() == "121.47,31.23"    # 无设置 → 默认
+    assert WeatherService(s, data_dir=tmp_path).get_location() == "120.15,30.25"
+    assert WeatherService(data_dir=tmp_path).get_location() == "121.47,31.23"
