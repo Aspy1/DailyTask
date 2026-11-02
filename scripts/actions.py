@@ -16,6 +16,7 @@ import logging
 import os
 import re
 import sys
+from contextlib import suppress
 from datetime import date
 from pathlib import Path
 
@@ -740,7 +741,22 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _force_utf8_stdio() -> None:
+    """Piped output must be UTF-8 (cmd defaults to the OEM codepage, e.g. cp936).
+
+    The delegation test (and any shell pipeline) reads this CLI with
+    `encoding="utf-8"`; writing cp936 bytes into a pipe yields replacement
+    characters. Keep TTY consoles on their native codepage to avoid mojibake.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        if stream is not None and not stream.isatty():
+            # 老式/被替换的流可能不支持 reconfigure，保持原样即可
+            with suppress(AttributeError, OSError, ValueError):
+                stream.reconfigure(encoding="utf-8")
+
+
 def main() -> None:
+    _force_utf8_stdio()
     parser = build_parser()
     args = parser.parse_args()
     if not args.action:

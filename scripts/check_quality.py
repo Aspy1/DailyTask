@@ -81,12 +81,13 @@ CN_RE = re.compile(r"[\u4e00-\u9fff]")
 ID_LEN1_RE = re.compile(r"""f["'][^"']*\{len\([^)]*\)\s*\+\s*1""")
 BAD_TOKEN_RE = re.compile(r"^(red|green|yellow|orange|blue|purple)$")
 
-# Q-P1 顶层目录白名单（含 2026-10-16 新增的 design/）
+# Q-P1 顶层目录白名单（含 2026-10-16 新增的 design/、2026-11-02 新增的 docs/）
 TOP_DIRS = {"src", "scripts", "tests", "plugins", "data", "resources",
-            "MD-files", "dev-logs", ".github", "design"}
+            "MD-files", "dev-logs", ".github", "design", "docs"}
 TOP_FILES = {"main.py", "AGENTS.md", "README.md", "PLAN.md", "ERRORS.md",
              "pyproject.toml", "requirements.txt", "requirements.lock.txt",
-             "requirements-dev.txt", ".gitignore", ".importlinter", ".secrets.baseline"}
+             "requirements-dev.txt", ".gitignore", ".importlinter", ".secrets.baseline",
+             ".venv.cmd"}
 
 
 class Report:
