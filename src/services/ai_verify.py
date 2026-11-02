@@ -464,10 +464,22 @@ def _check_add_plan(before: dict, args: dict, data_dir: Path) -> tuple[str, str]
     return MISMATCH, f"{day} 的计划列表里找不到「{title}」"
 
 
+# `replace_plans` 的 `--plans` 里**会写进用户数据**的字段（用户传了哪个就核哪个）。
+PLAN_FIELDS = ("title", "time_slot", "type", "note", "course_name", "course")
+
+
 def _observe_replace_plans(args: dict, data_dir: Path) -> dict:
     day = args.get("date", "")
     plans = (_read(data_dir, "daily_logs.json").get("plans") or {}).get(day) or []
     return {"titles": [p.get("title") for p in plans]}
+
+
+def _plan_difference(wanted: dict, got: dict) -> str:
+    """逐字段比对 `--plans` 里**显式传了**的字段；没传的字段不要求。"""
+    for field in PLAN_FIELDS:
+        if field in wanted and wanted[field] != got.get(field):
+            return f"{field}: 期望 {wanted[field]!r}，实际 {got.get(field)!r}"
+    return ""
 
 
 def _check_replace_plans(before: dict, args: dict, data_dir: Path) -> tuple[str, str]:
@@ -475,15 +487,17 @@ def _check_replace_plans(before: dict, args: dict, data_dir: Path) -> tuple[str,
         wanted = json.loads(args.get("plans", "[]"))
     except (TypeError, ValueError):
         return UNVERIFIED, "未验收（--plans 不是合法 JSON，无法核对）"
-    if not isinstance(wanted, list):
-        return UNVERIFIED, "未验收（--plans 不是数组）"
-    want_titles = [str(p.get("title", "")) for p in wanted if isinstance(p, dict)]
+    if not isinstance(wanted, list) or not all(isinstance(p, dict) for p in wanted):
+        return UNVERIFIED, "未验收（--plans 必须是对象数组）"
     day = args.get("date", "")
     plans = (_read(data_dir, "daily_logs.json").get("plans") or {}).get(day) or []
-    got_titles = [p.get("title") for p in plans]
-    if got_titles == want_titles:
-        return VERIFIED, f"{day} 的计划已整体替换为 {len(got_titles)} 条"
-    return MISMATCH, f"{day} 的计划是 {len(got_titles)} 条，期望 {len(want_titles)} 条"
+    if len(plans) != len(wanted):
+        return MISMATCH, f"{day} 的计划是 {len(plans)} 条，期望 {len(wanted)} 条"
+    for index, (want, got) in enumerate(zip(wanted, plans, strict=False), start=1):
+        difference = _plan_difference(want, got)
+        if difference:
+            return MISMATCH, f"{day} 第 {index} 条计划不一致（{difference}）"
+    return VERIFIED, f"{day} 的计划已整体替换为 {len(plans)} 条（逐字段核对）"
 
 
 def _observe_delete_plan(args: dict, data_dir: Path) -> dict:
@@ -710,3 +724,13 @@ from src.services.ai_verify_study import (  # noqa: E402
 _LABELERS.update(STUDY_LABELERS)
 _OBSERVERS.update(STUDY_OBSERVERS)
 _CHECKS.update(STUDY_CHECKS)
+
+# 验收**覆盖**（checked/total 字段）单独成模块（本文件 ≤800 行，Q-A1）。
+# ⚠ 必须在 `_CHECKS` 定义之后导入：子模块会从这个模块取状态常量、`check`、
+# `parse_command` 与 `_CHECKS`（与 `ai_verify_study` 同一个套路，避免循环导入）。
+from src.services.ai_verify_coverage import (  # noqa: E402, F401 — 兼容旧 import 路径
+    Verdict,
+    check_ex,
+    coverage_of,
+    summarize_verdicts,
+)

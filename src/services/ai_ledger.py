@@ -65,6 +65,14 @@ class Goal:
     state: str = PENDING
     detail: str = ""
     label: str = ""          # 对象名（"布洛芬" / "羽绒服" / 计划标题）—— 事实行里要写清楚
+    # 验收**覆盖**（H5）：核对到的字段数 / 这条命令会改到的字段数
+    checked: int = 0
+    total: int = 0
+
+    @property
+    def partial(self) -> bool:
+        """核对得不全（有分母、分子更小）→ 事实行**必须**说出来。"""
+        return self.total > 0 and self.checked < self.total
 
 
 # 操作 → 中文动词（事实行的开头）。没登记的退化成操作名本身。
@@ -83,26 +91,41 @@ VERB = {
 }
 
 
+def _fact_head(goal: Goal) -> str:
+    """事实行的开头：`动词 对象`（没登记动词的操作退化成操作名本身）。"""
+    from src.services import ai_verify
+
+    operation, _args = ai_verify.parse_command(goal.command)
+    return f"{VERB.get(operation, operation or '动作')}{(' ' + goal.label) if goal.label else ''}"
+
+
+def _fact_verdict(goal: Goal) -> str:
+    """事实行的**结论部分**（不含动词与对象）—— 状态用中文，不用 ✓/✗。"""
+    cover = f"（{goal.checked}/{goal.total} 字段）" if goal.total > 0 else ""
+    if goal.state == VERIFIED:
+        if goal.partial:
+            return f"验收通过，但只核对了 {goal.checked}/{goal.total} 字段 —— {goal.detail}"
+        return f"验收通过{cover}：{goal.detail}" if cover else goal.detail
+    if goal.state == NOOP:
+        return "无需改动"
+    if goal.state == MISMATCH:
+        return f"**没有达到预期** —— {goal.detail}"
+    if goal.state == FAILED:
+        return f"**没有生效** —— {goal.detail}"
+    if goal.state == BLOCKED:
+        return f"被阻塞 —— {goal.detail}"
+    return f"未核对{cover}"
+
+
 def fact_line(goal: Goal) -> str:
     """一条写命令 → **给用户看的事实行**（乙方案：事实由代码写，模型只解释）。
 
     状态用**中文**表达，不用 ✓/✗ 之类的符号（用户明确不要）。
-    """
-    from src.services import ai_verify
 
-    operation, _args = ai_verify.parse_command(goal.command)
-    head = f"{VERB.get(operation, operation or '动作')}{(' ' + goal.label) if goal.label else ''}"
-    if goal.state == VERIFIED:
-        return f"{head}：{goal.detail}"
-    if goal.state == NOOP:
-        return f"{head}：无需改动"
-    if goal.state == MISMATCH:
-        return f"{head}：**没有达到预期** —— {goal.detail}"
-    if goal.state == FAILED:
-        return f"{head}：**没有生效** —— {goal.detail}"
-    if goal.state == BLOCKED:
-        return f"{head}：被阻塞 —— {goal.detail}"
-    return f"{head}：未核对"
+    ⚠ 验收**覆盖**不足时不许写"验收通过"了事（H5）：改成
+    「验收通过（1/2 字段）…」/「未核对（0/1 字段）」。没有分母（total=0）时保持原样。
+    """
+    return f"{_fact_head(goal)}：{_fact_verdict(goal)}"
 
 
 def fact_lines(goals: list[Goal]) -> list[str]:
@@ -121,7 +144,9 @@ def render_facts(ledger: "Ledger", model_text: str) -> str:
         return model_text
     lines = ["【已执行】", *[f"  {f}" for f in facts]]
     if model_text:
-        lines += ["", "【说明】", f"  {model_text}"]
+        # H9：模型的话**不是**验收证据。显式标注并把它放在事实块之后，
+        # 免得用户把「模型说做完了」当成「代码核对过」。
+        lines += ["", "【说明】（模型自述，未核验；以【已执行】为准）", f"  {model_text}"]
     return "\n".join(lines)
 
 
@@ -131,8 +156,10 @@ class Ledger:
 
     goals: list[Goal] = field(default_factory=list)
 
-    def record(self, command: str, state: str, detail: str = "", label: str = "") -> None:
-        self.goals.append(Goal(command=command, state=state, detail=detail, label=label))
+    def record(self, command: str, state: str, detail: str = "", label: str = "",
+               checked: int = 0, total: int = 0) -> None:
+        self.goals.append(Goal(command=command, state=state, detail=detail, label=label,
+                               checked=int(checked), total=int(total)))
 
     def counts(self) -> dict[str, int]:
         out: dict[str, int] = {}
@@ -140,13 +167,19 @@ class Ledger:
             out[goal.state] = out.get(goal.state, 0) + 1
         return out
 
+    def coverage(self) -> tuple[int, int]:
+        """整批的**字段覆盖** `(核对到, 会改到)` —— 界面要按这个说话，不能只看状态。"""
+        return (sum(g.checked for g in self.goals), sum(g.total for g in self.goals))
+
     def summary(self) -> str:
-        """一句话账本（按状态分组；没有写命令就返回空串）。"""
+        """一句话账本（按状态分组 + 字段覆盖；没有写命令就返回空串）。"""
         counts = self.counts()
         if not counts:
             return ""
         parts = [f"{STATE_LABEL.get(s, s)} {n}" for s, n in counts.items()]
-        return "本次账本：" + " · ".join(parts)
+        checked, total = self.coverage()
+        cover = f"（字段覆盖 {checked}/{total}）" if total > 0 else ""
+        return "本次账本：" + " · ".join(parts) + cover
 
     def is_clean(self) -> bool:
         """全绿吗 —— 有"没达到预期 / 执行失败 / 被阻塞"就不算干净。"""

@@ -122,6 +122,19 @@
   `ai_service` 改为委托；`tests/test_openmeteo.py` 守卫。`Q-E2` 双写路径 / `Q-H7` 令牌分层：仍是已知债。
 - 工具缺口：`Q-A2`（`import-linter` 未装）、`Q-E1`（`gitleaks`/`detect-secrets` 未装）、`Q-D3`（AST 剥离检查未实现）。
 
+### 2026-11-02 · Q-A1 baseline accepted exception（ISSUE-0002）
+
+AI 监督闭环（审批/撤销/审计/验收覆盖）落在既有的大类里，`check_quality --write-baseline`
+把这批新增尺寸登记为存量债。**这是显式接受的例外，不是静默放行**：
+
+- 新增/加重：`AIService` 422 行（上限 400）、`MainWindow` 537（原 520）、
+  `ai_panel.__init__` 87（原 79）、`_build_system_prompt` 73（上限 60）、
+  `run` 63（上限 60）、`LOG-ONLY` 36（原 34）。
+- 原则仍是"只防新增"：本轮之后 baseline 不再上调；其它模块的尺寸债继续只减不增。
+- 拆分目标（后续 AI/UI 重构）：把审批/审计/上下文拼装搬出 `AIService` 与 `ai_panel`，
+  使上述五项回到上限内，并把 `LOG-ONLY` 降回 34；完成后同步下调 baseline。
+- 追踪：本条即 Q-A1 长尾的接受记录；下次动 `AIService`/`MainWindow`/`ai_panel` 时优先拆分。
+
 ---
 
 ## P7 i18n 全量迁移 · 工具补齐 · 天气整理 ✅ 已完成（2026-10-16）

@@ -35,6 +35,7 @@ from src.ui.styles.theme import (
     SIZE_SUBTITLE,
     get_colors,
 )
+from src.ui.widgets.ai_approval_dialog import ApprovalPrompt
 from src.ui.widgets.menu import add_action, new_menu, show_at_cursor, show_below
 from src.ui.widgets.semester_dialog import SemesterDialog
 from src.ui.widgets.weather_dialog import WeatherDetailDialog
@@ -346,6 +347,11 @@ class MainWindow(QMainWindow):
         self._ai_service.error_occurred.connect(self._on_ai_error)
         self._ai_service.instructions_executed.connect(
             self._on_instructions_done)
+        # 撤销入口（H3）：只在界面；`undo_finished` 回结果，按钮状态随可用性刷新
+        self._ai_panel.undo_requested.connect(self._on_ai_undo)
+        self._ai_service.undo_finished.connect(self._on_ai_undo_done)
+        # 审批弹窗（H1）：没有它 → 高风险动作一律按"无界面"拒绝
+        self._approval_prompt = ApprovalPrompt(self._ai_service.approval, self)
 
         self._workspace._schedule_view.arrange_requested.connect(
             self._on_quick_arrange)
@@ -396,6 +402,16 @@ class MainWindow(QMainWindow):
             return
         self._ai_panel.append_message("ai", text)
         self._ai_panel._on_response_done()
+        # 有可撤销的 AI 写入 → 点亮撤销入口（没有就保持禁用，不骗用户点）
+        self._ai_panel.set_undo_available(self._ai_service.undo_available())
+
+    def _on_ai_undo(self) -> None:
+        """用户点了「撤销 AI 写入」——**主线程**执行，stale 会被拒绝并说明理由。"""
+        self._ai_service.undo_last_action()
+
+    def _on_ai_undo_done(self, ok: bool, detail: str) -> None:
+        self._ai_panel.show_undo_result(ok, detail)
+        self._ai_panel.set_undo_available(self._ai_service.undo_available())
 
 
     def _refresh_status(self) -> None:
@@ -637,4 +653,6 @@ class MainWindow(QMainWindow):
     def shutdown(self) -> None:
         """退出前停掉本窗口的定时器与后台线程（不等 QThread 会报 still running）。"""
         self._status_timer.stop()
+        if getattr(self, "_approval_prompt", None) is not None:
+            self._approval_prompt.shutdown()   # 之后的高风险动作直接拒绝，不会卡 120s
         self._weather_service.shutdown()

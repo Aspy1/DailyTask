@@ -1,0 +1,58 @@
+# 审计快照（AI Harness 审计，2026-11-02）
+
+- 仓库：`D:\ClaudeCoding\日程规划`
+- 审计基线：**git HEAD 83ef3a9**（2026-11-02 22:52 记录）
+- 工作树状态：**正在被整改分支并发修改**（见文末「并发改动观察」），因此本审计把
+  `git archive HEAD` 解出的只读快照作为基线；`findings.md` 的 file:line 全部指该快照。
+- 复现方式：
+
+```powershell
+git archive --format=zip -o head.zip HEAD      # 不改工作树、不写 git 对象
+Expand-Archive head.zip <snapshot>
+cd <snapshot>
+D:\ClaudeCoding\日程规划\.venv\Scripts\python.exe docs\ai-harness-audit\probe_ai_oversight.py
+```
+
+## 被审计文件的 SHA256（HEAD 快照；行数按 `splitlines()`）
+
+```
+acb4651b341a80d6fa921f4aa103695188a73042d841955f0d46a4ed2bfe62e5    737  src/services/ai_service.py
+002d46ce416e1754f48d5dbb5532932ae1bc11dbbaf0a2313a0db0e39f230c45     47  src/services/ai_instructions.py
+c7e42e452416f67f1598b9e45979d55e440036eda1d30d50e9c0953121c11b3d    184  src/services/ai_ledger.py
+acca63f4bfff68299ac6a1c7082944f981be4a01f5b51c95319c391224752a8b    712  src/services/ai_verify.py
+707f1c02efc4160fcd23836250bbf492f94c21848740eb42b81cd5769219dac2    158  src/services/ai_verify_study.py
+0f40eef61e7e0825c488e21511f6f66fc9c325bdc9b1f9d67ff8db4c79846f87    399  src/services/ai_prompts.py
+253f1bc462c7caae498ddf95aa4d756e8f83fcfe92d4366f74568b1c8a707a6d    105  src/services/ai_loop_guards.py
+a5c828b120ce541ef1e74f46eb810d483d85b6e5e8d439f87c7a04f52cf34828    256  src/ui/components/ai_panel.py
+29276e063f68f38c5b9b5f5fdc01d3553b918c71b6d6a7059564910c2fb1d694    775  scripts/actions.py
+67c1149f4faf73aa2ac3aff3f2a342049b926c8f0be64e71467a8112443d82f5    548  scripts/actions_cmds_items.py
+f90b808015407efed7897a445dffcf5c70bf1f8e47f37826edb951a89c35b507     58  scripts/actions_backup.py
+6303073a65dce01bc9f0e12401e6cbabf803a82679ca682feddbf5594a8fa004    403  scripts/ai_eval.py
+0f5aff317f7d91e7f6a1eb4133b4a545c0ed347929b7ba89a7a4ca5286878917    373  tests/test_ai_worker_retry.py
+399e99cd25fc22587d892376ad3df5551c6efe5dc2bd4d0e96509d389fc23e33    169  tests/test_ai_ledger.py
+62f2200e2d15b997e04e05e45f0d3fb921d13c4c492cb378b1b4dd0451a3b081    263  tests/test_ai_verify.py
+9c6c31954873df53f2ea75b893d5a8a6c5a5873d6875d3d176429332478d3aa1    111  tests/test_instruction_parser.py
+d166a43649ca77750b70037fc7bbbbe33476c149af2a5843b55c2d42d12e3cec     99  tests/test_ai_exec_log.py
+```
+
+## 并发改动观察（不影响上面的基线；仅作警示记录）
+
+审计期间（2026-11-02 22:36–22:41）同一工作树的 AI 文件被另一进程改写：
+
+| 时间 | 现象 |
+| --- | --- |
+| 22:36:14 | 新增未跟踪 `src/services/ai_policy.py` |
+| 22:37:47 | 新增未跟踪 `src/services/ai_verify_coverage.py` |
+| 22:38:26–22:40:46 | `ai_ledger.py` / `ai_verify.py` / `ai_audit.py` / `ai_undo.py` / `ai_approval.py` / `ai_guard.py` / `ai_instructions.py` 被改写 |
+| 22:41:21–22:41:44 | `ai_service.py` 被改写（759 行，加入 approval/undo 门面与 `_note_truncation`） |
+
+其中一次中间态 `src/services/ai_service.py:193` 调用了**当时尚未定义**的
+`self._note_truncation(parsed)`，直接运行探针会抛
+`AttributeError: 'AIWorker' object has no attribute '_note_truncation'`（已复现，2 个探针全部失败）。
+这属于整改过程态，不是本审计的结论；本审计因此固定在 HEAD 快照上。
+
+## 未读取 / 未触碰
+
+- 未读取 `data/settings.ini`，未读取 `data/` 下任何文件；探针的 `scripts.actions_core.DATA`
+  全部指向 `tempfile.mkdtemp()`（`probe_ai_oversight.py` 里有断言）。
+- 未修改任何应用源码 / 测试；未 `git add` / `commit` / `push`。

@@ -1,17 +1,17 @@
 """AI service with pluggable backends (Anthropic, DeepSeek)."""
 
-import hashlib
-import json
 import logging
 import re
 import threading
 import time
+import uuid
 from datetime import date
 from typing import Any
 
 from PySide6.QtCore import QObject, QThread, Signal
 
-from src.services import ai_ledger, ai_verify, deepseek, openmeteo
+from src.services import ai_audit, ai_guard, ai_ledger, ai_undo, ai_verify, deepseek, openmeteo
+from src.services.ai_approval import ApprovalBroker
 from src.services.ai_instructions import InstructionParser
 from src.services.ai_loop_guards import (
     _claims_done,
@@ -20,10 +20,17 @@ from src.services.ai_loop_guards import (
     cmds_key,
     repeat_nudge,
 )
-from src.services.ai_prompts import (
-    SYSTEM_PROMPT_BASE,
-    expense_prompt,
-)
+
+# `_course_list` 等别名是**必要**的：`_build_system_prompt()` 里有同名局部变量
+# （写成 `course_list = course_list(...)` 会变成 UnboundLocalError）。
+# ruff 的 isort（`combine-as-imports=false`，与仓库其它文件同一口径）要求 `as` 导入单独成句。
+from src.services.ai_prompts import SYSTEM_PROMPT_BASE, data_envelope, expense_prompt
+from src.services.ai_prompts import balance_info as _balance_info
+from src.services.ai_prompts import course_list as _course_list
+from src.services.ai_prompts import exec_log_section as _exec_log_section
+from src.services.ai_prompts import habit_list as _habit_list
+from src.services.ai_prompts import plan_list as _plan_list
+from src.services.ai_prompts import prompt_cache_key as _prompt_cache_key
 
 # 提供方适配层已拆到 `ai_providers.py`（单文件 ≤800 行）；这里**重新导出**，
 # 既有 import（包括测试里的 `DeepSeekProvider` / `REASONING_EFFORT`）不用改。
@@ -40,13 +47,6 @@ logger = logging.getLogger(__name__)
 
 # 账本保留条数：它是"**最近实际做过什么**"（§2.4 的执行日志），不是流水账
 EXEC_LOG_KEEP = 5
-
-
-def _exec_log_section(lines: list[str]) -> str:
-    """把"实际执行过的动作"拼成提示词里的一段（§2.4：执行日志 ≠ 聊天记录，且标明是**事实**）。"""
-    body = "\n".join(f"  {line}" for line in lines)
-    return ("\n最近实际执行过的动作（**事实**，不是你的回忆；"
-            "\"继续 / 撤销刚才那条\"要以此为准）:\n" + body + "\n")
 
 
 def _looks_truncated(text: str) -> bool:
@@ -95,13 +95,38 @@ def _status_note(all_instructions: list, wrote_data: bool, ok_count: int,
     return ""
 
 
+def _audit_claim(audit, request_id: str, text: str, evidence: str) -> None:
+    """H9：模型自述与代码证据分开留痕（只存 claim 指纹 + 账本摘要）。"""
+    if audit is not None:
+        audit.claim(request_id, text, evidence)
+
+
+def _with_notes(display: str, notes: list[str]) -> str:
+    """把截断/非法命令说明拼到最终文本（没有说明时原样返回）。"""
+    return "\n\n".join([part for part in (display, *notes) if part]) if notes else display
+
+
+def _last_user_text(history: list[dict]) -> str:
+    """最近一条**用户**消息（审计用；只存指纹，不落原文）。"""
+    for msg in reversed(history):
+        if msg.get("role") == "user":
+            return str(msg.get("content") or "")
+    return ""
+
+
 def _record_goals(ledger, instructions: list, verdicts: list, labels: list) -> None:
-    """把每条**写命令**的状态记进账本（查询不算目标；没有账本就跳过）。"""
+    """把每条**写命令**的状态记进账本（查询不算目标；没有账本就跳过）。
+
+    ⚠ 状态 + **字段覆盖**（checked/total）一起记：界面照实说"验收通过（1/2 字段）"，
+    不再笼统（H5）。
+    """
     if ledger is None:
         return
-    for cmd, (state, detail), label in zip(instructions, verdicts, labels, strict=False):
+    for cmd, verdict, label in zip(instructions, verdicts, labels, strict=False):
         if _has_write_cmd([cmd]):
-            ledger.record(cmd, state, detail, label)
+            ledger.record(cmd, verdict.state, verdict.detail, label,
+                          checked=getattr(verdict, "checked", 0),
+                          total=getattr(verdict, "total", 0))
 
 
 class AIWorker(QObject):
@@ -111,7 +136,11 @@ class AIWorker(QObject):
     ledger_ready = Signal(str)          # §3.1 账本：独立于聊天历史，供下一次请求参考
 
     def __init__(self, provider: AIProvider, model: str, system_prompt: str,
-                 messages: list, dm=None, settings=None, parent=None) -> None:
+                 messages: list, dm=None, settings=None, parent=None,
+                 approval: ApprovalBroker | None = None,
+                 audit: ai_audit.AuditLog | None = None,
+                 undo: ai_undo.SnapshotStore | None = None,
+                 request_id: str = "") -> None:
         super().__init__(parent)
         self._provider = provider
         self._model = model
@@ -119,6 +148,14 @@ class AIWorker(QObject):
         self._messages = messages
         self._dm = dm
         self._settings = settings
+        # 监督闭环（H1–H4）：没有界面/数据目录时一律**失败关闭**（HIGH_WRITE 不执行）
+        self._approval = approval
+        data_dir = getattr(dm, "data_dir", None)
+        self._audit = audit if audit is not None else ai_audit.AuditLog.for_data_dir(data_dir)
+        self._undo = undo if undo is not None else ai_undo.SnapshotStore.for_data_dir(data_dir)
+        self._request_id = request_id
+        self._executed = 0          # 本请求累计执行条数（整请求 ≤ 24，见 ai_instructions）
+        self._notes: list[str] = []  # 截断 / 命令被拒的说明（要出现在最终文本里）
 
     def _max_seconds(self) -> float:
         """整次请求的**墙钟上限**（读 `AI.max_seconds`，默认 90s）。到点优雅收尾。
@@ -169,7 +206,9 @@ class AIWorker(QObject):
                 # 生命周期日志：用户会盯着日志等结果（"怎么没有 200 OK"），
                 # 这里把"第几轮 / 耗时 / 是否疑似截断 / 解析出几条命令"都写清楚。
                 truncated = _looks_truncated(text)
-                instructions = InstructionParser.parse(text)
+                parsed = InstructionParser.parse_result(text, already=self._executed)
+                instructions = parsed.commands
+                self._note_truncation(parsed)
                 logger.info("AI turn %d: %.1fs | %d 字符 | 疑似截断=%s | 命令=%d | 本批重复=%d",
                             turn + 1, time.monotonic() - started, len(text), truncated,
                             len(instructions), seen_cmds.get(cmds_key(instructions), 0))
@@ -185,6 +224,7 @@ class AIWorker(QObject):
                     final_text = text
                     break
                 all_instructions.extend(instructions)
+                self._executed += len(instructions)
                 results_text, n_ok, bad, off_target = self._run_commands(instructions, seen_cmds,
                                                                         ledger)
                 ok_count += n_ok
@@ -203,30 +243,36 @@ class AIWorker(QObject):
             self.error.emit(str(e) + _status_note(
                 all_instructions, wrote_data, ok_count, write_failures, finished_normally, ""))
 
+    def _note_truncation(self, parsed) -> None:
+        """把解析器的**截断 / 非法行**说明留下（要出现在最终文本里，不能静默丢命令）。"""
+        for note in (parsed.report(), parsed.invalid_report()):
+            if note and note not in self._notes:
+                self._notes.append(note)
+
     def _run_commands(self, instructions: list, seen_cmds: dict,
                       ledger=None) -> tuple[str, int, list, list]:
         """执行一批命令 → `(喂回文本, 写命令成功数, 写失败, 没达到预期)`。
 
-        执行前记状态、执行后**回读数据**验收（§3.2/§3.3），并逐条写进账本（§3.1）。
+        真正的执行走 `ai_guard.run_batch`：**策略 → 审批 → 快照 → 执行 → 审计 → 验收**
+        （H1–H5 的强制点都在那里；本方法只负责拼文本、记账本、报告结果）。
         """
         data_dir = getattr(self._dm, "data_dir", None)
-        before = [ai_verify.observe(cmd, data_dir) for cmd in instructions]
-        labels = [ai_verify.label_of(cmd, data_dir) for cmd in instructions]
-        results = InstructionParser.execute(instructions)
+        batch = ai_guard.run_batch(instructions, data_dir=data_dir,
+                                   broker=self._approval, audit=self._audit,
+                                   undo=self._undo, request_id=self._request_id)
+        results, verdicts = batch.results, batch.verdicts
         ok, bad = self._split_results(instructions, results)
-        verdicts = [ai_verify.check(cmd, was, res, data_dir)
-                    for cmd, was, res in zip(instructions, before, results, strict=False)]
-        _record_goals(ledger, instructions, verdicts, labels)
+        _record_goals(ledger, instructions, verdicts, batch.labels)
         ckey = cmds_key(instructions)
         seen_cmds[ckey] = seen_cmds.get(ckey, 0) + 1
-        text = "\n".join(results) + ai_verify.summarize(verdicts) + ai_ledger.recovery_note(results)
+        text = batch.feedback() + ai_ledger.recovery_note(results)
         if results and not ok and not bad:
             # 给模型一条**事实**（不是指令）：命令跑了但一条都没成功
             text += ("\n[事实] 命令已执行，但**一条都没成功**（被拒或报错了），"
                      "库存/日程没有任何变化。")
         note = repeat_nudge(seen_cmds, ckey, bool(ok))
         return ((text + "\n" + note) if note else text, len(ok), bad,
-                ai_verify.mismatches(verdicts))
+                ai_verify.mismatches([(v.state, v.detail) for v in verdicts]))
 
     @staticmethod
     def _split_results(instructions: list, results: list) -> tuple[list, list]:
@@ -244,7 +290,9 @@ class AIWorker(QObject):
         以前模型那句"已将 X 改为 Y"是主报告，代码只能事后补告警（还挂在措辞表上，会漏）。
         现在反过来：做过什么由账本 + 验收回执写，模型只解释；没有写命令就没有事实块。
         """
-        display = ai_ledger.render_facts(ledger, _strip_code_blocks(final_text))
+        _audit_claim(self._audit, self._request_id, final_text, ledger.summary())
+        display = _with_notes(
+            ai_ledger.render_facts(ledger, _strip_code_blocks(final_text)), self._notes)
         logger.info("AI 账本：%s", ledger.summary() or "（无写命令）")
         # ⚠ 账本走自己的信号（§2.4：执行日志 ≠ 聊天记录），压缩历史也带不走它
         if ledger.summary():
@@ -294,107 +342,11 @@ def _inventory_prompt(inventory) -> str:
     return inventory_prompt(inventory)
 
 
-# ── 提示词片段（模块级：AIService 类需要保持在 400 行以内，Q-A1）──
-
-def _prompt_cache_key(dm, settings, exec_log: list[str],
-                      weather_cache: dict, today: date) -> str:
-    """提示词缓存键：**内容指纹**（不是列表长度）。
-
-    旧实现用 `len(...)` 当键：改一条任务标题 / 把 5 元改成 50 元 / 同名替换，
-    长度都没变 → AI 继续拿到**旧上下文**（它会把旧值当成事实）。
-    """
-    payload = {
-        "today": today.isoformat(),
-        "semester": dm.courses.current_semester,
-        "courses": dm.courses.courses,
-        "tasks": dm.tasks.active,
-        "habits": dm.habits.habits,
-        "plans": dm.daily_logs._data.get("plans", {}),
-        "expenses": {"records": dm.expenses.records, "budget": dm.expenses.budget},
-        "inventory": dm.inventory.items,
-        "balances": {
-            key: [settings.get("Balance", f"{key}_balance"),
-                  settings.get("Balance", f"{key}_threshold")]
-            for key in ("campus_card", "water_card", "electricity")
-        },
-        "exec_log": exec_log,
-        "weather_ts": int(weather_cache.get("fetched_at", 0)),
-    }
-    blob = json.dumps(payload, ensure_ascii=False, sort_keys=True, default=str)
-    return hashlib.sha256(blob.encode("utf-8")).hexdigest()
-
-
-def _course_list(dm, weekday_names: list[str]) -> str:
-    """课程清单（用于系统提示词）。"""
-    course_lines = []
-    for c in dm.courses.courses:
-        day = c.get("day_of_week", 0)
-        day_str = weekday_names[day - 1] if 1 <= day <= 7 else "?"
-        weeks = c.get("weeks", {})
-        w_str = f"第{weeks.get('start','?')}-{weeks.get('end','?')}周" if weeks else ""
-        course_lines.append(f"  - {c.get('name','')} ({day_str} {w_str})")
-    return "\n".join(course_lines) if course_lines else "  （无课程）"
-
-
-def _plan_list(dm) -> str:
-    """日程计划清单（**今天起**最近 10 天，方括号内为 delete_plan 的 index）。"""
-    plan_lines = []
-    all_plans = dm.daily_logs._data.get("plans", {})
-    today = date.today().isoformat()
-    upcoming = sorted(day for day in all_plans if day >= today)[:10]
-    for day_str in upcoming:
-        for i, plan in enumerate(all_plans[day_str]):
-            plan_lines.append(
-                f"  [{i}] {day_str} 时段{plan.get('time_slot','?')} — "
-                f"{plan.get('title','')} ({plan.get('course_name','')})")
-    return "\n".join(plan_lines) if plan_lines else "  （无日程计划）"
-
-
-def _balance_info(settings, ds_balance_cache: dict) -> str:
-    """余额清单：校园卡/水卡/电费 + DeepSeek API（API 余额只读缓存）。"""
-    balance_lines = []
-    for key, label in [("campus_card", "校园卡"), ("water_card", "水卡"),
-                       ("electricity", "电费")]:
-        bal = settings.get("Balance", f"{key}_balance")
-        thr = settings.get("Balance", f"{key}_threshold")
-        if bal:
-            b = f"¥{bal}"
-            b += f" (低于{thr}元提醒)" if thr else ""
-        else:
-            b = "未设置"
-        balance_lines.append(f"  {label}: {b}")
-    ds_balance = ds_balance_cache.get("value", "")
-    if ds_balance:
-        balance_lines.append(f"  DeepSeek API: {ds_balance}")
-    return "\n".join(balance_lines)
-
-
-def _habit_list(dm) -> str:
-    """习惯清单（id 用于修改 / 推迟 / 取消）。"""
-    habits = dm.habits.habits
-    if not habits:
-        return "  （无习惯）"
-    day_names = ["一", "二", "三", "四", "五", "六", "日"]
-    lines = []
-    for habit in habits:
-        sched = habit.get("schedule", {})
-        if sched.get("type") == "weekly":
-            days = sched.get("days", [])
-            spec = "每周" + "".join(day_names[d - 1] for d in sorted(days))
-        else:
-            spec = f"每{sched.get('value', 1)}天"
-        rt = habit.get("reminder_time", "")
-        rt_str = f" {rt}" if rt else ""
-        pu = habit.get("postpone_until", "")
-        pu_str = f" [推迟至{pu[:10]}]" if pu else ""
-        lines.append(f"  [{habit['id']}] {habit.get('name','')} ({spec}{rt_str}){pu_str}")
-    return "\n".join(lines)
-
-
 class AIService(QObject):
     response_received = Signal(str)
     error_occurred = Signal(str)
     instructions_executed = Signal(str, list)
+    undo_finished = Signal(bool, str)      # (成功?, 说明) —— 撤销入口（**不给模型**，只给 UI）
 
     def __init__(self, settings, data_manager, weather_service=None, parent=None) -> None:
         super().__init__(parent)
@@ -413,10 +365,59 @@ class AIService(QObject):
         self._ds_balance_cache: dict[str, Any] = {}
         self._weather_cache: dict[str, Any] = {}
         self._context_warming = False
+        # 监督闭环（H1–H4）：审批中继 + 审计 + 快照。**主线程**创建，worker 只用引用。
+        self._approval = ApprovalBroker()
+        self._approval_attached = False
+        self._audit: ai_audit.AuditLog | None = None
+        self._undo: ai_undo.SnapshotStore | None = None
 
     def set_weather_service(self, weather_service) -> None:
         """设置天气服务"""
         self._weather_service = weather_service
+
+    # ── 监督闭环：审批中继 / 审计 / 动作级撤销（H1–H4）────────────
+    @property
+    def approval(self) -> ApprovalBroker:
+        """审批中继 —— UI 侧用 `ApprovalPrompt` 接管弹窗（不接管 = 高风险动作一律不执行）。"""
+        return self._approval
+
+    def mark_approval_attached(self, attached: bool = True) -> None:
+        """UI 接上审批弹窗后调用（`ApprovalPrompt` 会自己叫，这里给测试/无 UI 场景用）。"""
+        self._approval_attached = bool(attached)
+        if attached:
+            self._approval.attach()
+        else:
+            self._approval.detach()
+
+    def _prepare_oversight(self) -> None:
+        """按当前数据目录准备审计日志与快照仓库（延迟创建：`data_dir` 只在运行期确定）。"""
+        data_dir = getattr(self._dm, "data_dir", None)
+        if self._audit is None:
+            self._audit = ai_audit.AuditLog.for_data_dir(data_dir)
+        if self._undo is None:
+            self._undo = ai_undo.SnapshotStore.for_data_dir(data_dir)
+
+    def undo_available(self) -> bool:
+        """UI：有没有可撤销的 AI 写入（按钮 enable 用）。"""
+        self._prepare_oversight()
+        return bool(self._undo and self._undo.latest())
+
+    def undo_last_action(self) -> None:
+        """UI：撤销**最近一次** AI 写入。
+
+        ⚠ 只在**主线程**调用；stale（写后又被改过）会被拒绝，理由照实回给界面。
+        ⚠ 撤销入口**不对模型开放**：没有对应的 actions.py 命令，提示词里也不提。
+        """
+        self._prepare_oversight()
+        snapshot = self._undo.latest() if self._undo else None
+        ok, detail = (self._undo.undo(snapshot.snapshot_id)
+                      if (self._undo and snapshot) else (False, "没有可撤销的 AI 写入"))
+        if self._audit is not None:
+            self._audit.undo("", snapshot.snapshot_id if snapshot else "", ok, detail)
+        if ok:
+            self._dm.reload_all()
+            self._dm.data_changed.emit("ai_undo")
+        self.undo_finished.emit(ok, detail)
 
     def _make_provider(self) -> AIProvider:
         provider = self._settings.get("AI", "provider", "deepseek")
@@ -453,12 +454,21 @@ class AIService(QObject):
             self.error_occurred.emit(f"创建 AI 连接失败: {e}")
             return
         model = self._settings.get("AI", "model", "deepseek-chat")
+        self._prepare_oversight()
+        request_id = uuid.uuid4().hex
+        if self._audit is not None:
+            # 审计起点：用户原话**只存指纹 + 长度**（备注/隐私不落盘）+ 模型名。
+            # 之后每条动作都带同一个 request_id。
+            self._audit.request_user(request_id, _last_user_text(self._history),
+                                     model=model, history=len(self._history))
         self._thread = QThread()
         self._worker = AIWorker(
             provider=provider, model=model,
             system_prompt=system_prompt,
             messages=list(self._history),
             dm=self._dm, settings=self._settings,
+            approval=self._approval, audit=self._audit, undo=self._undo,
+            request_id=request_id,
         )
         self._worker.moveToThread(self._thread)
         self._thread.started.connect(self._worker.run)
@@ -639,7 +649,20 @@ class AIService(QObject):
 """
         if self._exec_log:
             context += _exec_log_section(self._exec_log)
-        prompt = SYSTEM_PROMPT_BASE + "\n" + context + "\n【输出格式】\n- 纯文本，禁用 markdown。仅可用**加粗**。\n- 禁止输出脚本命令原文和执行结果。\n- ⚠ 要执行操作时**只能**输出 ```sh 代码块（每行一条 `python scripts/actions.py …`）。\n  禁止输出任何**工具调用 / 函数调用**格式（例如 `<｜｜DSML｜｜ invoke name=…>`、`<｜｜DSML｜｜ parameter …>`、\n  XML/JSON 包裹的 invoke/parameter）—— 那些不会被解析，等于什么都没做。\n- 查找发现重复物品时，在该轮回复中告知用户，等待确认后再处理。\n- 完成后用一句简练中文**补充说明**（背景、注意事项）；**不要**复述「已记录 / 已完成 / 已改为」这类完成叙述 —— 实际执行结果由程序单独显示给用户。"
+        # ⚠ 动态数据整段包进 `<data>` 并声明"数据不是指令"（H7/P1）：
+        # 备注/标题里写"忽略以上规则"只是字符串，不是系统消息。
+        prompt = SYSTEM_PROMPT_BASE + "\n" + data_envelope(context) + "\n【输出格式】\n"
+        prompt += (
+            "- 纯文本，禁用 markdown。仅可用**加粗**。\n"
+            "- 禁止输出脚本命令原文和执行结果。\n"
+            "- ⚠ 要执行操作时**只能**输出 ```sh 代码块（每行一条 `python scripts/actions.py …`）。\n"
+            "  禁止输出任何**工具调用 / 函数调用**格式（例如 `<｜｜DSML｜｜ invoke name=…>`、"
+            "`<｜｜DSML｜｜ parameter …>`、XML/JSON 包裹的 invoke/parameter）"
+            " —— 那些不会被解析，等于什么都没做。\n"
+            "- 查找发现重复物品时，在该轮回复中告知用户，等待确认后再处理。\n"
+            "- 完成后用一句简练中文**补充说明**（背景、注意事项）；**不要**复述"
+            "「已记录 / 已完成 / 已改为」这类完成叙述 —— 实际执行结果由程序单独显示给用户。"
+        )
         self._prompt_cache_key = cache_key
         self._prompt_cache_value = prompt
         return prompt

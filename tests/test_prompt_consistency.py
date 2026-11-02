@@ -23,6 +23,12 @@ from src.services.ai_service import SYSTEM_PROMPT_BASE
 
 ADVERTISED = sorted(set(re.findall(r"scripts/actions\.py\s+([a-z_]+)", SYSTEM_PROMPT_BASE)))
 
+# 只留给**用户手动**的命令：`restore` 仍保留 handler / CLI（用户可回滚），
+# 但 2026-11-02 的 harness 审查（H2/P0）把它从 AI 工具集里移除了 ——
+# `restore --yes` 的"确认信号"同机任何进程（含模型）都能拼出来，等于没有确认。
+# 所以这里**反向**把关：它必须**不在** ADVERTISED 里（见 src/services/ai_policy.py）。
+MANUAL_ONLY = frozenset({"restore"})
+
 # 24 条已实现的命令（README v0.9.0 + 2026-10-16 记账/备份扩展 + update_course + consume）。
 IMPLEMENTED = [
     "add_task", "complete_task", "add_exam", "add_habit", "log_habit",
@@ -61,10 +67,16 @@ def test_cli_subparser_exists(capsys, monkeypatch, sandbox, cmd) -> None:
         assert "invalid choice" not in err, err
 
 
-@pytest.mark.parametrize("cmd", IMPLEMENTED)
+@pytest.mark.parametrize("cmd", [c for c in IMPLEMENTED if c not in MANUAL_ONLY])
 def test_every_implemented_command_is_advertised(cmd) -> None:
-    """有 handler 就必须写进 prompt，否则 AI 无从得知这条命令存在。"""
+    """有 handler 就必须写进 prompt，否则 AI 无从得知这条命令存在（`restore` 除外）。"""
     assert cmd in ADVERTISED, f"{cmd} 已实现但 AI 提示词未宣传"
+
+
+@pytest.mark.parametrize("cmd", sorted(MANUAL_ONLY))
+def test_manual_only_commands_are_never_advertised(cmd) -> None:
+    """⭐ 只给用户手动的命令**不许**出现在 AI 提示词里（H2/P0：确认信号不能被模型自己拼）。"""
+    assert cmd not in ADVERTISED, f"{cmd} 只能由用户手动执行，不该宣传给模型"
 
 
 def test_implemented_list_matches_handlers() -> None:

@@ -212,6 +212,8 @@ data/
 │   └── exams.json                     该学期考试
 ├── habits.json / routines.json / expenses.json / inventory.json / daily_logs.json    跨学期共享
 ├── study.json                         考研备考：学习记录 / 错题 / 模考（跨学期）
+├── ai_actions.jsonl                   AI 审计（JSONL，脱敏；**本地-only**，不进数据仓库）
+├── ai_undo/                           动作级撤销快照（index.json + blobs/；**本地-only**）
 ├── private/memberships.json           会员手机号（**私有**：不进仓库、不进 AI 提示词）
 └── search_index.json / weather_*.json / scenes_meta.json             派生或遗留
 ```
@@ -219,6 +221,20 @@ data/
 > 路径解析**只有一处**：`models/semester_paths.resolve()`（应用、`actions.py`、`send_digest.py`、
 > `build_index.py`、测试助手都调它）。切学期必须走 `DataManager.switch_semester()`
 > —— 它会把 `courses/tasks/exams` **重定向**到新学期的文件（`ERRORS #040`）。
+
+### 8.2 AI 监督产物（本地-only）
+
+- AI 写入仍**只走** `scripts/actions.py`（R-002）；`services/ai_guard.py` 在它外面依次做
+  `策略 → 审批 → 快照 → 执行 → 回读验收 → 审计`，不改变用户数据 schema。
+- `ai_actions.jsonl`：append-only JSONL，事件类型 `request / action / approval / verify / undo / claim`。
+  `command` 里的 `--note/--notes` 值与 JSON `note` 字段在 `ai_audit.redact_command()` 里剥成 `***`；
+  用户原话只存 `user_text_sha256` + `user_text_len`；模型的最终自述只存 `claim_sha256` + 长度。
+  轮转 `2MB × 5`，没有按天清理。
+- `ai_undo/index.json` + `blobs/`：每条写命令执行前留目标文件快照；撤销要求当前文件指纹等于
+  `after_hash`（stale 拒绝），且 `after_hash != before_hash`（no-op 不提供撤销）；保留最近 50 条。
+- 两者都在 `data/.gitignore`，`git_sync` 的 `git add -A -- data/` 不会带上 —— 它们是**本地**
+  审计/撤销证据，不随私有数据仓库同步/推送；需要长期归档时应另做导出（当前不做）。
+
 
 | 文件 | `_version` | 顶层键 | 关键字段 |
 |---|---|---|---|

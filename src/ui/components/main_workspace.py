@@ -60,6 +60,10 @@ EVENT_PANELS: dict[str, frozenset[str]] = {
     "semester": frozenset({"task", "exam"}),
     # 来源不明（AI 批量改动 / 外部写入 / 内部批量）→ 全刷
     "ai_action": ALL_PANELS,
+    # AI 动作级撤销（H3，2026-11-02）：撤销会把**上一次写入涉及的任意文件**还原
+    # （库存 / 日程 / 记账 / 课表…），所以同样按全刷处理 —— 只刷一个面板会留下
+    # "数据已经回去了、界面还是旧值"的错觉。
+    "ai_undo": ALL_PANELS,
     "external": ALL_PANELS,
     "internal": ALL_PANELS,
 }

@@ -140,7 +140,8 @@ python -m venv .venv
 │   ├── DESIGN_TOKENS.md            #   令牌表（由脚本生成，勿手改）
 │   ├── showcase.html               #   设计原型（意图与结构参考）
 │   └── sidebar-preview.html
-├── dev-logs/                       # 开发日志
+├── dev-logs/                       # 开发日志（含 AI harness 审计报告 .md/.docx）
+├── docs/ai-harness-audit/          # AI harness 审计证据（papers/quotes/findings CSV、探针输出）
 ├── plugins/pomodoro/               # 番茄钟插件（当前禁用：IsOpen.able.disable）
 ├── resources/                      # 运行时资源（image.png）
 └── data/                           # 用户数据（JSON + settings.ini，永不进发行版）

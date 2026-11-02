@@ -16,7 +16,15 @@ from PySide6.QtWidgets import (
 )
 
 from src.i18n.loader import tr
-from src.ui.styles.theme import LAYOUT, SIZE_BODY, SIZE_BODY_S, SIZE_CAPTION, font, get_colors
+from src.ui.styles.theme import (
+    LAYOUT,
+    SIZE_BODY,
+    SIZE_BODY_S,
+    SIZE_CAPTION,
+    btn_ghost_qss,
+    font,
+    get_colors,
+)
 from src.ui.widgets.rounded_button import RoundedButton
 
 
@@ -82,6 +90,7 @@ class _ChatInput(QTextEdit):
 
 class AIPanel(QWidget):
     message_sent = Signal(str)
+    undo_requested = Signal()          # 用户点了「撤销 AI 写入」（只回滚 AI 的写入，不给模型）
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -106,6 +115,14 @@ class AIPanel(QWidget):
         title.setStyleSheet(f"font-weight: 600; color: {c['fg_primary']}; border: none;")
         header_layout.addWidget(title)
         header_layout.addStretch()
+        # 撤销入口（H3）：只在**界面**上，模型没有对应命令，提示词也不提
+        self._undo_btn = RoundedButton(tr("ai.undo"))
+        self._undo_btn.setToolTip(tr("ai.undo_tip"))
+        self._undo_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._undo_btn.setEnabled(False)
+        self._undo_btn.setStyleSheet(btn_ghost_qss())
+        self._undo_btn.clicked.connect(self._on_undo)
+        header_layout.addWidget(self._undo_btn)
         self._status_indicator = QLabel("●")
         self._status_indicator.setStyleSheet(f"color: {c['fg_disabled']}; font-size: {SIZE_BODY}px; border: none;")
         header_layout.addWidget(self._status_indicator)
@@ -243,6 +260,19 @@ class AIPanel(QWidget):
         self._input.setEnabled(True)
         self._send_btn.setText(tr("ai.send"))
         self._input.setFocus()
+
+    # ── 撤销入口（H3：只回滚 AI 的写入，模型看不到这个能力）────────
+    def set_undo_available(self, available: bool) -> None:
+        """有可撤销的 AI 写入才让按钮可点（避免点了才发现"没有可撤销的"）。"""
+        self._undo_btn.setEnabled(bool(available))
+
+    def _on_undo(self) -> None:
+        self.undo_requested.emit()
+
+    def show_undo_result(self, ok: bool, detail: str) -> None:
+        """撤销结果照实显示（stale 拒绝也是结果，不能静默）。"""
+        self.append_message("ai", tr("ai.undo_ok" if ok else "ai.undo_failed", detail=detail))
+        self._on_response_done()
 
     def refresh_theme(self) -> None:
         c = get_colors()

@@ -1,0 +1,17 @@
+{
+  "dialog.ai_approval.title": "需要确认：AI 要执行高风险操作",
+  "dialog.ai_approval.heading": "这条命令会改动你的数据，请先确认",
+  "dialog.ai_approval.label_command": "命令",
+  "dialog.ai_approval.label_object": "对象",
+  "dialog.ai_approval.label_file": "会写文件",
+  "dialog.ai_approval.label_effect": "改前 → 改后",
+  "dialog.ai_approval.hint": "点「拒绝」、超时或直接关窗口都**不会写入任何数据**。",
+  "dialog.ai_approval.countdown": "剩余 {seconds} 秒，超时按拒绝处理。",
+  "dialog.ai_approval.btn_approve": "允许执行",
+  "dialog.ai_approval.btn_deny": "拒绝",
+  "ai.undo": "撤销 AI 写入",
+  "ai.undo_tip": "回滚最近一次 AI 写入（写之后文件又被改过时会拒绝，避免覆盖你的改动）",
+  "ai.undo_none": "没有可撤销的 AI 写入。",
+  "ai.undo_ok": "已撤销最近一次 AI 写入：{detail}",
+  "ai.undo_failed": "撤销没有完成：{detail}"
+}

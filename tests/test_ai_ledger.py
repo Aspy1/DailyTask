@@ -158,6 +158,26 @@ def test_model_text_is_labelled_as_explanation(qapp, sandbox) -> None:
     assert "【已执行】" in out and "【说明】" in out
     assert out.index("【已执行】") < out.index("【说明】"), "事实块必须在说明之前"
     assert "顺手放书架3" in out
+    # H9：模型自述必须显式标注"未核验"，不能和代码验收事实混为一谈
+    assert "模型自述，未核验" in out
+    assert out.index("模型自述，未核验") > out.index("【已执行】")
+
+
+def test_render_facts_marks_model_text_as_unverified() -> None:
+    """H9：有写命令时，模型的话只能作为**未核验的自述**出现。"""
+    led = ai_ledger.Ledger()
+    led.record("python scripts/actions.py add_item --name 纸巾",
+               ai_ledger.VERIFIED, "「纸巾」在清单里", "纸巾", checked=1, total=2)
+    out = ai_ledger.render_facts(led, "我把数量、位置都改好了")
+    assert "【说明】（模型自述，未核验；以【已执行】为准）" in out
+    assert "我把数量、位置都改好了" in out
+
+
+def test_pure_chat_is_not_labelled_as_fact() -> None:
+    """没有写命令 → 只有模型的话，不伪造【已执行】块。"""
+    out = ai_ledger.render_facts(ai_ledger.Ledger(), "今天有三节课")
+    assert out == "今天有三节课"
+    assert "【已执行】" not in out and "未核验" not in out
 
 
 def test_verify_and_ledger_use_the_same_state_names() -> None:
