@@ -19,6 +19,10 @@
 不进 `DataManager` 的模型清单，也不经 `actions.py`（R-002 管的是 `data/*.json` 用户数据）。
 """
 
+# 本模块的 `SnapshotStore.list` 会遮蔽内建 `list`；在会**立即求值注解**的 Python 上，
+# 后续 `list[Snapshot]` 会变成 `function[...]`，导入即 TypeError。延迟注解以兼容。
+from __future__ import annotations
+
 import hashlib
 import json
 import logging
@@ -135,7 +139,7 @@ class Snapshot:
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, raw: dict) -> "Snapshot":
+    def from_dict(cls, raw: dict) -> Snapshot:
         known = {f for f in cls.__dataclass_fields__}
         return cls(**{k: v for k, v in raw.items() if k in known})
 
@@ -151,7 +155,7 @@ class SnapshotStore:
         self._index_lock = threading.RLock()
 
     @classmethod
-    def for_data_dir(cls, data_dir, keep: int = DEFAULT_KEEP) -> "SnapshotStore | None":
+    def for_data_dir(cls, data_dir, keep: int = DEFAULT_KEEP) -> SnapshotStore | None:
         """按数据目录建快照仓库；`data_dir` 为空 → None（调用方跳过）。"""
         if not data_dir:
             return None

@@ -6,6 +6,7 @@
 
 import json
 import threading
+from pathlib import Path
 
 import pytest
 
@@ -20,6 +21,19 @@ def _store(sandbox) -> ai_undo.SnapshotStore:
     store = ai_undo.SnapshotStore.for_data_dir(sandbox)
     assert store is not None
     return store
+
+
+def test_annotations_are_deferred_for_eager_python() -> None:
+    """⭐ 回归：`SnapshotStore.list` 会遮蔽内建 `list`。
+
+    Python 3.12/3.13（以及部分 3.14 构建）在类体里**立即求值**后续注解，
+    于是 `_write_index(self, items: list[Snapshot])` 里的 `list` 变成同名方法，
+    导入 `ai_undo` 直接 `TypeError: 'function' object is not subscriptable`。
+    `from __future__ import annotations` 让注解延迟求值，规避所有此类遮蔽。
+    """
+    source = Path(ai_undo.__file__).read_text(encoding="utf-8")
+    head = "\n".join(source.splitlines()[:40])
+    assert "from __future__ import annotations" in head
 
 
 def test_capture_then_undo_restores_the_before_state(sandbox) -> None:
