@@ -55,15 +55,17 @@ def test_renewals_list_names_only() -> None:
     assert "2030" not in "".join(soon), "远期的不列"
 
 
-def test_budget_hint_only_when_over(tmp_path) -> None:
+def test_budget_hint_only_when_over(sandbox, monkeypatch) -> None:
     import json
 
-    (tmp_path / "expenses.json").write_text(json.dumps(
+    monkeypatch.setattr("src.services.budget.forecast",
+                        lambda records, budget, items: forecast(records, budget, items, today=DAY))
+    (sandbox / "expenses.json").write_text(json.dumps(
         {"records": _records(), "budget": {"monthly": 50}}), encoding="utf-8")
-    hints = budget_hints(tmp_path, [])
+    hints = budget_hints(sandbox, [])
     assert len(hints) == 1 and "超支" in hints[0].text
     assert hints[0].key == "budget.over"
 
-    (tmp_path / "expenses.json").write_text(json.dumps(
+    (sandbox / "expenses.json").write_text(json.dumps(
         {"records": _records(), "budget": {"monthly": 100000}}), encoding="utf-8")
-    assert budget_hints(tmp_path, []) == [], "没超支就不提示"
+    assert budget_hints(sandbox, []) == [], "没超支就不提示"

@@ -25,6 +25,7 @@ import json
 import logging
 import os
 import re
+import shlex
 import threading
 from datetime import UTC, datetime
 from pathlib import Path
@@ -57,10 +58,6 @@ _MAX_TEXT = 400
 
 # 命令里的敏感参数：`--notes "…"` / `--phone=…`。长键名优先，避免 `--note` 先吃掉 `--notes`。
 _PII_FLAGS = tuple(sorted(_PII_KEYS, key=len, reverse=True))
-_FLAG_VALUE_RE = re.compile(
-    r"(?i)(--(?:" + "|".join(re.escape(name) for name in _PII_FLAGS) + r"))"
-    r"(\s+|=)(?:\"[^\"]*\"|'[^']*'|\S+)"
-)
 # `--plans '[{"title":…,"note":"…"}]'` 这类 JSON 载荷里的备注字段
 _JSON_PII_RE = re.compile(
     r'(?i)("(?:' + "|".join(re.escape(name) for name in _PII_FLAGS) + r')"\s*:\s*)'
@@ -80,11 +77,34 @@ def _redact_text(text: str) -> str:
     return out[:_MAX_TEXT]
 
 
+def _redact_command_parts(parts: list[str]) -> list[str]:
+    """Remove complete sensitive argv values before producing an audit display."""
+    out: list[str] = []
+    hide_next = False
+    for part in parts:
+        if hide_next:
+            out.append(REDACTED)
+            hide_next = False
+            continue
+        flag, separator, _value = part.partition("=")
+        name = flag[2:].lower().replace("-", "_") if flag.startswith("--") else ""
+        if name in _PII_KEYS or name in _SECRET_KEYS:
+            out.append(f"{flag}={REDACTED}" if separator else flag)
+            hide_next = not separator
+        else:
+            out.append(_JSON_PII_RE.sub(lambda match: f'{match.group(1)}"***"', part))
+    return out
+
+
 def redact_command(command: str) -> str:
-    """命令文本脱敏：剥掉 `--note/--notes` 等参数值，再处理手机号/密钥。"""
-    out = str(command or "")
-    out = _FLAG_VALUE_RE.sub(lambda match: f"{match.group(1)}{match.group(2)}***", out)
-    out = _JSON_PII_RE.sub(lambda match: f'{match.group(1)}"***"', out)
+    """Redact argv values; malformed quoting hides the entire untrusted command."""
+    try:
+        parts = shlex.split(str(command or ""))
+    except ValueError:
+        return REDACTED
+    # Keep the existing '--notes ***' display while quoting all other arguments.
+    out = " ".join(part if part == REDACTED else shlex.quote(part)
+                   for part in _redact_command_parts(parts))
     return _redact_text(out)
 
 

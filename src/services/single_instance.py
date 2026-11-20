@@ -8,9 +8,15 @@
 """
 
 import json
+import os
 import time
 
-SINGLE_INSTANCE_KEY = "StudentSchedulerSingleInstance"
+# 单实例通道 key。默认值给真实应用用；测试/并行实例可用环境变量换一条**独立管道**——
+# 两个 `QLocalServer` 可以同时 `listen` 同一个名字，而客户端连接可能被真实应用接走：
+# 用户开着应用时，委派测试就会连到它而不是测试服务端（2026-11-04 门禁实测）。
+SINGLE_INSTANCE_KEY = (
+    os.environ.get("LIFE_ASSISTANT_SINGLE_INSTANCE_KEY", "").strip()
+    or "StudentSchedulerSingleInstance")
 
 # 委派协议：一行 JSON（`\n` 收尾）
 #   请求 {"argv": ["add_item", "--name", "纸巾"]}

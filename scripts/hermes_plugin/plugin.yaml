@@ -1,0 +1,20 @@
+name: daily-task
+version: 0.1.0
+description: Manage DailyTask homework, courses and schedules through validated actions
+provides_tools:
+  - daily_task_query
+  - daily_task_update
+config_schema:
+  workspace:
+    type: str
+    required: true
+    description: Absolute path to the DailyTask workspace
+  python:
+    type: str
+    description: Absolute interpreter path; defaults to the workspace virtual environment
+  data_dir:
+    type: str
+    description: Optional absolute data directory override for isolated testing
+  instance_key:
+    type: str
+    description: Optional single-instance channel override for isolated testing

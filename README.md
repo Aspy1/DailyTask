@@ -13,7 +13,7 @@ AI 驱动的 PySide6 桌面日程管理应用。自然语言交互管理课程�
 | 数据 | JSON 本地存储，原子写入，3s 增量 reload，hash 跳过未变 widget |
 | 提醒 | 托盘弹窗 + SMTP 邮件 + GitHub Actions 每日摘要 |
 | 插件 | 延迟加载，面板注册 API |
-| 移动端 | TG bot 通过 Hermes Gateway 直连 data/ 目录，零同步 |
+| 移动端 | 微信通过 Hermes 原生插件调用受控 actions 工具，与桌面共用数据 |
 
 ## 开发环境
 
@@ -113,6 +113,8 @@ python -m venv .venv
 │   ├── actions_cmds_study.py       #   考研备考命令：学习/错题/模考/汇总
 │   ├── actions_core.py             #   核心层：读写（原子+写前备份）/ 参数校验 / 日期与课程匹配
 │   ├── actions_cli.py              #   argparse 子命令定义
+│   ├── hermes_actions.py           # Hermes JSON 桥接：执行门 + CLI 委派 + 回读验收
+│   ├── hermes_plugin/              # 可部署到 Hermes 的 daily-task 原生工具插件
 │   ├── build_index.py              # 模糊搜索索引
 │   ├── send_digest.py              # GitHub Actions 邮件摘要
 │   ├── gen_design_tokens.py        # 从 tokens.json 生成 DESIGN_TOKENS.md
@@ -126,6 +128,7 @@ python -m venv .venv
 ├── tests/                          # pytest 平铺测试（conftest / helpers）
 ├── MD-files/                       # 文档体系
 │   ├── ARCHITECTURE.md             #   项目运作原理（分层/数据流/信号/不变量/schema）
+│   ├── HERMES.md                   #   微信接入、工具范围、部署与验证
 │   ├── CODE_STANDARDS.md           #   代码与工程规范（Q-xxx，可检查）
 │   ├── DEV_PRINCIPLES.md           #   可迁移的通用开发准则
 │   ├── AI助手参考资料/              #   AI 专项审查、论文 PDF 与工程实践索引
@@ -149,6 +152,9 @@ python -m venv .venv
 ```
 
 AI 代理的专项审查、论文原文与工程实践索引见 [AI 助手参考资料](MD-files/AI助手参考资料/README.md)。
+
+微信远程入口见 [Hermes 接入说明](MD-files/HERMES.md)。当前提供查询、新增/完成作业、
+新增/修改课程、新增/完成日程；模型为 OpenCode Go 的 `deepseek-v4.1-flash`。
 
 ## 功能
 

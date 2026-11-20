@@ -19,7 +19,7 @@
 """
 
 import json
-import re
+import shlex
 from datetime import date
 from pathlib import Path
 
@@ -29,21 +29,35 @@ MISMATCH = "mismatch"
 FAILED = "failed"
 UNVERIFIED = "unverified"
 
-_ARG_RE = re.compile(r"--([a-z_]+)(?:[ =])(\"[^\"]*\"|'[^']*'|\S+)")
-
-
 def parse_command(command: str) -> tuple[str, dict[str, str]]:
-    """从命令行里取出 `(操作名, 参数)` —— 只认 `--k v` / `--k=v`（`actions.py` 的两种写法）。"""
-    parts = str(command or "").split()
-    operation = ""
+    """Parse CLI evidence without losing quoted, empty, or option-like values."""
+    try:
+        parts = shlex.split(str(command or ""))
+    except ValueError:
+        return "", {}
     for i, token in enumerate(parts):
         if token.endswith("actions.py") and i + 1 < len(parts):
-            operation = parts[i + 1]
-            break
+            return parts[i + 1], _parse_options(parts[i + 2:])
+    return "", {}
+
+
+def _parse_options(parts: list[str]) -> dict[str, str]:
+    """Read both --key=value and --key value from tokenized evidence."""
     args: dict[str, str] = {}
-    for key, value in _ARG_RE.findall(str(command or "")):
-        args[key] = value.strip("\"'")
-    return operation, args
+    index = 0
+    while index < len(parts):
+        token = parts[index]
+        index += 1
+        if not token.startswith("--"):
+            continue
+        key, separator, value = token[2:].partition("=")
+        if not separator:
+            if index >= len(parts) or parts[index].startswith("--"):
+                continue
+            value = parts[index]
+            index += 1
+        args[key.replace("-", "_")] = value
+    return args
 
 
 def _read(data_dir: Path, name: str) -> dict:

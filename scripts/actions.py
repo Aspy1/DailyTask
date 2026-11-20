@@ -66,6 +66,7 @@ from scripts.actions_core import (  # noqa: F401
     DATA,
     MAX_NOTE,
     MAX_TITLE,
+    SPECS,
     ActionError,
     _backup_dir,
     _backup_file,
@@ -590,16 +591,24 @@ def _to_int_or_str(val: str) -> int | str:
 
 
 def _consume_option(ns: argparse.Namespace, parts: list[str], i: int) -> int:
-    """解析 parts[i] 处的 --key [value] 写入 ns，返回下一个下标。"""
+    """Parse --key=value or --key [value], retaining literal text values."""
     token = parts[i]
     if not token.startswith('--'):
         return i + 1
-    key = token[2:].replace('-', '_')
-    if i + 1 < len(parts) and not parts[i + 1].startswith('--'):
-        setattr(ns, key, _to_int_or_str(parts[i + 1]))
-        return i + 2
-    setattr(ns, key, True)
-    return i + 1
+    raw_key, equals, value = token[2:].partition('=')
+    key = raw_key.replace('-', '_')
+    next_i = i + 1
+    if not equals:
+        if next_i >= len(parts) or parts[next_i].startswith('--'):
+            setattr(ns, key, True)
+            return next_i
+        value = parts[next_i]
+        next_i += 1
+    rule = SPECS.get(ns.action, {}).get(key, ())
+    if rule and rule[0] in ('int', 'int_opt'):
+        value = _to_int_or_str(value)
+    setattr(ns, key, value)
+    return next_i
 
 
 def _build_action_namespace(parts: list[str]) -> argparse.Namespace:

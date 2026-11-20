@@ -4,7 +4,7 @@
 > 只写**代码表达不了的东西**（跨文件时序、不变量、为什么、外部契约）；函数签名/参数/字段结构不在此重复。
 > 相关文档：`AGENTS.md`（流程/环境）· `CODE_STANDARDS.md`（规范）· `PLAN.md`（计划/体检）· `ERRORS.md`（坑）。
 >
-> 最后更新：2026-11-01
+> 最后更新：2026-11-20
 
 ---
 
@@ -20,7 +20,7 @@ AI 驱动的 PySide6 桌面日程管理应用（学生向）。单进程、无�
 | 存储 | `data/*.json`（本地文件） |
 | AI | DeepSeek / Anthropic / **OpenCode Go**（可切换），Agent Loop 多轮；单次请求 120s 超时，回复被截断自动分批续跑 |
 | 数据操作 | `scripts/actions.py`（命令）+ `actions_core.py`（读写/校验/备份）+ `actions_cli.py`（argparse） |
-| 移动端 | 外部 TG bot 直接读写同一个 `data/`（零同步） |
+| 移动端 | Hermes 微信网关 → 专用原生工具 → `hermes_actions.py` → `actions.py` CLI |
 
 入口：`main.py` → `src/app.py:App(QApplication)`。
 
@@ -43,6 +43,8 @@ ui ──→ services ──→ models ──→ base(BaseJsonModel)
 > ⚠ 旧的 `AllTheFiles.md` 记录的是另一套顺序，与当前代码不符；**以本节为准**。
 
 1. 单实例探测：`QLocalSocket.connectToServer` → 成功则 `is_secondary=True` 直接返回
+   （key 默认 `StudentSchedulerSingleInstance`；测试可用 `LIFE_ASSISTANT_SINGLE_INSTANCE_KEY`
+   换独立管道 —— 真实应用在跑时，同名管道的连接可能被它接走）
 2. `setApplicationName`、`setQuitOnLastWindowClosed(False)`
 3. Windows：`SetCurrentProcessExplicitAppUserModelID`（任务栏图标归属）
 4. 构建图标（`_make_icon`，可选 `resources/image.png`）
@@ -85,6 +87,32 @@ ui ──→ services ──→ models ──→ base(BaseJsonModel)
 
 > ⚠ **架构债**：路径 A 与 B 是**两套真值来源**（Model 内存态 vs 磁盘文件），靠 3s 轮询"对账"。
 > 见 `CODE_STANDARDS Q-E2`、`PLAN B-*`。
+
+### 4.1 Hermes 微信入口（2026-11-20）
+
+Hermes 使用独立运行时，项目不依赖 Hermes Python 包。仓库维护
+`scripts/hermes_plugin/`，部署副本加载两个工具：`daily_task_query` 与 `daily_task_update`。
+模型输入为受限 JSON；工作区、解释器、测试数据目录及通信 key 只能由操作者配置。
+微信工具集显式选择 `daily_task`，模型不能通过该入口调用通用终端或文件编辑工具。
+
+工具以固定 argv、`shell=False` 启动项目 venv 的 `scripts/hermes_actions.py`，
+JSON 只经 stdin 传递。写操作复用 `ai_guard.run_batch` 的策略、快照、审计与回读验收，
+执行器再用项目解释器启动 `actions.py` CLI，保留运行中应用的单实例委派。
+命名管道已连接但未获得可信回执时拒绝直接写入；没有应用时走原有原子写入及写前备份。
+CLI 与委派接受端均识别 `--key=value`，文本中的空格、引号和 `--` 不改变参数边界；
+只有 SPECS 中的整数字段会转换类型，数字标题仍为字符串。
+
+当前仅开放 `add_task / complete_task / add_course / update_course / add_plan / complete_plan`。
+查询只读当前学期的课程、作业状态和指定日期日程，返回真实 ID、日程序号与本机时间；
+使用 `semester_paths` 的纯路径函数，不调用会创建或修复注册表的 `resolve()`。
+不读取设置、私有联系人或附件文件。更新课程只传显式字段，保留未传字段。
+
+成功回执须包含 `verified` 或 `verified_noop`；后者表示状态已经满足。
+`coverage.checked/total` 保留既有验收覆盖度，新增作业/课程/日程通常只验收标题/名称，
+不能宣称所有字段都已核对。模型必须根据回执汇报；失去回执或超时标记 `uncertain`，
+应先查询，不自动重试写操作。单条 CLI 超时 90 秒，外层桥接超时 150 秒；
+插件用进程内锁串行调用，快照与 UI 并发操作仍沿用现有指纹冲突保护。
+部署与隔离测试要求见 [HERMES.md](HERMES.md)。
 
 ## 5. 跨模块信号总览
 
