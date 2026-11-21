@@ -1,5 +1,7 @@
 {
   "hermes.section": "Hermes 微信网关",
+  "hermes.online": "● 在线",
+  "hermes.offline": "● 离线",
   "hermes.start": "启动 Hermes",
   "hermes.restart": "重启 Hermes",
   "hermes.hint": "启动后可在微信中使用 Hermes。",

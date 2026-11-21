@@ -17,6 +17,8 @@ Go Key 由用户保存在 Hermes `.env` 的 `OPENCODE_GO_API_KEY`；不要粘贴
 桌面设置的「Hermes 微信网关」提供「启动 Hermes」和「重启 Hermes」。启动调用
 `gateway run`，重启调用 `gateway run --replace`。桌面默认使用 `D:/Dev/hermes-home`，
 也可由启动环境的 `HERMES_HOME` 指定安装位置。按钮回执表示进程已发起，微信连通性需由网关确认。
+同一张卡片每 3 秒刷新网关状态。运行中的网关显示绿色「在线」，未运行显示灰色「离线」。
+桌面会核对状态文件里的 PID 和进程启动时间，避免旧记录或 PID 被复用时误报。该指示反映网关运行状态，微信连通性另行确认。
 
 启用文件工具时，在 Hermes 插件设置中填入 `document_dir` 的绝对路径，并把需要委托的
 文档放进该目录。当前使用 `D:/Dev/hermes-home/documents`，这是 Hermes home 内专门允许的

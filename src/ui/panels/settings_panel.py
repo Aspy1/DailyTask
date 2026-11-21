@@ -3,7 +3,7 @@
 import logging
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QUrl
+from PySide6.QtCore import Qt, QTimer, QUrl
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -20,7 +20,7 @@ from PySide6.QtWidgets import (
 
 from src.i18n.loader import tr
 from src.services.email_sender import EmailConfig
-from src.services.hermes_gateway import launch_gateway
+from src.services.hermes_gateway import gateway_online, launch_gateway
 from src.services.paths import get_data_dir
 from src.services.settings_manager import SettingsManager
 from src.ui.styles.cards import card
@@ -45,6 +45,7 @@ from src.ui.widgets.toggle_switch import ToggleSwitch
 
 # 数据目录（与 App / CLI 同一入口；可用环境变量指到沙箱）
 _DATA_DIR = get_data_dir()
+_HERMES_POLL_MS = 3000
 
 logger = logging.getLogger(__name__)
 
@@ -157,9 +158,23 @@ class SettingsPanel(QWidget):
             row.addWidget(button)
         self._hermes_status = QLabel(tr("hermes.hint"), frame)
         self._hermes_status.setWordWrap(True)
+        self._hermes_connection = QLabel(frame)
+        self._hermes_connection.setObjectName("hermes_connection")
+        layout.addWidget(self._hermes_connection)
         layout.addWidget(buttons)
         layout.addWidget(self._hermes_status)
+        self._hermes_status_timer = QTimer(frame)
+        self._hermes_status_timer.timeout.connect(self._refresh_hermes_connection)
+        self._hermes_status_timer.start(_HERMES_POLL_MS)
+        self._refresh_hermes_connection()
         return frame
+
+    def _refresh_hermes_connection(self) -> None:
+        online = gateway_online()
+        color = self._c()["green" if online else "fg_hint"]
+        label = self._hermes_connection
+        label.setText(tr("hermes.online" if online else "hermes.offline"))
+        label.setStyleSheet(f"#hermes_connection {{ color: {color}; }}")
 
     def _launch_hermes(self, restart: bool) -> None:
         state = launch_gateway(restart=restart)
@@ -540,6 +555,7 @@ class SettingsPanel(QWidget):
         self._refresh_plugins()
 
     def refresh_theme(self) -> None:
+        self._refresh_hermes_connection()
         # Re-apply dynamic styles for settings panel widgets
         try:
             # inputs

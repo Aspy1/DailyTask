@@ -18,7 +18,7 @@ AI 驱动的 PySide6 桌面日程管理应用（学生向）。单进程、无�
 | 服务 | 纯 Python + QObject/QThread |
 | 模型 | 自研 `BaseJsonModel`（原子写入 + 版本号） |
 | 存储 | `data/*.json`（本地文件） |
-| AI | Hermes 负责模型与工具调用。桌面只提供网关的启动控制 |
+| AI | Hermes 负责模型与工具调用。桌面提供网关的启动控制和本机进程状态 |
 | 数据操作 | `scripts/actions.py`（命令）+ `actions_core.py`（读写/校验/备份）+ `actions_cli.py`（argparse） |
 | 移动端 | Hermes 微信网关 → 专用原生工具 → `hermes_actions.py` → `actions.py` CLI |
 
