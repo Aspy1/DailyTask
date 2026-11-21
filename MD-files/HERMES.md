@@ -46,6 +46,19 @@ export HERMES_HOME=D:/Dev/hermes-home
 /d/Dev/hermes-home/bin/hermes.exe plugins validate D:/Dev/hermes-home/plugins/daily-task
 /d/Dev/hermes-home/bin/hermes.exe plugins enable daily-task
 /d/Dev/hermes-home/bin/hermes.exe plugins doctor daily-task --ci
+### 微信定时提醒
+
+Hermes Cron 使用独立的免模型任务，每 5 分钟检查作业，每 15 分钟检查考试。吃饭任务在
+午饭和晚饭窗口每 5 分钟检查，与首页共用 11:40、16:40 和 90 分钟有效期规则。
+作业 3 天和 6 小时提醒独立去重，考试在 14、7、3 天阈值合并提醒，吃饭每天每顿一次。
+作业 3 天提醒跟随桌面总开关。桌面启动或保存设置时发布一份只包含开关值的本机状态。
+考试、作业紧急提醒和吃饭规则不依赖该开关。正式任务只发到现有微信私聊。
+
+任务通过 `scripts/hermes_reminders.py` 读取当前学期的业务数据。运行入口放在 Hermes
+的 `scripts/`，去重账本放在 Hermes 的 `cron/`。没有命中时脚本保持安静。Hermes
+网关需要在线才能投递。任务记录“已产出”后由 Hermes 负责发送，微信故障时以 Hermes
+运行日志为准。
+
 ```
 
 在 Hermes 配置中设置 `plugins.entries.daily-task.settings.workspace` 为本仓库绝对路径，

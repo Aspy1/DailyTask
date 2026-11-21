@@ -16,6 +16,35 @@ DDL_REMIND_DAYS = 3          # 作业截止前多少天提醒
 DDL_NOTIFY_COOLDOWN_MINUTES = 30   # 同一任务的**通知**冷却（用户 2026-10-30：原来每分钟一条 ✗）
 DDL_EMAIL_HOURS = 6          # 距截止多少小时内发紧急邮件
 
+EXAM_DAYS = (14, 7, 3)
+
+
+def _is_exam_task(task: dict) -> bool:
+    text = (task.get("title") or "") + " " + " ".join(task.get("tags") or [])
+    return "考试" in text or "exam" in text.lower()
+
+
+def collect_exam_items(exams: list[dict], pending: list[dict]) -> list[dict]:
+    """Merge canonical exams and legacy exam tasks by name and date."""
+    rows = [(exam.get("course_name"), exam.get("exam_date")) for exam in exams]
+    rows.extend((task.get("title"), task.get("due_date")) for task in pending if _is_exam_task(task))
+    items = {}
+    for raw_name, raw_day in rows:
+        name = (raw_name or "").strip()
+        day = (raw_day or "")[:10]
+        if name and day:
+            key = f"{name}@{day}"
+            items.setdefault(key, {"key": key, "name": name, "date": day})
+    return list(items.values())
+
+
+def exam_reminder_due(item: dict, today: date, sent: set[int]) -> tuple[int, list[int]]:
+    try:
+        days_left = (date.fromisoformat(item["date"]) - today).days
+    except ValueError:
+        return -1, []
+    hits = [day for day in EXAM_DAYS if 0 <= days_left <= day and day not in sent]
+    return days_left, hits
 # ── 吃饭提醒（用户 2026-10-30：每天 11:40 / 16:40 一次）──────────
 # `(时, 分, slot, 名称)`；slot 只用来做"今天这一顿提醒过没有"的幂等键。
 MEAL_TIMES = ((11, 40, "lunch", "午饭"), (16, 40, "dinner", "晚饭"))

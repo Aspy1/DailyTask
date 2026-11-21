@@ -36,11 +36,13 @@ from src.services.reminder_rules import (
     attendance_body,
     attendance_due,
     balance_alerts,
+    collect_exam_items,
     ddl_email_body,
     ddl_email_due,
     ddl_notify_cooldown_due,
     ddl_reminder_body,
     ddl_reminder_due,
+    exam_reminder_due,
     expired_custom_reminder_ids,
     meal_slot_due,
     parse_hhmm,
@@ -60,23 +62,6 @@ CATCHUP_MAX_MINUTES = 720
 LOOKAHEAD_MINUTES = 60
 # `last_reminder_check` 只是"跨重启补跑"的锚点，不必每分钟写一次 settings.ini
 SETTINGS_SAVE_INTERVAL_MINUTES = 5
-EXAM_DAYS = [14, 7, 3]       # exam reminder thresholds (days before)
-
-
-def _looks_like_exam(task: dict) -> bool:
-    """旧数据的判定：标题或标签里带「考试」。"""
-    text = task.get("title", "") + " " + " ".join(task.get("tags", []))
-    return "考试" in text or "exam" in text.lower()
-
-
-def _add_exam_item(items: dict[str, dict], name: str, date_str: str) -> None:
-    """按 (名称, 日期) 归一化写入考试集合；名称/日期缺失则忽略。"""
-    name = (name or "").strip()
-    day = (date_str or "")[:10]
-    if not name or not day:
-        return
-    key = f"{name}@{day}"
-    items.setdefault(key, {"key": key, "name": name, "date": day})
 
 
 def _persist_last_check(svc, force: bool = False) -> None:
@@ -377,15 +362,9 @@ class ReminderService(QObject):
 
     def _collect_exam_items(self) -> list[dict]:
         """合并 exams.json 与任务里的考试，按 (名称, 日期) 去重。"""
-        items: dict[str, dict] = {}
         exams_model = getattr(self._dm, "exams", None)
-        for e in (exams_model.exams if exams_model is not None else []):
-            _add_exam_item(items, e.get("course_name", ""), e.get("exam_date", ""))
-        for t in self._dm.tasks.pending:
-            if not _looks_like_exam(t):
-                continue
-            _add_exam_item(items, t.get("title", ""), t.get("due_date", ""))
-        return list(items.values())
+        exams = exams_model.exams if exams_model is not None else []
+        return collect_exam_items(exams, self._dm.tasks.pending)
 
     def _check_exam_item(self, item: dict, today: date) -> None:
         """单个考试的阈值检查：一次检查**只发一封**，其余命中的阈值一并登记。
@@ -393,16 +372,8 @@ class ReminderService(QObject):
         历史缺陷：三个阈值用 `days_left <= d` 各自判定 → 剩 3 天时 14/7/3 一起命中，
         同一场考试当天发 3 封（ERRORS #023）。
         """
-        try:
-            days_left = (date.fromisoformat(item["date"]) - today).days
-        except ValueError:
-            logger.debug("考试日期非法，跳过: %s", item.get("date"))
-            return
-        if days_left < 0:
-            return
-
         emailed = self._exam_emailed.setdefault(item["key"], set())
-        hit = [d for d in EXAM_DAYS if days_left <= d and d not in emailed]
+        days_left, hit = exam_reminder_due(item, today, emailed)
         if not hit:
             return
         emailed.update(hit)

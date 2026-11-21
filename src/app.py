@@ -16,6 +16,7 @@ from src.services.data_manager import DataManager
 from src.services.git_sync import GitSync
 from src.services.paths import get_data_dir
 from src.services.plugin_manager import PluginManager
+from src.services.reminder_preference import publish_reminder_preference
 from src.services.reminder_service import ReminderService
 from src.services.settings_manager import SettingsManager, migrate_legacy_scene_location
 from src.services.single_instance import (
@@ -155,6 +156,7 @@ class App(QApplication):
 
         self._settings = SettingsManager(DATA_DIR / "settings.ini")
         self._settings.load()
+        publish_reminder_preference(DATA_DIR, self._settings.get_bool("General", "reminder_enabled", True))
         # 场景功能已弃用：把旧场景里的位置迁到天气设置（一次性、幂等）
         migrate_legacy_scene_location(DATA_DIR, self._settings)
 

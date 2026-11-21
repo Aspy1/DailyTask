@@ -8,7 +8,7 @@
 但**新建/切换学期**只能走 `DataManager`（它还要把模型重定向到新学期的文件）。
 """
 
-from datetime import date
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 from src.models.base import BaseJsonModel, next_id
@@ -200,11 +200,9 @@ class CourseModel(BaseJsonModel):
         return self._data.get("holidays", {"excluded": [], "makeup": {}})
 
 
-def schedule_date() -> date:
+def schedule_date(now: datetime | None = None) -> date:
     """Effective date: 0:00–1:00 AM still counts as the previous day."""
-    from datetime import datetime, timedelta
-
-    now = datetime.now()
+    now = datetime.now() if now is None else now
     if now.hour < 1:
         return (now - timedelta(days=1)).date()
     return now.date()

@@ -22,6 +22,7 @@ from src.i18n.loader import tr
 from src.services.email_sender import EmailConfig
 from src.services.hermes_gateway import gateway_online, launch_gateway
 from src.services.paths import get_data_dir
+from src.services.reminder_preference import publish_reminder_preference
 from src.services.settings_manager import SettingsManager
 from src.ui.styles.cards import card
 from src.ui.styles.theme import (
@@ -666,6 +667,7 @@ class SettingsPanel(QWidget):
                            str(self._animations.isChecked()).lower())
         animations.set_enabled(self._animations.isChecked())
         self._settings.save()
+        publish_reminder_preference(self._settings.file_path.parent, self._reminder.isChecked())
         from src.app import set_autostart
         set_autostart(self._auto_start.isChecked())
         QMessageBox.information(self, tr("panel.settings.dialog_title"), tr("panel.settings.msg_general_saved"))
