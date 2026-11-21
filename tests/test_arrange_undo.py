@@ -39,21 +39,6 @@ def _view(tmp_path) -> tuple[ScheduleView, DataManager]:
     return ScheduleView(dm), dm
 
 
-def test_quick_arrange_snapshots_only_plans(qapp, tmp_path, monkeypatch) -> None:
-    monkeypatch.setattr(actions_module, "QMessageBox", _StubBox)
-    sv, dm = _view(tmp_path)
-    dm.daily_logs.add_plan(dict(PLAN), day=DAY)
-    sv._build_snapshot = lambda days=3: "snapshot"     # 跳过真实快照构建
-
-    sv._quick_arrange(days=1)
-
-    plans = dm.daily_logs.data.get("plans", {})
-    assert sv._arrange_before == plans
-    assert sv._arrange_before is not plans, "必须是深拷贝，不能是引用"
-    assert sv._arrange_before[DAY][0]["title"] == "安排前"
-    assert sv._arrange_after is None
-
-
 def test_undo_rolls_back_plans_only(qapp, tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(actions_module, "QMessageBox", _StubBox)
     _StubBox.calls.clear()
@@ -68,7 +53,8 @@ def test_undo_rolls_back_plans_only(qapp, tmp_path, monkeypatch) -> None:
 
     sv._arrange_before = before
     sv._arrange_after = copy.deepcopy(dm.daily_logs.data.get("plans", {}))
-    sv._undo_arrange()
+    actions_module.undo_arrange(sv, dm, sv._arrange_before, sv._arrange_after,
+                                getattr(sv, "_arrange_scope", ()))
 
     data = dm.daily_logs.data
     assert data["plans"] == before, "plans 应回滚到安排前"
@@ -88,7 +74,8 @@ def test_undo_refuses_when_plans_changed_since_arrange(qapp, tmp_path, monkeypat
     dm.daily_logs.data["plans"] = {DAY: [{"title": "别人改的", "time_slot": 3}]}
     dm.daily_logs.save()
 
-    sv._undo_arrange()
+    actions_module.undo_arrange(sv, dm, sv._arrange_before, sv._arrange_after,
+                                getattr(sv, "_arrange_scope", ()))
 
     assert "warn" in _StubBox.calls, "应提示并拒绝"
     assert dm.daily_logs.data["plans"] == {DAY: [{"title": "别人改的", "time_slot": 3}]}, \
@@ -116,7 +103,8 @@ def test_undo_keeps_plans_added_during_arrange(qapp, tmp_path, monkeypatch) -> N
     dm.daily_logs.save()
     sv._arrange_after = copy.deepcopy(dm.daily_logs.data.get("plans", {}))
 
-    sv._undo_arrange()
+    actions_module.undo_arrange(sv, dm, sv._arrange_before, sv._arrange_after,
+                                getattr(sv, "_arrange_scope", ()))
 
     plans = dm.daily_logs.data["plans"]
     assert plans.get(DAY) == before_day, "安排覆盖的那天要回滚"
@@ -136,6 +124,7 @@ def test_undo_keeps_snapshot_when_save_is_rejected(qapp, tmp_path, monkeypatch) 
 
     monkeypatch.setattr(dm.daily_logs, "save", lambda: False)   # 模拟"保存被拒"
 
-    sv._undo_arrange()
+    actions_module.undo_arrange(sv, dm, sv._arrange_before, sv._arrange_after,
+                                getattr(sv, "_arrange_scope", ()))
 
     assert sv._arrange_before is not None, "保存被拒后快照必须保留"

@@ -19,15 +19,12 @@ from PySide6.QtWidgets import (
 )
 
 from src.i18n.loader import tr
-from src.services.ai_service import AIService
-from src.services.api_service import ApiService
 from src.services.email_sender import EmailConfig
+from src.services.hermes_gateway import launch_gateway
 from src.services.paths import get_data_dir
 from src.services.settings_manager import SettingsManager
-from src.ui.panels.provider_catalog import PROVIDERS
 from src.ui.styles.cards import card
 from src.ui.styles.theme import (
-    FIELD_H,
     LAYOUT,
     SIZE_BODY,
     SIZE_BODY_L,
@@ -40,11 +37,10 @@ from src.ui.styles.theme import (
     input_qss,
     size_small_button,
 )
-from src.ui.widgets.api_test_dialog import ApiTestDialog
 from src.ui.widgets.dialog_shell import form_row
 from src.ui.widgets.email_test_worker import EmailTestWorker
 from src.ui.widgets.rounded_button import RoundedButton
-from src.ui.widgets.rounded_input import RoundedComboBox, RoundedLineEdit
+from src.ui.widgets.rounded_input import RoundedLineEdit
 from src.ui.widgets.toggle_switch import ToggleSwitch
 
 # 数据目录（与 App / CLI 同一入口；可用环境变量指到沙箱）
@@ -66,13 +62,11 @@ def _show_test_email_result(parent, ok: bool, error: str, user: str) -> None:
 
 
 class SettingsPanel(QWidget):
-    def __init__(self, settings: SettingsManager, ai_service: AIService, plugin_manager=None, data_manager=None, parent=None) -> None:
+    def __init__(self, settings: SettingsManager, plugin_manager=None, data_manager=None, parent=None) -> None:
         super().__init__(parent)
         self._settings = settings
-        self._ai_service = ai_service
         self._plugin_manager = plugin_manager
         self._data_manager = data_manager
-        self._api_service = ApiService()  # API 服务
         self._open_plugin_windows = []
 
         scroll = QScrollArea()
@@ -84,8 +78,8 @@ class SettingsPanel(QWidget):
         layout.setSpacing(20)
         layout.addWidget(self._section_heading(tr("settings.general")))
         layout.addWidget(self._build_general_card())
-        layout.addWidget(self._section_heading(tr("settings.ai")))
-        layout.addWidget(self._build_ai_card())
+        layout.addWidget(self._section_heading(tr("hermes.section")))
+        layout.addWidget(self._build_hermes_card())
         layout.addWidget(self._section_heading(tr("panel.settings.section_email")))
         layout.addWidget(self._build_email_card())
         layout.addWidget(self._section_heading(tr("panel.settings.section_balance")))
@@ -149,80 +143,27 @@ class SettingsPanel(QWidget):
         """委托 theme 的统一样式（Q-H18）。"""
         return combo_qss()
 
-    def _build_ai_card(self) -> QFrame:
-        c = get_colors()
-        c = self._c()
-        card = self._card()
-        layout = QVBoxLayout(card)
-        layout.setContentsMargins(0, 8, 0, 8)
-        layout.setSpacing(0)
 
-        current = self._settings.get("AI", "provider", "deepseek")
-        self._provider_combo = RoundedComboBox()
-        self._provider_combo.setStyleSheet(self._combo_qss())
-        for key, info in PROVIDERS.items():
-            self._provider_combo.addItem(info["name"], key)
-        idx = list(PROVIDERS.keys()).index(current) if current in PROVIDERS else 0
-        self._provider_combo.setCurrentIndex(idx)
-        self._provider_combo.currentIndexChanged.connect(self._on_provider_changed)
-        layout.addWidget(self._row(tr("panel.settings.label_provider"), self._provider_combo))
-        layout.addWidget(self._divider())
+    def _build_hermes_card(self) -> QFrame:
+        frame = self._card()
+        layout = QVBoxLayout(frame)
+        buttons = QWidget(frame)
+        row = QHBoxLayout(buttons)
+        for key, restart in (("start", False), ("restart", True)):
+            button = RoundedButton(tr(f"hermes.{key}"))
+            button.setObjectName(f"hermes_{key}")
+            button.setStyleSheet(btn_secondary_qss())
+            button.clicked.connect(lambda _checked=False, value=restart: self._launch_hermes(value))
+            row.addWidget(button)
+        self._hermes_status = QLabel(tr("hermes.hint"), frame)
+        self._hermes_status.setWordWrap(True)
+        layout.addWidget(buttons)
+        layout.addWidget(self._hermes_status)
+        return frame
 
-        self._api_key_input = RoundedLineEdit()
-        self._api_key_input.setEchoMode(QLineEdit.EchoMode.Password)
-        self._api_key_input.setStyleSheet(self._input_qss())
-        self._api_key_input.setText(self._settings.api_key)
-        layout.addWidget(self._row(tr("panel.settings.label_api_key"), self._api_key_input))
-        layout.addWidget(self._divider())
-
-        self._model_combo = RoundedComboBox()
-        self._model_combo.setStyleSheet(self._combo_qss())
-        self._model_combo.setEditable(True)
-        self._model_combo.setMinimumWidth(LAYOUT["model_input_width"])
-        self._model_combo.setFixedHeight(FIELD_H)
-        layout.addWidget(self._row(tr("settings.model"), self._model_combo))
-        layout.addWidget(self._divider())
-
-        self._endpoint_input = RoundedLineEdit()
-        self._endpoint_input.setStyleSheet(self._input_qss())
-        layout.addWidget(self._row(tr("panel.settings.label_endpoint"), self._endpoint_input))
-        layout.addWidget(self._divider())
-
-        status_row = QWidget()
-        status_row.setStyleSheet("background: transparent;")
-        sr = QHBoxLayout(status_row)
-        sr.setContentsMargins(16, 12, 16, 12)
-        self._status_label = QLabel()
-        sr.addWidget(self._status_label)
-        sr.addStretch()
-        save_btn = RoundedButton(tr("panel.settings.btn_save"))
-        size_small_button(save_btn)
-        save_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        save_btn.setStyleSheet(f"""
-            QPushButton {{ background-color: {c['accent']}; color: {c['fg_on_fill']}; border: none;
-                border-radius: 8px; font-weight: 600; font-size: {SIZE_BODY_S}px; }}
-            QPushButton:hover {{ background-color: {c['accent_hover']}; }}
-            QPushButton:pressed {{ background-color: {c['accent_dim']}; }}
-        """)
-        save_btn.clicked.connect(self._save_ai_settings)
-        sr.addWidget(save_btn)
-
-        test_btn = RoundedButton(tr("panel.settings.btn_api_test"))
-        size_small_button(test_btn)
-        test_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        test_btn.setStyleSheet(f"""
-            QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
-                border: none; border-radius: 8px; font-weight: 500; font-size: {SIZE_BODY_S}px; }}
-            QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; }}
-        """)
-        test_btn.clicked.connect(self._open_api_test)
-        sr.addWidget(test_btn)
-        layout.addWidget(status_row)
-
-        self._on_provider_changed()
-        self._update_status()
-        return card
-
+    def _launch_hermes(self, restart: bool) -> None:
+        state = launch_gateway(restart=restart)
+        self._hermes_status.setText(tr(f"hermes.{state}"))
 
     def _build_general_card(self) -> QFrame:
         c = get_colors()
@@ -271,55 +212,6 @@ class SettingsPanel(QWidget):
         layout.addWidget(btn_row)
         return card
 
-
-    def _on_provider_changed(self) -> None:
-        key = self._provider_combo.currentData()
-        info = PROVIDERS.get(key, PROVIDERS["deepseek"])
-        if key == "custom":
-            self._endpoint_input.setText(self._settings.get("AI", "api_endpoint", "") or info["endpoint"])
-            self._model_combo.setEditText(self._settings.get("AI", "model", ""))
-            return
-        self._endpoint_input.setText(info["endpoint"])
-        self._api_key_input.setPlaceholderText(info["key_placeholder"])
-        self._model_combo.clear()
-        if key == "deepseek":
-            self._model_combo.addItems(["deepseek-chat", "deepseek-reasoner"])
-        elif key == "opencode":
-            self._model_combo.addItems([
-                "longcat-2.5-preview-free",   # Go 订阅内不限量
-                "deepseek-v4.1-flash", "glm-5.3-flash", "mimo-v2.6-flash", "qwen3.8-flash",
-            ])
-        else:
-            self._model_combo.addItems([
-                "claude-sonnet-4-20250514", "claude-opus-4-20250514", "claude-haiku-4-5-20251001",
-            ])
-        cur = self._settings.get("AI", "model", info["model"])
-        i = self._model_combo.findText(cur)
-        if i >= 0:
-            self._model_combo.setCurrentIndex(i)
-
-    def _update_status(self) -> None:
-        c = get_colors()
-        if self._ai_service.is_configured:
-            self._status_label.setText("● " + tr("settings.status.configured"))
-            self._status_label.setStyleSheet(f"color: {c['green']}; font-size: {SIZE_BODY_S}px; background: transparent;")
-        else:
-            self._status_label.setText("● " + tr("settings.status.not_configured"))
-            self._status_label.setStyleSheet(f"color: {c['red']}; font-size: {SIZE_BODY_S}px; background: transparent;")
-
-    def _open_api_test(self) -> None:
-        """打开 API 测试窗口"""
-        dialog = ApiTestDialog(self._api_service, self)
-        dialog.exec()
-
-    def _save_ai_settings(self) -> None:
-        self._settings.api_key = self._api_key_input.text().strip()
-        self._settings.set("AI", "provider", self._provider_combo.currentData())
-        self._settings.set("AI", "model", self._model_combo.currentText())
-        self._settings.set("AI", "api_endpoint", self._endpoint_input.text().strip())
-        self._settings.save()
-        self._update_status()
-        QMessageBox.information(self, tr("panel.settings.dialog_title"), tr("panel.settings.msg_ai_saved"))
 
     def _build_email_card(self) -> QFrame:
         c = get_colors()
@@ -625,7 +517,7 @@ class SettingsPanel(QWidget):
             return
         # open the first registered panel
         display_name, _ = panels[0]
-        widget = self._plugin_manager.create_panel(plugin_name, display_name, self._settings, self._ai_service, self._data_manager, None)
+        widget = self._plugin_manager.create_panel(plugin_name, display_name, self._settings, None, self._data_manager, None)
         if widget is None:
             QMessageBox.warning(self, tr("panel.settings.dialog_title_plugin"), tr("panel.settings.msg_plugin_open_failed"))
             return

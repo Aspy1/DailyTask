@@ -30,7 +30,6 @@ from PySide6.QtGui import QImage  # noqa: E402
 from PySide6.QtWidgets import QApplication, QLabel  # noqa: E402
 
 from scripts.ui_render import _seed  # noqa: E402
-from src.services.ai_service import AIService  # noqa: E402
 from src.services.data_manager import DataManager  # noqa: E402
 from src.services.settings_manager import SettingsManager  # noqa: E402
 from src.ui import animations  # noqa: E402
@@ -84,7 +83,6 @@ def _check_weather(mw, app) -> None:
 
 def _check_narrow_layout(mw) -> None:
     mw._workspace.switch_to("expenses")
-    mw._on_ai_toggle(True)
     mw.resize(990, 638)
     QApplication.processEvents()
     panel = mw._workspace._expense_panel
@@ -95,7 +93,6 @@ def _check_narrow_layout(mw) -> None:
           f"panel_width={panel.width()} rights={[c.geometry().right() for c in cards]}")
     check("程序化跳转同步侧栏", mw._sidebar._current_nav == "expenses",
           f"sidebar={mw._sidebar._current_nav!r}")
-    mw._on_ai_toggle(False)
 
 
 def _check_pages(mw) -> None:
@@ -121,7 +118,7 @@ def _check_screenshots() -> None:
     shots = ROOT / "shots-modern"
     images = sorted(shots.glob("*.png")) if shots.exists() else []
     check("截图集数量 >= 40", len(images) >= 40, f"count={len(images)}")
-    for name in ("dialog-weather.png", "light-narrow-expenses-ai.png",
+    for name in ("dialog-weather.png", "light-narrow-expenses.png",
                  "light-routines.png", "light-settings-0.5.png"):
         path = shots / name
         image = QImage(str(path)) if path.exists() else QImage()
@@ -144,7 +141,7 @@ def main() -> int:
     _seed(dm)
     _write_weather_cache()
 
-    mw = MainWindow(settings, AIService(settings, dm), dm)
+    mw = MainWindow(settings, dm)
     mw.resize(1210, 792)
     mw.show()
     app.processEvents()

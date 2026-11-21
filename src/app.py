@@ -12,7 +12,6 @@ from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 
 from src.i18n.loader import t as i18n
 from src.i18n.loader import tr
-from src.services.ai_service import AIService
 from src.services.data_manager import DataManager
 from src.services.git_sync import GitSync
 from src.services.paths import get_data_dir
@@ -172,7 +171,6 @@ class App(QApplication):
         set_autostart(self._settings.get_bool("General", "auto_start"))
 
         self._data_manager = DataManager(DATA_DIR)
-        self._ai_service = AIService(self._settings, self._data_manager)
         self._reminder = ReminderService(self._settings, self._data_manager)
         self._reminder.reminder_notify.connect(self._show_reminder_notify)
         self._reminder.ddl_alert.connect(self._on_ddl_alert)
@@ -185,7 +183,7 @@ class App(QApplication):
         self._plugin_manager = PluginManager(plugins_dir, self._settings, self._data_manager, self)
         self._plugin_manager.load_plugins()
 
-        self._window = MainWindow(self._settings, self._ai_service, self._data_manager, self._plugin_manager)
+        self._window = MainWindow(self._settings, self._data_manager, self._plugin_manager)
         self._data_manager.save_conflict.connect(self._on_save_conflict)
         self._window.setWindowIcon(app_icon)
 

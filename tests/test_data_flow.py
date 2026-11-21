@@ -12,7 +12,6 @@ import json
 import time
 from pathlib import Path
 
-from src.services.ai_service import AIService
 from src.services.data_manager import DataManager
 from src.services.settings_manager import SettingsManager
 from src.ui.components.main_workspace import MainWorkspace
@@ -22,7 +21,7 @@ def _workspace(tmp_path) -> tuple[DataManager, MainWorkspace]:
     dm = DataManager(tmp_path)
     settings = SettingsManager(tmp_path / "settings.ini")
     settings.load()
-    return dm, MainWorkspace(settings, AIService(settings, dm), dm, None)
+    return dm, MainWorkspace(settings, dm, None)
 
 
 def _per_semester_path(data_dir, name: str) -> Path:

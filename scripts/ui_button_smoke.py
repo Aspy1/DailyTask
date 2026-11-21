@@ -38,7 +38,6 @@ from PySide6.QtWidgets import (  # noqa: E402
 )
 
 from scripts.ui_render import _seed  # noqa: E402
-from src.services.ai_service import AIService  # noqa: E402
 from src.services.api_service import ApiService  # noqa: E402
 from src.services.data_manager import DataManager  # noqa: E402
 from src.services.plugin_manager import PluginManager  # noqa: E402
@@ -85,7 +84,10 @@ def _buttons(root) -> list[QAbstractButton]:
     return [w for w in root.findChildren(QAbstractButton)]
 
 
-def _patch_environment(mw, ai) -> None:
+def _patch_environment(mw) -> None:
+    from src.ui.panels import settings_panel
+
+    settings_panel.launch_gateway = lambda **_kwargs: "launched"
     """把一切会阻塞/联网/落盘的副作用换成替身。"""
     from src.ui import main_window
     from src.ui.panels import (
@@ -111,12 +113,9 @@ def _patch_environment(mw, ai) -> None:
     QMessageBox.warning = staticmethod(lambda *a, **k: QMessageBox.StandardButton.Ok)
     QMessageBox.question = staticmethod(lambda *a, **k: QMessageBox.StandardButton.Yes)
     QInputDialog.getText = staticmethod(lambda *a, **k: ("", False))
-    ai.send_message = lambda text: None
     mw._weather_service.refresh = lambda: True
     ApiService.fetch_weather = lambda self, *a, **k: None
     ApiService.fetch_deepseek_balance = lambda self, *a, **k: None
-    with contextlib.suppress(RuntimeError):
-        mw._ai_panel.message_sent.disconnect()
 
 
 def _smoke_dialogs(mw, dm) -> None:
@@ -195,13 +194,12 @@ def main() -> int:
     settings.save()
     dm = DataManager(SANDBOX)
     _seed(dm)
-    ai = AIService(settings, dm)
     plugins = PluginManager(SANDBOX / "plugins", settings, dm, app)
     plugins.load_plugins()
-    mw = MainWindow(settings, ai, dm, plugins)
+    mw = MainWindow(settings, dm, plugins)
     mw.resize(1200, 800)
     mw.show()
-    _patch_environment(mw, ai)
+    _patch_environment(mw)
     app.processEvents()
 
     # 侧边栏：每个导航项 + AI 开关 + 更多

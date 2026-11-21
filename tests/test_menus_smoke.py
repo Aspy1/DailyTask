@@ -15,7 +15,6 @@ from typing import Any
 import pytest
 from helpers import run
 
-from src.services.ai_service import AIService
 from src.services.data_manager import DataManager
 from src.services.settings_manager import SettingsManager
 
@@ -47,7 +46,7 @@ def app_env(sandbox, qapp) -> tuple:
     settings = SettingsManager(sandbox / "settings.ini")
     settings.load()
     dm = DataManager(sandbox)
-    mw = MainWindow(settings, AIService(settings, dm), dm, None)
+    mw = MainWindow(settings, dm, None)
     mw.resize(1200, 800)
     return mw, dm
 

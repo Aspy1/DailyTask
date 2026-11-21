@@ -10,7 +10,6 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QMainWindow,
-    QSplitter,
     QStatusBar,
     QVBoxLayout,
     QWidget,
@@ -18,12 +17,10 @@ from PySide6.QtWidgets import (
 
 from src.i18n.loader import tr
 from src.models.course import PERIOD_TIMES, schedule_date
-from src.services.ai_service import AIService
 from src.services.data_manager import DataManager
 from src.services.settings_manager import SettingsManager
 from src.services.weather_service import WeatherService
 from src.ui.animations import count_to
-from src.ui.components.ai_panel import AIPanel
 from src.ui.components.click_label import ClickLabel
 from src.ui.components.main_workspace import MainWorkspace
 from src.ui.components.semester_text import ALERT_STATES, semester_state_text
@@ -35,7 +32,6 @@ from src.ui.styles.theme import (
     SIZE_SUBTITLE,
     get_colors,
 )
-from src.ui.widgets.ai_approval_dialog import ApprovalPrompt
 from src.ui.widgets.menu import add_action, new_menu, show_at_cursor, show_below
 from src.ui.widgets.semester_dialog import SemesterDialog
 from src.ui.widgets.weather_dialog import WeatherDetailDialog
@@ -120,7 +116,7 @@ def _install_statusbar_right(window, c: dict) -> None:
 
 
 class MainWindow(QMainWindow):
-    def __init__(self, settings: SettingsManager, ai_service: AIService,
+    def __init__(self, settings: SettingsManager,
                  data_manager: DataManager, plugin_manager=None) -> None:
         super().__init__()
         self.setWindowTitle(tr("app.name"))
@@ -128,11 +124,8 @@ class MainWindow(QMainWindow):
         self.resize(1210, 792)
 
         self._settings = settings
-        self._ai_service = ai_service
         self._data_manager = data_manager
         self._plugin_manager = plugin_manager
-        self._ai_visible = False
-        self._arrange_pending = False
 
         self._weather_service = WeatherService(
             settings, data_dir=self._data_manager.data_dir)
@@ -143,13 +136,11 @@ class MainWindow(QMainWindow):
                 self._weather_service.start_auto_update()
         self._weather_service.weather_updated.connect(self._on_weather_updated)
 
-        ai_service.set_weather_service(self._weather_service)
 
         self._setup_ui()
         self._setup_statusbar()
         if self._weather_service.get_now():
             self._on_weather_updated(self._weather_service.get_now())
-        self._connect_ai()
 
         self._status_timer = QTimer(self)
         self._status_timer.timeout.connect(self._refresh_status)
@@ -167,45 +158,14 @@ class MainWindow(QMainWindow):
         self._sidebar = Sidebar()
         root.addWidget(self._sidebar)
 
-        # ── Content area (workspace + optional AI panel) ───────
-        self._workspace = MainWorkspace(
-            self._settings, self._ai_service, self._data_manager,
-            self._plugin_manager)
-        self._ai_panel = AIPanel()
-        self._ai_panel.hide()
-
-        self._content_splitter = QSplitter(Qt.Orientation.Horizontal)
-        self._content_splitter.addWidget(self._workspace)
-        self._content_splitter.addWidget(self._ai_panel)
-        self._content_splitter.setSizes([800, 0])
-        self._content_splitter.setHandleWidth(1)
-        c = get_colors()
-        self._content_splitter.setStyleSheet(
-            f"QSplitter::handle {{ background-color: {c['border']}; }}")
-
-        root.addWidget(self._content_splitter, stretch=1)
-
+        self._workspace = MainWorkspace(self._settings, self._data_manager, self._plugin_manager)
+        root.addWidget(self._workspace, stretch=1)
         # ── Wire sidebar signals ───────────────────────────────
         self._sidebar.nav_changed.connect(self._on_sidebar_nav)
-        self._sidebar.ai_toggled.connect(self._on_ai_toggle)
         # 程序化跳转（状态栏 DDL/考试、课程"查看事项"）也同步侧边栏高亮
         self._workspace.panel_changed.connect(self._sidebar.set_active)
         # 数据变化 → **立即**刷新状态栏。
         self._data_manager.data_changed.connect(self._on_data_changed)
-
-        # Course table / schedule day view → AI prompt fill
-        self._connect_course_table()
-        self._workspace.fill_ai_prompt.connect(self._on_course_fill_ai)
-
-    def _connect_course_table(self) -> None:
-        cp = self._workspace.course_panel
-        if cp is not None:
-            cp.table.fill_ai_prompt.connect(self._on_course_fill_ai)
-
-    def _on_course_fill_ai(self, prompt: str) -> None:
-        if not self._ai_visible:
-            self._on_ai_toggle(True)
-        self._ai_panel.fill_input(prompt)
 
 
     def _on_sidebar_nav(self, key: str) -> None:
@@ -214,14 +174,6 @@ class MainWindow(QMainWindow):
             return
         self._workspace.switch_to(key)
 
-    def _on_ai_toggle(self, visible: bool) -> None:
-        self._ai_visible = visible
-        if visible:
-            self._ai_panel.show()
-            self._content_splitter.setSizes([self.width() - 340, 340])
-        else:
-            self._ai_panel.hide()
-            self._content_splitter.setSizes([self.width(), 0])
 
     def _show_more_menu(self) -> None:
         """「更多…」菜单：锚在该导航项下方（原来是写死在侧边栏右下角）。
@@ -260,16 +212,12 @@ class MainWindow(QMainWindow):
     def refresh_theme(self) -> None:
         """切主题后重刷"颜色写死在样式表里"的自有部件。
 
-        面板们自己有 refresh_theme；但侧边栏、状态栏、分隔条、AI 面板是
-        MainWindow 自己建的，不重刷就会留着上一个主题的颜色。
+        Refresh the shared shell and the workspace panels.
         """
         c = get_colors()
         for step, fn in (
             ("sidebar", lambda: self._sidebar.refresh_theme()),
             ("statusbar", lambda: self._statusbar.setStyleSheet(self._statusbar_qss(c))),
-            ("splitter", lambda: self._content_splitter.setStyleSheet(
-                f"QSplitter::handle {{ background-color: {c['border']}; }}")),
-            ("ai_panel", lambda: self._ai_panel.refresh_theme()),
             ("workspace", lambda: self._workspace.refresh_theme()),
         ):
             try:
@@ -338,80 +286,6 @@ class MainWindow(QMainWindow):
 
     def _setup_statusbar(self) -> None:
         _install_statusbar(self)
-
-
-    def _connect_ai(self) -> None:
-        self._ai_panel.message_sent.connect(self._on_ai_message)
-        self._ai_service.response_received.connect(
-            self._on_ai_response)
-        self._ai_service.error_occurred.connect(self._on_ai_error)
-        self._ai_service.instructions_executed.connect(
-            self._on_instructions_done)
-        # 撤销入口（H3）：只在界面；`undo_finished` 回结果，按钮状态随可用性刷新
-        self._ai_panel.undo_requested.connect(self._on_ai_undo)
-        self._ai_service.undo_finished.connect(self._on_ai_undo_done)
-        # 审批弹窗（H1）：没有它 → 高风险动作一律按"无界面"拒绝
-        self._approval_prompt = ApprovalPrompt(self._ai_service.approval, self)
-
-        self._workspace._schedule_view.arrange_requested.connect(
-            self._on_quick_arrange)
-
-
-    def _on_ai_message(self, text: str) -> None:
-        if not self._ai_visible:
-            self._on_ai_toggle(True)
-        self._ai_panel.set_status(True, thinking=True)
-        self._ai_service.send_message(text)
-
-    def _on_ai_response(self, text: str) -> None:
-        """Handle AI text response. Route arrange results through arrange_pending check."""
-        if getattr(self, '_arrange_pending', False):
-            self._arrange_pending = False
-            self._course_info_label.setText(tr("window.arrange.done"))
-            self._workspace._schedule_view.on_arrange_done(True, "")
-        self._ai_panel.append_message_ai(text)
-
-    def _on_quick_arrange(self, prompt: str) -> None:
-        """Handle schedule quick-arrange: send to AI, execute instructions, notify view."""
-        sv = self._workspace._schedule_view
-        self._course_info_label.setText(tr("window.arrange.progress"))
-        self._arrange_pending = True
-        try:
-            self._ai_service.send_message(prompt)
-        except Exception as e:  # noqa: BLE001
-            self._arrange_pending = False
-            self._course_info_label.setText(tr("window.arrange.failed", err=e))
-            sv.on_arrange_done(False, str(e))
-
-    def _on_ai_error(self, error_msg: str) -> None:
-        if getattr(self, '_arrange_pending', False):
-            self._arrange_pending = False
-            self._course_info_label.setText(
-                tr("window.arrange.failed", err=error_msg))
-            self._workspace._schedule_view.on_arrange_done(False, error_msg)
-            return
-        self._ai_panel.append_message("ai", tr("window.ai.error", err=error_msg))
-        self._ai_panel._on_response_done()
-
-    def _on_instructions_done(self, text: str, instructions: list) -> None:
-        if getattr(self, '_arrange_pending', False):
-            self._arrange_pending = False
-            self._course_info_label.setText(
-                tr("window.arrange.done_count", n=len(instructions)))
-            self._workspace._schedule_view.on_arrange_done(True, "")
-            return
-        self._ai_panel.append_message("ai", text)
-        self._ai_panel._on_response_done()
-        # 有可撤销的 AI 写入 → 点亮撤销入口（没有就保持禁用，不骗用户点）
-        self._ai_panel.set_undo_available(self._ai_service.undo_available())
-
-    def _on_ai_undo(self) -> None:
-        """用户点了「撤销 AI 写入」——**主线程**执行，stale 会被拒绝并说明理由。"""
-        self._ai_service.undo_last_action()
-
-    def _on_ai_undo_done(self, ok: bool, detail: str) -> None:
-        self._ai_panel.show_undo_result(ok, detail)
-        self._ai_panel.set_undo_available(self._ai_service.undo_available())
 
 
     def _refresh_status(self) -> None:
@@ -646,13 +520,8 @@ class MainWindow(QMainWindow):
             self._ddl_alert_label.setCursor(Qt.CursorShape.ArrowCursor)
         self._ddl_alert_label.show()
 
-    @property
-    def ai_panel(self) -> AIPanel:
-        return self._ai_panel
 
     def shutdown(self) -> None:
         """退出前停掉本窗口的定时器与后台线程（不等 QThread 会报 still running）。"""
         self._status_timer.stop()
-        if getattr(self, "_approval_prompt", None) is not None:
-            self._approval_prompt.shutdown()   # 之后的高风险动作直接拒绝，不会卡 120s
         self._weather_service.shutdown()

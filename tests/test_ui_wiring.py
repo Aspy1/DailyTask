@@ -26,7 +26,6 @@ def test_mainwindow_routes_more(tmp_path, qapp, monkeypatch) -> None:
 
     （`about` 已并入设置面板，不再是导航项。）处理函数会开模态菜单，测试里替换掉。
     """
-    from src.services.ai_service import AIService
     from src.services.data_manager import DataManager
     from src.services.settings_manager import SettingsManager
     from src.ui.main_window import MainWindow
@@ -34,7 +33,7 @@ def test_mainwindow_routes_more(tmp_path, qapp, monkeypatch) -> None:
     dm = DataManager(tmp_path)
     settings = SettingsManager(tmp_path / "settings.ini")
     settings.load()
-    mw = MainWindow(settings, AIService(settings, dm), dm, None)
+    mw = MainWindow(settings, dm, None)
 
     switched: list[str] = []
     routed: list[str] = []
@@ -51,7 +50,6 @@ def test_mainwindow_routes_more(tmp_path, qapp, monkeypatch) -> None:
 
 
 def test_theme_menu_is_reachable_from_sidebar(tmp_path, qapp, monkeypatch) -> None:
-    from src.services.ai_service import AIService
     from src.services.data_manager import DataManager
     from src.services.settings_manager import SettingsManager
     from src.ui.main_window import MainWindow
@@ -59,7 +57,7 @@ def test_theme_menu_is_reachable_from_sidebar(tmp_path, qapp, monkeypatch) -> No
     dm = DataManager(tmp_path)
     settings = SettingsManager(tmp_path / "settings.ini")
     settings.load()
-    mw = MainWindow(settings, AIService(settings, dm), dm, None)
+    mw = MainWindow(settings, dm, None)
 
     opened: list[bool] = []
     monkeypatch.setattr(mw, "_show_more_menu", lambda: opened.append(True))
@@ -80,7 +78,6 @@ def test_theme_switch_repaints_baked_styles(tmp_path, qapp, monkeypatch) -> None
     """
     from PySide6.QtCore import Qt
 
-    from src.services.ai_service import AIService
     from src.services.data_manager import DataManager
     from src.services.settings_manager import SettingsManager
     from src.ui.main_window import MainWindow
@@ -90,7 +87,7 @@ def test_theme_switch_repaints_baked_styles(tmp_path, qapp, monkeypatch) -> None
     settings = SettingsManager(tmp_path / "settings.ini")
     settings.load()
     qapp.setStyleSheet(init_theme(qapp, "light"))
-    mw = MainWindow(settings, AIService(settings, dm), dm, None)
+    mw = MainWindow(settings, dm, None)
     sv = mw._workspace._schedule_view
     mw._workspace.switch_to("schedule")
 
@@ -117,7 +114,6 @@ def test_theme_switch_repaints_baked_styles(tmp_path, qapp, monkeypatch) -> None
 
 @pytest.mark.parametrize("mode", ["light", "dark"])
 def test_switch_theme_updates_settings_and_qss(tmp_path, qapp, mode) -> None:
-    from src.services.ai_service import AIService
     from src.services.data_manager import DataManager
     from src.services.settings_manager import SettingsManager
     from src.ui.main_window import MainWindow
@@ -125,7 +121,7 @@ def test_switch_theme_updates_settings_and_qss(tmp_path, qapp, mode) -> None:
     dm = DataManager(tmp_path)
     settings = SettingsManager(tmp_path / "settings.ini")
     settings.load()
-    mw = MainWindow(settings, AIService(settings, dm), dm, None)
+    mw = MainWindow(settings, dm, None)
 
     mw._switch_theme(mode)
 
@@ -138,7 +134,6 @@ def test_static_labels_follow_theme(tmp_path, qapp) -> None:
     这类部件（汇总卡片的标题/数值、面包屑、设置分组标题…）不在 `_refresh()`
     的重建范围内，靠 `theme.remap_stylesheets()` 做色值映射整体重写。
     """
-    from src.services.ai_service import AIService
     from src.services.data_manager import DataManager
     from src.services.settings_manager import SettingsManager
     from src.ui.main_window import MainWindow
@@ -148,7 +143,7 @@ def test_static_labels_follow_theme(tmp_path, qapp) -> None:
     settings = SettingsManager(tmp_path / "settings.ini")
     settings.load()
     qapp.setStyleSheet(init_theme(qapp, "dark"))
-    mw = MainWindow(settings, AIService(settings, dm), dm, None)
+    mw = MainWindow(settings, dm, None)
 
     expense = mw._workspace._expense_panel
     amount = expense._find_sum_label("month")
@@ -197,7 +192,6 @@ def test_all_panels_share_one_input_style(qapp, tmp_path) -> None:
     2026-10-16 实测同时存在 5 套副本：全局 QSS 半径 4px，而记账/设置面板各自写 8px，
     padding 与字号也各不相同 → 同一界面里输入框长得不一样。
     """
-    from src.services.ai_service import AIService
     from src.services.data_manager import DataManager
     from src.services.settings_manager import SettingsManager
     from src.ui.panels.expense_panel import ExpensePanel
@@ -208,10 +202,9 @@ def test_all_panels_share_one_input_style(qapp, tmp_path) -> None:
     dm = DataManager(tmp_path)
     settings = SettingsManager(tmp_path / "settings.ini")
     settings.load()
-    ai = AIService(settings, dm)
 
     expense = ExpensePanel(dm)
-    settings_panel = SettingsPanel(settings, ai, None, dm)
+    settings_panel = SettingsPanel(settings, None, dm)
 
     assert expense._input_qss() == input_qss()
     assert expense._combo_qss() == combo_qss()

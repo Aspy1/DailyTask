@@ -12,6 +12,18 @@ Go Key 由用户保存在 Hermes `.env` 的 `OPENCODE_GO_API_KEY`；不要粘贴
 |---|---|
 | `daily_task_query` | 本机时间、当前学期、课程 ID、作业 ID 与状态、指定日期日程与零基序号 |
 | `daily_task_update` | `add_task`、`complete_task`、`add_course`、`update_course`、`add_plan`、`complete_plan` |
+| `daily_task_documents` | 列出和复制受支持的文档与图片，读写 UTF-8 的 TXT、Markdown、CSV、TSV、JSON |
+
+桌面设置的「Hermes 微信网关」提供「启动 Hermes」和「重启 Hermes」。启动调用
+`gateway run`，重启调用 `gateway run --replace`。桌面默认使用 `D:/Dev/hermes-home`，
+也可由启动环境的 `HERMES_HOME` 指定安装位置。按钮回执表示进程已发起，微信连通性需由网关确认。
+
+启用文件工具时，在 Hermes 插件设置中填入 `document_dir` 的绝对路径，并把需要委托的
+文档放进该目录。当前使用 `D:/Dev/hermes-home/documents`，这是 Hermes home 内专门允许的
+文档子目录，文件工具无法访问同级的凭据或配置。只读写显式支持的格式，每份文本上限 512 KiB。覆盖已有内容
+要先读取版本指纹，创建时使用 `revision=new`。PDF、Office 文件和常见图片可复制，单份上限
+64 MiB，复制不覆盖同名目标。应用结构化数据继续通过
+`daily_task_query` 和 `daily_task_update` 操作。
 
 先查询再修改已有条目；课程名重复时需要明确目标。课程节次是 1–6 的**大节**，
 区间首尾都包含。日程日期使用 `YYYY-MM-DD`，缺少必要时间信息时由助手询问。
@@ -24,7 +36,7 @@ Go Key 由用户保存在 Hermes `.env` 的 `OPENCODE_GO_API_KEY`；不要粘贴
 
 ## 部署
 
-仓库中的 `scripts/hermes_plugin/` 是插件源码。将其中三个文件复制到
+仓库中的 `scripts/hermes_plugin/` 是插件源码。将其中四个文件（包括 `documents.py`）复制到
 `D:/Dev/hermes-home/plugins/daily-task/`，保留原相对文件名，再运行：
 
 ```bash

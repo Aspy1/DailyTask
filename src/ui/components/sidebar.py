@@ -12,7 +12,6 @@ from PySide6.QtWidgets import (
 
 from src.i18n.loader import tr
 from src.ui.styles.theme import LAYOUT, SIZE_BODY_M, SIZE_CAPTION, font, get_colors
-from src.ui.widgets.rounded_button import RoundedButton
 
 # 导航分组：`(分组 id, 分组标题键, [(导航键, 文案键), …])` —— 顺序即界面顺序。
 # 加一项只改这里；`tests/test_ui_wiring.py` 会检查每个键都能切到对应面板。
@@ -165,7 +164,6 @@ class Sidebar(QWidget):
     """Left sidebar — instant accordion, no animation."""
 
     nav_changed = Signal(str)
-    ai_toggled = Signal(bool)
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -176,7 +174,6 @@ class Sidebar(QWidget):
         self._sections: dict[str, SidebarSection] = {}
         self._nav_items: dict[str, NavItem] = {}
         self._current_nav: str | None = None
-        self._ai_on = False
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 20, 0, 0)
@@ -207,11 +204,6 @@ class Sidebar(QWidget):
             bl.addWidget(btn)
         layout.addWidget(self._bottom)
 
-        self._ai_btn = RoundedButton(tr("ai.title"))
-        self._ai_btn.setFlat(True)
-        self._ai_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._ai_btn.clicked.connect(self._toggle_ai)
-        layout.addWidget(self._ai_btn)
 
         self.refresh_theme()
 
@@ -251,22 +243,9 @@ class Sidebar(QWidget):
                 padding-top: 4px;
             }}
         """)
-        self._ai_btn.setStyleSheet(self._ai_btn_qss(c))
         for sec in self._sections.values():
             sec.refresh_theme()
 
-    def _ai_btn_qss(self, c: dict) -> str:
-        """AI 按钮样式（选中态用强调色文字，未选中用次要文字）。"""
-        color = c['accent_text'] if self._ai_on else c['fg_secondary']
-        weight = "font-weight: 600;" if self._ai_on else ""
-        return f"""
-            QPushButton {{
-                background: transparent; border: none;
-                color: {color}; font-size: {SIZE_CAPTION}px; {weight}
-                text-align: center; padding: 8px 16px;
-            }}
-            QPushButton:hover {{ color: {c['accent_text']}; }}
-        """
 
     def _on_nav_clicked(self, key: str) -> None:
         self.set_active(key)
@@ -287,8 +266,3 @@ class Sidebar(QWidget):
             if sec_id != target_id and sec.expanded:
                 sec.set_expanded(False)
         self._sections[target_id].set_expanded(True)
-
-    def _toggle_ai(self) -> None:
-        self._ai_on = not self._ai_on
-        self._ai_btn.setStyleSheet(self._ai_btn_qss(get_colors()))
-        self.ai_toggled.emit(self._ai_on)

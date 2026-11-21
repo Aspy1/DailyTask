@@ -6,7 +6,7 @@
 | 考试倒计时应是**圆** | 圆角 = 直径的一半（`radius_pill`=999 会被 Qt 画成圆角方块） |
 | AI 回复行间距过大 | markdown 不用 `<ul>/<li>`、空行折叠 |
 | 标签弹窗行距大、没有区分底色 | 有 `item_bg` 淡底 + 收紧内边距 |
-| 侧边栏「AI 助手」要居中 | 按钮文字居中（原来 `text-align: left`） |
+| 侧边栏底部操作要居中 | 检查设置与更多按钮的实际样式 |
 """
 
 from pathlib import Path
@@ -56,6 +56,9 @@ def test_tags_list_items_have_a_visible_chip_background() -> None:
     assert "padding: 2px 10px" in src, "行距要收紧（全局是 8px 12px）"
 
 
-def test_sidebar_ai_button_text_is_centered() -> None:
-    src = _src("components/sidebar.py")
-    assert "text-align: center" in src, "AI 助手按钮文字要居中"
+def test_sidebar_footer_text_is_centered(qapp) -> None:
+    from src.ui.components.sidebar import Sidebar
+
+    sidebar = Sidebar()
+    for key in ("settings", "more"):
+        assert "text-align: center" in sidebar.nav_item(key).styleSheet()

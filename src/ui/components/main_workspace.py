@@ -11,7 +11,6 @@ from PySide6.QtWidgets import (
 )
 
 from src.i18n.loader import tr
-from src.services.ai_service import AIService
 from src.services.data_manager import DataManager
 from src.services.settings_manager import SettingsManager
 from src.ui.animations import fade_in
@@ -72,18 +71,14 @@ EVENT_PANELS: dict[str, frozenset[str]] = {
 class MainWorkspace(QWidget):
     """Content area that switches between panels based on sidebar selection."""
 
-    # 课程右键"布置了作业 / 考试通知" → MainWindow 展开 AI 面板并填入 prompt。
-    # 课程表（周视图）与日程（日视图）都走这条信号，不再一个发信号、一个借用 data_changed。
-    fill_ai_prompt = Signal(str)
     # 面板切换（包括状态栏「DDL / 考试」跳转）→ 侧边栏高亮同步。
     panel_changed = Signal(str)
 
-    def __init__(self, settings: SettingsManager, ai_service: AIService,
+    def __init__(self, settings: SettingsManager,
                  dm: DataManager, plugin_manager=None, parent=None) -> None:
         super().__init__(parent)
         self._dm = dm
         self._settings = settings
-        self._ai_service = ai_service
         self._plugin_manager = plugin_manager
 
         c = get_colors()
@@ -113,7 +108,7 @@ class MainWorkspace(QWidget):
         self._meal_panel = self._placeholder(
             tr("workspace.meal.title"), tr("workspace.meal.desc"))
 
-        self._settings_panel = SettingsPanel(settings, ai_service, plugin_manager, dm)
+        self._settings_panel = SettingsPanel(settings, plugin_manager, dm)
 
         # ── Flat stack: index = nav key（顺序见 `_add_panels()`）──
         self._panel_map = self._add_panels()
@@ -121,8 +116,6 @@ class MainWorkspace(QWidget):
         # ── Cross-panel signals ────────────────────────────────
         self._schedule_view.course_panel.on_view_tasks(self._on_view_course_tasks)
         self._schedule_view.task_focus_requested.connect(self._on_task_focus)
-        self._schedule_view.quick_adjust_requested.connect(self._on_quick_adjust)
-        self._schedule_view.fill_ai_prompt.connect(self.fill_ai_prompt.emit)
 
         dm.data_changed.connect(self._on_data_changed)
 
@@ -180,13 +173,6 @@ class MainWorkspace(QWidget):
     def _on_view_course_tasks(self, course_name: str) -> None:
         dlg = CourseDetailDialog(self._dm, course_name, self)
         dlg.exec()
-
-    def _on_quick_adjust(self, prompt: str) -> None:
-        """Forward quick-adjust prompt to AI panel."""
-        # Trigger AI panel via the main window
-        mw = self.window()
-        if mw and hasattr(mw, 'ai_panel'):
-            mw.ai_panel.fill_input(prompt)
 
     def _on_task_focus(self, course_name: str) -> None:
         self.switch_to("tasks")

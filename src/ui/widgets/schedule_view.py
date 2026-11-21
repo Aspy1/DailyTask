@@ -1,14 +1,12 @@
 """Daily schedule view — courses, plans, habits by time slot with right-click menu."""
 
 import logging
-import os as _os
 from datetime import date, datetime, timedelta
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
-    QMessageBox,
     QScrollArea,
     QStackedWidget,
     QVBoxLayout,
@@ -38,7 +36,7 @@ from src.ui.widgets.menu import (
     show_at_cursor,
 )
 from src.ui.widgets.rounded_button import RoundedButton
-from src.ui.widgets.schedule_actions import plans_snapshot, set_plan_category, undo_arrange
+from src.ui.widgets.schedule_actions import set_plan_category
 from src.ui.widgets.schedule_filter import CategoryFilter, add_category_actions, visible
 from src.ui.widgets.schedule_slots import (
     add_course_to_slots,
@@ -106,15 +104,9 @@ def secondary_button(text: str, c: dict, slot=None) -> "RoundedButton":
 class ScheduleView(QWidget):
     course_table_requested = Signal()
     task_focus_requested = Signal(str)
-    quick_adjust_requested = Signal(str)  # AI prompt for schedule optimization
-    arrange_requested = Signal(str)       # Quick-arrange: snapshot prompt → AI service
-    fill_ai_prompt = Signal(str)          # 课程右键"布置了作业" → 填充 AI 输入框
 
     # 快速安排的撤销快照：只记 `plans`（撤销不该连带回滚 `logs`/`reminders`，审查 #3）。
     # 放**类级**而不是 `__init__`：`__init__` 是 SIZE 存量项，门禁只防新增/加重
-    _arrange_before: dict | None = None   # 安排前
-    _arrange_after: dict | None = None    # 安排后（校验期间没被改过）
-    _arrange_scope: tuple[str, ...] = ()  # 本次安排覆盖的日期（撤销只回滚这些天）
 
     def __init__(self, dm: DataManager, parent=None) -> None:
         super().__init__(parent)
@@ -160,25 +152,14 @@ class ScheduleView(QWidget):
 
         bl.addStretch()
 
-        self._build_action_row(bl, c)
+        self._category_filter = CategoryFilter(lambda _key: self._refresh())
         # 分类筛选挪到第二行（与日期导航同属"浏览"类，和"操作"类分开 —— 审查 R6）
-        bl.removeWidget(self._category_filter)
         bl2.insertWidget(0, self._category_filter)
         bl2.addStretch()
 
         refresh_btn = secondary_button(tr("widget.schedule.btn_refresh"), c, self._refresh)
         bl.addWidget(refresh_btn)
         self._refresh_btn = refresh_btn
-
-        # Quick arrange button
-        self._arrange_btn = RoundedButton(tr("widget.schedule.btn_quick_arrange"))
-        self._arrange_btn.setStyleSheet(f"""
-            QPushButton {{ background-color: {c['accent']}; color: {c['fg_on_fill']};
-                border-radius: 8px; padding: 3px 14px; font-size: {SIZE_BODY_S}px; font-weight: 600; }}
-            QPushButton:hover {{ background-color: {c['accent_hover']}; }}
-        """)
-        self._arrange_btn.clicked.connect(self._quick_arrange)
-        bl.addWidget(self._arrange_btn)
 
         self._nav_buttons = []
         for text, slot in [(tr("widget.schedule.btn_prev_day"), self._prev_day),
@@ -229,7 +210,7 @@ class ScheduleView(QWidget):
         self._view_mode = mode
         day = mode == "day"
         self._stack.setCurrentIndex(0 if day else 1)
-        for widget in (*self._nav_buttons, self._arrange_btn, self._date_label,
+        for widget in (*self._nav_buttons, self._date_label,
                        self._refresh_btn):
             widget.setVisible(day)
         self._style_mode_buttons()
@@ -239,21 +220,6 @@ class ScheduleView(QWidget):
             self._course_panel._refresh()
             self.course_table_requested.emit()
 
-    def _build_action_row(self, bl, c: dict) -> None:
-        for name, key, tone, slot in (("_undo_btn", "btn_undo", "danger", self._undo_arrange),
-                                      ("_save_btn", "btn_save", "success", self._save_arrange)):
-            btn = RoundedButton(tr(f"widget.schedule.{key}"))
-            btn.setStyleSheet(
-                f"QPushButton {{ background-color: {c[f'btn_{tone}_bg']};"
-                f" color: {c[f'btn_{tone}_fg']}; border: 1px solid {c[f'btn_{tone}_border']};"
-                f" border-radius: 8px; padding: 3px 10px; font-size: {SIZE_BODY_S}px; font-weight: 600; }}"
-                f" QPushButton:hover {{ background-color: {c[f'btn_{tone}_bg_hover']}; }}")
-            btn.clicked.connect(slot)
-            btn.hide()
-            bl.addWidget(btn)
-            setattr(self, name, btn)
-        self._category_filter = CategoryFilter(lambda _k: self._refresh())
-        bl.addWidget(self._category_filter)
 
     def _style_mode_buttons(self) -> None:
         c = get_colors()
@@ -296,86 +262,7 @@ class ScheduleView(QWidget):
         self._day_offset = 0
         self._refresh()
 
-    # ── Quick Arrange ──────────────────────────────────────
 
-    def _build_snapshot(self, days: int = 1) -> str:
-        """构建供人与 AI 阅读的 N 天日程快照（实现在 `schedule_snapshot`）。"""
-        from src.ui.widgets.schedule_snapshot import build_snapshot
-
-        return build_snapshot(self._dm, self._target_date, days)
-
-
-    def _quick_arrange(self, days: int = 3) -> None:
-        """Generate snapshot, backup, call AI to arrange."""
-        from PySide6.QtWidgets import QMessageBox
-        try:
-            snapshot = self._build_snapshot(days=days)
-
-            snapshot_path = _os.path.join(str(self._dm.daily_logs.file_path.parent), "schedule_snapshot.txt")
-            with open(snapshot_path, 'w', encoding='utf-8') as f:
-                f.write(snapshot)
-
-            self._arrange_before = plans_snapshot(self._dm.daily_logs)
-            # 本次安排覆盖的日期（与快照同一口径）：撤销**只回滚这些天**，
-            # 免得把等待期间用户给别的日期加的计划一起删掉（审查 2026-10-17 #4）
-            self._arrange_scope = tuple(
-                (self._target_date + timedelta(days=i)).isoformat() for i in range(days))
-            self._arrange_after = None
-
-            period_count = self._dm.courses.get_period_count()
-            prompt = f"""请根据以下日程快照，为未来{days}天重新安排日程计划。
-
-{snapshot}
-
-请用 ```sh 代码块输出修改命令（不要用JSON）:
-- 替换某天全部计划: python scripts/actions.py replace_plans --date "YYYY-MM-DD" --plans '[{{"title":"标题","time_slot":时段编号,"type":"custom","note":"备注"}}]'
-- 添加单个计划: python scripts/actions.py add_plan --date "YYYY-MM-DD" --title "标题" --slot 时段编号
-- 删除计划: python scripts/actions.py delete_plan --date "YYYY-MM-DD" --index 序号
-- time_slot编号: {', '.join(str(i) for i in range(1, period_count + 1))}
-
-注意: 习惯不要作为plan重复添加。优先为最近截止的DDL安排复习时间。有考试则优先安排考前复习。**必须为快照中的每一天都输出replace_plans**。"""
-
-            self._arrange_btn.setText("...")
-            self._arrange_btn.setEnabled(False)
-            self.arrange_requested.emit(prompt)
-        except Exception as e:  # noqa: BLE001
-            QMessageBox.warning(self, tr("widget.schedule.msg_error_title"),
-                                tr("widget.schedule.msg_quick_arrange_failed", e=e))
-            self._arrange_btn.setText(tr("widget.schedule.btn_quick_arrange"))
-            self._arrange_btn.setEnabled(True)
-
-    def on_arrange_done(self, success: bool, msg: str = "") -> None:
-        """Called by main_window when AI response is processed."""
-        self._arrange_btn.setText(tr("widget.schedule.btn_quick_arrange"))
-        self._arrange_btn.setEnabled(True)
-        if success:
-            self._arrange_after = plans_snapshot(self._dm.daily_logs)
-            self._undo_btn.show()
-            self._save_btn.show()
-            self._refresh()
-        else:
-            QMessageBox.warning(self, tr("widget.schedule.msg_arrange_failed_title"),
-                                msg or tr("widget.schedule.msg_ai_error"))
-
-    def _save_arrange(self) -> None:
-        """确认这次安排：丢掉撤销快照。"""
-        self._undo_btn.hide()
-        self._save_btn.hide()
-        self._arrange_before = None
-        self._arrange_after = None
-
-    def _undo_arrange(self) -> None:
-        """只回滚本次安排涉及的 `plans`（实现见 `schedule_actions.undo_arrange`）。"""
-        if not undo_arrange(self, self._dm, self._arrange_before, self._arrange_after,
-                            self._arrange_scope):
-            return                    # 无快照 / 期间被改过 / 写盘被拒 → 已提示，快照保留
-        self._arrange_before = None
-        self._arrange_after = None
-        self._arrange_scope = ()
-        self._undo_btn.hide()
-        self._save_btn.hide()
-        self._dm.data_changed.emit("plan")
-        self._refresh()
 
     # ── Refresh 辅助方法（拆分自原 60 复杂度的 _refresh）────────
 
@@ -710,13 +597,6 @@ class ScheduleView(QWidget):
         elif action_type == "view_tasks":
             from src.ui.widgets.course_detail_dialog import CourseDetailDialog
             CourseDetailDialog(self._dm, payload, self).exec()
-        elif action_type == "fill":
-            from src.ui.widgets.course_table import _build_context_prompt
-            prompt = _build_context_prompt(item["course"], payload)
-            # 旧实现把 prompt 塞进 `data_changed.emit("fill_prompt:…")`：没人消费，
-            # 反而触发全界面刷新。现在走正式信号 → MainWindow 展开 AI 面板并填入。
-            self.fill_ai_prompt.emit(prompt)
-
     def _plan_menu(self, pos, item, widget) -> None:
         menu = new_menu()
         plan_name = item.get("title", "")

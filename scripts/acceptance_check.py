@@ -329,7 +329,7 @@ def main() -> int:
     sp = ws._settings_panel
     app.processEvents()
     labels = [w.text() for w in sp.findChildren(QWidget) if hasattr(w, "text")]
-    for want in ("通用", "AI", "邮件", "余额", "天气", "插件", "关于"):
+    for want in ("通用", "Hermes", "邮件", "余额", "天气", "插件", "关于"):
         check(f"设置分区「{want}」存在", any(want in t for t in labels))
     mw.grab().save(str(SHOTS / "03_settings.png"))
 

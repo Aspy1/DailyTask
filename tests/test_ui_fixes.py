@@ -30,7 +30,6 @@ def _monday() -> date:
 
 def test_statusbar_refreshes_on_data_changed(qapp, tmp_path) -> None:
     """切学期（`data_changed`）后状态栏要**立即**更新，不能等 30s 定时器。"""
-    from src.services.ai_service import AIService
     from src.ui.main_window import MainWindow
 
     dm = DataManager(tmp_path)
@@ -44,7 +43,7 @@ def test_statusbar_refreshes_on_data_changed(qapp, tmp_path) -> None:
 
     settings = SettingsManager(tmp_path / "settings.ini")
     settings.load()
-    mw = MainWindow(settings, AIService(settings, dm), dm, None)
+    mw = MainWindow(settings, dm, None)
     mw._refresh_status()
     assert "节课" in mw._course_info_label.text(), mw._course_info_label.text()
 

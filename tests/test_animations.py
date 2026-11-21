@@ -111,7 +111,6 @@ def test_global_switch_disables_motion(qapp) -> None:
 
 def test_panel_switch_triggers_fade(qapp, monkeypatch) -> None:
     """面板切换必须走淡入模板（而不是各自写动画）。"""
-    from src.services.ai_service import AIService
     from src.services.data_manager import DataManager
     from src.services.settings_manager import SettingsManager
     from src.ui.components import main_workspace
@@ -126,7 +125,7 @@ def test_panel_switch_triggers_fade(qapp, monkeypatch) -> None:
     settings = SettingsManager(tmp / "settings.ini")
     settings.load()
     dm = DataManager(tmp)
-    ws = main_workspace.MainWorkspace(settings, AIService(settings, dm), dm, None)
+    ws = main_workspace.MainWorkspace(settings, dm, None)
 
     ws.switch_to("tasks")
     assert calls and calls[-1] is ws._task_panel

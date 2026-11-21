@@ -40,25 +40,6 @@ from src.ui.widgets.menu import (
 DAY_LABELS = [tr("day.monday"), tr("day.tuesday"), tr("day.wednesday"),
               tr("day.thursday"), tr("day.friday"), tr("day.saturday"), tr("day.sunday")]
 
-# Right-click menu actions — extensible: just add a label
-# 这些中文是**内部动作标识**（`data=("fill", label)` 与 AI prompt 都依赖它），保持原文。
-COURSE_ACTIONS = [
-    "布置了作业",
-    "发布了考试通知",
-    "发布了复习通知",
-    "调课 / 停课通知",
-    "其他事项",
-]
-
-# 与 COURSE_ACTIONS 一一对应的**显示文案**键（顺序必须保持一致）
-_COURSE_ACTION_KEYS = [
-    "widget.course_table.action_homework",
-    "widget.course_table.action_exam_notice",
-    "widget.course_table.action_review_notice",
-    "widget.course_table.action_schedule_change",
-    "widget.course_table.action_other",
-]
-
 
 def _rgba(color: str, alpha: float | None = None) -> QColor:
     """token 的 `rgba(r,g,b,a)` / `#rrggbb` → QColor（可覆盖 alpha）。"""
@@ -216,12 +197,6 @@ def build_course_context_menu(course: dict, parent=None) -> QMenu:
                tr("widget.course_table.menu_attendance_off" if attendance_on
                   else "widget.course_table.menu_attendance_on"),
                data=("toggle_attendance", course_id))
-
-    add_separator(menu)
-
-    for action_label, key in zip(COURSE_ACTIONS, _COURSE_ACTION_KEYS, strict=True):
-        add_action(menu, tr(key), data=("fill", action_label))
-
     return menu
 
 
@@ -244,44 +219,6 @@ def toggle_course_attendance(dm, course_id: str) -> bool:
     return bool(conf["attendance"])
 
 
-def _build_context_prompt(course: dict, action: str) -> str:
-    """Build a detailed AI prompt with course context and next class date."""
-    from datetime import date, timedelta
-
-    name = course.get("name", "未知课程")
-    day = course.get("day_of_week", 0)
-    day_names = ["", "周一", "周二", "周三", "周四", "周五", "周六", "周日"]
-    day_str = day_names[day] if 0 < day <= 7 else ""
-
-    slots = course.get("time_slots", [])
-    time_str = ""
-    if slots and slots[0]["start"] - 1 < len(PERIOD_TIMES):
-        start_t = PERIOD_TIMES[slots[0]["start"] - 1][0]
-        last_end = max(s["end"] for s in slots) - 1
-        end_t = PERIOD_TIMES[min(last_end, len(PERIOD_TIMES) - 1)][1]
-        time_str = f"{start_t}-{end_t}"
-
-    weeks = course.get("weeks", {})
-    week_str = f"第{weeks.get('start','?')}-{weeks.get('end','?')}周" if weeks else ""
-    location = course.get("location", "")
-
-    today = date.today()
-    days_ahead = day - today.isoweekday()
-    if days_ahead <= 0:
-        days_ahead += 7
-    date_str = (today + timedelta(days=days_ahead)).strftime("%Y-%m-%d")
-
-    extras = [x for x in [day_str, time_str, week_str, location] if x]
-    context = "（" + " / ".join(extras) + "）" if extras else ""
-
-    return (
-        f"今天是{today.strftime('%Y-%m-%d')}。"
-        f"在《{name}》{context}这门课上，{action}。"
-        f"下次上课是{date_str}（{day_str}）。"
-        f"请帮我把这件事加入日程（课程名={name}）："
-    )
-
-
 # 列 / 行下限（审查 U6）：窄窗口（或展开 AI 面板）不许把 7 列挤到看不清 ——
 # 保证"内容所需宽度"，装不下时由表格自己的滚动条接手。
 DAY_COL_MIN_WIDTH = 96
@@ -291,7 +228,6 @@ ROW_MIN_HEIGHT = 56
 class CourseTable(QTableWidget):
     """Course grid. Emits signals for context menu actions."""
 
-    fill_ai_prompt = Signal(str)
     course_rename_requested = Signal(str)
     course_delete_requested = Signal(str)
     view_course_tasks = Signal(str)  # course_name
@@ -568,5 +504,3 @@ class CourseTable(QTableWidget):
             self.view_course_tasks.emit(payload)
         elif action_type == "toggle_attendance":
             self.course_attendance_toggle_requested.emit(course_id)
-        elif action_type == "fill":
-            self.fill_ai_prompt.emit(_build_context_prompt(course, payload))

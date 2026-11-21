@@ -1,0 +1,9 @@
+{
+  "hermes.section": "Hermes 微信网关",
+  "hermes.start": "启动 Hermes",
+  "hermes.restart": "重启 Hermes",
+  "hermes.hint": "启动后可在微信中使用 Hermes。",
+  "hermes.launched": "已发起网关命令，请在微信中确认连接。",
+  "hermes.missing": "找不到 Hermes 启动程序，请检查安装目录。",
+  "hermes.failed": "无法启动 Hermes 网关进程。"
+}

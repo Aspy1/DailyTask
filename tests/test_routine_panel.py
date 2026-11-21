@@ -80,14 +80,13 @@ def test_board_accepts_routine_drag(tmp_path, qapp) -> None:
 
 def test_sidebar_entry_switches_to_routine_panel(tmp_path, qapp) -> None:
     """侧边栏「近期安排」必须切到这一页（不是点了没反应的死入口）。"""
-    from src.services.ai_service import AIService
     from src.services.settings_manager import SettingsManager
     from src.ui.main_window import MainWindow
 
     dm = DataManager(tmp_path)
     settings = SettingsManager(tmp_path / "settings.ini")
     settings.load()
-    mw = MainWindow(settings, AIService(settings, dm), dm, None)
+    mw = MainWindow(settings, dm, None)
 
     mw._workspace.switch_to("routines")
 

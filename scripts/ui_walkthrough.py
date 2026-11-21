@@ -80,9 +80,6 @@ def walk_panels(mw) -> None:
     check("schedule/week", sv._stack.currentIndex() == 1)
     sv._set_mode("day")
     check("schedule/day", sv._stack.currentIndex() == 0)
-    mw._on_ai_toggle(True)
-    check("ai/visible", mw.ai_panel.isVisible())
-    mw._on_ai_toggle(False)
 
 
 def walk_actions(mw, dm) -> None:
@@ -265,7 +262,7 @@ def main() -> int:
     plugins = PluginManager(SANDBOX / "plugins", settings, dm, app)
     plugins.load_plugins()
 
-    mw = MainWindow(settings, ai, dm, plugins)
+    mw = MainWindow(settings, dm, plugins)
     mw.resize(1200, 800)
     mw.show()
     app.processEvents()

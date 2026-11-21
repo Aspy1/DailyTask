@@ -52,8 +52,8 @@ def _result(payload: object, returncode: int = 0) -> subprocess.CompletedProcess
     return subprocess.CompletedProcess([], returncode, json.dumps(payload), "")
 
 
-def test_registration_exposes_only_two_closed_tools(context: FakeContext) -> None:
-    assert set(context.tools) == {"daily_task_query", "daily_task_update"}
+def test_registration_exposes_the_closed_tools(context: FakeContext) -> None:
+    assert set(context.tools) == {"daily_task_query", "daily_task_update", "daily_task_documents"}
     for name, entry in context.tools.items():
         assert entry["toolset"] == "daily_task"
         assert entry["schema"]["name"] == name
@@ -71,7 +71,7 @@ def test_registration_does_not_read_operator_configuration() -> None:
     ctx = FakeContext({})
     ctx.get_config = Mock(side_effect=AssertionError("Registration must not read settings."))
     register(ctx)
-    assert set(ctx.tools) == {"daily_task_query", "daily_task_update"}
+    assert set(ctx.tools) == {"daily_task_query", "daily_task_update", "daily_task_documents"}
     assert "daily-task.instructions" in ctx.prompts
     ctx.get_config.assert_not_called()
 

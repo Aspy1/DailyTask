@@ -4,6 +4,7 @@ description: Manage DailyTask homework, courses and schedules through validated 
 provides_tools:
   - daily_task_query
   - daily_task_update
+  - daily_task_documents
 config_schema:
   workspace:
     type: str
@@ -18,3 +19,6 @@ config_schema:
   instance_key:
     type: str
     description: Optional single-instance channel override for isolated testing
+  document_dir:
+    type: str
+    description: Optional absolute directory for non-code user documents

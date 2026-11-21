@@ -36,11 +36,10 @@ def test_switch_between_day_and_week(qapp, tmp_path) -> None:
     # 日视图专属控件（日期导航 / 调整）在周视图里隐藏
     # 用 isHidden()（显式隐藏标志）而不是 isVisible()：后者要求整条祖先链都可见
     assert all(b.isHidden() for b in sv._nav_buttons)
-    assert sv._arrange_btn.isHidden()
 
     sv._set_mode("day")
     assert sv._stack.currentIndex() == 0
-    assert not sv._arrange_btn.isHidden()
+    assert all(not button.isHidden() for button in sv._nav_buttons)
 
 
 def test_week_view_lists_ddl_exam_and_plan(qapp, tmp_path) -> None:
@@ -86,14 +85,13 @@ def test_week_view_survives_theme_refresh(qapp, tmp_path) -> None:
 
 def test_course_panel_is_reachable_from_workspace(qapp, tmp_path) -> None:
     """课程表不再是独立面板，但仍要有入口（菜单/测试用）。"""
-    from src.services.ai_service import AIService
     from src.services.settings_manager import SettingsManager
     from src.ui.components.main_workspace import MainWorkspace
 
     settings = SettingsManager(tmp_path / "settings.ini")
     settings.load()
     dm = DataManager(tmp_path)
-    ws = MainWorkspace(settings, AIService(settings, dm), dm, None)
+    ws = MainWorkspace(settings, dm, None)
 
     assert "courses" not in ws._panel_map          # 独立面板已取消
     assert ws.course_panel is ws._schedule_view.course_panel

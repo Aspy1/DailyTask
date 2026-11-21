@@ -78,7 +78,7 @@ def test_data_round_trip(qapp) -> None:
 
 def test_course_context_menu_actions(qapp) -> None:
     """课程右键菜单的条目与 data 标签（原先因为 exec 不返回而全部失效）。"""
-    from src.ui.widgets.course_table import COURSE_ACTIONS, build_course_context_menu
+    from src.ui.widgets.course_table import build_course_context_menu
 
     menu = build_course_context_menu({"id": "c_001", "name": "高等数学"})
     assert isinstance(menu, QMenu)
@@ -86,10 +86,9 @@ def test_course_context_menu_actions(qapp) -> None:
     assert texts[:3] == ["修改课程名称", "删除这门课", "查看关于这门课的事项"]
     # 第 4 项是「会点名」开关（默认未开启 → 显示"开启…"）
     assert texts[3] == "开启点名提醒（提前 30 分钟）"
-    assert [a.text() for a in menu.actions()[4:]] == ["", *COURSE_ACTIONS]
+    assert len(menu.actions()) == 4
     assert menu.actions()[0].data() == ("rename", "c_001")
     assert menu.actions()[3].data() == ("toggle_attendance", "c_001")
-    assert menu.actions()[4 + len(COURSE_ACTIONS)].data() == ("fill", COURSE_ACTIONS[-1])
 
 
 def test_course_context_menu_attendance_label_flips(qapp) -> None:

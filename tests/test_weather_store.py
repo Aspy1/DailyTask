@@ -114,7 +114,6 @@ def test_concurrent_record_requests_keep_file_valid(tmp_path) -> None:
 
 def test_settings_panel_survives_corrupted_stats(qapp, tmp_path, monkeypatch) -> None:
     """回归：损坏的 `weather_stats.json` 曾让应用**启动即崩**（设置面板构造时读它）。"""
-    from src.services.ai_service import AIService
     from src.services.data_manager import DataManager
     from src.services.settings_manager import SettingsManager
     from src.ui.panels.settings_panel import SettingsPanel
@@ -129,5 +128,5 @@ def test_settings_panel_survives_corrupted_stats(qapp, tmp_path, monkeypatch) ->
     dm = DataManager(tmp_path)
     settings = SettingsManager(tmp_path / "settings.ini")
     settings.load()
-    panel = SettingsPanel(settings, AIService(settings, dm), None, dm)
+    panel = SettingsPanel(settings, None, dm)
     assert panel._weather_stats_label.text()          # 有文案（哪怕是 0 次）

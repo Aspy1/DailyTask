@@ -18,7 +18,7 @@ AI 驱动的 PySide6 桌面日程管理应用（学生向）。单进程、无�
 | 服务 | 纯 Python + QObject/QThread |
 | 模型 | 自研 `BaseJsonModel`（原子写入 + 版本号） |
 | 存储 | `data/*.json`（本地文件） |
-| AI | DeepSeek / Anthropic / **OpenCode Go**（可切换），Agent Loop 多轮；单次请求 120s 超时，回复被截断自动分批续跑 |
+| AI | Hermes 负责模型与工具调用。桌面只提供网关的启动控制 |
 | 数据操作 | `scripts/actions.py`（命令）+ `actions_core.py`（读写/校验/备份）+ `actions_cli.py`（argparse） |
 | 移动端 | Hermes 微信网关 → 专用原生工具 → `hermes_actions.py` → `actions.py` CLI |
 
@@ -55,11 +55,10 @@ ui ──→ services ──→ models ──→ base(BaseJsonModel)
 8. `set_autostart(auto_start)`（写注册表 Run 项）
 9. **`DataManager(DATA_DIR)`** —— 创建 11 个 Model（含按学期的 3 个、共享的 6 个、
    `semesters` 注册表与私有 `membership_contacts`），并启动 **3s 轮询 QTimer**
-10. `AIService(settings, data_manager)`
-11. `ReminderService(settings, data_manager)` + 连接 `reminder_notify` / `ddl_alert`
+10. `ReminderService(settings, data_manager)` + 连接 `reminder_notify` / `ddl_alert`
 12. `GitSync(repo=DATA_DIR.parent, data_dir)` + 连接 `data_changed` / `sync_status`
 13. `PluginManager(plugins_dir)` + `load_plugins()`（只扫描，不导入插件代码）
-14. **`MainWindow(...)`** —— 内部创建 `WeatherService`，并 `ai_service.set_weather_service(...)`
+14. **`MainWindow(...)`** —— 内部创建 `WeatherService`。设置里的 Hermes 控制只在用户点击时发起独立网关进程
 15. `_setup_tray(icon)`（托盘先于窗口显示）
 16. `_window.show()`
 17. `_flash_timer` 初始化（**在 `show()` 之后**；因为 `_on_ddl_alert` 依赖它）
@@ -91,7 +90,8 @@ ui ──→ services ──→ models ──→ base(BaseJsonModel)
 ### 4.1 Hermes 微信入口（2026-11-20）
 
 Hermes 使用独立运行时，项目不依赖 Hermes Python 包。仓库维护
-`scripts/hermes_plugin/`，部署副本加载两个工具：`daily_task_query` 与 `daily_task_update`。
+`scripts/hermes_plugin/`，部署副本加载 `daily_task_query`、`daily_task_update` 与 `daily_task_documents`。
+普通文档由插件在显式配置的目录内处理，与应用数据写入链隔离。桌面入口不再实例化原创 AI 助手。
 模型输入为受限 JSON；工作区、解释器、测试数据目录及通信 key 只能由操作者配置。
 微信工具集显式选择 `daily_task`，模型不能通过该入口调用通用终端或文件编辑工具。
 
@@ -122,16 +122,9 @@ CLI 与委派接受端均识别 `--key=value`，文本中的空格、引号和 `
 | `ReminderService` | `ddl_alert(int)` | `App._on_ddl_alert` → `MainWindow.set_ddl_alert` | DDL 计数 + 托盘闪烁 |
 | `DataManager` | `data_changed(str)` | `GitSync` / `MainWorkspace` / `ReminderService` | 数据变更广播 |
 | `GitSync` | `sync_status(str)` | `App._on_sync_status` | 托盘 tooltip |
-| `AIService` | `response_received(str)` | `MainWindow._on_ai_response` | AI 文本回复 |
-| `AIService` | `error_occurred(str)` | `MainWindow._on_ai_error` | AI 错误 |
-| `AIService` | `instructions_executed(str,list)` | `MainWindow._on_instructions_done` | 指令执行结果 |
-| `ScheduleView` | `arrange_requested(str)` | `MainWindow._on_quick_arrange` | 快速安排 prompt |
 | `ScheduleView` | `course_table_requested` / `task_focus_requested(str)` | `MainWorkspace` | 日/周 切换通知 / 跨面板跳转 |
-| `ScheduleView` | `fill_ai_prompt(str)` | `MainWorkspace` → `MainWindow._on_course_fill_ai` | 日视图课程右键填充 AI |
-| `MainWorkspace` | `fill_ai_prompt(str)` | `MainWindow._on_course_fill_ai` | 周视图课程右键填充 AI |
 | `MainWorkspace` | `panel_changed(str)` | `Sidebar.set_active` | 程序化跳转（状态栏/课程）同步左侧高亮 |
-| `Sidebar` | `nav_changed(str)` / `ai_toggled(bool)` | `MainWindow` | 导航 / AI 面板开关 |
-| `CourseTable` | `fill_ai_prompt(str)` | `MainWindow._on_course_fill_ai` | 右键填充 AI 提示词 |
+| `Sidebar` | `nav_changed(str)` | `MainWindow` | 导航 |
 | `WeatherService` | `weather_updated(dict)` / `forecast_updated(list)` | `MainWindow` / `WeatherDetailDialog` | 天气刷新 |
 | `QLocalServer` | `newConnection` | `App._on_second_instance` | 第二实例唤醒 |
 
@@ -176,7 +169,7 @@ CLI 与委派接受端均识别 `--key=value`，文本中的空格、引号和 `
 
 ## 7. 关键不变量
 
-1. **单例**：`SettingsManager` / `DataManager` / `AIService` 只在 `App.__init__` 实例化（`CODE_STANDARDS`/`AGENTS.md` R-001）。
+1. **单例**：`SettingsManager` / `DataManager` 只在 `App.__init__` 实例化（`CODE_STANDARDS`/`AGENTS.md` R-001）。
 2. **原子写入**：所有持久化走 `BaseJsonModel.atomic_write()`——写 `.tmp` → 备份 `.bak` → `os.replace`（PermissionError 重试 5×50ms）。
    AI 那条路径（`scripts/actions_core.save()`）同样原子：结构守卫 → 写前备份到
    `data/backup/actions/` → `.tmp` → 回读自检 → `os.replace`（`ERRORS #042`）。

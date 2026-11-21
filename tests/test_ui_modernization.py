@@ -5,7 +5,6 @@ import logging
 import sys
 
 from src.services import weather_service
-from src.services.ai_service import AIService
 from src.services.data_manager import DataManager
 from src.services.settings_manager import SettingsManager
 from src.ui.main_window import MainWindow
@@ -15,7 +14,7 @@ def _window(tmp_path, qapp) -> tuple[MainWindow, DataManager]:
     dm = DataManager(tmp_path)
     settings = SettingsManager(tmp_path / "settings.ini")
     settings.load()
-    return MainWindow(settings, AIService(settings, dm), dm, None), dm
+    return MainWindow(settings, dm, None), dm
 
 
 def test_programmatic_panel_switch_updates_sidebar(tmp_path, qapp) -> None:
@@ -31,7 +30,6 @@ def test_expense_summary_wraps_in_narrow_window(tmp_path, qapp) -> None:
     mw.resize(990, 638)
     mw.show()
     mw._workspace.switch_to("expenses")
-    mw._on_ai_toggle(True)
     qapp.processEvents()
     panel = mw._workspace._expense_panel
     cards = [panel._sum_month, panel._sum_today, panel._sum_budget,

@@ -162,17 +162,18 @@ def test_day_view_hash_includes_done() -> None:
     assert slot_content_hash(base, [], False) != slot_content_hash(done, [], False)
 
 
-def test_schedule_fill_action_emits_prompt(qapp, tmp_path) -> None:
-    """⭐ 课程右键「布置了作业」必须真的把 prompt 发出去（旧实现发的是 data_changed:fill_prompt:）。"""
+def test_schedule_view_tasks_opens_course_details(qapp, tmp_path, monkeypatch) -> None:
+    from types import SimpleNamespace
+
+    from src.ui.widgets import course_detail_dialog
+
     dm = DataManager(tmp_path)
     view = ScheduleView(dm)
     seen: list[str] = []
-    view.fill_ai_prompt.connect(seen.append)
-
-    view._handle_course_action("fill", "布置了作业", {
-        "course": {"name": "算法", "day_of_week": 1,
-                   "time_slots": [{"start": 1, "end": 2}]}})
-    assert seen and "算法" in seen[0] and "布置了作业" in seen[0]
+    monkeypatch.setattr(course_detail_dialog, "CourseDetailDialog",
+                        lambda _dm, name, _parent: SimpleNamespace(exec=lambda: seen.append(name)))
+    view._handle_course_action("view_tasks", "算法", {"course": {"id": "c_001"}})
+    assert seen == ["算法"]
 
 
 def test_task_filter_by_course_refreshes_table(qapp, tmp_path) -> None:
