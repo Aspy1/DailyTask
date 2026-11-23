@@ -17,6 +17,12 @@
   "widget.schedule.period_unit": "节",
   "widget.schedule.slot_conflict": "⚠ 本时段有两门课，记得请假",
   "widget.schedule.habit_minutes": "{dur}分钟",
+  "widget.schedule.focus_next_course": "下一门课",
+  "widget.schedule.focus_course_detail": "{time}　{name}　{location}",
+  "widget.schedule.focus_location_unknown": "地点待定",
+  "widget.schedule.focus_today_habits": "今日习惯",
+  "widget.schedule.focus_habit_separator": "、",
+  "widget.schedule.focus_habit_overflow": "{names}等 {total} 项待完成",
   "widget.schedule.ddl_due": " 截止 {time}",
 
   "widget.schedule.msg_error_title": "错误",

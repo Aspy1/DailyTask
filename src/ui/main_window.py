@@ -144,6 +144,7 @@ class MainWindow(QMainWindow):
 
         self._status_timer = QTimer(self)
         self._status_timer.timeout.connect(self._refresh_status)
+        self._status_timer.timeout.connect(self._workspace.schedule_view.focus_summary.refresh)
         self._status_timer.start(30_000)
         self._refresh_status()
 

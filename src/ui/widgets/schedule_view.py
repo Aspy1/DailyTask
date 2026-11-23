@@ -38,6 +38,7 @@ from src.ui.widgets.menu import (
 from src.ui.widgets.rounded_button import RoundedButton
 from src.ui.widgets.schedule_actions import set_plan_category
 from src.ui.widgets.schedule_filter import CategoryFilter, add_category_actions, visible
+from src.ui.widgets.schedule_focus import ScheduleFocus
 from src.ui.widgets.schedule_slots import (
     add_course_to_slots,
     add_habit_to_slots,
@@ -176,6 +177,8 @@ class ScheduleView(QWidget):
 
         layout.addWidget(bar)
 
+        self.focus_summary = ScheduleFocus(dm)
+        layout.addWidget(self.focus_summary)
         self._hint_bar = HintBar(self._dm.data_dir, data_manager=self._dm)
         layout.addWidget(self._hint_bar)
 
@@ -464,6 +467,7 @@ class ScheduleView(QWidget):
 
     def _refresh(self, force: bool = False) -> None:
         """刷新**当前视图**：日视图重建时段卡片；周视图交给课程表面板。"""
+        self.focus_summary.refresh()
         self._hint_bar.refresh()
         if self._view_mode == "week":
             self._course_panel._refresh()
