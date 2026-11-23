@@ -22,9 +22,15 @@ from PySide6.QtCore import (
 )
 from PySide6.QtWidgets import QGraphicsOpacityEffect, QWidget
 
-DURATION_FAST = 100
-DURATION_BASE = 150
-DURATION_COUNT = 200
+from src.ui.styles.theme import MOTION
+
+# 时长 / 缓动**只从令牌读**（design/tokens.json 的 `motion`）：
+# 早先这里是 100 / 150 / 200 三个裸数字，切页那边也没法单独指定"更短的时长"。
+DURATION_FAST = MOTION["duration_fast"]
+DURATION_BASE = MOTION["duration_base"]
+DURATION_COUNT = MOTION["duration_count"]
+# `easing` 存的是 `QEasingCurve.Type` 的**成员名**（不写枚举序号，也不写数字）
+EASING: QEasingCurve.Type = QEasingCurve.Type[MOTION["easing"]]
 
 ENABLED = True
 
@@ -51,16 +57,26 @@ def _opacity_effect(widget: QWidget) -> QGraphicsOpacityEffect:
     return effect
 
 
-def fade_in(widget: QWidget, duration: int = DURATION_BASE) -> QPropertyAnimation | None:
-    """淡入（只动 opacity，不动几何）。"""
+def fade_in(widget: QWidget, duration: int = DURATION_BASE,
+            start: float = 0.0) -> QPropertyAnimation | None:
+    """淡入（只动 opacity，不动几何）。
+
+    `start` 是**起点不透明度**（默认 0 → 从全透明淡入，与旧行为一致）。
+    切页这类"内容已经在那儿了"的场景要传一个接近 1 的起点（`motion.switch_fade_from`）：
+    起点 0 会让第一帧整块空白，用户看到的是"闪一下"而不是"淡入"。
+
+    ⚠ 起点**同步**写进 effect（不等动画第一次 tick）：否则"控件已显示、动画还没跑"
+    的那一帧仍然是上一帧的透明度 —— 正是"第一帧空白"的成因。
+    """
     if not ENABLED:
         return None
     effect = _opacity_effect(widget)
+    effect.setOpacity(start)
     anim = QPropertyAnimation(effect, b"opacity", widget)
     anim.setDuration(duration)
-    anim.setStartValue(0.0)
+    anim.setStartValue(start)
     anim.setEndValue(1.0)
-    anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+    anim.setEasingCurve(EASING)
     _keep(widget, effect, anim)
     # 结束后摘掉透明效果：QGraphicsOpacityEffect 会走离屏渲染，留着会让面板发虚
     anim.finished.connect(lambda: widget.setGraphicsEffect(None))
@@ -77,7 +93,7 @@ def fade_popup(widget: QWidget, duration: int = DURATION_FAST) -> QPropertyAnima
     anim.setDuration(duration)
     anim.setStartValue(0.0)
     anim.setEndValue(1.0)
-    anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+    anim.setEasingCurve(EASING)
     _keep(widget, anim)
     # exec() 会阻塞在嵌套事件循环里：用 0ms 定时器把动画推进去
     QTimer.singleShot(0, lambda: anim.start(QPropertyAnimation.DeletionPolicy.KeepWhenStopped))
@@ -103,7 +119,7 @@ def count_to(label, value: float, fmt: str = "{:.0f}",
     var.setStartValue(start)
     var.setEndValue(value)
     var.setDuration(duration)
-    var.setEasingCurve(QEasingCurve.Type.OutCubic)
+    var.setEasingCurve(EASING)
     var.valueChanged.connect(lambda v: label.setText(fmt.format(float(v))))
     _keep(label, var)
     var.start(QVariantAnimation.DeletionPolicy.KeepWhenStopped)

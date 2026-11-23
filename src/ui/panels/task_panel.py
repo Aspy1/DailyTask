@@ -4,15 +4,12 @@ import logging
 from datetime import date, timedelta
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QBrush, QColor
 from PySide6.QtWidgets import (
     QAbstractItemView,
-    QCheckBox,
     QHBoxLayout,
     QHeaderView,
     QLabel,
     QMessageBox,
-    QPushButton,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -21,7 +18,25 @@ from PySide6.QtWidgets import (
 
 from src.i18n.loader import tr
 from src.services.data_manager import DataManager
-from src.ui.styles.theme import SIZE_BODY_S, font, get_colors
+from src.ui.panels.task_cells import (
+    COLUMN_COUNT,
+    COURSE_COL,
+    DETAIL_COL,
+    DONE_COL,
+    DUE_COL,
+    TITLE_COL,
+    commit_status,
+    is_near_ddl,
+    make_check_cell,
+    make_course_item,
+    make_ddl_cell,
+    make_detail_cell,
+    make_due_item,
+    make_title_item,
+)
+from src.ui.panels.task_detail_dialog import TaskDetailDialog
+from src.ui.styles.theme import LAYOUT, SIZE_BODY_S, font, get_colors
+from src.ui.widgets.empty_state import empty_state
 from src.ui.widgets.menu import (
     add_action,
     add_separator,
@@ -30,7 +45,8 @@ from src.ui.widgets.menu import (
 )
 from src.ui.widgets.rounded_button import RoundedButton
 
-PAGE_SIZE = 10
+# 每页行数也是令牌（`layout.task_page_size`），别在面板里写 10
+PAGE_SIZE = LAYOUT["task_page_size"]
 
 TIME_BUCKETS = [
     (tr("panel.task.filter_all"), None),
@@ -54,6 +70,16 @@ def _parse_due(due_str) -> date | None:
         return date.fromisoformat(due_str[:10])
     except (ValueError, TypeError):
         return None
+
+
+def _blank_item() -> QTableWidgetItem:
+    """占位 item（空文字）。
+
+    ⚠ 只有 `cellWidget` 的列**必须**再放一个 item：Qt 的交替行底色 / 网格 / 行高
+    都是按 **item** 画的，格子里只有 widget 时那一列会缺一块背景（A1）。
+    文本留空，widget 盖在上面，用户看不到它。
+    """
+    return QTableWidgetItem("")
 
 
 def _match_time_bucket(due_str: str, bucket: str | None) -> bool:
@@ -86,7 +112,6 @@ def _match_time_bucket(due_str: str, bucket: str | None) -> bool:
 
 class TaskPanel(QWidget):
     def __init__(self, dm: DataManager, parent=None) -> None:
-        c = get_colors()
         super().__init__(parent)
         self._dm = dm
         self._page = 0
@@ -94,12 +119,34 @@ class TaskPanel(QWidget):
         self._time_bucket: str | None = None
         self._highlight_ddl = False
         self._status_filter = "pending"  # "pending" | "completed" | "all"
+        # 当前页的行 → 任务（双击 / 详情按钮靠它定位；不要靠 item 文本反查）
+        self._row_tasks: list[dict] = []
+        self._detail_factory = TaskDetailDialog   # 测试可替换成假弹窗（不真 exec）
+        # 外框按钮（工具栏 + 翻页）：`refresh_theme` **只**重刷这些 —— 列表里的详情按钮
+        # 走 `btn_secondary_qss()` + `remap_stylesheets()`，一并重设会覆盖它们自己的样式（A3）
+        self._chrome_buttons: list[RoundedButton] = []
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
-        # ── Toolbar ──────────────────────────────────────────
+        layout.addWidget(self._build_bar())
+
+        self._table = self._build_table()
+        layout.addWidget(self._table, stretch=1)
+
+        # 0 行时顶替表格（不放空表格：那只会剩一片空白）
+        self._empty = self._build_empty_state()
+        layout.addWidget(self._empty, stretch=1)
+
+        layout.addWidget(self._build_footer())
+        self._refresh()
+
+    # ── 结构 ──────────────────────────────────────────────────
+
+    def _build_bar(self) -> QWidget:
+        """工具栏（标题 + 四个筛选/刷新按钮）。抽出来是因为 `__init__` 有行数上限（Q-A1）。"""
+        c = get_colors()
         bar = QWidget()
         bar.setObjectName("taskBar")
         bar.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
@@ -111,92 +158,112 @@ class TaskPanel(QWidget):
         title.setFont(font("pageTitle"))
         title.setStyleSheet(f"color: {c['fg_primary']}; font-weight: 600; border: none;")
         bar_layout.addWidget(title)
-
         bar_layout.addStretch()
 
-        self._filter_btn = RoundedButton(tr("panel.task.btn_course_filter"))
-        self._filter_btn.setStyleSheet(self._btn_qss())
-        self._filter_btn.clicked.connect(self._show_course_filter)
-        bar_layout.addWidget(self._filter_btn)
+        self._filter_btn = self._add_chrome_button(
+            bar_layout, tr("panel.task.btn_course_filter"), self._show_course_filter)
+        self._time_btn = self._add_chrome_button(
+            bar_layout, tr("panel.task.btn_time_filter"), self._show_time_filter)
+        self._status_btn = self._add_chrome_button(
+            bar_layout, tr("panel.task.status_pending"), self._toggle_status_filter)
+        self._add_chrome_button(
+            bar_layout, tr("panel.task.btn_refresh"), lambda _checked=False: self._refresh())
+        return bar
 
-        self._time_btn = RoundedButton(tr("panel.task.btn_time_filter"))
-        self._time_btn.setStyleSheet(self._btn_qss())
-        self._time_btn.clicked.connect(self._show_time_filter)
-        bar_layout.addWidget(self._time_btn)
-
-        self._status_btn = RoundedButton(tr("panel.task.status_pending"))
-        self._status_btn.setStyleSheet(self._btn_qss())
-        self._status_btn.clicked.connect(self._toggle_status_filter)
-        bar_layout.addWidget(self._status_btn)
-
-        refresh_btn = RoundedButton(tr("panel.task.btn_refresh"))
-        refresh_btn.setStyleSheet(self._btn_qss())
-        refresh_btn.clicked.connect(self._refresh)
-        bar_layout.addWidget(refresh_btn)
-
-        layout.addWidget(bar)
-
-        # ── Table ────────────────────────────────────────────
-        self._table = QTableWidget(0, 4)
-        self._table.setObjectName("taskTable")
-        self._table.setHorizontalHeaderLabels([
-            tr("panel.task.col_course"), tr("panel.task.col_due"),
-            tr("panel.task.col_title"), tr("panel.task.col_done"),
-        ])
-        self._table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive)
-        self._table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Interactive)
-        self._table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
-        self._table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Fixed)
-        self._table.setColumnWidth(0, 120)
-        self._table.setColumnWidth(1, 175)
-        self._table.setColumnWidth(3, 50)
-        self._table.horizontalHeader().setStretchLastSection(False)
-        self._table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
-        self._table.horizontalHeader().setDefaultAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._table.setSortingEnabled(False)
-        self._table.horizontalHeader().setSortIndicatorShown(False)
-        self._table.verticalHeader().setVisible(False)
-        self._table.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)  # 行高按内容（原来固定 48 会裁掉换行标题 —— U6）
-        self._table.verticalHeader().setMinimumSectionSize(48)
-        self._table.setWordWrap(True)
-        self._table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
-        self._table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        self._table.setShowGrid(False)
-        self._table.setAlternatingRowColors(True)
-        self._table.horizontalHeader().setSectionsClickable(False)
-        layout.addWidget(self._table, stretch=1)
-
-        # ── Footer ───────────────────────────────────────────
+    def _build_footer(self) -> QWidget:
+        """页脚（计数 + 翻页）。底色由全局 QSS 的 `#taskFooter` 给（chrome 表面）。"""
         footer = QWidget()
         footer.setObjectName("taskFooter")
         footer.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         fl = QHBoxLayout(footer)
         fl.setContentsMargins(16, 4, 16, 4)
 
+        # ⚠ 字号 / 颜色**只**由全局 QSS 的 `#taskCount` 定义：这里再设一次会和它打架
+        # （此前 refresh_theme 用 SIZE_BODY_S 覆盖了全局的 SIZE_TINY，见 A5）
         self._count_label = QLabel()
         self._count_label.setObjectName("taskCount")
         fl.addWidget(self._count_label)
         fl.addStretch()
 
-        for text, slot in [(tr("panel.task.btn_prev_page"), self._prev_page),
-                           (tr("panel.task.btn_next_page"), self._next_page)]:
-            btn = RoundedButton(text)
-            btn.setStyleSheet(self._btn_qss())
-            btn.clicked.connect(slot)
-            fl.addWidget(btn)
+        self._add_chrome_button(fl, tr("panel.task.btn_prev_page"), self._prev_page)
+        self._add_chrome_button(fl, tr("panel.task.btn_next_page"), self._next_page)
+        return footer
 
-        layout.addWidget(footer)
-        self._refresh()
+    def _build_empty_state(self) -> QWidget:
+        """空态卡片（默认隐藏；`_sync_empty_state` 按行数切换）。"""
+        box = empty_state(tr("panel.task.empty_title"), tr("panel.task.empty_body"))
+        box.hide()
+        return box
+
+    def _add_chrome_button(self, layout, text: str, slot) -> RoundedButton:
+        """造一个外框按钮：样式一律走 `_btn_qss()`（唯一工厂），并登记进 `_chrome_buttons`。"""
+        btn = RoundedButton(text)
+        btn.setStyleSheet(self._btn_qss())
+        btn.clicked.connect(slot)
+        layout.addWidget(btn)
+        self._chrome_buttons.append(btn)
+        return btn
+
+    def _build_table(self) -> QTableWidget:
+        """表格本体（从 `__init__` 抽出：Q-A1 的函数行数上限）。"""
+        table = QTableWidget(0, COLUMN_COUNT)
+        table.setObjectName("taskTable")
+        table.setHorizontalHeaderLabels([
+            tr("panel.task.col_course"), tr("panel.task.col_due"),
+            tr("panel.task.col_title"), tr("panel.task.col_done"),
+            tr("panel.task.col_detail"),
+        ])
+        header = table.horizontalHeader()
+        header.setSectionResizeMode(COURSE_COL, QHeaderView.ResizeMode.Interactive)
+        header.setSectionResizeMode(DUE_COL, QHeaderView.ResizeMode.Interactive)
+        header.setSectionResizeMode(TITLE_COL, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(DONE_COL, QHeaderView.ResizeMode.Fixed)
+        header.setSectionResizeMode(DETAIL_COL, QHeaderView.ResizeMode.Fixed)
+        table.setColumnWidth(COURSE_COL, LAYOUT["task_col_course_width"])
+        table.setColumnWidth(DUE_COL, LAYOUT["task_col_due_width"])
+        table.setColumnWidth(DONE_COL, LAYOUT["task_col_done_width"])
+        table.setColumnWidth(DETAIL_COL, LAYOUT["task_detail_col_width"])
+        header.setStretchLastSection(False)
+        # 表头与课程表**同一档**高度/内边距（令牌 `layout.table_header_height`）
+        header.setMinimumHeight(LAYOUT["table_header_height"])
+        table.horizontalHeader().setDefaultAlignment(Qt.AlignmentFlag.AlignCenter)
+        for col in range(COLUMN_COUNT):
+            _align_header_item(table, col)
+        header.setSortIndicatorShown(False)
+        header.setSectionsClickable(False)
+        table.setSortingEnabled(False)
+        table.verticalHeader().setVisible(False)
+        # 行高按内容（原来固定 48 会裁掉换行标题 —— U6）；默认行高用令牌兜底
+        table.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+        table.verticalHeader().setDefaultSectionSize(LAYOUT["table_row_height"])
+        table.setWordWrap(True)
+        table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
+        table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        table.setShowGrid(False)
+        table.setAlternatingRowColors(True)
+        # 双击任意一行 = 打开详情（详情列本身有按钮，双击是给"手快"的用户留的入口）
+        table.cellDoubleClicked.connect(self._on_cell_double_clicked)
+        return table
 
     def _btn_qss(self) -> str:
+        """外框按钮（工具栏 / 翻页）的**唯一**样式工厂。
+
+        ⚠ `__init__` 与 `refresh_theme` 必须用同一份：此前两处各写一套，初始化那份
+        **没有描边**、换主题那份有 `border: 1px` —— 于是切一次主题按钮就高 2px、
+        文字色也换了（A2）。
+        """
         c = get_colors()
         return f"""
             QPushButton {{ background-color: {c["btn_secondary_bg"]}; color: {c["fg_hint"]};
-                border-radius: 8px;
+                border: none; border-radius: 8px;
                 padding: 4px 12px; font-size: {SIZE_BODY_S}px; }}
             QPushButton:hover {{ background-color: {c["btn_secondary_hover"]}; color: {c["fg_secondary"]}; }}
             QPushButton::menu-indicator {{ image: none; }}
         """
+
+    def fade_target(self) -> QTableWidget:
+        """切页淡入只作用于**内容区**（表格）。工具栏 / 页脚是静态外框，不参与淡入。"""
+        return self._table
 
     # ── Data ──────────────────────────────────────────────────
 
@@ -293,99 +360,104 @@ class TaskPanel(QWidget):
             self._time_btn.setText(tr("panel.task.btn_time_filter"))
         self._refresh()
 
-    def _refresh(self) -> None:
-        self._table.setSortingEnabled(False)
-        self._table.horizontalHeader().setSortIndicatorShown(False)
-        self._table.setRowCount(0)
+    def _refresh(self, preserve_scroll: bool = True) -> None:
+        """按当前筛选重画表格。
+
+        `preserve_scroll`：保留滚动位置。原来 `setRowCount(0)` 后滚动条跳回顶部 ——
+        勾一条完成、或从详情弹窗回来，人就被"弹"回第一行。
+
+        重建期间 `setUpdatesEnabled(False)`：逐行插入会触发 N 次重排/重绘，整表的**中间
+        状态**（半张表 + 抖动的滚动条）会被画出来；关掉更新后只画最终态。
+        """
+        table = self._table
+        scroll = table.verticalScrollBar().value() if preserve_scroll else 0
+        table.setUpdatesEnabled(False)
+        try:
+            self._rebuild_rows()
+        finally:
+            table.setUpdatesEnabled(True)
+        if preserve_scroll:
+            table.verticalScrollBar().setValue(scroll)
+
+    def _rebuild_rows(self) -> None:
+        """清空并按当前页重新填表（`_refresh` 的"无闪烁"版）。"""
+        table = self._table
+        table.setSortingEnabled(False)
+        table.horizontalHeader().setSortIndicatorShown(False)
+        table.setRowCount(0)
 
         tasks = self._get_filtered()
         total = len(tasks)
-        start = self._page * PAGE_SIZE
-        page_tasks = tasks[start:start + PAGE_SIZE]
         max_page = max(0, (total - 1) // PAGE_SIZE)
         if self._page > max_page:
             self._page = max_page
-            start = self._page * PAGE_SIZE
-            page_tasks = tasks[start:start + PAGE_SIZE]
+        start = self._page * PAGE_SIZE
+        self._row_tasks = list(tasks[start:start + PAGE_SIZE])
 
-        c = get_colors()
-        for i, t in enumerate(page_tasks):
-            self._table.insertRow(i)
+        colors = get_colors()
+        for i, task in enumerate(self._row_tasks):
+            table.insertRow(i)
+            table.setItem(i, COURSE_COL, make_course_item(task))
+            self._fill_due_cell(i, task, colors)
+            table.setItem(i, TITLE_COL, make_title_item(task))
+            # ⚠ 下面两列只有 widget：先放空 item 占位，否则交替行底色在这两格缺失（A1）
+            table.setItem(i, DONE_COL, _blank_item())
+            table.setCellWidget(i, DONE_COL, make_check_cell(task, self._on_check))
+            table.setItem(i, DETAIL_COL, _blank_item())
+            table.setCellWidget(i, DETAIL_COL, make_detail_cell(task, self._open_detail))
 
-            self._set_course_item(i, t)
+        self._update_footer(total, max_page)
+        self._sync_empty_state(bool(self._row_tasks))
 
-            due = t.get("due_date", "")
-            due_display = due[:16].replace("T", " ") if due and due != "None" else "—"
-            # Highlight DDL within 3 days — use QLabel for mixed-color text
-            if self._is_near_ddl(due):
-                due_date = _parse_due(due)
-                self._table.setCellWidget(
-                    i, 1, self._make_ddl_cell(
-                        due_display, (due_date - date.today()).days, c))
-            else:
-                self._set_due_item(i, due_display)
+    def _fill_due_cell(self, row: int, task: dict, colors: dict) -> None:
+        """截止列：临期（3 天内）用富文本 QLabel，其余走普通 item。"""
+        due = task.get("due_date", "")
+        due_display = due[:16].replace("T", " ") if due and due != "None" else "—"
+        due_date = _parse_due(due)
+        if is_near_ddl(due_date, self._highlight_ddl):
+            self._table.setItem(row, DUE_COL, _blank_item())
+            self._table.setCellWidget(
+                row, DUE_COL,
+                make_ddl_cell(self._table.font(), self._table.columnWidth(DUE_COL),
+                              due_display, (due_date - date.today()).days, colors))
+        else:
+            self._table.setItem(row, DUE_COL, make_due_item(due_display))
 
-            title_item = QTableWidgetItem(t.get("title", ""))
-            title_item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
-            if t.get("status") == "completed":
-                title_item.setForeground(QBrush(QColor(c['fg_hint'])))
-            self._table.setItem(i, 2, title_item)
-
-            self._set_check_cell(i, t)
-
+    def _update_footer(self, total: int, max_page: int) -> None:
         page_str = (tr("panel.task.page_info", page=self._page + 1, total=max_page + 1)
                     if total > PAGE_SIZE else "")
         self._count_label.setText(tr("panel.task.count", total=total, page=page_str))
 
-    def _set_course_item(self, row: int, t: dict) -> None:
-        """第 0 列：课程名。"""
-        course_item = QTableWidgetItem(t.get("course_name", "") or "—")
-        course_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._table.setItem(row, 0, course_item)
+    def _sync_empty_state(self, has_rows: bool) -> None:
+        """0 行时用空态卡片顶替表格：只留一片空白不算"空态"，得说明为什么空。"""
+        self._empty.setVisible(not has_rows)
+        self._table.setVisible(has_rows)
 
-    def _is_near_ddl(self, due: str) -> bool:
-        """是否需要按 DDL 临期（3 天内）高亮截止列。"""
-        if not (self._highlight_ddl and due and due != "None"):
-            return False
-        due_date = _parse_due(due)
-        return bool(due_date and due_date <= date.today() + timedelta(days=3))
+    # ── 详情 ──────────────────────────────────────────────────
 
-    def _set_check_cell(self, row: int, t: dict) -> None:
-        """第 3 列：完成复选框。"""
-        cb = QCheckBox()
-        cb.setChecked(t.get("status") == "completed")
-        tid = t["id"]
-        cb.clicked.connect(lambda checked, tid=tid: self._on_check(tid, checked))
-        self._table.setCellWidget(row, 3, cb)
+    def _open_detail(self, task_id: str) -> None:
+        """打开作业详情（备注 + 附件）。保存后刷新本页，筛选状态保持不变。"""
+        task = next((t for t in self._dm.tasks.active if t.get("id") == task_id), None)
+        if task is None:
+            logger.debug("详情：任务已不存在 %s", task_id)
+            self._refresh()
+            return
+        dialog = self._detail_factory(self._dm, task, self)
+        dialog.exec()
+        self._refresh()
 
-    def _make_ddl_cell(self, due_display: str, days_left: int, c: dict) -> QLabel:
-        """DDL 临期（3 天内）的富文本单元格。"""
-        lbl = QLabel()
-        lbl.setFont(self._table.font())
-        lbl.setTextFormat(Qt.TextFormat.RichText)
-        lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        lbl.setMinimumWidth(self._table.columnWidth(1) - 10)
-        lbl.setWordWrap(False)
-        lbl.setText(
-            f'<span style="color:{c["red"]};font-size: {SIZE_BODY_S}px;">{due_display}</span>'
-            f' <span style="color:{c["fg_secondary"]};font-size: {SIZE_BODY_S}px;">'
-            f'{tr("panel.task.days_left", days=days_left)}</span>'
-        )
-        return lbl
-
-    def _set_due_item(self, row: int, due_display: str) -> None:
-        """普通截止日期单元格。"""
-        due_item = QTableWidgetItem(due_display)
-        due_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._table.setItem(row, 1, due_item)
+    def _on_cell_double_clicked(self, row: int, _column: int) -> None:
+        if 0 <= row < len(self._row_tasks):
+            self._open_detail(str(self._row_tasks[row].get("id") or ""))
 
     def _on_check(self, task_id: str, checked: bool) -> None:
-        if checked:
-            self._dm.tasks.complete(task_id)
-        else:
-            self._dm.tasks.uncomplete(task_id)
-        self._dm.tasks.save()
-        self._dm.data_changed.emit("task_status")
+        """勾选 → 提交 → 刷新。**提交成功才刷新和广播**（审计 2026-11-21 P1）。
+
+        旧实现先改内存再 `save()`，完全不看返回值：落盘被拒（磁盘被外部改过 /
+        文件损坏）时界面显示已完成、磁盘还是未完成，广播还会让别的面板按内存态重画。
+        失败时内存已回滚，这里照常重画（显示的就是磁盘上的状态）。
+        """
+        commit_status(self._dm, task_id, checked, self)
         self._refresh()
 
     def _prev_page(self) -> None:
@@ -401,29 +473,16 @@ class TaskPanel(QWidget):
             self._refresh()
 
     def refresh_theme(self) -> None:
-        c = get_colors()
-        # rebuild button qss based on colors
-        btn_qss = f"""
-            QPushButton {{ background-color: {c['btn_secondary_bg']}; color: {c['btn_secondary_fg']};
-                border: 1px solid {c['border']}; border-radius: 8px; padding: 4px 12px; font-size: {SIZE_BODY_S}px; }}
-            QPushButton:hover {{ background-color: {c['btn_secondary_hover']}; color: {c['btn_secondary_hover_fg']}; }}
-            QPushButton::menu-indicator {{ image: none; }}
-        """
-        for btn in self.findChildren(QPushButton):
-            try:
-                # 本面板没有"主按钮"：全部走次级样式（此前这里按按钮文案判断强调色，
-                # 而列表里的文案一个都匹配不上 —— 是死代码，已删）
-                btn.setStyleSheet(btn_qss)
-            except Exception:
-                logger.debug("TaskPanel.refresh_theme 中忽略异常", exc_info=True)
+        """换主题：**只**重刷外框按钮。
 
-        # table styling - let QSS do heavy lifting; ensure header/footer labels use fg_primary
-        try:
-            for lbl in self.findChildren(QLabel):
-                if lbl.objectName() in ("taskCount",):
-                    lbl.setStyleSheet(f"color: {c['fg_hint']}; font-size: {SIZE_BODY_S}px;")
-        except Exception:
-            logger.debug("TaskPanel.refresh_theme 中忽略异常", exc_info=True)
+        ⚠ 列表里的详情按钮（`task_cells.make_detail_cell`）不在重刷范围：它们用
+        `btn_secondary_qss()`，换主题时由 `theme.remap_stylesheets()` 按色值映射更新。
+        这里一并重设会把它们的原始样式覆盖成外框样式（A3）。
+        """
+        btn_qss = self._btn_qss()
+        for btn in self._chrome_buttons:
+            btn.setStyleSheet(btn_qss)
+        # 计数标签**不**在这里设字号/颜色：唯一来源是全局 QSS 的 `#taskCount`（A5）
 
     def _toggle_status_filter(self) -> None:
         cycle = {"pending": "completed", "completed": "all", "all": "pending"}
@@ -449,3 +508,16 @@ class TaskPanel(QWidget):
         QMessageBox.information(
             self, tr("panel.task.dialog_archived_recent_title"),
             "\n".join(lines) if lines else tr("panel.task.dialog_archived_none"))
+
+
+def _align_header_item(table: QTableWidget, col: int) -> None:
+    """表头**逐列**与正文对齐（标题列正文左对齐，表头也必须左对齐）。
+
+    原来整个表头统一 `AlignCenter`，而标题列的正文是左对齐 → 表头与内容错位（A5）。
+    """
+    item = table.horizontalHeaderItem(col)
+    if item is None:
+        return
+    item.setTextAlignment(
+        Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft
+        if col == TITLE_COL else Qt.AlignmentFlag.AlignCenter)

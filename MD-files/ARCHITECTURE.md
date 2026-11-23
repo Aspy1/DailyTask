@@ -86,12 +86,14 @@ ui ──→ services ──→ models ──→ base(BaseJsonModel)
 
 > ⚠ **架构债**：路径 A 与 B 是**两套真值来源**（Model 内存态 vs 磁盘文件），靠 3s 轮询"对账"。
 > 见 `CODE_STANDARDS Q-E2`、`PLAN B-*`。
+> 探针已改为 `st_mtime_ns`（2026-11-21 P1）：亚秒级外部写入不再漏检，缺失/重建也算一种状态。
+> 通知**按域**发（`DataManager.DOMAIN_OF`：`tasks.json` → `task`），只有没登记域名的文件
+> 才退回 `external` 全刷。
 
 ### 4.1 Hermes 微信入口（2026-11-20）
 
 Hermes 使用独立运行时，项目不依赖 Hermes Python 包。仓库维护
 `scripts/hermes_plugin/`，部署副本加载 `daily_task_query`、`daily_task_update` 与 `daily_task_documents`。
-普通文档由插件在显式配置的目录内处理，与应用数据写入链隔离。桌面入口不再实例化原创 AI 助手。
 模型输入为受限 JSON；工作区、解释器、测试数据目录及通信 key 只能由操作者配置。
 微信工具集显式选择 `daily_task`，模型不能通过该入口调用通用终端或文件编辑工具。
 
@@ -102,17 +104,26 @@ JSON 只经 stdin 传递。写操作复用 `ai_guard.run_batch` 的策略、快�
 CLI 与委派接受端均识别 `--key=value`，文本中的空格、引号和 `--` 不改变参数边界；
 只有 SPECS 中的整数字段会转换类型，数字标题仍为字符串。
 
-当前仅开放 `add_task / complete_task / add_course / update_course / add_plan / complete_plan`。
-查询只读当前学期的课程、作业状态和指定日期日程，返回真实 ID、日程序号与本机时间；
-使用 `semester_paths` 的纯路径函数，不调用会创建或修复注册表的 `resolve()`。
+当前开放 `add_task / complete_task / add_course / update_course / add_plan / complete_plan`，
+库存写操作开放 `add_item / update_item / consume`。查询默认返回当前学期课程、作业状态和指定日期日程；
+`scope=inventory` 返回“有什么”条目及提醒，`scope=restock` 只返回当前需处理的续费/补买提醒。
+提醒以模型的日期派生状态为准，仅包括学校侧且未豁免的项目；会员到期 7 日内（包括自动续费）
+提示续费，另识别预计用尽日期、商品保质期和低库存。
+查询使用 `semester_paths` 的纯路径函数，不调用会创建或修复注册表的 `resolve()`。
 不读取设置、私有联系人或附件文件。更新课程只传显式字段，保留未传字段。
+`delete_item` 需要交互式人工审批，微信桥没有审批界面，因此不对微信暴露；课程、作业和日程
+也不提供删除、整日覆盖或恢复操作。
 
-成功回执须包含 `verified` 或 `verified_noop`；后者表示状态已经满足。
+库存 `add_item / update_item / consume` 与其它写操作一样经固定 Actions CLI、
+`ai_guard`、写前快照和回读验收。`update_item` 按显式提交的每个字段核验，
+覆盖数量、名称、备注、标签、会员和账单等字段；成功回执须包含 `verified` 或 `verified_noop`，后者表示状态已经满足。
 `coverage.checked/total` 保留既有验收覆盖度，新增作业/课程/日程通常只验收标题/名称，
 不能宣称所有字段都已核对。模型必须根据回执汇报；失去回执或超时标记 `uncertain`，
 应先查询，不自动重试写操作。单条 CLI 超时 90 秒，外层桥接超时 150 秒；
 插件用进程内锁串行调用，快照与 UI 并发操作仍沿用现有指纹冲突保护。
-部署与隔离测试要求见 [HERMES.md](HERMES.md)。
+微信查询按需返回库存提醒；不会定时主动向微信推送。桌面端另有每日一次的补货/续费通知。
+普通文档由插件在显式配置的目录内处理，与应用数据写入链隔离。桌面入口不再实例化原创 AI 助手。
+工作区库存扩展需复制插件源码到部署目录并重启网关后才会在微信生效；部署与隔离测试要求见 [HERMES.md](HERMES.md)。
 
 微信定时提醒由 Hermes Cron 调用免模型脚本。脚本只读业务数据，复用邮件与首页规则，
 在 Hermes 端独立去重，桌面只额外发布普通作业提醒开关。部署入口及频率见 [HERMES.md](HERMES.md)。
@@ -176,13 +187,20 @@ CLI 与委派接受端均识别 `--key=value`，文本中的空格、引号和 `
 2. **原子写入**：所有持久化走 `BaseJsonModel.atomic_write()`——写 `.tmp` → 备份 `.bak` → `os.replace`（PermissionError 重试 5×50ms）。
    AI 那条路径（`scripts/actions_core.save()`）同样原子：结构守卫 → 写前备份到
    `data/backup/actions/` → `.tmp` → 回读自检 → `os.replace`（`ERRORS #042`）。
-   **退出 / 重启**走 `DataManager.flush_on_exit()`：磁盘内容与内存不一致（被外部改过）时
-   **不覆盖**，我方版本留到 `data/backup/save_conflict/`（`PLAN.md` P17，2026-10-17）。
-   `save_all()` 是**无条件**写，只给"明确没有外部写入"的场合（测试 / 验收脚本）。
+   **退出 / 重启**走 `DataManager.flush_on_exit()`：磁盘内容 == 内存 → 不重写；其余交给
+   `BaseJsonModel.save()`，由 `_disk_fingerprint` 区分"启动自愈"与真实外部改动 ——
+   自愈安全落盘，真实外部改动**不覆盖**，我方版本留到 `data/backup/save_conflict/`
+   （`ERRORS #061`）。`save_all()` 是**无条件**写，只给"明确没有外部写入"的场合（测试 / 验收脚本）。
    **保存冲突检测**：`BaseJsonModel.save()` 写前比对**磁盘内容指纹**（sha256 + `sort_keys`），
    不一致 → **不写** + `on_conflict` 回调 → `DataManager` 留副本并发 `save_conflict`
    （`MainWindow` 弹窗）。用指纹而不是 `_rev` 号：后者要求每个写入方配合维护，
    `actions_core` / skill / 手工编辑都会漏。
+   **提交回执（2026-11-21 P0）**：`actions_core.save()` 在**目标文件锁内**产生
+   `{operation_id, target, before_sha, after_sha, version, changed_fields}`（线程局部，
+   实现见 `scripts/actions_receipt.py`）。撤销以回执为准，**不再**在命令执行完之后读盘 ——
+   Hermes 通过 CLI 和桌面委派协议收到同一提交回执。缺少回执、实际目标或写前指纹
+   与快照不符时，撤销被禁用。旧回执不从事后读取的磁盘状态补推。
+   登记失败 → `ai_undo/pending.json` 旁标 + `pending_repair`，界面如实报"撤销记录待修复"。
 3. **显式保存**：Model 改内存态后**不会自动落盘**，必须显式 `save()`。
 4. **日期语义**：`course.schedule_date()` —— **0:00–1:00 视为前一天**；跨模块统一用它，不要直接用 `date.today()`。
 5. **时区**：全部本地时间，无 tz 处理；`due_date` 形如 `YYYY-MM-DDThh:mm:ss`，日期型为 `YYYY-MM-DD`。
@@ -218,10 +236,21 @@ CLI 与委派接受端均识别 `--key=value`，文本中的空格、引号和 `
 13. **备考统计只在代码里**（2026-11-01）：学习分钟 / 待复习 / 模考趋势 / 倒计时全部由
    `StudyModel.summary()` 现算，不落派生值；AI 只能调 `study_summary` 读结果，
    **不许自己加总/估算**（与财务 A4 同一口径）。
-14. **版本与损坏**（2026-10-17，审查 #5）：`migrate()` **逐步**执行且**缺一步就拒绝**
-    （`MigrationUnavailable`，不写文件）—— 不许"找不到迁移函数也把 `_version` 抬上去"。
-    文件**缺失** → 建默认值；**损坏** → 改名留档（`*.corrupt-<时间戳>.json`）+ 用默认值
-    继续 + ERROR 日志（`DataManager._log_recoveries`）；**版本比本程序新** → 只警告、不改动。
+14. **版本与损坏**（2026-10-17，审查 #5；2026-11-21 分类收敛）：`migrate()` **逐步**执行且
+    **缺一步就拒绝**（`MigrationUnavailable`，不写文件）—— 不许"找不到迁移函数也把 `_version`
+    抬上去"。文件**缺失** → 建默认值；**损坏** → 改名留档（`*.corrupt-<时间戳>.json`）+
+    用默认值继续 + ERROR 日志（`DataManager._log_recoveries`）；**版本比本程序新** → 只警告、不改动。
+    "损坏"的口径统一在 `BaseJsonModel._schema_problem()`：**根不是对象**、`_version` 类型不对、
+    顶层键类型不符、非法 UTF-8、非法 JSON 都归这里 —— 原来只有 `JSONDecodeError` 会被捕获，
+    另外三种从别处炸开（既不留档也没有默认值兜底）。
+    **暂时不可读**（`OSError` 重试后仍失败）是**另一类**：抛 `Unreadable`，**不留档**
+    （否则会把好文件永久改名），用默认值继续并禁止写入；`reload()` 成功即解除封锁。
+15. **备份有归属**（2026-11-21 P0）：按学期的三个文件在 A/B 两个学期下**同名**，
+    扁平备份池分不清来源 → 用 A 的快照 `restore` B 会把 B 覆盖掉。
+    清单（`data/backup/actions/index.json`）记 `semester_id` / `schema_version` / `sha256` / `seq`；
+    `restore` 在**目标锁内**依次校验归属 → 版本 → 内容指纹，通过才提交。
+    来源未知的旧快照要求 `--semester` 显式声明归属；轮转按 `seq`（不能按文件名，同秒的
+    `-10` 会排到 `-2` 前面）。
 
 ## 8. 数据文件 schema 总表
 
@@ -236,15 +265,35 @@ data/
 │   └── exams.json                     该学期考试
 ├── habits.json / routines.json / expenses.json / inventory.json / daily_logs.json    跨学期共享
 ├── study.json                         考研备考：学习记录 / 错题 / 模考（跨学期）
+├── attachments/<task_id>/             作业附件实体（JSON 只存元数据；不存绝对路径）
+├── private/memberships.json           会员手机号（**私有**：不进仓库、不进 AI 提示词）
 ├── ai_actions.jsonl                   AI 审计（JSONL，脱敏；**本地-only**，不进数据仓库）
 ├── ai_undo/                           动作级撤销快照（index.json + blobs/；**本地-only**）
-├── private/memberships.json           会员手机号（**私有**：不进仓库、不进 AI 提示词）
 └── search_index.json / weather_*.json / scenes_meta.json             派生或遗留
 ```
 
 > 路径解析**只有一处**：`models/semester_paths.resolve()`（应用、`actions.py`、`send_digest.py`、
 > `build_index.py`、测试助手都调它）。切学期必须走 `DataManager.switch_semester()`
 > —— 它会把 `courses/tasks/exams` **重定向**到新学期的文件（`ERRORS #040`）。
+
+### 8.1 作业附件与详细备注（2026-11-02）
+
+- `tasks.json` 的 task 复用 `notes`（纯文本，`QPlainTextEdit`，上限 20,000 字符）与
+  `attachments[]` 元数据；元数据只含 `name/stored_name/size/sha256/added_at`，**不存绝对路径**，
+  所以整个 `data/` 搬到沙箱或另一台机器后仍可解析。
+- 文件实体由 `services/attachments.py::AttachmentStore` 管理，根目录为
+  `DataManager.data_dir / "attachments"`（不是模块级 `get_data_dir()`）。每个任务一个子目录；
+  添加时复制、按 sha256 在**同一任务内**去重，单文件 25MB、每任务 20 个上限。
+- 路径安全 fail-closed：只取 basename、清洗非法字符/Windows 保留名/结尾点号，落盘前
+  `resolve()` 必须仍在 root 内；目录/符号链接/不存在/不可读的源拒绝。打开走
+  `QDesktopServices`，不拼 shell 命令；文件缺失只显示“已丢失”并提示，不抛异常。
+- 删除顺序固定为**先提交索引、再删文件**：`TaskDetailDialog` 先把 `tasks.save()` 的结果作为
+  提交条件，失败时不删任何附件，并恢复内存中的 `notes/attachments/updated_at`（避免下一次
+  退出时把内存态写成冲突副本）；失败只影响磁盘清理，不影响已提交的索引。
+- UI：`TaskPanel` 第 5 列“详情”或双击打开 `TaskDetailDialog`；有备注/附件时显示指示点。
+  附件行支持打开/移除；移除先进入内存待删列表，保存成功后才 `unlink`。
+- 附件字节和绝对路径**不进入 AI 提示词**；任务 JSON 只暴露名称/数量/大小。附件是否进入
+  `git_sync` 的数据同步范围沿用数据仓库策略，当前不在此模块内另开写路径。
 
 ### 8.2 AI 监督产物（本地-only）
 
@@ -268,7 +317,7 @@ data/
 > **同一时段允许两门课**（选修过多 / 重修）→ 由 `course_rules.conflicts_by_cell()` 检出并提示请假（`ERRORS #038`）。
 > **会点名的课**在 `course["reminders"]`：`{"attendance": bool, "lead_minutes": 30}`——
 > 由课程右键菜单开关（界面不猜哪门课点名，只有用户知道），`reminder_rules.attendance_due()` 据此在开课前提醒。
-| `semesters/<id>/tasks.json` | 2 | `tasks[]` `archived[]` | task: `id,title,course_name,due_date,status(pending/completed),priority,tags[],notes,created_at,completed_at,reminded` |
+| `semesters/<id>/tasks.json` | 2 | `tasks[]` `archived[]` | task: `id,title,course_name,due_date,status(pending/completed),priority,tags[],notes,attachments[],created_at,completed_at,reminded`；attachments: `name,stored_name,size,sha256,added_at`（无绝对路径） |
 | `semesters/<id>/exams.json` | 1 | `exams[]` | exam: `id,course_name,exam_date,scope,location,notes,tags[],created_at,updated_at` |
 | `habits.json` | 2 | `habits[]` `attached_task_templates[]` `logs{date:{hid:{completed,completed_at,note}}}` | habit: `id,name,schedule{type(daily/weekly/monthly/interval),days[],value,times_per_day,start_date},duration_minutes,reminder_time,streak,longest_streak,postpone_until,canceled_on[]` |
 | `expenses.json` | 1 | `categories[{id,name}]` `budget{monthly,by_category}` `records[]` `finance{balance,monthly_income,fixed_expenses,updated_at}` | record: `id,amount,date,category,note,created_at`；分类里多一条 **`subscription`=「订阅/分期」**（月付/分期到期自动记的那些走它，A1）；`finance` 是**用户设的初始值**，"预计本月支出"等**算出来的**一律现算（`services/finance.py`，A4），不落盘 |
@@ -389,6 +438,7 @@ data/
 | **重复阶梯** | 同一批命令重复出现时逐级加码提醒（`repeat_nudge`），不是无限重发同样的提示 |
 | **守护状态可诊断** | 每批记录 `本批重复=N` + 触发护栏时的首句，出问题能回看 |
 | **每条写命令都要验收** | `ai_verify._CHECKS` 覆盖全部写命令（新增命令漏验收器会被测试拦下）；`ai_ledger` 把事实写在模型说明之前 |
+| **验收与写入同一口径** | 验收器比的是**落盘值**：写入端归一化过的字段（课程名 `match_course_from`、日期 `parse_date`）验收端必须调同一个函数；拿命令原文比对归一化后的字段会误报"找不到"（ERRORS #060） |
 
 **提示不是安全机制**：写数据的强制点在 `scripts/actions.py`（同名同位置硬护栏），
 prompt 里的话只是"劝"，护栏才是"挡"。

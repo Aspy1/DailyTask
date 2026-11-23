@@ -98,6 +98,26 @@
 
 > 「用途」列来自 `tokens.json` 的 `color_notes`。
 
+### 1.2 表面角色（生成）
+
+颜色令牌回答"这是哪个色值"，**表面角色**回答"这块区域属于哪一层"：代码里写
+`surface_color("chrome")`，不再自己挑 `bg_surface` / `bg_root`。
+
+> 起因（2026-11-02 切页修复）：工具栏、页脚、表格、窗口根底色原本各自直接挑颜色令牌，
+> 于是"页脚没有底色、工具栏有"这种不一致没人发现；切页时整块面板淡入，静态外框
+> 也跟着淡掉才暴露出来。**角色只存令牌名，不复制色值。**
+
+<!-- TOKENS:surfaces:BEGIN -->
+| 角色 | 颜色令牌 | 浅色 | 暗色 | 用途 |
+|---|---|---|---|---|
+| `page` | `bg_root` | `#F2EFE9` | `#1C1B18` | 窗口根背景（QMainWindow） |
+| `chrome` | `bg_surface` | `#EAE7E0` | `#221F1C` | **静态外框**：工具栏 / 页脚 / 表头（切页时它们不该跟着淡入） |
+| `content` | `bg_root` | `#F2EFE9` | `#1C1B18` | 内容区（表格 / 列表本体） |
+| `transition` | `bg_root` | `#F2EFE9` | `#1C1B18` | 切页时的容器底色 —— 必须与内容同色，否则切换瞬间闪一下 |
+| `row_alt` | `table_alt` | `#F4F1EA` | `#242220` | 表格交替行（**实色**，不要用带 alpha 的值：会被调色板再混一次） |
+| `elevated` | `bg_elevated` | `#FFFFFF` | `#332F2A` | 浮层：菜单 / 弹窗 / 下拉 / 提示 |
+<!-- TOKENS:surfaces:END -->
+
 ### 1.3 配色硬规则
 
 - **禁止第四种色相**。只有暖灰 + 琥珀金 + 功能色(红/绿)
@@ -208,6 +228,15 @@
 | `forecast_card_min_width` | 180 | 预计支出卡最小宽（内容最多） |
 | `course_header_min_width` | 64 | 课程表行头最小宽 |
 | `view_mode_width` | 36 | 日/周切换按钮宽 |
+| `table_row_height` | 40 | 表格数据行最小高（任务 / 课程表**同一档**，别一表 32 一表 48） |
+| `table_header_height` | 34 | 表头最小高（任务表与课程表**共用**这一档） |
+| `table_cell_pad_v` | 8 | 表格单元格上下内边距（表头与正文同值，否则表头和正文错位） |
+| `table_cell_pad_h` | 12 | 表格单元格左右内边距（同上） |
+| `task_col_course_width` | 120 | 任务表 · 课程列宽 |
+| `task_col_due_width` | 175 | 任务表 · 截止时间列宽（`2026-11-02 23:00` 不折行） |
+| `task_col_done_width` | 50 | 任务表 · 完成列宽（复选框） |
+| `task_detail_col_width` | 64 | 任务表 · 详情列宽（详情按钮 + 指示点） |
+| `task_page_size` | 10 | 任务表每页行数（分页） |
 <!-- TOKENS:layout:END -->
 
 
@@ -367,15 +396,27 @@
 
 ## 九、动效
 
-| 场景 | 时长 | 缓动 |
-|------|------|------|
-| 按钮悬停/按下 | 150ms | ease-out |
-| 面板切换 | 200ms | ease-out |
-| 对话框打开/关闭 | 200ms | ease-out |
-| 通知出现 | 250ms | ease-out |
+时长与缓动是**令牌**（`tokens.json` 的 `motion`），代码只写
+`MOTION["duration_switch"]` —— `src/ui/animations.py` 不再有裸数字。
+
+<!-- TOKENS:motion:BEGIN -->
+| Token | 值 | 用途 |
+|---|---|---|
+| `duration_fast` | `100` | 快速反馈（悬停 / 弹层淡入），也是**最短**一档 |
+| `duration_base` | `150` | 常规淡入（面板内容、卡片） |
+| `duration_switch` | `120` | 页面切换的淡入：必须**更短**（切页要跟手，不能等动画） |
+| `duration_count` | `200` | 数字滚动（汇总卡 / 状态栏） |
+| `switch_fade_from` | `0.9` | 切页淡入的**起点不透明度**。不能是 0：起点 0 会让第一帧整块空白（2026-11-02 修） |
+| `easing` | `OutCubic` | 缓动曲线名 —— `QEasingCurve.Type` 的成员名（不写数字 / 不写枚举序号） |
+| `loading_min_ms` | `150` | 加载态最短显示时间（短任务不要闪一下就没，那样看着像抖动） |
+<!-- TOKENS:motion:END -->
+
+**切页规则**（2026-11-02）：先刷新目标面板 → 再把不透明度钉到 `switch_fade_from`
+→ 最后 `setCurrentIndex`；同一页重复切换不淡入；只淡**内容区**（`fade_target()`），
+不淡工具栏/页脚这些静态外框。
 
 - 禁止弹跳、弹性、旋转等装饰动效
-- 禁止 > 300ms 的动画——这是工具不是表演
+- 禁止 > 300ms 的动画——这是工具不是表演（面板切换更严：≤180ms，见上表）
 
 ---
 

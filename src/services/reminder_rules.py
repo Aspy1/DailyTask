@@ -11,11 +11,11 @@
 from datetime import date, datetime, timedelta
 
 from src.models.course import ATTENDANCE_LEAD_MINUTES, PERIOD_TIMES
+from src.models.inventory import InventoryModel, membership_days_left, renewal_due
 
 DDL_REMIND_DAYS = 3          # 作业截止前多少天提醒
 DDL_NOTIFY_COOLDOWN_MINUTES = 30   # 同一任务的**通知**冷却（用户 2026-10-30：原来每分钟一条 ✗）
 DDL_EMAIL_HOURS = 6          # 距截止多少小时内发紧急邮件
-
 EXAM_DAYS = (14, 7, 3)
 
 
@@ -45,6 +45,7 @@ def exam_reminder_due(item: dict, today: date, sent: set[int]) -> tuple[int, lis
         return -1, []
     hits = [day for day in EXAM_DAYS if 0 <= days_left <= day and day not in sent]
     return days_left, hits
+
 # ── 吃饭提醒（用户 2026-10-30：每天 11:40 / 16:40 一次）──────────
 # `(时, 分, slot, 名称)`；slot 只用来做"今天这一顿提醒过没有"的幂等键。
 MEAL_TIMES = ((11, 40, "lunch", "午饭"), (16, 40, "dinner", "晚饭"))
@@ -264,16 +265,38 @@ def water_reminder_due(now: datetime, last_sent: datetime | None,
     return (now - last_sent) >= timedelta(minutes=WATER_INTERVAL_MIN)
 
 
-def restock_body(items: list[dict]) -> str:
-    """需要补货的物品 → 一条提醒正文。
+def restock_body(items: list[dict], today: date | None = None) -> str:
+    """Format current school-side stock alerts as separate renewal and purchase reminders."""
+    as_of = today or date.today()
+    renewals = [item for item in items if renewal_due(item, as_of)]
+    purchases = [item for item in items if item not in renewals]
+    lines = [_renewal_line(item, as_of) for item in renewals]
+    lines.extend(_purchase_line(item, as_of) for item in purchases)
+    return "\n".join(lines)
 
-    **选择**逻辑在 `InventoryModel.need_restock()`（已排除 `ignore_low_stock` 的物品），
-    这里只管排版。
-    """
-    return "\n".join(
-        f"· {it.get('name', '')}（剩 {it.get('quantity', 0)}{it.get('unit', '件')}"
-        f" · {it.get('status', '')}）"
-        for it in items)
+
+def _renewal_line(item: dict, today: date) -> str:
+    """Format a membership due within the renewal window without assuming payment succeeded."""
+    membership = InventoryModel.membership_of(item)
+    expires_on = str(membership.get("expires_on") or "")
+    days_left = membership_days_left(item, today)
+    if days_left is None:
+        return _purchase_line(item, today)
+    if days_left < 0:
+        timing = f"已过期 {-days_left} 天"
+    elif days_left == 0:
+        timing = "今天到期"
+    else:
+        timing = f"还有 {days_left} 天到期"
+    next_step = "自动续费已开启，请核对扣款" if membership.get("auto_renew") else "请安排续费"
+    return f"· 续费提醒：{item.get('name', '')}（{expires_on}，{timing}；{next_step}）"
+
+
+def _purchase_line(item: dict, today: date) -> str:
+    """Format a stock or product-expiry alert using the model's current derived status."""
+    status = InventoryModel.effective_status(item, today)
+    stock = InventoryModel.stock_text(item)
+    return f"· 补买提醒：{item.get('name', '')}（剩 {stock} · {status}）"
 
 
 # ── 自定义提醒（用户在日程里定的）────────────────────────────

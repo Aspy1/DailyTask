@@ -24,8 +24,8 @@ from datetime import date, datetime, timedelta
 from PySide6.QtCore import QObject, QTimer, Signal
 
 from src.models.billing import (
-    BILLING_CATEGORY_ID,
     apply_charge,
+    business_key,
     charge_note,
     due_today,
 )
@@ -153,25 +153,73 @@ def _billing_charges_notify(svc) -> None:
     ★ 只认「每月几号」；那天没开机 → 之后打开会**补扣一次**（同月只一次）。
     ★ 期数扣完 → `billing_active=False`（停用并保留，还能回查）。
     ★ 记错可改：支出就是普通的一条记录，用户在记账面板里删/改都行。
+
+    **提交顺序（审计 2026-11-21 P1）**：原来先改进度再 `save()` 两个文件，
+    支出写失败时进度已经落盘 —— 那笔钱永远没有账，而同月又不会再补扣。
+    现在：
+
+    1. 先按**业务键**（物品 id + 账期）幂等登记支出并落盘（失败 = 什么都没发生）；
+    2. 支出确认落盘后才推进库存进度（`paid_count` / `last_charged_on`）；
+    3. 进度没落盘也不重复记支出 —— 下次补扣按业务键收敛到同一条；
+    4. 通知**只在提交之后**发，并如实说明"进度待补"。
     """
     today = schedule_date()
     due = [it for it in svc._dm.inventory.items if due_today(it, today)]
     if not due:
         return
-    lines = []
+    lines: list[str] = []
+    missing: list[str] = []
+    prior_progress = []
     for item in due:
-        info = apply_charge(item, today)
+        key = business_key(item, today)
+        already = bool(svc._dm.expenses.charge_records(key))
+        info = apply_charge(dict(item), today)
         note = charge_note(info["title"], info["nth"], info["total"])
-        if info["amount"] > 0:
-            svc._dm.expenses.add({"amount": info["amount"], "date": today.isoformat(),
-                                  "category": BILLING_CATEGORY_ID, "note": note})
-        lines.append(f"{note} ¥{info['amount']:.2f}")
-    svc._dm.inventory.save()
-    svc._dm.expenses.save()
+        if not already:
+            if not _commit_billing_expense(svc._dm.expenses, key, info["amount"], note, today):
+                missing.append(note)       # 支出没落盘 → 进度也**不**推进
+                continue
+            lines.append(f"{note} ¥{info['amount']:.2f}")
+        prior_progress.append((item, dict(item)))
+        apply_charge(item, today)          # 支出已确认在盘上 → 才推进进度
+    _publish_billing(svc, prior_progress, lines, missing)
+
+
+def _commit_billing_expense(expenses, key: str, amount: float, note: str, today: date) -> bool:
+    expenses.ensure_charge(key, amount=amount, note=note, day=today.isoformat())
+    if _save_billing_model(expenses):
+        return True
+    expenses.records[:] = [record for record in expenses.records if record.get("billing_key") != key]
+    return False
+
+
+def _publish_billing(svc, prior_progress: list, lines: list[str], missing: list[str]) -> None:
+    if missing:
+        logger.warning("账单扣款未提交（支出落盘失败）：%s", "、".join(missing))
+    if not prior_progress:
+        return
+    progress_saved = _save_billing_model(svc._dm.inventory)
+    if progress_saved:
+        svc._dm.data_changed.emit("inventory")
+    else:
+        for item, original in prior_progress:
+            item.clear()
+            item.update(original)
+        logger.warning("账单支出已记，但库存进度没能落盘 —— 下次补扣会按业务键收敛")
+    if not lines:
+        return
     svc._dm.data_changed.emit("expense")
-    svc._dm.data_changed.emit("inventory")
-    svc._notify("账单扣款", "今天自动记了这些支出：\n" + "\n".join(lines),
+    suffix = "" if progress_saved else "\n库存扣款进度待补。"
+    svc._notify("账单扣款", "今天自动记了这些支出：\n" + "\n".join(lines) + suffix,
                 email=True, subject="账单扣款提醒")
+
+
+def _save_billing_model(model) -> bool:
+    try:
+        return model.save()
+    except OSError:
+        logger.warning("Unable to save billing data", exc_info=True)
+        return False
 
 
 class ReminderService(QObject):
@@ -459,7 +507,8 @@ class ReminderService(QObject):
             return
         if not (items := self._dm.inventory.need_restock):
             return                                       # 没缺货 → 不消耗今天的提醒机会（F3）
-        self._notify("该补货了", restock_body(items), email=True, subject="补货提醒")
+        self._notify("续费 / 补买提醒", restock_body(items), email=True,
+                     subject="续费 / 补买提醒")
         self._settings.set("Inventory", "last_restock_notify_date", today_str)
         self._settings.save()
 

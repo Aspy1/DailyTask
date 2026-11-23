@@ -88,6 +88,35 @@ def _control_table(data: dict) -> str:
     return "\n".join(lines)
 
 
+def _motion_table(data: dict) -> str:
+    """动效规格（`motion`：时长 / 起点 / 缓动）。
+
+    值有 ms 也有不透明度/枚举名，所以表头写"值"而不是"px"。
+    """
+    motion = data["motion"]
+    notes = data.get("motion_notes", {})
+    lines = ["| Token | 值 | 用途 |", "|---|---|---|"]
+    for name, value in motion.items():
+        lines.append(f"| `{name}` | `{value}` | {notes.get(name, '')} |")
+    return "\n".join(lines)
+
+
+def _surface_table(data: dict) -> str:
+    """表面角色（`surfaces`：角色 → **颜色令牌名**）。
+
+    表里给出令牌名与两套模式的**解析值**，但源数据里只存令牌名 —— 角色与色值
+    必须分家，否则改一个底色要在两处同步（`surface_notes` 写用途）。
+    """
+    surfaces = data["surfaces"]
+    notes = data.get("surface_notes", {})
+    light, dark = data["colors"]["light"], data["colors"]["dark"]
+    lines = ["| 角色 | 颜色令牌 | 浅色 | 暗色 | 用途 |", "|---|---|---|---|---|"]
+    for role, token in surfaces.items():
+        lines.append(f"| `{role}` | `{token}` | `{light.get(token, '—')}` "
+                     f"| `{dark.get(token, '—')}` | {notes.get(role, '')} |")
+    return "\n".join(lines)
+
+
 def _replace_between(text: str, tag: str, body: str) -> str:
     begin = f"<!-- TOKENS:{tag}:BEGIN -->"
     end = f"<!-- TOKENS:{tag}:END -->"
@@ -103,16 +132,20 @@ def main() -> None:
     doc = DOC_FILE.read_text(encoding="utf-8")
 
     doc = _replace_between(doc, "colors", _color_table(data))
+    doc = _replace_between(doc, "surfaces", _surface_table(data))
     doc = _replace_between(doc, "sizes", _size_table(data))
     doc = _replace_between(doc, "spacing", _spacing_table(data))
     doc = _replace_between(doc, "layout", _control_table(data))
+    doc = _replace_between(doc, "motion", _motion_table(data))
 
     DOC_FILE.write_text(doc, encoding="utf-8", newline="")
     print(f"updated {DOC_FILE.relative_to(ROOT)}")
     print(f"  colors: {len(data['colors']['light'])} tokens (light) / {len(data['colors']['dark'])} (dark)")
+    print(f"  surfaces: {len(data.get('surfaces', {}))} roles")
     print(f"  sizes : {len(data['sizes'])} tokens")
     print(f"  spacing: {len(data['spacing'])} tokens")
     print(f"  controls/layout: {len(data.get('controls', {})) + len(data.get('layout', {}))} tokens")
+    print(f"  motion: {len(data.get('motion', {}))} tokens")
 
 
 if __name__ == "__main__":

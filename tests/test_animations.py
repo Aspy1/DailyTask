@@ -110,13 +110,19 @@ def test_global_switch_disables_motion(qapp) -> None:
 
 
 def test_panel_switch_triggers_fade(qapp, monkeypatch) -> None:
-    """面板切换必须走淡入模板（而不是各自写动画）。"""
+    """面板切换必须走淡入模板（而不是各自写动画）。
+
+    ⚠ 2026-11-02：淡入目标改成**内容区**（`panel.fade_target()`），并且要带上
+    `motion` 令牌里的起点/时长 —— 整块面板淡入会把静态外框一起淡掉。
+    """
     from src.services.data_manager import DataManager
     from src.services.settings_manager import SettingsManager
     from src.ui.components import main_workspace
+    from src.ui.styles.theme import MOTION
 
-    calls: list[object] = []
-    monkeypatch.setattr(main_workspace, "fade_in", lambda w, **k: calls.append(w))
+    calls: list[tuple[object, dict]] = []
+    monkeypatch.setattr(main_workspace, "fade_in",
+                        lambda w, **k: calls.append((w, k)))
 
     import tempfile
     from pathlib import Path as _Path
@@ -128,4 +134,8 @@ def test_panel_switch_triggers_fade(qapp, monkeypatch) -> None:
     ws = main_workspace.MainWorkspace(settings, dm, None)
 
     ws.switch_to("tasks")
-    assert calls and calls[-1] is ws._task_panel
+    assert calls, "切页必须淡入"
+    target, kwargs = calls[-1]
+    assert target is ws._task_panel.fade_target(), "只淡内容区，不淡整块面板"
+    assert kwargs["duration"] == MOTION["duration_switch"]
+    assert kwargs["start"] == MOTION["switch_fade_from"]

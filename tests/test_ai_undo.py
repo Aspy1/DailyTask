@@ -4,9 +4,10 @@
 撤销前必须**证明**文件还是 AI 写完时的那个状态 —— 否则就是把用户手改的内容一起抹掉。
 """
 
+import inspect
 import json
 import threading
-from pathlib import Path
+import typing
 
 import pytest
 
@@ -23,17 +24,41 @@ def _store(sandbox) -> ai_undo.SnapshotStore:
     return store
 
 
-def test_annotations_are_deferred_for_eager_python() -> None:
-    """⭐ 回归：`SnapshotStore.list` 会遮蔽内建 `list`。
+def test_startup_import_chain_loads() -> None:
+    """⭐ 回归：`main.py → src.app → AIService → ai_guard → ai_undo` 启动链必须可导入。
 
-    Python 3.12/3.13（以及部分 3.14 构建）在类体里**立即求值**后续注解，
-    于是 `_write_index(self, items: list[Snapshot])` 里的 `list` 变成同名方法，
-    导入 `ai_undo` 直接 `TypeError: 'function' object is not subscriptable`。
-    `from __future__ import annotations` 让注解延迟求值，规避所有此类遮蔽。
+    修复前，`SnapshotStore` 的 `list` 方法先于 `_write_index(items: list[Snapshot])`
+    定义；在**立即求值注解**的 Python（3.12/3.13）上，导入就在类体里抛
+    `TypeError: 'function' object is not subscriptable` —— 窗口还没建起来就退出。
     """
-    source = Path(ai_undo.__file__).read_text(encoding="utf-8")
-    head = "\n".join(source.splitlines()[:40])
-    assert "from __future__ import annotations" in head
+    from src.app import App
+    from src.services.ai_service import AIService
+
+    assert callable(App) and callable(AIService)
+
+
+def test_class_body_annotations_resolve_without_shadowing() -> None:
+    """⭐ 回归：`list` 方法会遮蔽内建 `list`，类内注解必须仍能解析。
+
+    本机 3.14 默认延迟注解，导入时不会触发；但 3.12/3.13 在类体里立即求值，
+    `list[Snapshot]` 会解析成同名方法 → `TypeError: 'function' object is not subscriptable`。
+    显式解析每个方法的类型注解，任何支持版本上都能复现同一根因。
+    """
+    resolved = {
+        name: typing.get_type_hints(member)
+        for name, member in inspect.getmembers(ai_undo.SnapshotStore, inspect.isfunction)
+    }
+    assert resolved, "SnapshotStore 应至少有带注解的方法"
+    assert any(resolved.values()), "回归用例必须覆盖到真实注解"
+
+
+def test_list_returns_empty_for_a_fresh_store(sandbox) -> None:
+    """⭐ 公开 API：`SnapshotStore.list()` 在空仓库上返回 `[]`（不是 None，也不抛）。"""
+    store = _store(sandbox)
+
+    listed = store.list()
+
+    assert isinstance(listed, list) and listed == []
 
 
 def test_capture_then_undo_restores_the_before_state(sandbox) -> None:
@@ -49,7 +74,7 @@ def test_capture_then_undo_restores_the_before_state(sandbox) -> None:
     # 模拟 actions.py 写入
     _seed(target, {"_version": 1, "items": [{"id": "i_001", "name": "抽纸", "quantity": 2},
                                            {"id": "i_002", "name": "牙膏", "quantity": 1}]})
-    store.finalize(snapshot)
+    _confirm_test_write(store, snapshot, target)
     assert snapshot.after_hash and snapshot.after_hash != snapshot.before_hash
 
     ok, detail = store.undo()
@@ -67,7 +92,7 @@ def test_undo_refuses_when_the_file_changed_after_the_write(sandbox) -> None:
     snapshot = store.capture('python scripts/actions.py add_item --name "牙膏"',
                              operation="add_item")
     _seed(target, {"_version": 1, "items": [{"id": "i_001", "name": "牙膏"}]})
-    store.finalize(snapshot)
+    _confirm_test_write(store, snapshot, target)
 
     # 用户/CLI 之后又改了同一个文件
     _seed(target, {"_version": 1, "items": [{"id": "i_001", "name": "牙膏"},
@@ -84,7 +109,7 @@ def test_undo_twice_is_refused(sandbox) -> None:
     snapshot = store.capture('python scripts/actions.py add_item --name "牙膏"',
                              operation="add_item")
     _seed(target, {"_version": 1, "items": [{"id": "i_001"}]})
-    store.finalize(snapshot)
+    _confirm_test_write(store, snapshot, target)
 
     assert store.undo()[0] is True
     ok, detail = store.undo()
@@ -117,13 +142,21 @@ def test_noop_snapshot_is_not_undoable(sandbox) -> None:
     store = _store(sandbox)
     snapshot = store.capture('python scripts/actions.py add_item --name "x"',
                              operation="add_item")
-    store.finalize(snapshot)                       # 文件没变 → after_hash == before_hash
+    _confirm_test_write(store, snapshot, target)
     assert snapshot is not None and snapshot.written is False
     assert store.latest() is None
     ok, detail = store.undo()
     assert ok is False and "没有可撤销" in detail
     ok, detail = store.undo(snapshot.snapshot_id)
     assert ok is False and "没有改变文件" in detail
+
+
+def _confirm_test_write(store, snapshot, target) -> None:
+    store.finalize(snapshot, receipt={
+        "target": str(target), "operation_id": snapshot.snapshot_id,
+        "before_sha": snapshot.before_hash, "after_sha": ai_undo.file_hash(target),
+        "version": 1,
+    })
 
 
 def test_index_survives_concurrent_capture_and_finalize(sandbox) -> None:
@@ -141,7 +174,7 @@ def test_index_survives_concurrent_capture_and_finalize(sandbox) -> None:
                 snapshot = store.capture(
                     'python scripts/actions.py add_item --name "x"',
                     operation="add_item")
-                store.finalize(snapshot)
+                _confirm_test_write(store, snapshot, target)
         except BaseException as error:  # noqa: BLE001 — 线程里的异常要带回主线程断言
             errors.append(error)
 
@@ -166,7 +199,7 @@ def test_keep_limit_prunes_old_snapshots(sandbox) -> None:
         snap = store.capture(f'python scripts/actions.py update_item --id i_{index}',
                              operation="update_item")
         _seed(target, {"_version": 1, "items": [{"n": index}]})
-        store.finalize(snap)
+        _confirm_test_write(store, snap, target)
     assert len(store.list()) == 2
 
 

@@ -127,3 +127,13 @@ def charge_note(name: str, nth: int, total: int | None) -> str:
     if total:
         return f"{name}（第 {nth}/{total} 期）"
     return f"{name}（月付）"
+
+
+def business_key(item: dict, today: date) -> str:
+    """扣款的**业务键**：`<物品 id>@<账期>`（账期 = 年月）。
+
+    审计 2026-11-21 P1：原来扣款的成败只看两个文件各自的 `save()` 返回值 ——
+    支出没落盘而进度落了盘，那笔钱就永远没有账；反过来又会重复记支出。
+    以业务键做唯一性，重启后的补扣就能**幂等**地收敛到"正确账期恰有一条支出"。
+    """
+    return f"{item.get('id', '')}@{today.isoformat()[:7]}"

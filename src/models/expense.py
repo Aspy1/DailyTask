@@ -93,6 +93,31 @@ class ExpenseModel(BaseJsonModel):
                 return True
         return False
 
+    # ── 账单扣款：按业务键幂等（审计 2026-11-21 P1）─────────────
+    #
+    # `billing_key` 的唯一性就是"正确账期恰有一条支出"这条验收的实现：
+    # 扣款失败重跑、两条写路径交错、以及"支出落了盘但进度没落盘"的补扣，
+    # 都按同一个键收敛，不会多记也不会少记。
+
+    def charge_records(self, key: str) -> list[dict]:
+        """某个业务键下已登记的扣款支出。"""
+        return [r for r in self.records if r.get("billing_key") == key]
+
+    def ensure_charge(self, key: str, *, amount: float, note: str,
+                      day: str | None = None) -> bool:
+        """登记一笔扣款支出 → `True` = **本次真的新增**，`False` = 已经记过。
+
+        `save()` 由调用方负责（它决定提交顺序与失败后的状态），这里只改内存。
+        """
+        if not key or self.charge_records(key):
+            return False
+        record = {"amount": amount, "category": BILLING_CATEGORY_ID,
+                  "note": note, "billing_key": key,
+                  "date": day or date.today().isoformat(),
+                  "created_at": datetime.now().isoformat()}
+        self.add(record)
+        return True
+
     def month_total(self, year: int | None = None, month: int | None = None) -> float:
         if year is None:
             year = date.today().year

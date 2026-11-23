@@ -3,10 +3,13 @@ name: CI
 # 2026-10-20：代码仓库已**公开** → Actions 免费不限量 ✓ → push/PR **自动跑**恢复。
 # （在此之前为了省私有仓库额度，曾改成只手动触发；数据相关的每日摘要已搬到私有数据仓库。）
 # 本地等价物：`.venv\Scripts\python.exe scripts/ci_local.py`
+#
+# 2026-11-21 审计：原 push 过滤只留 master，而日常开发在 `dev` ——
+# "交付分支"根本没被覆盖，push 上去的门禁结论是别的分支的。现在覆盖两个分支。
 
 on:
   push:
-    branches: [master]
+    branches: [master, dev]
   pull_request:
   workflow_dispatch:
 
@@ -30,17 +33,11 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: 装依赖
-        run: python -m pip install -r requirements-dev.txt
-      - name: 编译检查
-        run: python -m compileall -q src scripts tests
-      - name: ruff
-        run: python -m ruff check src scripts tests
-      - name: UI 令牌门禁
-        run: python scripts/check_ui_tokens.py --strict --check-px
-      - name: 工程规范门禁
-        run: python scripts/check_quality.py --strict
-      - name: 测试
-        run: python -m pytest -q
+        run: |
+          python -m venv .venv
+          ./.venv/Scripts/python.exe -m pip install -r requirements-dev.txt
+      - name: 项目门禁
+        run: ./.venv/Scripts/python.exe scripts/ci_local.py --keep-going
 
   lock-repro:
     # 锁文件复现：只照 requirements.lock.txt 装一遍，验证"照着锁能装出可用环境"。
@@ -51,6 +48,10 @@ jobs:
         with:
           python-version: '3.12'
       - name: 按锁文件安装
-        run: python -m pip install -r requirements.lock.txt
+        run: |
+          python -m venv .venv
+          ./.venv/Scripts/python.exe -m pip install -r requirements.lock.txt
       - name: 依赖一致性
-        run: python -m pip check
+        run: ./.venv/Scripts/python.exe -m pip check
+      - name: 锁环境合成验收
+        run: ./.venv/Scripts/python.exe scripts/acceptance_check.py

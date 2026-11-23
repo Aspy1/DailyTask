@@ -24,13 +24,17 @@ PY = sys.executable
 
 
 def _steps(with_audit: bool) -> list[tuple[str, list[str]]]:
+    """与 `.github/workflows/ci.yml` **同一组**命令、同样的参数（审计 2026-11-21 P1：
+    两套入口参数不一致时，"本地全绿"证明不了 CI 全绿）。"""
     steps = [
-        ("编译检查", [PY, "-m", "compileall", "-q", "src", "scripts", "tests"]),
-        ("ruff", [PY, "-m", "ruff", "check", "src", "scripts", "tests"]),
+        ("编译检查", [PY, "-m", "compileall", "-q", "main.py", "src", "scripts", "plugins", "tests"]),
+        ("ruff", [PY, "-m", "ruff", "check", "main.py", "src", "scripts", "plugins", "tests"]),
         ("UI 令牌门禁", [PY, "scripts/check_ui_tokens.py", "--strict", "--check-px"]),
         ("工程规范门禁", [PY, "scripts/check_quality.py", "--strict"]),
+        ("合成数据验收", [PY, "scripts/acceptance_check.py"]),
         ("依赖一致性", [PY, "-m", "pip", "check"]),
-        ("pytest", [PY, "-m", "pytest", "-q"]),
+        ("pytest", [PY, "-m", "pytest", "-q",
+                    "--cov=src", "--cov=scripts", "--cov-fail-under=50"]),
     ]
     if with_audit:
         steps.append(("依赖漏洞审计",

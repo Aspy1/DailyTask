@@ -4,6 +4,8 @@
 却不会推送。这里钉住三件事：有则提醒、每天一次、没缺货就不打扰。
 """
 
+from datetime import date, timedelta
+
 import pytest
 
 
@@ -37,9 +39,10 @@ def test_restock_notifies_once_a_day(env) -> None:
 
     rem._check_restock()
 
-    assert mails and mails[0][0] == "补货提醒"
+    assert mails and mails[0][0] == "续费 / 补买提醒"
     assert "纸巾" in mails[0][1]
-    assert trays and trays[0][0] == "该补货了"
+    assert "补买提醒" in mails[0][1]
+    assert trays and trays[0][0] == "续费 / 补买提醒"
 
     rem._check_restock()                          # 同一天再调 → 幂等，不再打扰
     assert len(mails) == 1
@@ -67,3 +70,37 @@ def test_restock_lists_every_short_item(env) -> None:
     body = mails[0][1]
     assert "洗手液" in body and "纸巾" in body
     assert "牙膏" not in body
+
+
+def test_restock_separates_membership_renewal_from_purchases(env) -> None:
+    dm, rem, mails, _trays = env
+    expires = (date.today() + timedelta(days=2)).isoformat()
+    dm.inventory.add_item({
+        "name": "音乐会员", "category": "订阅", "quantity": 1,
+        "membership": {"username": "music", "expires_on": expires,
+                        "auto_renew": True, "renew_months": 12},
+    })
+    dm.inventory.add_item({"name": "纸巾", "quantity": 0, "unit": "包"})
+    dm.inventory.save()
+
+    rem._check_restock()
+
+    body = mails[0][1]
+    assert "续费提醒" in body and "音乐会员" in body
+    assert expires in body and "自动续费已开启" in body
+    assert "补买提醒" in body and "纸巾" in body
+
+
+def test_restock_body_uses_current_membership_status_instead_of_saved_status() -> None:
+    from src.services.reminder_rules import restock_body
+
+    today = date.today()
+    item = {
+        "name": "过期会员", "quantity": 1, "unit": "个", "status": "充足",
+        "membership": {"expires_on": (today - timedelta(days=2)).isoformat()},
+    }
+
+    body = restock_body([item], today=today)
+
+    assert "续费提醒" in body
+    assert "已过期 2 天" in body

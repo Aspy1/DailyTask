@@ -3,21 +3,23 @@
 > **动 UI 之前先读这个文件。** 这里列出所有"令牌 / 模板 / 规范"的**权威位置**。
 > 如果这里**没有**你要的规范：**先问用户**，确认后再创建，并把新条目补进本文件（见 `AGENTS.md` §9）。
 >
-> 最后更新：2026-11-01
+> 最后更新：2026-11-02
 
 ## 1. 按"我要改什么"查
 
 | 我要改… | 权威位置 | 说明 |
 |---|---|---|
 | **颜色 / 字号 / 圆角** 的具体值 | `design/tokens.json` | **唯一真值**（51 键 × 深浅两模式 + 字号 + 圆角刻度）。改完跑 `scripts/gen_design_tokens.py` 同步文档 |
-| **控件 / 布局尺寸**（窗口、弹窗、列表、窄输入） | `design/tokens.json` 的 `controls` / `layout` → `theme.CONTROLS` / `theme.LAYOUT` | 代码只写 `LAYOUT["dialog_width_lg"]`，不写 `setMinimumWidth(420)`（`Q-H20`） |
-| 令牌的**用途说明** | `design/tokens.json` 的 `color_notes` / `size_notes` | 与值同文件，避免两处漂移 |
+| **控件 / 布局尺寸**（窗口、弹窗、列表、窄输入、表格） | `design/tokens.json` 的 `controls` / `layout` → `theme.CONTROLS` / `theme.LAYOUT` | 代码只写 `LAYOUT["dialog_width_lg"]`，不写 `setMinimumWidth(420)`（`Q-H20`） |
+| **动效时长 / 缓动 / 淡入起点** | `design/tokens.json` 的 `motion` → `theme.MOTION` | 代码只写 `MOTION["duration_switch"]`；`animations.py` 与切页都读它，不再有裸数字。切页另见下面「表面角色」 |
+| **表面角色**（窗口 / 外框 / 内容 / 浮层该用哪层底色） | `design/tokens.json` 的 `surfaces` → `theme.SURFACES` + `theme.surface_color()` | 角色 → **颜色令牌名**（不复制色值）。写 `surface_color("chrome")`，别自己挑 `bg_surface` / `bg_root` |
+| 令牌的**用途说明** | `design/tokens.json` 的 `color_notes` / `size_notes` / `layout_notes` / `motion_notes` / `surface_notes` | 与值同文件，避免两处漂移 |
 | 令牌的**人类可读表** | `design/DESIGN_TOKENS.md` | **由脚本生成，不要手改**；`tests/test_design_tokens_sync.py` 守卫漂移 |
 | **全局 QSS**（控件长相） | `src/ui/styles/theme.py` 的 `build_theme()` | 只有 `#objectName` 选择器（R-008） |
 | **输入框样式** | `theme.input_qss()` / `theme.combo_qss()` | 唯一工厂（`Q-H18`）；面板只能委托，不得自写 |
 | **按钮样式** | `theme.btn_primary_qss()` / `btn_secondary_qss()` / `btn_ghost_qss()` / `fab_qss()` | |
 | **菜单/弹层样式** | `theme.menu_qss()` + `src/ui/widgets/menu.py` | 菜单模板集合（`Q-H15`） |
-| **动效** | `src/ui/animations.py` | 动效模板（`Q-H16`）：`fade_in` / `fade_popup` / `count_to` + 总开关 |
+| **动效** | `src/ui/animations.py` | 动效模板（`Q-H16`）：`fade_in` / `fade_popup` / `count_to` + 总开关；时长/缓动读 `MOTION` |
 | **弹窗规范** | `MD-files/CODE_STANDARDS.md` → `Q-H9 ~ Q-H14` | 结构/尺寸/按钮区/输入高度/配色/跟主题 |
 | **圆角绘制** | `CODE_STANDARDS` `Q-H17` + `theme.install_rounded_frame_fixer()` | 原生方框会露出方角（`ERRORS #032`） |
 | **卡片 / 圆角框**（内容展示类） | `src/ui/styles/cards.py` 的 `card()` | **唯一实现**（自绘抗锯齿）。变体 `panel`/`item`/`sub`/`chip`/`bubble`/`pill`；**不传像素尺寸**（长宽交给 layout）；`pad=`/`bg=`/`hover_bg=` 只接受令牌名 |
@@ -30,7 +32,7 @@
 
 1. **先查本文件**（`design/INDEX.md`）。表里有 → 按权威位置改，不要另建一套。
 2. 表里没有 → **先问用户**：是新增规范，还是已有规范够用？确认后创建，并在本文件补一行。
-3. 颜色/字号/圆角**只能**改 `tokens.json`；改完必须跑生成器 + 测试（`Q-H8`）。
+3. 颜色/字号/圆角/**动效时长**/**表面角色**只能改 `tokens.json`；改完必须跑生成器 + 测试（`Q-H8`）。
 4. 硬编码颜色会被 `scripts/check_ui_tokens.py` 拦下（`--strict` 供 CI）；文档字符串/注释里的颜色不算违规。
 
 ## 3. 与原型（`showcase.html`）的关系：结构一致，数值有意偏离

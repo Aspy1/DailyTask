@@ -55,8 +55,8 @@ ALLOWED_OPTIONS: dict[str, set[str]] = {
     "list_mistakes": {"subject", "due"},
     "study_summary": {"date"},
     "study_set_target": {"date", "daily_goal"},
-    "list_backups": {"name"},
-    "restore": {"name", "stamp", "yes"},
+    "list_backups": {"name", "stamp", "semester"},
+    "restore": {"name", "stamp", "semester", "yes"},
 }
 
 
@@ -216,7 +216,8 @@ SPECS: dict[str, dict] = {
         "required": ("date",), "date": ("date",),
         "daily_goal": ("int_opt", 1, 1440),
     },
-    "list_backups": {"name": ("text", MAX_TEXT)},
+    "list_backups": {"name": ("text", MAX_TEXT), "stamp": ("text", MAX_TEXT),
+                     "semester": ("text", MAX_TEXT)},
     "restore": {"required": ("name",), "name": ("text", MAX_TEXT),
-                "stamp": ("text", MAX_TEXT)},
+                "stamp": ("text", MAX_TEXT), "semester": ("text", MAX_TEXT)},
 }

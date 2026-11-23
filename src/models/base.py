@@ -64,7 +64,19 @@ def file_lock(path: Path) -> Iterator[None]:
 
 
 class DataCorrupted(RuntimeError):
-    """文件存在但解析不出来 —— 已**留档**（改名保留现场），绝不当作空数据。"""
+    """文件存在但**内容**不能用 —— 已**留档**（改名保留现场），绝不当作空数据。
+
+    含义固定为"这份现场已经不可恢复"：JSON 解析失败、根不是对象、`_version`
+    类型不对、编码非法、schema 不符都归到这里。**不包括**"暂时读不出来"（见 `Unreadable`）。
+    """
+
+
+class Unreadable(RuntimeError):
+    """文件**暂时**读不出来（被别的进程占用 / 权限 / 磁盘忙）—— 可恢复，重试即可。
+
+    与 `DataCorrupted` 分开的理由：损坏要留档，暂时不可读**不能**留档
+    （那会把一份好文件永久改名为 `.corrupt-*`，审计 2026-11-21 P1）。
+    """
 
 
 class MigrationUnavailable(RuntimeError):
@@ -73,6 +85,11 @@ class MigrationUnavailable(RuntimeError):
 
 class MigrationFailed(RuntimeError):
     """某一步迁移抛错 —— 版本不更新、文件不写。"""
+
+
+# "暂时不可读"的重试节奏：Windows 上 Defender / 索引服务会短暂独占文件。
+READ_ATTEMPTS = 5
+READ_RETRY_SECONDS = 0.05
 
 
 def fingerprint(doc: dict) -> str:
@@ -147,20 +164,35 @@ class BaseJsonModel:
                                  self.file_path.name)
                 else:
                     self.save()
+            except Unreadable as e:
+                # **暂时**读不出来：现场是好的，绝不能留档，也不能覆盖它。
+                # 用默认值让应用起来，写入一律拒绝（等下一次轮询重试）。
+                self._data = copy.deepcopy(self._default_data)
+                self._disk_fingerprint = None
+                self._write_blocked = True
+                logger.warning("%s %s —— 暂用默认值，本次不写入", self.file_path.name, e)
 
     def load(self) -> dict[str, Any]:
-        with open(self.file_path, encoding="utf-8") as f:
-            raw = f.read()
+        """读盘 → 分类处理（审计 2026-11-21 P1：五种状态必须分开）。
+
+        | 状态 | 判据 | 处理 |
+        |---|---|---|
+        | 缺失 | 文件不存在 | 建默认值（`_ensure_file`） |
+        | **暂时不可读** | `OSError` 重试后仍失败 | 抛 `Unreadable`：**不留档**，上层用默认值继续并禁止写入 |
+        | 编码错误 | 非法 UTF-8 | 留档，`DataCorrupted` |
+        | 解析失败 | 非法 JSON | 留档，`DataCorrupted` |
+        | schema 不符 | 根不是对象 / `_version` 类型不对 / 顶层键类型不对 | 留档，`DataCorrupted` |
+        | 未来版本 | `_version` 比本程序新 | **不是损坏**：只警告，只读 |
+        """
+        raw = self._read_text()
         try:
-            self._data = json.loads(raw)
+            parsed = json.loads(raw)
         except json.JSONDecodeError as e:
-            # 损坏 ≠ 缺失：**保留现场**（改名留档）后抛，由 `__init__` 退回默认值。
-            # 绝不静默当空数据（审查 2026-10-17 #5）
-            self.recovered_from = self._quarantine()
-            kept = (self.recovered_from.name if self.recovered_from
-                    else "留档失败，现场仍在原处")
-            raise DataCorrupted(
-                f"{self.file_path.name} 无法解析（{kept}）：{e}") from e
+            raise self._corrupt(f"无法解析：{e}") from e
+        problem = self._schema_problem(parsed)
+        if problem:
+            raise self._corrupt(problem)
+        self._data = parsed
         # ⚠ 指纹必须是**磁盘原文**的指纹：下面 `setdefault("_version", 1)` 会改内存态，
         # 而由 `actions.py`/TG 写入的文件可能没有 `_version` → 用改过的内存指纹去比磁盘
         # 永远不相等，第一次保存就被误判成"外部改动"（2026-10-31 全量走查实测）。
@@ -174,6 +206,52 @@ class BaseJsonModel:
                     f"比本程序支持的 v{self.supported_version} 新")
             logger.warning("%s —— 不做任何迁移，也不当作可覆盖的目标", note)
         return self._data
+
+    def _read_text(self) -> str:
+        """读原文；**暂时不可读**要重试（占用/权限），一直读不出来 → `Unreadable`。
+
+        `UnicodeDecodeError` 在这里就归为损坏（不是"暂时"）：编码不会自己变好。
+        """
+        last: OSError | None = None
+        for attempt in range(READ_ATTEMPTS):
+            try:
+                # `utf-8-strict`：非法字节必须当成损坏，不能 `errors="replace"`（那会改数据）
+                return self.file_path.read_text(encoding="utf-8")
+            except UnicodeDecodeError as e:
+                raise self._corrupt(f"不是合法 UTF-8：{e}") from e
+            except OSError as exc:
+                last = exc
+                if attempt < READ_ATTEMPTS - 1:
+                    time.sleep(READ_RETRY_SECONDS)
+        raise Unreadable(f"{self.file_path.name} 暂时读不出来：{last}") from last
+
+    def _corrupt(self, detail: str) -> DataCorrupted:
+        """留档 + 返回要抛的异常（**保留现场**，绝不静默当空数据）。"""
+        self.recovered_from = self._quarantine()
+        kept = (self.recovered_from.name if self.recovered_from
+                else "留档失败，现场仍在原处")
+        return DataCorrupted(f"{self.file_path.name} 损坏（{kept}）：{detail}")
+
+    def _schema_problem(self, parsed: Any) -> str:
+        """结构检查 → 空串表示通过。
+
+        这些形状原来会从**别处**炸开（`AttributeError` / `TypeError`），
+        既没有留档也没有默认值兜底：根是数组、`_version` 是字符串、顶层键类型不对。
+        """
+        if not isinstance(parsed, dict):
+            return f"顶层必须是 JSON 对象，收到 {type(parsed).__name__}"
+        version = parsed.get("_version", 1)
+        if isinstance(version, bool) or not isinstance(version, int):
+            return f"_version 必须是整数，收到 {type(version).__name__}"
+        if version < 1:
+            return f"_version 必须 ≥ 1，收到 {version}"
+        for key, expected in self._default_data.items():
+            if key == "_version" or key not in parsed:
+                continue
+            if not isinstance(parsed[key], type(expected)):
+                return (f"{key} 必须是 {type(expected).__name__}，"
+                        f"收到 {type(parsed[key]).__name__}")
+        return ""
 
     def _quarantine(self) -> Path | None:
         """把当前文件改名留档（**保留现场**）；**失败返回 None**。
@@ -192,8 +270,17 @@ class BaseJsonModel:
         return keep
 
     def reload(self) -> None:
-        """Re-read data from disk, discarding in-memory changes."""
+        """Re-read data from disk, discarding in-memory changes.
+
+        ⚠ 成功重载后**解除写入封锁**：`Unreadable` 是暂时的，文件恢复可读后
+        那些"本次不写入"的模型要能继续工作（否则一次占用就永久失写）。
+        """
         self.load()
+        if not self._write_blocked:
+            return
+        self._write_blocked = False
+        self._loaded_future = self.version > self.supported_version
+        logger.info("%s 已恢复可读，解除写入封锁", self.file_path.name)
 
     def save(self) -> bool:
         """落盘。返回 `False` 表示**没写**（磁盘被别人改过或读不出来，已交 `on_conflict`）。

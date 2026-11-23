@@ -20,6 +20,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from scripts.actions_receipt import CommandOutput
 from src.services import ai_approval, ai_audit, ai_guard, ai_undo, ai_verify
 from src.services.ai_instructions import InstructionParser
 from src.services.ai_prompts import data_envelope
@@ -148,6 +149,17 @@ def approval_allow() -> Result:
         return Result("approval_allow", ok, "审批通过后才写")
 
 
+def _commit_test_item(target: Path) -> CommandOutput:
+    before = ai_undo.file_hash(target)
+    payload = json.loads(target.read_text(encoding="utf-8"))
+    payload["items"].append({"id": "i_002", "name": "牙膏"})
+    target.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+    return CommandOutput("OK add_item i_002", {
+        "target": str(target), "operation_id": "test-commit", "version": 1,
+        "before_sha": before, "after_sha": ai_undo.file_hash(target),
+    })
+
+
 def undo_success() -> Result:
     with tempfile.TemporaryDirectory(prefix="ai_oversight_") as td:
         sandbox = Path(td)
@@ -156,13 +168,7 @@ def undo_success() -> Result:
         store = ai_undo.SnapshotStore.for_data_dir(sandbox)
         assert store is not None
 
-        def executor(_command: str) -> str:
-            payload = json.loads(target.read_text(encoding="utf-8"))
-            payload["items"].append({"id": "i_002", "name": "牙膏"})
-            target.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
-            return "OK add_item i_002"
-
-        ai_guard.run_batch([ADD_ITEM], data_dir=sandbox, undo=store, executor=executor)
+        ai_guard.run_batch([ADD_ITEM], data_dir=sandbox, undo=store, executor=lambda _: _commit_test_item(target))
         ok, detail = store.undo()
         return Result("undo_success", ok and _sha(target) == before, detail)
 
@@ -174,19 +180,13 @@ def undo_stale() -> Result:
         store = ai_undo.SnapshotStore.for_data_dir(sandbox)
         assert store is not None
 
-        def executor(_command: str) -> str:
-            payload = json.loads(target.read_text(encoding="utf-8"))
-            payload["items"].append({"id": "i_002", "name": "牙膏"})
-            target.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
-            return "OK add_item i_002"
-
-        ai_guard.run_batch([ADD_ITEM], data_dir=sandbox, undo=store, executor=executor)
+        ai_guard.run_batch([ADD_ITEM], data_dir=sandbox, undo=store, executor=lambda _: _commit_test_item(target))
         payload = json.loads(target.read_text(encoding="utf-8"))
         payload["items"].append({"id": "i_003", "name": "用户手改"})
         target.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
         ok, detail = store.undo()
         kept = "用户手改" in target.read_text(encoding="utf-8")
-        return Result("undo_stale", ok is False and kept, detail)
+        return Result("undo_stale", ok is False and kept and "改过" in detail, detail)
 
 
 def injection_blocked() -> Result:

@@ -10,18 +10,17 @@
     .venv\\Scripts\\python.exe scripts/acceptance_check.py
     .venv\\Scripts\\python.exe scripts/acceptance_check.py --keep      # 保留沙箱便于排查
 
-**安全**：数据目录复制到临时沙箱（**不复制 `settings.ini`**，它含密钥）；
-`set_autostart` 打桩（不碰注册表）；跑完核对真实 `data/` 未被改动。
+**隔离**：每次运行在独立目录生成合成数据。使用独立命名管道，替换自启动操作。
 """
 
 from __future__ import annotations
 
 import argparse
+import contextlib
 import hashlib
 import json
 import logging
 import os
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -35,6 +34,10 @@ REAL_DATA = ROOT / "data"
 SANDBOX = Path(tempfile.gettempdir()) / "life_assistant_acceptance"
 SHOTS = SANDBOX / "shots"
 
+# **绝不进入哈希的**文件：`settings.ini` 含真实密钥（审计 2026-11-21 P1：
+# 旧实现的 `rglob` 把真实数据目录整个递归哈希，等于拿密钥当测试输入）。
+SECRET_FILES = frozenset({"settings.ini"})
+
 RESULTS: list[tuple[str, bool, str]] = []
 
 
@@ -44,33 +47,101 @@ def check(name: str, ok: bool, detail: str = "") -> bool:
     return bool(ok)
 
 
+def _configure_stdout() -> None:
+    """控制台必须 UTF-8：Windows 默认 cp936，`¥` / 截图路径这类字符会直接抛
+    `UnicodeEncodeError`（`check_quality.py` 同一处理）。"""
+    for stream in (sys.stdout, sys.stderr):
+        with contextlib.suppress(AttributeError, OSError):
+            stream.reconfigure(encoding="utf-8", errors="replace")
+
+
 def section(title: str) -> None:
     print(f"\n──────── {title} ────────")
 
 
 def digest_dir(path: Path) -> dict[str, str]:
+    """逐文件哈希 —— **跳过 `settings.ini`**（含密钥，不拿它当测试输入）。"""
     return {str(f.relative_to(path)): hashlib.sha256(f.read_bytes()).hexdigest()[:16]
-            for f in sorted(path.rglob("*")) if f.is_file()}
+            for f in sorted(path.rglob("*"))
+            if f.is_file() and f.name not in SECRET_FILES}
 
 
 def build_sandbox() -> None:
-    shutil.rmtree(SANDBOX, ignore_errors=True)
-    SANDBOX.mkdir(parents=True)
-    for f in REAL_DATA.glob("*.json"):
-        if f.name in ("weather_cache.json", "weather_stats.json", "search_index.json"):
-            continue                      # 派生/缓存，不复制
-        shutil.copy2(f, SANDBOX / f.name)
-    shutil.copytree(REAL_DATA / "semesters", SANDBOX / "semesters", dirs_exist_ok=True)
-    SHOTS.mkdir(parents=True, exist_ok=True)
+    SANDBOX.mkdir(parents=True, exist_ok=True)
+    _seed_synthetic()
+    SHOTS.mkdir()
+
+
+def _seed_synthetic() -> None:
+    """**合成数据工厂**（审计 2026-11-21 P1）：两学期 + 账单 + 附件 + 旧 schema。
+
+    验收必须能在**空仓库**（CI 里 `data/` 不存在）上跑完 —— 原来硬依赖用户的
+    真实业务数据，于是本地与公仓 CI 用的是**不同**数据、结论不可比。
+    """
+    from src.models import semester_paths
+
+    semesters = [
+        {"id": "sem_001", "name": "合成学期 A", "start_date": "2026-09-21",
+         "total_weeks": 16, "period_count": 6, "exam_weeks": 1},
+        {"id": "sem_002", "name": "合成学期 B", "start_date": "2027-03-01",
+         "total_weeks": 16, "period_count": 6, "exam_weeks": 1},
+    ]
+    _dump(SANDBOX / "semesters.json", {"_version": 1, "semesters": semesters,
+                                       "current_semester": "sem_001"})
+    folder = semester_paths.semester_dir(SANDBOX, "sem_001")
+    folder.mkdir(parents=True, exist_ok=True)
+    _dump(folder / "courses.json", {"_version": 1, "courses": [
+        {"id": "c_001", "name": "合成课程", "teacher": "老师", "day_of_week": 2,
+         "weeks": {"start": 1, "end": 16}, "week_parity": "all",
+         "time_slots": [{"start": 1, "end": 2, "location": "A101"}],
+         "excluded_weeks": [], "holidays": []}],
+        "holidays": {"excluded": [], "makeup": {}}})
+    _dump(folder / "tasks.json", {"_version": 2, "tasks": [
+        {"id": "t_001", "title": "合成作业", "course_name": "合成课程",
+         "due_date": "2026-12-01T23:59:00", "status": "pending", "priority": "medium",
+         "tags": [], "notes": "", "attachments": [], "reminded": False}],
+        "archived": []})
+    _dump(folder / "exams.json", {"_version": 1, "exams": [
+        {"id": "e_001", "course_name": "合成课程", "exam_date": "2026-12-20",
+         "scope": "期末", "location": "A101"}]})
+    _dump(SANDBOX / "inventory.json", {"_version": 1, "items": [
+        {"id": "i_001", "name": "合成物品", "category": "日常消耗品",
+         "quantity": 3, "unit": "件", "status": "充足", "min_quantity": 1,
+         "location": "架子", "tags": [], "instances": []}],
+        "categories": ["日常消耗品"], "locations": ["架子"]})
+    _dump(SANDBOX / "expenses.json", {"_version": 1, "records": [],
+                                      "categories": [{"id": "food", "name": "餐饮"}],
+                                      "budget": {"monthly": 1500, "by_category": {}},
+                                      "finance": {}})
+    for name, payload in (("habits.json", {"_version": 2, "habits": [], "logs": {}}),
+                          ("routines.json", {"_version": 1, "items": [], "logs": {}}),
+                          ("daily_logs.json", {"_version": 4, "logs": {}, "plans": {},
+                                               "savings": {}, "reminders": []}),
+                          ("study.json", {"_version": 1, "sessions": [], "mistakes": [],
+                                          "mocks": [], "subjects": []})):
+        _dump(SANDBOX / name, payload)
+
+
+def _dump(path: Path, payload: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 def main() -> int:
+    global SANDBOX, SHOTS
     ap = argparse.ArgumentParser()
     ap.add_argument("--keep", action="store_true", help="保留沙箱（默认保留，便于排查）")
     ap.parse_args()
 
+    _configure_stdout()
+    SANDBOX = Path(tempfile.mkdtemp(prefix="life_assistant_acceptance_"))
+    SHOTS = SANDBOX / "shots"
     build_sandbox()
-    real_before = digest_dir(REAL_DATA)
+
+    # **独立单实例管道**（`ARCHITECTURE` §3 规定给测试用）：用户正在用真实应用时，
+    # 默认名字的管道会被它接走 → 本脚本被误判成"第二实例"而中止。
+    # 必须在 `import src.app` **之前**设好（key 在模块导入时求值）。
+    os.environ["LIFE_ASSISTANT_SINGLE_INSTANCE_KEY"] = f"LifeAcceptance-{os.getpid()}"
 
     logging.basicConfig(
         level=logging.INFO,
@@ -436,12 +507,6 @@ def main() -> int:
           dlg._weeks_input.value() == 16 and dlg._exam_input.value() >= 1)
     dlg.grab().save(str(SHOTS / "05_semester_dialog.png"))
 
-    section("18. 真实数据未被改动")
-    real_after = digest_dir(REAL_DATA)
-    changed = [k for k in set(real_before) | set(real_after)
-               if real_before.get(k) != real_after.get(k)]
-    check("真实 data/ 逐文件哈希一致", not changed,
-          "; ".join(changed) if changed else f"{len(real_before)} 个文件")
 
     failed = [r for r in RESULTS if not r[1]]
     print("\n" + "=" * 60)
@@ -450,7 +515,24 @@ def main() -> int:
         print(f"  ✗ {name} — {detail}")
     print("截图：", SHOTS)
     print("沙箱：", SANDBOX)
+    _teardown(app)
     return 1 if failed else 0
+
+
+def _teardown(app: object) -> None:
+    """停掉本进程自己拉起的 App（不 `super().quit()`：那会退出整个测试进程）。
+
+    只关窗口 + 停定时器 + 关单实例服务：留下的 QTimer/QThread 会让解释器退出时
+    报 "still running"，而且下一个检查项还要继续用这个进程。
+    """
+    import contextlib
+
+    for step in (lambda: app._instance_server.close(),
+                 lambda: app._window.shutdown(),
+                 lambda: app._reminder.shutdown(),
+                 lambda: app._window.close()):
+        with contextlib.suppress(Exception):    # 边界：收尾失败不该掩盖真正的验收结论
+            step()
 
 
 if __name__ == "__main__":

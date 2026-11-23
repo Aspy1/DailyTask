@@ -4,9 +4,11 @@
 以及**字节流分帧** —— 本地 socket 不是消息流，一次读可能只有半帧。
 """
 
+import os
 import subprocess
 import sys
 import time
+import uuid
 
 import pytest
 from PySide6.QtNetwork import QLocalServer
@@ -15,7 +17,6 @@ from src.services.single_instance import (
     CHANNEL_DELEGATE,
     CHANNEL_DIRECT,
     CHANNEL_REFUSE,
-    SINGLE_INSTANCE_KEY,
     decide_channel,
     decode_reply,
     decode_request,
@@ -79,7 +80,7 @@ def test_feed_buffer_waits_for_full_line() -> None:
     assert buf == b"b\n", "第二行要留在缓冲里"
 
 
-def test_delegate_end_to_end_assembles_fragmented_reply(qapp) -> None:
+def test_delegate_end_to_end_assembles_fragmented_reply(qapp, tmp_path) -> None:
     """**真实 socket + 真 CLI 子进程**：服务端分两次写应答 → CLI 必须拼成完整帧。
 
     客户端放在独立进程里（就像真的 `scripts/actions.py`）—— 纯 Python 线程没有 Qt 事件
@@ -87,14 +88,27 @@ def test_delegate_end_to_end_assembles_fragmented_reply(qapp) -> None:
     用事件循环驱动读取。
 
     用 `status`（只读）当命令：委派成功时它由"应用"执行，**不会**落到真实数据上。
+
+    ⚠ 必须用**独立管道名**：真实应用在跑时也占着生产 key，两个 `QLocalServer` 可以同时
+    listen，客户端连接会被真实应用接走 → 测试服务端永远等不到连接（2026-11-04 门禁实测，
+    也正是用户开着应用时全量必红的原因）。子进程通过环境变量拿到同一个测试 key，
+    仍然是"真 socket + 真 CLI 子进程"，只隔离管道名。数据目录也指向 `tmp_path`，
+    子进程绝不读写真实 `data/`。
     """
-    QLocalServer.removeServer(SINGLE_INSTANCE_KEY)
+    key = f"StudentSchedulerTest-{os.getpid()}-{uuid.uuid4().hex}"
+    env = {
+        **os.environ,
+        "LIFE_ASSISTANT_SINGLE_INSTANCE_KEY": key,
+        "LIFE_ASSISTANT_DATA_DIR": str(tmp_path),
+    }
+    QLocalServer.removeServer(key)
     server = QLocalServer()
-    assert server.listen(SINGLE_INSTANCE_KEY), "测试用监听起不来"
+    assert server.listen(key), "测试用监听起不来"
     payload = encode_reply(True, "OK 分片回复")
 
     proc = subprocess.Popen([sys.executable, "scripts/actions.py", "status"],
                             stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                            env=env,
                             text=True, encoding="utf-8", errors="replace")
     conn = None
     for _ in range(200):                     # 等服务端接到连接
@@ -120,6 +134,6 @@ def test_delegate_end_to_end_assembles_fragmented_reply(qapp) -> None:
 
     out, _err = proc.communicate(timeout=20)
     server.close()
-    QLocalServer.removeServer(SINGLE_INSTANCE_KEY)
+    QLocalServer.removeServer(key)
 
     assert out.strip() == "OK 分片回复", f"分片必须被拼成完整帧，实际：{out!r}"

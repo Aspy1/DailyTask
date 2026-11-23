@@ -5,7 +5,6 @@
 """
 
 import json
-from pathlib import Path
 
 import pytest
 
@@ -20,7 +19,6 @@ from src.models.task import TaskModel
 MODELS = [CourseModel, TaskModel, HabitModel, ExpenseModel, ExamModel,
           DailyLogModel, InventoryModel]
 
-ROOT = Path(__file__).resolve().parent.parent
 
 
 @pytest.mark.parametrize("model_cls", MODELS, ids=lambda c: c.__name__)
@@ -62,25 +60,13 @@ def test_default_data_is_not_shared_between_instances(tmp_path) -> None:
     assert exam_mod.DEFAULT_EXAMS["exams"] == []
 
 
-def test_shipped_data_files_are_versioned_and_valid() -> None:
-    """`data/` 里的 JSON（含按学期分的那批）必须能解析且带 `_version`（派生文件除外）。
+def test_synthetic_acceptance_data_files_are_versioned(tmp_path, monkeypatch) -> None:
+    from scripts import acceptance_check
 
-    ⚠ 2026-10-20 拆仓库后：`data/` **不再随代码仓库走**（它是独立的私有数据仓库）→
-    在 CI 里这个目录**不存在** ✓。存在就校验，不存在就跳过（不是失败 ✗）。
-    """
-    if not (ROOT / "data").is_dir():
-        pytest.skip("data/ 不在代码仓库里（2026-10-20 已拆到私有数据仓库）")
-    derived = {"weather_cache.json", "weather_stats.json", "search_index.json",
-               "scenes_meta.json"}
-    candidates = list((ROOT / "data").glob("*.json"))
-    semester_root = ROOT / "data" / "semesters"
-    if semester_root.is_dir():                      # 按学期分文件：semesters/<id>/*.json
-        candidates += list(semester_root.rglob("*.json"))
-    checked = 0
-    for f in sorted(candidates):
-        if f.name in derived:
-            continue
-        data = json.loads(f.read_text(encoding="utf-8"))
-        assert "_version" in data, f"{f.relative_to(ROOT)} 缺少 _version"
-        checked += 1
-    assert checked >= 5
+    monkeypatch.setattr(acceptance_check, "SANDBOX", tmp_path)
+    acceptance_check._seed_synthetic()
+    candidates = list(tmp_path.rglob("*.json"))
+    assert len(candidates) >= 5
+    for path in candidates:
+        document = json.loads(path.read_text(encoding="utf-8"))
+        assert isinstance(document, dict) and type(document.get("_version")) is int, path

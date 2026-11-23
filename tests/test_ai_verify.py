@@ -134,6 +134,23 @@ def test_update_item_quantity_is_verified(sandbox) -> None:
     assert state == ai_verify.VERIFIED and "5" in detail
 
 
+def test_update_item_content_and_empty_fields_are_fully_verified(sandbox) -> None:
+    from scripts.actions import run_in_process
+
+    run_in_process('add_item --name "Toothpaste" --notes "old note" --tags "old tag"')
+    cmd = ('python scripts/actions.py update_item --id i_001 --name "Mint Paste" '
+           '--notes "" --tags ""')
+    before = ai_verify.observe(cmd, sandbox)
+    verdict = ai_verify.check_ex(cmd, before, run_in_process(cmd), sandbox)
+
+    assert verdict.state == ai_verify.VERIFIED
+    assert verdict.checked == verdict.total == 3
+    item = ai_verify._item(ai_verify._read(sandbox, "inventory.json"), "i_001")
+    assert item["name"] == "Mint Paste"
+    assert item["notes"] == ""
+    assert item["tags"] == []
+
+
 def test_worker_feeds_the_verdict_back_to_the_model(qapp, sandbox) -> None:
     """⭐ 从 worker 的真实入口走一遍：工具结果里必须带 `[验收]` 与具体数字。"""
     from src.services.ai_service import AIWorker
@@ -261,3 +278,103 @@ def test_claiming_ok_without_the_data_is_a_mismatch(sandbox) -> None:
     before = ai_verify.observe(cmd, sandbox)
     state, detail = ai_verify.check(cmd, before, "OK add_item i_001", sandbox)
     assert state == ai_verify.MISMATCH and "找不到" in detail
+
+
+# ── 记考试：写入端归一化（课程简称 / 带时间的日期）必须与验收同一口径（ISSUE-0006）──
+
+EXAM_RECORD_FIELDS = {"id", "course_name", "exam_date", "scope", "location",
+                      "notes", "tags", "created_at", "updated_at"}
+
+
+def _exam_rows(sandbox) -> list[dict]:
+    import json
+
+    path = sandbox / "semesters/sem_default/exams.json"
+    return json.loads(path.read_text(encoding="utf-8")).get("exams") or []
+
+
+def _add_course(name: str) -> None:
+    from scripts.actions import run_in_process
+
+    out = run_in_process(f'add_course --name "{name}" --day 4 --weeks "1-16" --slots "5-6"')
+    assert out.startswith("OK add_course"), out
+
+
+def test_add_exam_with_a_datetime_is_verified(sandbox) -> None:
+    """⭐ 复现 `data/ai_actions.jsonl` 的真实命令：`--date "2026-11-20T16:00"`。
+
+    写入端把日期归一化成 `2026-11-20` 落盘（`cmd_add_exam` → `parse_date`），
+    验收端若拿命令原始 `--date` 精确比较，就会把"已写入"报成"考试列表里找不到"。
+    """
+    from scripts.actions import run_in_process
+
+    _add_course("数据挖掘")
+    cmd = ('python scripts/actions.py add_exam --course "数据挖掘" '
+           '--date "2026-11-20T16:00" --notes "地点暂时未定"')
+    before = ai_verify.observe(cmd, sandbox)
+    out = run_in_process(cmd)
+    assert out.startswith("OK add_exam"), out
+
+    state, detail = ai_verify.check(cmd, before, out, sandbox)
+    assert state == ai_verify.VERIFIED, (out, state, detail)
+
+    rows = _exam_rows(sandbox)
+    assert len(rows) == 1, rows
+    assert rows[0]["course_name"] == "数据挖掘"
+    assert rows[0]["exam_date"] == "2026-11-20", rows[0]["exam_date"]
+    assert set(rows[0]) == EXAM_RECORD_FIELDS, "写入字段不能变"
+
+
+def test_add_exam_with_course_short_name_is_verified(sandbox) -> None:
+    """课程简称：写入端 `match_course` 归一成全名，验收端必须照同一规则比对。"""
+    from scripts.actions import run_in_process
+
+    _add_course("语音信息处理")
+    cmd = ('python scripts/actions.py add_exam --course "语音" '
+           '--date "2026-11-11T15:25" --location "46教A110"')
+    before = ai_verify.observe(cmd, sandbox)
+    out = run_in_process(cmd)
+    assert out.startswith("OK add_exam"), out
+
+    state, detail = ai_verify.check(cmd, before, out, sandbox)
+    assert state == ai_verify.VERIFIED, (out, state, detail)
+    rows = _exam_rows(sandbox)
+    assert rows[0]["course_name"] == "语音信息处理"
+    assert rows[0]["exam_date"] == "2026-11-11"
+
+
+def test_add_exam_without_a_new_record_is_still_a_mismatch(sandbox) -> None:
+    """⭐ 归一化**不放宽**"确实新增一条"：命令说 OK 但没新增 → mismatch。"""
+    _add_course("数据挖掘")
+    cmd = 'python scripts/actions.py add_exam --course "数据挖掘" --date "2026-11-20"'
+    before = ai_verify.observe(cmd, sandbox)
+    state, detail = ai_verify.check(
+        cmd, before, "OK add_exam e_001 | 数据挖掘 | 2026-11-20", sandbox)
+    assert state == ai_verify.MISMATCH and "找不到" in detail, detail
+
+
+def test_add_exam_with_another_date_is_a_mismatch(sandbox) -> None:
+    """日期仍是判据：同名课程但日期对不上 → mismatch（不能只比课程名）。"""
+    from scripts.actions import run_in_process
+
+    _add_course("数据挖掘")
+    run_in_process('add_exam --course "数据挖掘" --date "2026-11-20"')
+    cmd = 'python scripts/actions.py add_exam --course "数据挖掘" --date "2026-12-25"'
+    before = ai_verify.observe(cmd, sandbox)
+    state, detail = ai_verify.check(
+        cmd, before, "OK add_exam e_002 | 数据挖掘 | 2026-12-25", sandbox)
+    assert state == ai_verify.MISMATCH, detail
+
+
+def test_add_exam_with_a_chinese_date_never_reaches_the_handler(sandbox) -> None:
+    """中文日期在**参数校验**就被拒（`--date` 规则 = 严格 YYYY-MM-DD）。
+
+    所以真实链路里不会有"中文日期写入成功"这一半；验收端要补的是**带时间的日期**
+    与课程简称。这里把边界钉住：放宽日期规则时必须同步验收口径。
+    """
+    from scripts.actions import run_in_process
+
+    cmd = 'python scripts/actions.py add_exam --course "数据挖掘" --date "11月20日周五"'
+    out = run_in_process(cmd)
+    assert out.startswith("ERROR") and "--date" in out, out
+    assert ai_verify.check(cmd, {"count": 0}, out, sandbox)[0] == ai_verify.FAILED

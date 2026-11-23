@@ -220,9 +220,7 @@ def _execute(command: str, decision: ai_policy.Decision, *, data_dir, audit, und
     if undo is not None and decision.writes:
         snapshot = undo.capture(command, operation=decision.operation,
                                 request_id=request_id, label=label)
-    result = executor(command)
-    if snapshot is not None:
-        undo.finalize(snapshot)
+    result = _execute_with_snapshot(command, decision, data_dir, executor, undo, snapshot)
     after = ai_verify.observe(command, data_dir) if data_dir and decision.writes else {}
     verdict = check_ex(command, before, result, data_dir) if data_dir else \
         Verdict(FAILED if not str(result).startswith("OK") else UNVERIFIED, str(result)[:80])
@@ -232,6 +230,28 @@ def _execute(command: str, decision: ai_policy.Decision, *, data_dir, audit, und
         duration_ms=round((time.monotonic() - started) * 1000, 1))
     return CommandRun(command=command, result=str(result), verdict=verdict, executed=True,
                       label=label, snapshot_id=snapshot.snapshot_id if snapshot else "")
+
+
+def _execute_with_snapshot(command: str, decision, data_dir, executor, undo, snapshot) -> str:
+    if snapshot is None:
+        return executor(command)
+    previous = _receipt_for(decision, data_dir)
+    result = executor(command)
+    receipt = getattr(result, "receipt", None) or _receipt_for(decision, data_dir)
+    if receipt is previous or not str(result).startswith("OK "):
+        receipt = None
+    undo.finalize(snapshot, receipt=receipt)
+    return result
+
+
+def _receipt_for(decision, data_dir) -> dict | None:
+    """Return the current thread's write receipt, if any."""
+    if not data_dir:
+        return None
+    import scripts.actions_core as core
+
+    name = ai_undo.TARGET_FILES.get(decision.operation)
+    return core.last_commit(name) if name else None
 
 
 def _approval_reason(reason: str) -> str:

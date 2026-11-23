@@ -223,15 +223,9 @@ def test_guard_captures_a_snapshot_that_can_be_undone(sandbox) -> None:
     store = ai_undo.SnapshotStore.for_data_dir(sandbox)
     assert store is not None
 
-    def executor(command: str) -> str:
-        payload = json.loads(target.read_text(encoding="utf-8"))
-        payload["items"].append({"id": "i_002", "name": "牙膏"})
-        target.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
-        return "OK add_item i_002"
-
     batch = ai_guard.run_batch(
         ['python scripts/actions.py add_item --name "牙膏"'], data_dir=sandbox,
-        undo=store, executor=executor)
+        undo=store)
 
     assert batch.runs[0].snapshot_id
     assert store.latest() is not None
@@ -247,14 +241,8 @@ def test_guard_snapshot_is_stale_safe(sandbox) -> None:
     store = ai_undo.SnapshotStore.for_data_dir(sandbox)
     assert store is not None
 
-    def executor(command: str) -> str:
-        payload = json.loads(target.read_text(encoding="utf-8"))
-        payload["items"].append({"id": "i_002", "name": "牙膏"})
-        target.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
-        return "OK add_item i_002"
-
     ai_guard.run_batch(['python scripts/actions.py add_item --name "牙膏"'],
-                       data_dir=sandbox, undo=store, executor=executor)
+                       data_dir=sandbox, undo=store)
     payload = json.loads(target.read_text(encoding="utf-8"))
     payload["items"].append({"id": "i_003", "name": "用户手改"})
     target.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")

@@ -251,10 +251,13 @@ def _add_backup_parsers(sub) -> None:
     """备份 / 恢复 / 概览。"""
     p = sub.add_parser("list_backups", help="列出备份")
     p.add_argument("--name", help="只看某个文件，如 courses.json")
+    p.add_argument("--stamp", help="只看时间戳里含这个片段的那几份")
+    p.add_argument("--semester", help="按备份归属学期过滤")
 
     p = sub.add_parser("restore", help="从备份恢复（用户手动入口，需 --yes）")
     p.add_argument("--name", required=True)
     p.add_argument("--stamp", help="指定时间戳（默认最近一份）")
+    p.add_argument("--semester", help="备份归属的学期（旧快照没有归属记录时必须显式声明）")
     p.add_argument("--yes", action="store_true", help="确认恢复")
 
     sub.add_parser("status", help="概览")

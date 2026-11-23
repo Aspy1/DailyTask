@@ -564,6 +564,18 @@ class InventoryModel(BaseJsonModel):
         return len([it for it in self.items if it.get("status") == "充足"])
 
 
+def membership_days_left(item: dict, today: date | None = None) -> int | None:
+    """Return the membership expiry offset in days, or None when no valid date exists."""
+    expires_on = str(InventoryModel.membership_of(item).get("expires_on") or "")
+    return days_until(expires_on, today)
+
+
+def renewal_due(item: dict, today: date | None = None) -> bool:
+    """Whether a membership is expired or within the configured renewal window."""
+    days_left = membership_days_left(item, today)
+    return days_left is not None and days_left <= RENEW_WARNING_DAYS
+
+
 def status_is_manual(item: dict) -> bool:
     """这条物品的状态是**手动定的**吗 —— 是则自动推导不许覆盖它。
 

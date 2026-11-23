@@ -59,7 +59,8 @@ def test_registration_exposes_the_closed_tools(context: FakeContext) -> None:
         assert entry["schema"]["name"] == name
         assert entry["schema"]["parameters"]["additionalProperties"] is False
     query = context.tools["daily_task_query"]["schema"]["parameters"]
-    assert set(query["properties"]) == {"date"}
+    assert set(query["properties"]) == {"date", "scope"}
+    assert query["properties"]["scope"]["enum"] == ["planner", "inventory", "restock"]
     update = context.tools["daily_task_update"]["schema"]["parameters"]
     assert set(update["properties"]) == {"action", "parameters"}
     assert update["required"] == ["action", "parameters"]
@@ -118,7 +119,9 @@ def test_prompt_is_limited_to_weixin_and_requires_verification(context: FakeCont
     assert callback({}) == ""
     prompt = callback({"platform": "weixin"})
     for phrase in ("daily_task_query", "local time", "1-6", "inclusive",
-                   "verified", "missing", "shell", "file"):
+                   "verified", "missing", "shell", "file",
+                   "scope=inventory", "scope=restock", "phone numbers",
+                   "Deletion is unavailable"):
         assert phrase in prompt
 
 
@@ -134,12 +137,17 @@ def test_action_fields_and_scalar_types_match_cli() -> None:
     subparsers = next(item for item in parser._actions if isinstance(item, argparse._SubParsersAction))
     for name, fields in plugin.ACTION_FIELDS.items():
         if name == "context":
-            assert fields == ("date",)
+            assert fields == ("date", "scope")
             continue
         arguments = {item.dest: item for item in subparsers.choices[name]._actions if item.dest != "help"}
-        assert set(fields) == set(arguments)
+        assert set(fields) <= set(arguments)
+        assert {field for field, argument in arguments.items() if argument.required} <= set(fields)
         for field, argument in arguments.items():
-            value = 2 if argument.type is int else "sample"
+            if field not in fields:
+                continue
+            value = (2.5 if field == "amount" and name != "consume" else
+                     2 if field == "amount" or argument.type is int else
+                     1.5 if argument.type is float else "sample")
             if argument.choices:
                 value = argument.choices[0]
             required = {key: (2 if item.type is int else "sample")
@@ -148,18 +156,44 @@ def test_action_fields_and_scalar_types_match_cli() -> None:
             assert plugin.validate_request(name, required)[field] == value
 
 
+def test_inventory_actions_are_available_through_validated_cli() -> None:
+    expected = {
+        "add_item": {"name", "category", "quantity", "min_qty", "min_doses",
+                       "location", "notes", "group", "tags", "unit",
+                       "doses_per_unit", "instances", "membership", "runs_out",
+                       "runs_out_months", "worn_days", "needs_wash", "expires",
+                       "remind_before", "stock_target", "billing_type", "amount",
+                       "due_day", "installments"},
+        "update_item": {"id", "name", "group", "category", "quantity",
+                          "status", "min_qty", "min_doses", "location", "notes", "runs_out",
+                          "runs_out_months", "worn_days", "needs_wash", "expires",
+                          "remind_before", "stock_target", "tags", "unit",
+                          "doses_per_unit", "instances", "membership", "billing_type",
+                          "amount", "due_day", "installments"},
+        "consume": {"id", "amount"},
+    }
+    assert {action: set(plugin.ACTION_FIELDS[action]) for action in expected} == expected
+    assert set(plugin.ACTION_FIELDS) >= {"context", *expected}
+    assert "delete_item" not in plugin.ACTION_FIELDS
+    assert plugin.UPDATE_SCHEMA["parameters"]["properties"]["parameters"]["properties"]["amount"]["type"] == "number"
+
+
 @pytest.mark.parametrize(("action", "parameters"), [
     ("delete_course", {"id": "c_001"}),
+    ("delete_item", {"id": "i_001"}),
     ([], {}),
     ("context", {"data_dir": "elsewhere"}),
     ("context", {"date": "tomorrow"}),
     ("context", {"date": "2026-02-30"}),
     ("context", {"date": "20261120"}),
+    ("context", {"scope": "secret"}),
+    ("context", {"scope": True}),
     ("add_task", {"title": "Title"}),
     ("complete_task", {"id": ["t_001"]}),
     ("add_course", {"name": "Course", "day": True}),
     ("add_course", {"name": "Course", "day": "2"}),
     ("add_course", {"name": "Course", "day": 2, "parity": "sometimes"}),
+    ("consume", {"id": "i_001", "amount": 1.5}),
     ("add_plan", {"date": "2026-11-20", "title": {}, "slot": 1}),
     ("complete_plan", {"date": "2026-11-20", "index": 1.5}),
     ("complete_task", None),

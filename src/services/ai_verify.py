@@ -94,16 +94,9 @@ def _observe_consume(args: dict, data_dir: Path) -> dict:
 
 
 def _observe_update_item(args: dict, data_dir: Path) -> dict:
-    """改物品：记下**这条命令关心的**字段（位置 / 数量）—— 别的字段没有验收器。"""
-    item = _item(_read(data_dir, "inventory.json"), args.get("id", ""))
-    if not item:
-        return {}
-    out: dict = {}
-    if args.get("location"):
-        out["location"] = item.get("location")
-    if "quantity" in args:
-        out["quantity"] = item.get("quantity")
-    return out
+    from src.services.ai_verify_inventory import observe_update_item
+
+    return observe_update_item(args, data_dir)
 
 
 def _observe_complete_plan(args: dict, data_dir: Path) -> dict:
@@ -227,13 +220,48 @@ def _check_add_item(before: dict, args: dict, data_dir: Path) -> tuple[str, str]
 
 
 def _check_add_task(before: dict, args: dict, data_dir: Path) -> tuple[str, str]:
-    """记作业：**数量增加 + 标题对得上**（同名作业可能有多条）。"""
+    """记作业：**数量增加 + 标题对得上 + 显式字段回读**（审计 2026-11-21 P1）。
+
+    原来只核"列表里有没有这个标题" —— `--due` / `--course` / `--priority` 写错
+    照样报"验收通过"，用户看到的是"AI 说记好了"。这里按命令**真传了**的字段逐个比对，
+    并且与写入端**同一口径**归一化（`parse_date` / 课程名匹配，`ERRORS #060`）。
+    """
     title = args.get("title", "")
     tasks = _read_semester(data_dir, "tasks.json").get("tasks") or []
-    hit = any(t.get("title") == title for t in tasks)
-    if len(tasks) > int(before.get("count", -1)) and hit:
-        return VERIFIED, f"作业「{title}」在列表里"
-    return MISMATCH, f"作业列表里找不到新写入的「{title}」"
+    hit = next((t for t in tasks if t.get("title") == title), None)
+    if len(tasks) <= int(before.get("count", -1)) or hit is None:
+        return MISMATCH, f"作业列表里找不到新写入的「{title}」"
+    problems = _task_field_problems(args, hit)
+    if problems:
+        return MISMATCH, "；".join(problems)
+    return VERIFIED, f"作业「{title}」在列表里" + _detail(args, hit, ("due", "course", "priority"))
+
+
+def _task_field_problems(args: dict, task: dict) -> list[str]:
+    """按命令**显式传入**的字段比对落盘值（没传的字段不要求）。
+
+    ⚠ `--due` 必须与写入端**同一口径**归一化（`parse_date`，`ERRORS #060`）：
+    命令里是 `2026-11-24T09:30`，落盘可能是 `2026-11-24T09:30:00`，
+    拿原文比对会误报"截止时间是 None"。
+    """
+    from scripts.actions_core import parse_date
+
+    due = args.get("due")
+    want_due = parse_date(due) if due else None
+    got_due = parse_date(task.get("due_date")) if task.get("due_date") else None
+    checks = (
+        None if want_due is None else
+        (None if _same_moment(want_due, got_due) else f"截止时间是 {task.get('due_date')}"),
+        _field_problem("课程", args.get("course"), task.get("course_name")),
+        _field_problem("优先级", args.get("priority"), task.get("priority")),
+        _field_problem("备注", args.get("notes"), task.get("notes")),
+    )
+    return [problem for problem in checks if problem]
+
+
+def _same_moment(want: str, got: str | None) -> bool:
+    """日期/时间串比较：缺秒的 `…T09:30` 与 `…T09:30:00` 算同一个时刻。"""
+    return str(got or "").startswith(str(want))
 
 
 def _check_complete_task(before: dict, args: dict, data_dir: Path) -> tuple[str, str]:
@@ -264,20 +292,9 @@ def _check_delete_item(before: dict, args: dict, data_dir: Path) -> tuple[str, s
 
 
 def _check_update_item(before: dict, args: dict, data_dir: Path) -> tuple[str, str]:
-    """改物品：位置走专门的核对；只改数量时核对**数量**。"""
-    if args.get("location"):
-        return _check_location(before, args, data_dir)
-    if "quantity" in args:
-        item = _item(_read(data_dir, "inventory.json"), args.get("id", ""))
-        if not item:
-            return MISMATCH, f"物品 {args.get('id', '')} 不在了"
-        want = int(args["quantity"])
-        if int(item.get("quantity", -1)) == want:
-            return VERIFIED, f"数量现在是 {want}"
-        return MISMATCH, f"数量是 {item.get('quantity')}，期望 {want}"
-    return UNVERIFIED, "未验收（这条改动物品的命令没有核对项）"
+    from src.services.ai_verify_inventory import check_update_item
 
-
+    return check_update_item(before, args, data_dir)
 
 
 def _check_consume(before: dict, args: dict, data_dir: Path) -> tuple[str, str]:
@@ -366,12 +383,43 @@ def _observe_delete_course(args: dict, data_dir: Path) -> dict:
 # ── 考研备考（11408）─────────────────────────────────────────
 
 def _check_add_course(before: dict, args: dict, data_dir: Path) -> tuple[str, str]:
+    """新增课程：**数量增加 + 名称对得上 + 显式字段回读**（审计 2026-11-21 P1）。
+
+    原来只看名称 —— `--day` / `--slots` / `--location` 写错照样"验收通过"。
+    """
     name = args.get("name", "")
     courses = _courses(data_dir)
-    if len(courses) > int(before.get("count", -1)) and any(
-            c.get("name") == name for c in courses):
-        return VERIFIED, f"课程「{name}」已写入"
-    return MISMATCH, f"课程表里找不到新写入的「{name}」"
+    hit = next((c for c in courses if c.get("name") == name), None)
+    if len(courses) <= int(before.get("count", -1)) or hit is None:
+        return MISMATCH, f"课程表里找不到新写入的「{name}」"
+    problems = _course_field_problems(args, hit)
+    if problems:
+        return MISMATCH, "；".join(problems)
+    return VERIFIED, f"课程「{name}」已写入{_course_slot_text(args, hit)}"
+
+
+def _course_field_problems(args: dict, hit: dict) -> list[str]:
+    """按命令**显式传入**的字段比对落盘值（新增与修改共用同一套）。"""
+    weeks = hit.get("weeks") or {}
+    slot = (hit.get("time_slots") or [{}])[0]
+    checks = (
+        _field_problem("名称", args.get("name"), hit.get("name")),
+        _field_problem("星期", args.get("day"), hit.get("day_of_week")),
+        _field_problem("单双周", args.get("parity"), hit.get("week_parity")),
+        _field_problem("教师", args.get("teacher"), hit.get("teacher")),
+        _field_problem("地点", args.get("location"), slot.get("location")),
+        _field_problem("周次", args.get("weeks"), f"{weeks.get('start')}-{weeks.get('end')}"),
+        _field_problem("节次", args.get("slots"), f"{slot.get('start')}-{slot.get('end')}"),
+    )
+    return [problem for problem in checks if problem]
+
+
+def _course_slot_text(args: dict, hit: dict) -> str:
+    """回执里附上**回读到的**星期与节次（用户要看"排到哪了"）。"""
+    if not args.get("slots"):
+        return ""
+    slot = (hit.get("time_slots") or [{}])[0]
+    return f"（第 {hit.get('day_of_week')} 天 {slot.get('start')}-{slot.get('end')} 节）"
 
 
 def _field_problem(label: str, want, actual) -> str | None:
@@ -415,126 +463,34 @@ def _check_delete_course(before: dict, args: dict, data_dir: Path) -> tuple[str,
     return NOOP, f"本来就没有课程 {cid}"
 
 
-# ── 考试 / 习惯 / 日程计划 ──────────────────────────────────
-
-def _observe_add_exam(args: dict, data_dir: Path) -> dict:
-    return {"count": len(_read_semester(data_dir, "exams.json").get("exams") or [])}
-
-
-def _check_add_exam(before: dict, args: dict, data_dir: Path) -> tuple[str, str]:
-    course = args.get("course", "")
-    exams = _read_semester(data_dir, "exams.json").get("exams") or []
-    hit = any(e.get("course_name") == course and e.get("exam_date") == args.get("date")
-              for e in exams)
-    if len(exams) > int(before.get("count", -1)) and hit:
-        return VERIFIED, f"考试「{course}」已写入"
-    return MISMATCH, f"考试列表里找不到「{course}」"
-
-
-def _observe_add_habit(args: dict, data_dir: Path) -> dict:
-    return {"count": len(_read(data_dir, "habits.json").get("habits") or [])}
-
-
-def _check_add_habit(before: dict, args: dict, data_dir: Path) -> tuple[str, str]:
-    name = args.get("name", "")
-    habits = _read(data_dir, "habits.json").get("habits") or []
-    if len(habits) > int(before.get("count", -1)) and any(
-            h.get("name") == name for h in habits):
-        return VERIFIED, f"习惯「{name}」已写入"
-    return MISMATCH, f"习惯列表里找不到「{name}」"
+# ── 考试 / 习惯 / 课程 / 日程计划 ────────────────────────────
+# 这一族的验收器搬去 `ai_verify_plans.py`（本文件已超过 800 行上限，Q-A1）。
+# 这里只做**再导出**：`_OBSERVERS` / `_CHECKS` 与既有调用点都不用改。
+from src.services.ai_verify_plans import (  # noqa: E402, F401
+    PLAN_FIELDS,
+    check_add_exam,
+    check_add_habit,
+    check_add_plan,
+    check_delete_plan,
+    check_log_habit,
+    check_replace_plans,
+    observe_add_exam,
+    observe_add_habit,
+    observe_add_plan,
+    observe_delete_plan,
+    observe_log_habit,
+    observe_replace_plans,
+)
 
 
-def _observe_log_habit(args: dict, data_dir: Path) -> dict:
-    hid = args.get("id", "")
-    entry = ((_read(data_dir, "habits.json").get("logs") or {})
-             .get(date.today().isoformat(), {}).get(hid) or {})
-    return {"completed": bool(entry.get("completed"))}
-
-
-def _check_log_habit(before: dict, args: dict, data_dir: Path) -> tuple[str, str]:
-    hid = args.get("id", "")
-    entry = ((_read(data_dir, "habits.json").get("logs") or {})
-             .get(date.today().isoformat(), {}).get(hid) or {})
-    if entry.get("completed"):
-        if before.get("completed"):
-            return NOOP, "今天本来就已经打过卡"
-        return VERIFIED, "习惯已打卡"
-    return MISMATCH, "习惯打卡没有生效"
-
-
-def _observe_add_plan(args: dict, data_dir: Path) -> dict:
-    day = args.get("date", "")
-    plans = (_read(data_dir, "daily_logs.json").get("plans") or {}).get(day) or []
-    return {"count": len(plans)}
-
-
-def _check_add_plan(before: dict, args: dict, data_dir: Path) -> tuple[str, str]:
-    day = args.get("date", "")
-    title = args.get("title", "")
-    plans = (_read(data_dir, "daily_logs.json").get("plans") or {}).get(day) or []
-    if len(plans) > int(before.get("count", -1)) and any(
-            p.get("title") == title for p in plans):
-        return VERIFIED, f"{day} 的计划「{title}」已写入"
-    return MISMATCH, f"{day} 的计划列表里找不到「{title}」"
-
-
-# `replace_plans` 的 `--plans` 里**会写进用户数据**的字段（用户传了哪个就核哪个）。
-PLAN_FIELDS = ("title", "time_slot", "type", "note", "course_name", "course")
-
-
-def _observe_replace_plans(args: dict, data_dir: Path) -> dict:
-    day = args.get("date", "")
-    plans = (_read(data_dir, "daily_logs.json").get("plans") or {}).get(day) or []
-    return {"titles": [p.get("title") for p in plans]}
-
-
-def _plan_difference(wanted: dict, got: dict) -> str:
-    """逐字段比对 `--plans` 里**显式传了**的字段；没传的字段不要求。"""
-    for field in PLAN_FIELDS:
-        if field in wanted and wanted[field] != got.get(field):
-            return f"{field}: 期望 {wanted[field]!r}，实际 {got.get(field)!r}"
-    return ""
-
-
-def _check_replace_plans(before: dict, args: dict, data_dir: Path) -> tuple[str, str]:
-    try:
-        wanted = json.loads(args.get("plans", "[]"))
-    except (TypeError, ValueError):
-        return UNVERIFIED, "未验收（--plans 不是合法 JSON，无法核对）"
-    if not isinstance(wanted, list) or not all(isinstance(p, dict) for p in wanted):
-        return UNVERIFIED, "未验收（--plans 必须是对象数组）"
-    day = args.get("date", "")
-    plans = (_read(data_dir, "daily_logs.json").get("plans") or {}).get(day) or []
-    if len(plans) != len(wanted):
-        return MISMATCH, f"{day} 的计划是 {len(plans)} 条，期望 {len(wanted)} 条"
-    for index, (want, got) in enumerate(zip(wanted, plans, strict=False), start=1):
-        difference = _plan_difference(want, got)
-        if difference:
-            return MISMATCH, f"{day} 第 {index} 条计划不一致（{difference}）"
-    return VERIFIED, f"{day} 的计划已整体替换为 {len(plans)} 条（逐字段核对）"
-
-
-def _observe_delete_plan(args: dict, data_dir: Path) -> dict:
-    day = args.get("date", "")
-    plans = (_read(data_dir, "daily_logs.json").get("plans") or {}).get(day) or []
-    return {"titles": [p.get("title") for p in plans]}
-
-
-def _check_delete_plan(before: dict, args: dict, data_dir: Path) -> tuple[str, str]:
-    try:
-        idx = int(args.get("index", "-1"))
-    except ValueError:
-        return UNVERIFIED, "未验收（index 不是整数）"
-    before_titles = list(before.get("titles") or [])
-    if not 0 <= idx < len(before_titles):
-        return NOOP, "本来就没有这条计划"
-    expected = before_titles[:idx] + before_titles[idx + 1:]
-    day = args.get("date", "")
-    plans = (_read(data_dir, "daily_logs.json").get("plans") or {}).get(day) or []
-    got = [p.get("title") for p in plans]
-    if got == expected:
-        return VERIFIED, f"计划「{before_titles[idx]}」已删除"
-    return MISMATCH, "计划列表与预期不一致（可能删错了那条）"
+def _detail(args: dict, record: dict, fields: tuple[str, ...]) -> str:
+    """把关**回读到的**值附在回执后面（用户要看的是"写成了什么"，不是"写没写"）。"""
+    pairs = {"due": ("截止", record.get("due_date")),
+             "course": ("课程", record.get("course_name")),
+             "priority": ("优先级", record.get("priority"))}
+    shown = [f"{pairs[key][0]} {pairs[key][1]}" for key in fields
+             if key in args and pairs[key][1] not in (None, "")]
+    return f"（{' · '.join(shown)}）" if shown else ""
 
 
 # ── 记账 / 存钱 / 财务 / 位置 ────────────────────────────────
@@ -684,12 +640,12 @@ _OBSERVERS = {
     "add_course": _observe_add_course,
     "update_course": _observe_update_course,
     "delete_course": _observe_delete_course,
-    "add_exam": _observe_add_exam,
-    "add_habit": _observe_add_habit,
-    "log_habit": _observe_log_habit,
-    "add_plan": _observe_add_plan,
-    "replace_plans": _observe_replace_plans,
-    "delete_plan": _observe_delete_plan,
+    "add_exam": observe_add_exam,
+    "add_habit": observe_add_habit,
+    "log_habit": observe_log_habit,
+    "add_plan": observe_add_plan,
+    "replace_plans": observe_replace_plans,
+    "delete_plan": observe_delete_plan,
     # 记账 / 财务 / 位置
     "add_expense": _observe_add_expense,
     "add_saving": _observe_add_saving,
@@ -712,12 +668,12 @@ _CHECKS = {
     "add_course": _check_add_course,
     "update_course": _check_update_course,
     "delete_course": _check_delete_course,
-    "add_exam": _check_add_exam,
-    "add_habit": _check_add_habit,
-    "log_habit": _check_log_habit,
-    "add_plan": _check_add_plan,
-    "replace_plans": _check_replace_plans,
-    "delete_plan": _check_delete_plan,
+    "add_exam": check_add_exam,
+    "add_habit": check_add_habit,
+    "log_habit": check_log_habit,
+    "add_plan": check_add_plan,
+    "replace_plans": check_replace_plans,
+    "delete_plan": check_delete_plan,
     # 记账 / 财务 / 位置
     "add_expense": _check_add_expense,
     "add_saving": _check_add_saving,

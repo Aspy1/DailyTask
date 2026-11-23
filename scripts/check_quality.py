@@ -58,6 +58,24 @@ SIZE_EXCLUDE = {"scripts/acceptance_check.py"}
 # （托盘菜单「同步到 GitHub」、托盘气泡「同步完成」…）—— 2026-10-16 全量验收发现漏检。
 UI_EXTRA_FILES = (ROOT / "src" / "app.py",)
 CHECK_ROOTS = ("src", "scripts", "plugins")
+
+# ── 三态（审计 2026-11-21 P1）：门禁必须能**证明**结论 ─────────
+#
+# 旧实现把"工具没装 / 输出解析不出来 / git 调用失败"都当成通过或统一记成
+# "跳过"，严格模式于是得到**零项失败**的结论 —— 那只是"没检查"。
+# 现在每项检查都落到三态之一，严格模式下 VIOLATION 与 UNAVAILABLE 都退出非零。
+STATE_OK = "ok"
+VIOLATION = "violation"
+UNAVAILABLE = "unavailable"
+
+
+class ToolUnavailable(RuntimeError):
+    """检查无法执行（工具缺失 / 输出无法解析 / git 不可用）。
+
+    **不是**"没有违规"：调用方必须把它记成 `UNAVAILABLE`，严格模式下同样红。
+    """
+
+
 TOOLS = (("VULTURE", ["vulture", "src", "scripts", "plugins", "--min-confidence", "80"]),
          ("RADON", ["radon", "cc", "-n", "C", "-s",
                     # 验收脚本是**线性清单**（80 个断言按顺序走一遍），复杂度天然很高，
@@ -91,20 +109,44 @@ TOP_FILES = {"main.py", "AGENTS.md", "README.md", "PLAN.md", "ERRORS.md",
 
 
 class Report:
-    """收集报告行与违规项。"""
+    """收集报告行与结论（**三态**：每项检查要么 PASS、要么 VIOLATION、要么 UNAVAILABLE）。"""
 
     def __init__(self) -> None:
         self.lines: list[str] = []
         self.failures: list[str] = []
+        self.unavailable_items: list[str] = []
+        self._states: dict[str, str] = {}
 
     def add(self, text: str) -> None:
         self.lines.append(text)
 
+    def pass_(self, tag: str) -> None:
+        self._states[tag] = STATE_OK
+
     def fail(self, tag: str, detail: str) -> None:
+        self._states[tag] = VIOLATION
         self.failures.append(f"{tag} {detail}")
+
+    def unavailable(self, tag: str, detail: str) -> None:
+        """这项检查**跑不了** —— 结论未知，严格模式下同样算失败。"""
+        self._states[tag] = UNAVAILABLE
+        self.unavailable_items.append(f"{tag} {detail}")
+        self.add(f"{tag:<10} 无法执行（{detail}）")
+
+    def outcome(self, tag: str) -> str:
+        return self._states.get(tag, STATE_OK)
+
+    @property
+    def has_violations(self) -> bool:
+        return bool(self.failures)
+
+    def render(self) -> str:
+        return "\n".join(self.lines)
 
     def must_zero(self, tag: str, title: str, items: list[str]) -> None:
         self.add(f"{tag:<10} {title} {len(items)} 处（必须 0）")
+        if not items:
+            self.pass_(tag)
         for item in items:
             self.add(f"            {item}")
             self.fail(tag, item)
@@ -339,17 +381,32 @@ def count_ui_chinese_literals_by_file() -> dict[str, int]:
     return out
 
 
-def _git_lines(*args: str) -> list[str]:
-    """跑 git 并取行。`core.quotepath=false` + 按 UTF-8 解码，避免中文路径被加引号/乱码。"""
+def _git_lines(*args: str) -> list[str] | None:
+    """跑 git 并取行；**git 不可用 / 退出码非零 → None**（调用方记 UNAVAILABLE）。
+
+    旧实现忽略退出码：不在工作区时输出为空 → "没有跟踪项" → 顶层目录与密钥检查
+    都"通过"。`core.quotepath=false` + UTF-8 解码，避免中文路径被加引号/乱码。
+    """
     # 参数全部是本模块写死的常量，无外部输入（S603/S607 不适用）
-    proc = subprocess.run(["git", "-c", "core.quotepath=false", *args],  # noqa: S603, S607
-                          cwd=ROOT, capture_output=True)
+    try:
+        proc = subprocess.run(["git", "-c", "core.quotepath=false", *args],  # noqa: S603, S607
+                              cwd=ROOT, capture_output=True)
+    except OSError:
+        logger.debug("git 不可用", exc_info=True)
+        return None
+    if proc.returncode != 0:
+        detail = proc.stderr.decode("utf-8", errors="replace").strip()
+        logger.debug("git %s 退出码 %s：%s", args, proc.returncode, detail)
+        return None
     return proc.stdout.decode("utf-8", errors="replace").splitlines()
 
 
 def _tracked_entries() -> tuple[set[str], set[str]]:
+    lines = _git_lines("ls-files")
+    if lines is None:
+        raise ToolUnavailable("git 不可用（不在工作区或未安装）")
     dirs, files = set(), set()
-    for line in _git_lines("ls-files"):
+    for line in lines:
         head, sep, _ = line.partition("/")
         (dirs if sep else files).add(head)
     return dirs, files
@@ -364,19 +421,34 @@ def check_top_level() -> list[str]:
 
 
 def check_secret_not_tracked() -> list[str]:
-    tracked = _git_lines("ls-files", "data/settings.ini")
-    return [f"data/settings.ini 被 git 跟踪: {tracked[0]}"] if tracked else []
+    lines = _git_lines("ls-files", "data/settings.ini")
+    if lines is None:
+        raise ToolUnavailable("git 不可用（不在工作区或未安装）")
+    return [f"data/settings.ini 被 git 跟踪: {lines[0]}"] if lines else []
+
+
+def report_git_checks(rep: Report) -> None:
+    """顶层目录 / 密钥入库两项：git 不可用时**如实报无法执行**（不是通过）。"""
+    for tag, title, check in (("TOP-DIR", "通过", check_top_level),
+                              ("SECRET", "通过（settings.ini 未入库）", check_secret_not_tracked)):
+        try:
+            report_items(rep, tag, title, check())
+        except ToolUnavailable as exc:
+            rep.unavailable(tag, str(exc))
 
 
 def run_tool(args: list[str]) -> tuple[str, str]:
-    """返回 (状态, 输出)；状态 ∈ {ok, bad, skip}。"""
+    """返回 (状态, 输出)；状态 ∈ {ok, bad, skip}。
+
+    `skip` 只代表**没装**，调用方必须记成 `UNAVAILABLE` —— 不是通过。
+    """
     try:
         # 解释器与工具名都是本模块写死的常量，无外部输入（S603/S607 不适用）
         proc = subprocess.run([sys.executable, "-m", *args],  # noqa: S603
                               cwd=ROOT, capture_output=True, text=True,
                               encoding="utf-8", errors="replace", env=_SUBPROC_ENV)
-    except FileNotFoundError:
-        return "skip", "未安装"
+    except OSError:
+        return "skip", "无法启动"
     err = (proc.stdout + proc.stderr).strip()
     if "No module named" in err:
         return "skip", "未安装"
@@ -398,43 +470,63 @@ def _console_script(name: str) -> Path | None:
 
 
 def run_console_tool(name: str, args: list[str]) -> tuple[str, str]:
-    """控制台脚本类工具（lint-imports）：成功 = 退出码 0。"""
+    """控制台脚本类工具（lint-imports）：成功 = 退出码 0。
+
+    ⚠ 退出码非零但**没有输出**也必须算违规：旧实现把空的 `out` 记成
+    `posixpath` 对象带到报告里，几乎等于放行（审计 2026-11-21）。
+    """
     exe = _console_script(name)
     if exe is None:
         return "skip", "未安装"
     # 可执行文件与参数都是本模块写死的常量，无外部输入（S603/S607 不适用）
-    proc = subprocess.run([str(exe), *args], cwd=ROOT, capture_output=True,  # noqa: S603
-                          text=True, encoding="utf-8", errors="replace", env=_SUBPROC_ENV)
+    try:
+        proc = subprocess.run([str(exe), *args], cwd=ROOT, capture_output=True,  # noqa: S603
+                              text=True, encoding="utf-8", errors="replace", env=_SUBPROC_ENV)
+    except OSError as exc:
+        return "skip", f"无法启动（{exc}）"
     out = (proc.stdout + proc.stderr).strip()
+    if proc.returncode != 0 and not out:
+        return "bad", f"退出码 {proc.returncode}，且没有输出"
     return ("ok", "") if proc.returncode == 0 else ("bad", out)
 
 
-def run_secrets_scan() -> dict | None:
+def probe_console_tool(rep: Report, tag: str, exe: str, args: list[str]) -> None:
+    """跑一个控制台工具并把三态落到报告里（缺工具 → UNAVAILABLE）。"""
+    _report_tool_result(rep, tag, *run_console_tool(exe, args))
+
+
+def run_secrets_scan() -> dict:
     """跑 detect-secrets 扫描（**只读**：输出到 stdout，不碰基线文件）。
 
     注意 `detect-secrets scan --baseline X` 的语义是"**更新**基线"（退出码恒 0），
     不能当校验用；所以这里自己拿扫描结果与基线比对。
+
+    输出解析不出来 → 抛 `ToolUnavailable`（**不能**退成"没有新密钥"，那是放行）。
     """
     exe = _console_script("detect-secrets")
     if exe is None:
-        return None
+        raise ToolUnavailable("未安装")
     args = [str(exe), "scan"]
     for pattern in SECRETS_EXCLUDES:
         args += ["--exclude-files", pattern]
     # 可执行文件与参数都是本模块写死的常量，无外部输入（S603/S607 不适用）
-    proc = subprocess.run(args, cwd=ROOT, capture_output=True, env=_SUBPROC_ENV)  # noqa: S603
+    try:
+        proc = subprocess.run(args, cwd=ROOT, capture_output=True, env=_SUBPROC_ENV)  # noqa: S603
+    except OSError as exc:
+        raise ToolUnavailable(f"无法启动（{exc}）") from exc
+    if proc.returncode != 0:
+        detail = proc.stderr.decode("utf-8", errors="replace").strip()
+        raise ToolUnavailable(f"退出码 {proc.returncode}：{detail or '没有输出'}")
     try:
         return json.loads(proc.stdout.decode("utf-8", errors="replace"))
-    except json.JSONDecodeError:
+    except json.JSONDecodeError as exc:
         logger.debug("detect-secrets 输出无法解析", exc_info=True)
-        return {}
+        raise ToolUnavailable("输出无法解析") from exc
 
 
-def check_new_secrets() -> list[str] | None:
-    """只报"基线里没有的新发现"；工具未安装时返回 None（调用方标注跳过）。"""
+def check_new_secrets() -> list[str]:
+    """基线之外的新发现；**工具跑不了就抛 `ToolUnavailable`**（不许退成"没有发现"）。"""
     found = run_secrets_scan()
-    if found is None:
-        return None
     known: set[tuple[str, str]] = set()
     if SECRETS_BASELINE.exists():
         base = json.loads(SECRETS_BASELINE.read_text(encoding="utf-8")).get("results", {})
@@ -444,12 +536,33 @@ def check_new_secrets() -> list[str] | None:
             for h in hits if (f, h.get("hashed_secret", "")) not in known]
 
 
+def report_secrets(rep: Report) -> None:
+    """密钥扫描：未安装 → `UNAVAILABLE`；**跑过但结果不可信 → `VIOLATION`**。
+
+    审计原文把"无效 JSON 退成空结果"列为违规（不是"没检查"）：工具确实跑了，
+    但我们无法证明"没有新密钥" —— 当成通过就是放行。
+    """
+    exe = _console_script("detect-secrets")
+    if exe is None:
+        rep.unavailable("SECRETS", "未安装")
+        return
+    try:
+        new = check_new_secrets()
+    except ToolUnavailable as exc:
+        rep.add(f"SECRETS    违规：扫描结果不可信（{exc}）")
+        rep.fail("SECRETS", str(exc))
+        return
+    rep.must_zero("SECRETS", "新出现的疑似密钥", new)
+
+
 def report_baseline_sizes(rep: Report, sizes: dict[str, int], base: dict[str, int]) -> None:
     new = {k: v for k, v in sizes.items() if v > base.get(k, 0)}
     rep.add(f"SIZE       超限 {len(sizes)} 项（baseline {len(base)}）；新增/加重 {len(new)} 项")
     for key, val in sorted(new.items()):
         rep.add(f"            新增/加重: {key} = {val} 行")
         rep.fail("SIZE", f"{key}={val}")
+    if not new:
+        rep.pass_("SIZE")
 
 
 def report_baseline_tokens(rep: Report, current: list[str], base: list[str]) -> None:
@@ -499,15 +612,16 @@ def report_tools(rep: Report) -> None:
         status, output = run_tool(args)
         _report_tool_result(rep, name, status, output)
     for name, exe, args in CONSOLE_TOOLS:
-        status, output = run_console_tool(exe, args)
-        _report_tool_result(rep, name, status, output)
+        probe_console_tool(rep, name, exe, args)
 
 
 def _report_tool_result(rep: Report, name: str, status: str, output: str) -> None:
+    """工具的三种结局 → 报告的三态。**skip 不是通过**，是"没法证明"。"""
     if status == "skip":
-        rep.add(f"{name:<10} 跳过（{output}）")
+        rep.unavailable(name, output or "不可用")
     elif status == "ok":
         rep.add(f"{name:<10} 通过")
+        rep.pass_(name)
     else:
         rep.add(f"{name:<10} 违规：")
         rep.lines += [f"            {ln}" for ln in output.splitlines()[:20]]
@@ -529,7 +643,11 @@ def write_baseline() -> None:
         json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
         encoding="utf-8", newline="")
 
-    scan = run_secrets_scan()
+    try:
+        scan = run_secrets_scan()
+    except ToolUnavailable as exc:
+        scan = None
+        baseline_note = f"detect-secrets 无法执行（{exc}），密钥基线未刷新"
     if scan is not None:
         # 丢掉 `generated_at`：否则每次刷新都会产生一行"假改动"，把 diff 弄脏
         scan.pop("generated_at", None)
@@ -538,18 +656,20 @@ def write_baseline() -> None:
             encoding="utf-8", newline="")
         known = sum(len(v) for v in scan.get("results", {}).values())
         baseline_note = f"密钥基线已刷新（{known} 处已知/误报）"
-    else:
-        baseline_note = "detect-secrets 未安装，密钥基线未刷新"
 
     print(f"已写入 {rel(BASELINE_FILE)}：尺寸 {len(sizes)} 项 / "
-          f"令牌命名 {len(tokens_bad)} 项 / i18n 中文字面量 {ui_cn} 处 / "
+          f"令牌命名 {len(tokens_bad)} 项 / i18n 中文字面量 {sum(ui_cn.values())} 处 / "
           f"块内唯一日志 {payload['log_sole_statement']} 处；{baseline_note}")
 
 
 def report_items(rep: Report, tag: str, ok_text: str, items: list[str]) -> None:
     rep.add(f"{tag:<10} {ok_text if not items else '违规'}")
+    if not items:
+        rep.pass_(tag)
+        return
     rep.lines += [f"            {item}" for item in items]
     rep.failures += [f"{tag} {item}" for item in items]
+    rep.fail(tag, items[0])
 
 
 def _configure_stdout() -> None:
@@ -572,6 +692,7 @@ def evaluate(with_tools: bool = True) -> Report:
         rep.must_zero("BASELINE", "存量基线文件存在（`scripts/quality_baseline.json`）", ["缺失"])
     else:
         rep.add("BASELINE  存量基线文件存在")
+        rep.pass_("BASELINE")
     report_baseline_sizes(rep, check_sizes(), baseline.get("sizes", {}))
     rep.must_zero("SILENT", "`except: pass`", check_silent_swallow())
     rep.must_zero("ID-GEN", "`len()+1` 生成 ID", check_id_generation())
@@ -580,36 +701,35 @@ def evaluate(with_tools: bool = True) -> Report:
                           len(check_log_sole_statement()), baseline.get("log_sole_statement"))
     report_baseline_tokens(rep, check_token_names(), baseline.get("token_names", []))
     report_i18n(rep, count_ui_chinese_literals_by_file(), baseline.get("ui_chinese_literals"))
-    report_items(rep, "TOP-DIR", "通过", check_top_level())
-    report_items(rep, "SECRET", "通过（settings.ini 未入库）", check_secret_not_tracked())
+    report_git_checks(rep)
     if not with_tools:
         rep.add("（外部工具已跳过：由 CI 的 check_quality 步骤负责）")
         return rep
-    new_secrets = check_new_secrets()
-    if new_secrets is None:
-        rep.add("SECRETS    跳过（detect-secrets 未安装）")
-    else:
-        rep.must_zero("SECRETS", "新出现的疑似密钥", new_secrets)
+    report_secrets(rep)
     report_tools(rep)
     return rep
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     _configure_stdout()
 
     ap = argparse.ArgumentParser()
     ap.add_argument("--strict", action="store_true", help="有违规时退出 1（CI）")
     ap.add_argument("--write-baseline", action="store_true", help="按当前状态重写存量台账")
-    args = ap.parse_args()
+    args = ap.parse_args(argv)
     if args.write_baseline:
         write_baseline()
         return 0
 
     rep = evaluate()
     print("— 工程规范门禁 —")
-    print("\n".join(rep.lines))
-    if rep.failures:
+    print(rep.render())
+    if rep.has_violations:
         print(f"\n✗ {len(rep.failures)} 项违规")
+        return 1 if args.strict else 0
+    if rep.unavailable_items:
+        # 严格模式：**没检查**不等于通过（审计 2026-11-21 P1 的核心要求）
+        print(f"\n? {len(rep.unavailable_items)} 项检查无法执行")
         return 1 if args.strict else 0
     print("\n✓ 全部通过")
     return 0

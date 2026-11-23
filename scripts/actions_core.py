@@ -13,6 +13,7 @@ import logging
 import os
 import re
 import threading
+import uuid
 from collections.abc import Iterator
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -185,7 +186,7 @@ def _schema_version(name: str) -> int:
     return versions.get(Path(name).name, 1)
 
 
-def save(name, obj) -> None:
+def save(name, obj, *, operation: str = "") -> None:
     """原子写入：结构守卫 → 备份旧文件 → 写 .tmp → 回读自检 → 原子替换。
 
     此前这里是裸 `json.dump`：写一半断电/并发就是坏文件（ERRORS #041 同类）。
@@ -193,10 +194,15 @@ def save(name, obj) -> None:
     **整段持 `file_lock`**（与 `BaseJsonModel.save()` 同一套：进程内锁 + OS 级文件锁，
     审查 2026-10-17 #1 / 第三轮 #2），并比对"`load()` 时读到的**路径 + 内容**"：
     路径变了（切学期）或内容变了 → 拒绝，不用旧快照静默覆盖。
+
+    **提交回执（审计 2026-11-21 P0）**：写后指纹在**锁内**读出并记进线程局部回执。
+    原先撤销是在命令执行完之后**再读盘**取指纹 —— 中间若有另一个写者，
+    读到的是**别人**的版本，撤销于是把后来的合法写入抹掉。调用方的延迟读盘只用于展示。
     """
     p = _path(name)                 # 现在的解析结果
     _validate_payload(name, obj)
     obj.setdefault("_version", _schema_version(name))
+    operation_id = uuid.uuid4().hex[:12]
     with file_lock(p):
         seen = _LOADED.get(_load_key(name))
         if seen is not None:
@@ -218,6 +224,8 @@ def save(name, obj) -> None:
                 raise ActionError(
                     f"{p.name} 在本次操作期间被其它程序改动，已放弃写入以免覆盖。"
                     f"请重新查询后再改（`list_backups` / `restore` 可回滚）。")
+        before_doc = _read_document(p)
+        before_sha = file_hash(p)
         p.parent.mkdir(parents=True, exist_ok=True)
         _backup_file(p)
         tmp = p.with_name(p.name + ".tmp")
@@ -227,11 +235,51 @@ def save(name, obj) -> None:
             os.replace(tmp, p)                               # 原子替换
         finally:
             tmp.unlink(missing_ok=True)
+        # 回执必须在**锁内**产生：锁外读盘可能就是别人的版本了
+        _record_receipt(name, p, obj, before_doc, before_sha, operation_id, operation)
         _LOADED[_load_key(name)] = (str(p), fingerprint(obj))
 
+
+def _record_receipt(name, p: Path, obj: dict, before_doc: dict, before_sha: str,
+                    operation_id: str, operation: str) -> None:
+    """落一份**提交回执**（实现见 `actions_receipt.py`，Q-A1 文件上限）。"""
+    from scripts import actions_receipt
+
+    actions_receipt.record(DATA, name, p, obj, before_doc, before_sha, operation_id, operation)
+
+
+def file_hash(path: Path) -> str:
+    """磁盘原文的 sha256（与撤销/备份同一实现，不各写一份）。"""
+    from scripts.actions_receipt import file_hash as _hash
+
+    return _hash(path)
+
+
+def last_commit(name: str) -> dict | None:
+    """本线程最近一次 `save(name, …)` 的**提交回执**（没有则 None）。"""
+    from scripts import actions_receipt
+
+    return actions_receipt.last(DATA, name)
+
+
 def forget_loaded(name: str) -> None:
-    """丢掉 `name` 的载入基准 —— 内容被**整份替换**过（如 `restore`）之后要调它。"""
+    """丢掉 `name` 的载入基准 —— 内容被**整份替换**过（如 `restore`）之后要调它。
+
+    回执一起清掉：内容已经不是"我这一笔写的"了，留着会误导撤销。
+    """
+    from scripts import actions_receipt
+
     _LOADED.pop(_load_key(name), None)
+    actions_receipt.clear(DATA, name)
+
+
+def _read_document(path: Path) -> dict:
+    """读一份文档用于对比；读不出来按空（回执里的 `changed_fields` 只是提示）。"""
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return value if isinstance(value, dict) else {}
 
 
 def gen_id(items, prefix) -> str:
@@ -298,12 +346,15 @@ def _find_course_matches(courses: list, name_lower: str) -> list[str]:
     return []
 
 
-def match_course(name: str) -> str | None:
-    """Fuzzy match course name. Handles abbreviations like 算法课→算法设计与分析."""
+def match_course_from(courses: list, name: str) -> str | None:
+    """在**给定课程表**里匹配课程名（纯函数：写入与验收共用同一套规则）。
+
+    验收端（`src/services/ai_verify.py`）自己读的是只读快照，所以不能调会写盘的
+    `match_course`；但归一化规则**只能有一份** —— 两边都调本函数，避免"写进去的
+    是简称归一化后的全名、验收却拿原始简称去比"这类假阴性。
+    """
     if not name:
         return None
-    data = load("courses.json")
-    courses = data.get("courses", [])
     name_lower = name.strip().lower()
 
     exact = _match_exact_course(courses, name_lower)
@@ -318,6 +369,12 @@ def match_course(name: str) -> str | None:
         return name.strip()
     # Multiple matches — try exact word match first
     return matches[0]
+
+
+def match_course(name: str) -> str | None:
+    """Fuzzy match course name. Handles abbreviations like 算法课→算法设计与分析."""
+    return match_course_from(load("courses.json").get("courses", []), name)
+
 
 def _parse_relative_date(s: str, today: date, day_names: dict) -> str | None:
     """中文相对日期（下周X / 本周X / 明天 / N天后）→ ISO；不匹配返回 None。"""

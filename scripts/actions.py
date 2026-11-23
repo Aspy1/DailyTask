@@ -13,7 +13,6 @@
 import argparse
 import json
 import logging
-import os
 import re
 import sys
 from contextlib import suppress
@@ -504,64 +503,10 @@ def cmd_expense_summary(args) -> None:
 
 # ═══════════════════════════════════════════════════════════
 # 备份 / 恢复（写入前已自动留存，这里是**手动回滚入口**）
+# 实现搬去 `actions_backups_cli.py`（本文件已逼近 800 行上限，Q-A1）：
+# 归属校验 / 显式目标解析 / 目标锁内提交都在那边。
 # ═══════════════════════════════════════════════════════════
-
-def cmd_list_backups(args) -> None:
-    name = _text(getattr(args, "name", None), "name")
-    files = sorted(_backup_dir().glob(f"{name}.*.json" if name else "*.json"))
-    if not files:
-        emit("NO_BACKUP" + (f" for {name}" if name else ""))
-        return
-    for f in files[-20:]:
-        emit(f"  {f.name}  ({f.stat().st_size} 字节)")
-    emit(f"共 {len(files)} 份（每个文件保留上限 {_max_backups()} 份）")
-
-
-def cmd_restore(args) -> None:
-    """用备份覆盖当前文件。
-
-    ⚠ **这是给用户的手动恢复入口**：必须显式 `--yes`；AI 不得自行调用
-    （提示词里已写明）。恢复前会把"当前版本"再备份一次，避免恢复错方向。
-    """
-    name = _text(args.name, "name", required=True)
-    if not getattr(args, "yes", False):
-        emit("ERROR restore 需要显式 --yes（手动恢复入口，避免误覆盖）")
-        return
-
-    candidates = sorted(_backup_dir().glob(f"{name}.*.json"))
-    stamp = _text(getattr(args, "stamp", None), "stamp")
-    if stamp:
-        candidates = [c for c in candidates if stamp in c.name]
-    if not candidates:
-        emit(f"ERROR 没有 {name} 的备份（先用 list_backups 查看）")
-        return
-
-    src = candidates[-1]
-    try:
-        data = json.loads(src.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as e:
-        emit(f"ERROR 备份本身损坏：{src.name}（{e}）")
-        return
-    _validate_payload(name, data)
-
-    from scripts.actions_core import forget_loaded
-    from src.models.base import file_lock
-
-    dest = _path(name)
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    # 恢复也是写入口 → 同一把文件锁（审查 2026-10-17 第三轮 #2）
-    with file_lock(dest):
-        _backup_file(dest)
-        tmp = dest.with_name(dest.name + ".tmp")
-        try:
-            tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2),
-                           encoding="utf-8")
-            os.replace(tmp, dest)
-        finally:
-            tmp.unlink(missing_ok=True)
-    forget_loaded(name)                 # 内容整份换了 → 丢掉旧基准
-    emit(f"OK restore {name} ← {src.name}")
-
+from scripts.actions_backups_cli import cmd_list_backups, cmd_restore  # noqa: E402
 
 # ═══════════════════════════════════════════════════════════
 # In-process executor (avoids subprocess overhead for AI calls)
@@ -671,13 +616,19 @@ def run_argv_in_process(argv: list[str]) -> str:
     参数校验在 handler **之前**：非法输入只回 `ERROR ...`，**一个字节都不写**。
     """
     from scripts.actions_core import capture_output
+    from scripts.actions_receipt import RECEIPT_FLAG, pack, reset
 
+    with_receipt = argv[:1] == [RECEIPT_FLAG]
+    if with_receipt:
+        argv = argv[1:]
+        reset()
     if not argv:
         return "ERROR: empty command"
 
     with capture_output() as buf:
         _run_argv(argv)
-    return buf.getvalue().strip()
+    output = buf.getvalue().strip()
+    return pack(output) if with_receipt else output
 
 
 def _run_argv(argv: list[str]) -> None:
@@ -766,8 +717,12 @@ def _force_utf8_stdio() -> None:
 
 def main() -> None:
     _force_utf8_stdio()
+    from scripts.actions_receipt import RECEIPT_FLAG
+
+    argv = sys.argv[1:]
+    with_receipt = argv[:1] == [RECEIPT_FLAG]
     parser = build_parser()
-    args = parser.parse_args()
+    args = parser.parse_args(argv[1:] if with_receipt else argv)
     if not args.action:
         parser.print_help()
         return
@@ -776,12 +731,15 @@ def main() -> None:
     # 连不上 → 自己写文件；连上但没回应（可能是旧版本应用）→ 拒绝，不静默直写。
     from src.services.single_instance import CHANNEL_DELEGATE, CHANNEL_REFUSE, delegate
 
-    channel, out = delegate(sys.argv[1:])
+    channel, out = delegate(argv)
     if channel == CHANNEL_REFUSE:
         print(f"ERROR {out}")
         return
     if channel == CHANNEL_DELEGATE:
         print(out)
+        return
+    if with_receipt:
+        print(run_argv_in_process(argv))
         return
 
     try:

@@ -15,11 +15,12 @@ import logging
 import os
 from datetime import date, datetime
 from pathlib import Path
+from typing import ClassVar
 
 from PySide6.QtCore import QObject, QTimer, Signal
 
 from src.models import semester_paths
-from src.models.base import DataCorrupted
+from src.models.base import DataCorrupted, Unreadable
 from src.models.course import CourseModel
 from src.models.daily_log import DailyLogModel
 from src.models.exam import ExamModel
@@ -36,17 +37,9 @@ from src.models.semester import (
 from src.models.semester_registry import SemesterRegistry
 from src.models.study import StudyModel
 from src.models.task import TaskModel
+from src.services.attachments import STORE_DIR_NAME, AttachmentStore
 
 logger = logging.getLogger(__name__)
-
-
-def _read_doc(path: Path) -> dict | None:
-    """读磁盘上的 JSON；缺失 / 损坏返回 None（调用方据此判断"有没有东西要保护"）。"""
-    try:
-        with open(path, encoding="utf-8") as f:
-            return json.load(f)
-    except (OSError, json.JSONDecodeError):
-        return None
 
 
 def _write_conflict_copy(doc: dict, name: str, folder: Path) -> Path:
@@ -67,6 +60,16 @@ class DataManager(QObject):
     save_conflict = Signal(str, str)
     # 按学期模型当前绑定的学期 id（`_auto_reload` 用它发现"外部切了学期"，审查 #6）
     _bound_semester: str = ""
+    # 文件名 → 事件域名（**唯一映射**，审计 2026-11-21 P1）。
+    # 轮询已经知道是哪个文件变了，就发对应域名让**一个**面板刷新；
+    # 退化成 `external` 会让所有面板每 3 秒重建一次（"不知道改了什么"的语义）。
+    DOMAIN_OF: ClassVar[dict[str, str]] = {
+        "courses": "course", "tasks": "task", "habits": "habit",
+        "routines": "routine", "expenses": "expense", "daily_logs": "plan",
+        "exams": "exam", "inventory": "inventory", "study": "study",
+        "semesters": "semester",
+        # 私有手机号不进 UI 刷新链路（只在会员弹窗里读），故不登记域名
+    }
 
     def __init__(self, data_dir: Path, parent=None) -> None:
         super().__init__(parent)
@@ -94,6 +97,10 @@ class DataManager(QObject):
         # 见 `git_sync.PRIVATE_FILES` 与 `models/membership_contacts.py`
         self.membership_contacts = MembershipContactsModel(
             data_dir / "private" / "memberships.json")
+        # 作业附件：文件本身落在 `<data_dir>/attachments/<task_id>/`，`tasks.json`
+        # 里只留元数据（`name/stored_name/size/sha256/added_at`）。
+        # 根目录取**注入的** `data_dir`，不是模块级 `get_data_dir()` —— 沙箱测试靠它隔离。
+        self.attachments = AttachmentStore(Path(data_dir) / STORE_DIR_NAME)
         self.habits._inventory = self.inventory
         self._attach_conflict_hook()
         self._log_recoveries()
@@ -162,45 +169,82 @@ class DataManager(QObject):
         ⚠ 单个文件损坏**不能**让整次重载抛异常：`BaseJsonModel.load()` 会先留档再抛
         `DataCorrupted`，这个异常若逃出 QTimer 槽 / AI 回调，会变成"界面不刷新"甚至崩溃。
         这里逐个隔离：坏文件已在模型层留档，其余文件照常重载。
+
+        `Unreadable`（暂时读不出来）同样隔离：**留原样**，下次轮询会再试。
         """
         for model, name in self._models():
             try:
                 model.reload()
             except DataCorrupted as e:
                 logger.error("%s 重载失败（现场已留档）：%s", name, e)
+            except Unreadable as e:
+                logger.warning("%s 暂时读不出来，保留内存态：%s", name, e)
         self._capture_mtimes()
 
     def _capture_mtimes(self) -> None:
-        """Record current file modification times."""
+        """记录文件探针（**存在状态 + `st_mtime_ns`**，审计 2026-11-21 P1）。
+
+        用 `st_mtime`（float 秒）会把亚秒级差异压掉，再加 0.1s 阈值 →
+        同一秒内的内容更新有时**整个漏掉**。`st_mtime_ns` 是整数纳秒，不丢精度。
+        """
         for model, name in self._models():
             try:
-                self._file_mtimes[name] = model.file_path.stat().st_mtime
+                self._file_mtimes[name] = model.file_path.stat().st_mtime_ns
             except OSError:
-                logger.debug("DataManager._capture_mtimes 中忽略异常", exc_info=True)
+                # 缺失本身就是一种状态（0 = 不存在），别让异常吞掉变化检测
+                self._file_mtimes[name] = 0
 
     def _auto_reload(self) -> None:
-        """Check if any data file was modified externally and reload."""
-        changed = False
-        for model, name in self._models():
-            try:
-                mtime = model.file_path.stat().st_mtime
-                if abs(mtime - self._file_mtimes.get(name, 0)) > 0.1:
-                    try:
-                        model.reload()
-                    except DataCorrupted as e:
-                        logger.error("%s 外部写入后无法解析（现场已留档）：%s", name, e)
-                    self._file_mtimes[name] = mtime
-                    changed = True
-            except OSError:
-                logger.debug("DataManager._auto_reload 中忽略异常", exc_info=True)
+        """比对探针 → 重载变了的文件 → **按域**发通知（审计 2026-11-21 P1）。
+
+        已知文件发对应域名（`tasks.json` → `task`），让**一个**面板刷新；
+        只有"探针显示变了、但没有登记域名"时才退回 `external`（保守全刷）。
+        """
+        changed, fallback = self._reload_touched()
         if self.semesters.current_semester != self._bound_semester:
             # 外部（skill / CLI）改了注册表 → 必须走**同一条切换流程**：重定向按学期的
             # 三个模型，否则界面还在读旧学期的文件（审查 2026-10-17 #6）
             self._bind_semester_models()
             self.data_changed.emit("semester")
             return
-        if changed:
+        for domain in changed:
+            self.data_changed.emit(domain)
+        if fallback:
+            # 不确定的状态仍然保守全刷："宁可多刷，不能漏刷"
             self.data_changed.emit("external")
+
+    def _reload_touched(self) -> tuple[list[str], bool]:
+        """重载探针显示变了的文件 → `(涉及的域名, 是否有未登记域名的文件)`。"""
+        changed: list[str] = []
+        fallback = False
+        for model, name in self._models():
+            mtime = self._probe(name, model)
+            if mtime is None:
+                continue                       # 没变 / 暂时读不出来（下轮重试）
+            self._file_mtimes[name] = mtime
+            domain = self.DOMAIN_OF.get(name)
+            if domain is None:
+                fallback = True
+            elif domain not in changed:
+                changed.append(domain)
+        return changed, fallback
+
+    def _probe(self, name: str, model) -> int | None:
+        """单个文件的探针 → **变了才重载**并返回新探针；没变 / 读不出来 → None。"""
+        try:
+            mtime = model.file_path.stat().st_mtime_ns
+        except OSError:
+            mtime = 0
+        if mtime == self._file_mtimes.get(name, 0) and not model._write_blocked:
+            return None
+        try:
+            model.reload()
+        except DataCorrupted as e:
+            logger.error("%s 外部写入后无法解析（现场已留档）：%s", name, e)
+        except Unreadable as e:
+            logger.warning("%s 暂时读不出来，下轮再试：%s", name, e)
+            return None                        # 不更新探针 → 下一轮还会重试
+        return mtime
 
     def _log_recoveries(self) -> None:
         """把"留档的损坏文件"与"禁止写入的文件"汇总进日志 —— 应用还能起，但必须留痕。"""
@@ -246,31 +290,30 @@ class DataManager(QObject):
 
         退出时整份写回是最现实的静默覆盖路径（审查 2026-10-17 #1）：应用跑着的
         时候若 skill / CLI / 手工改过文件，`save_all()` 会把那些改动整份盖掉。
-        这里逐模型比对**磁盘内容**而不是 mtime —— 应用自己保存也会动 mtime，
-        只比 mtime 会把"刚保存完就退出"误判成冲突：
+
+        **冲突判定只有一份实现**：`BaseJsonModel.save()` 的磁盘指纹基线。
+        不能用"磁盘内容 == 内存态"来判 —— 启动自愈（补订阅分类 / `item_seq` /
+        默认目标日、按当前日期重算状态）只改内存、不改磁盘，这种差异**不是**外部
+        改动；旧实现把它当冲突，于是每次打开→退出都刷副本并弹窗（`ERRORS #061`）。
 
         - 文件缺失 → 正常落盘（没东西可保护）
         - 磁盘内容 == 内存态 → **不碰文件**（各面板本来就显式保存，这里是兜底）
-        - 读不出来（损坏）或内容不同 → **不覆盖**：我方版本落到
-          `data/backup/save_conflict/`（`data/backup/` 已在 `.gitignore`），
-          原文件保持原样（损坏现场也留着），并发 `save_conflict` 告知
+        - 其余 → 交给 `save()`：指纹与基线一致（只是自愈）→ 安全写入；
+          不一致（真实外部改动）/ 损坏 → `_report_conflict()` → 留副本 + 发信号；
+          没有基线（`_disk_fingerprint is None`）→ 同样 fail-closed，禁止覆盖
         """
-        folder = self.data_dir / "backup" / "save_conflict"
-        for model, name in self._models():
+        for model, _name in self._models():
             if not model.file_path.exists():
                 model.save()
                 continue
-            on_disk = _read_doc(model.file_path)
-            if on_disk is not None and "_version" not in on_disk:
-                # 旧 CLI/外部写入没有 `_version`；模型读盘时补在内存里 → 直接比会
-                # 永远不相等，每次退出都写一份无用的冲突副本（2026-10-31 走查实测）。
-                on_disk["_version"] = model.version
-            if on_disk is not None and on_disk == model.data:
+            state, current = model._read_disk_state()
+            if state == "ok" and current == model._fingerprint(model.data):
                 continue
-            path = _write_conflict_copy(model.data, name, folder)
-            logger.warning("退出时 %s 与磁盘不一致，已跳过覆盖（我方版本存 %s）",
-                           name, path)
-            self.save_conflict.emit(name, str(path))
+            if model._disk_fingerprint is None:
+                # 没有基线就无法区分"自愈"与"外部改动" → 按冲突处理，禁止覆盖
+                model._report_conflict()
+                continue
+            model.save()
         self._capture_mtimes()
 
     def get_today_summary(self) -> dict:

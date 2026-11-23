@@ -339,7 +339,7 @@ def _init_billing_state(item: dict) -> None:
 
 
 def _apply_item_updates(item: dict, args) -> None:
-    """把命令行传入的非空字段写回物品条目（保持原有字段写入顺序）。"""
+    """把显式传入的字段写回物品条目（保持原有字段写入顺序）。"""
     name = getattr(args, "name", None)
     group = getattr(args, "group", None)
     category = getattr(args, "category", None)
@@ -348,7 +348,7 @@ def _apply_item_updates(item: dict, args) -> None:
     tags = getattr(args, "tags", None)
     if name:
         item["name"] = name
-    if group:
+    if group is not None:
         item["group"] = group
     if category:
         item["category"] = category
@@ -359,9 +359,9 @@ def _apply_item_updates(item: dict, args) -> None:
     _apply_wash(item, args)
     if location:
         item["location"] = canonical_location(location)   # 同义归一，词表不分叉
-    if notes is not None and notes != "":
+    if notes is not None:
         item["notes"] = notes        # α 实测：模型想补"外侧"这类备注却没有入口（用例 25）
-    if tags:
+    if tags is not None:
         item["tags"] = _split_tag_list(tags)
     _apply_membership(item, args)
     _apply_billing(item, args)
@@ -419,7 +419,7 @@ def cmd_need_restock(args) -> None:
     data = load("inventory.json")
     needs = [it for it in data.get("items", []) if _needs_restock(it)]
     for it in needs:
-        emit(f"  [{it['id']}] {it['name']} ({InventoryModel.stock_text(it)}) - {it['status']}")
+        emit(_item_line(it))
     if not needs:
         emit("无需购物品")
 

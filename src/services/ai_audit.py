@@ -188,6 +188,7 @@ class AuditLog:
                     os.fsync(fh.fileno())   # append-only 的意义在于"崩了也还在"
             except OSError:
                 logger.error("审计日志写入失败（不影响主流程）：%s", self.path, exc_info=True)
+                return record
         return record
 
     def _rotate_if_needed(self, incoming: int) -> None:
@@ -209,6 +210,7 @@ class AuditLog:
             os.replace(self.path, _archive_path(self.path, 1))
         except OSError:
             logger.error("审计日志轮转失败：%s", self.path, exc_info=True)
+            return
 
     # ── 便捷写法（事件类型固定，便于 grep / 统计）──────────
     def request(self, request_id: str, **fields: Any) -> dict:
@@ -261,6 +263,7 @@ class AuditLog:
                 out.append(json.loads(line))
             except json.JSONDecodeError:
                 logger.warning("审计日志有坏行，已跳过：%s", self.path)
+                continue
         return out
 
     def archives(self) -> list[Path]:

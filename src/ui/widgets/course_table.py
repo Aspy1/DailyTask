@@ -29,7 +29,15 @@ from PySide6.QtWidgets import (
 from src.i18n.loader import tr
 from src.models.course import ATTENDANCE_LEAD_MINUTES, PERIOD_TIMES
 from src.models.course_rules import slots_of
-from src.ui.styles.theme import LAYOUT, RADIUS, SIZE_BODY_S, SIZE_TINY, get_colors
+from src.ui.styles.theme import (
+    LAYOUT,
+    RADIUS,
+    SIZE_BODY_S,
+    SIZE_TINY,
+    SPACING,
+    get_colors,
+    surface_color,
+)
 from src.ui.widgets.menu import (
     add_action,
     add_separator,
@@ -243,6 +251,7 @@ class CourseTable(QTableWidget):
         self.setVerticalHeaderLabels(labels)
 
         self.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.horizontalHeader().setMinimumHeight(LAYOUT["table_header_height"])
         self.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         # ⚠ 列/行都要有**下限**（审查 U6）：原来只有 Stretch，窄窗口（或展开 AI 面板）时
         # 7 列会被挤到看不清 —— 课程名换行后把教室等信息顶掉。
@@ -273,11 +282,16 @@ class CourseTable(QTableWidget):
     # ── 样式 ────────────────────────────────────────────────
 
     def _apply_qss(self) -> None:
-        """表格样式（切主题时重跑）。无网格线，只留极淡的横向分隔。"""
+        """表格样式（切主题时重跑）。无网格线，只留极淡的横向分隔。
+
+        ⚠ 横向表头**不再在这里覆盖**：底色 / 字号 / 内边距一律走全局 QSS 的
+        `QHeaderView::section`（chrome 表面 + `layout.table_*` 令牌），这样课程表
+        和任务表的表头长得一样（A4）。这里只保留行头（vertical）的特例。
+        """
         c = get_colors()
         self.setStyleSheet(f"""
             QTableWidget {{
-                background-color: {c['bg_root']};
+                background-color: {surface_color("content")};
                 border: none;
                 gridline-color: transparent;
             }}
@@ -286,22 +300,13 @@ class CourseTable(QTableWidget):
                 border: none;
                 border-bottom: 1px solid {c['divider']};
             }}
-            QHeaderView::section {{
-                background-color: {c['bg_root']};
-                color: {c['fg_hint']};
-                border: none;
-                border-bottom: 1px solid {c['divider']};
-                padding: 8px 4px;
-                font-size: {SIZE_TINY}px;
-                font-weight: 500;
-            }}
             QHeaderView::section:vertical {{
-                background-color: {c['bg_surface']};
+                background-color: {surface_color("chrome")};
                 color: {c['fg_secondary']};
                 border: none;
                 border-right: 1px solid {c['divider']};
                 border-bottom: 1px solid {c['divider']};
-                padding: 4px;
+                padding: {LAYOUT["table_cell_pad_v"]}px {SPACING["spacing_xs"]}px;
                 font-size: {SIZE_TINY}px;
                 font-weight: 400;
             }}
@@ -309,7 +314,11 @@ class CourseTable(QTableWidget):
         self._highlight_today_header()
 
     def _highlight_today_header(self) -> None:
-        """「今天」那一列的表头用强调色 + 浅底。"""
+        """「今天」那一列的表头用强调色 + 浅底；其余列**不覆盖**颜色/字体。
+
+        ⚠ 其余列以前会显式写 `fg_hint` + `setBold(False)`，那是对全局表头样式的
+        覆盖（颜色与字重都和 QSS 不一致）→ 现在清掉角色，让 QSS 生效（A4）。
+        """
         from datetime import date
 
         c = get_colors()
@@ -318,16 +327,14 @@ class CourseTable(QTableWidget):
             item = self.horizontalHeaderItem(col)
             if item is None:
                 continue
-            font = item.font()
             if col == today_col:
                 item.setForeground(QColor(c["accent_text"]))
                 item.setBackground(_rgba(c["accent_bg"]))
-                font.setBold(True)
             else:
-                item.setForeground(QColor(c["fg_hint"]))
-                item.setBackground(QColor(Qt.GlobalColor.transparent))
-                font.setBold(False)
-            item.setFont(font)
+                for role in (Qt.ItemDataRole.ForegroundRole,
+                             Qt.ItemDataRole.BackgroundRole,
+                             Qt.ItemDataRole.FontRole):
+                    item.setData(role, None)
 
     def _build_labels(self) -> list[str]:
         labels = []

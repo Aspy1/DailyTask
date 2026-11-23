@@ -1,5 +1,6 @@
 """Task data model."""
 
+import copy
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import ClassVar
@@ -100,6 +101,30 @@ class TaskModel(BaseJsonModel):
                 task["completed_at"] = None
                 return True
         return False
+
+    def set_status(self, task_id: str, completed: bool) -> dict | None:
+        """勾选态 → 内存改动 + **回滚快照**；返回 None 表示没有这条任务。
+
+        审计 2026-11-21 P1："先改内存、再 save()，不看返回值"会让界面显示已完成、
+        磁盘还是未完成。快照交给调用方在 `save()` 失败时用来回滚。
+        """
+        task = next((t for t in self._data.get("tasks", []) if t["id"] == task_id), None)
+        if task is None:
+            return None
+        snapshot = copy.deepcopy(task)
+        if completed:
+            self.complete(task_id)
+        else:
+            self.uncomplete(task_id)
+        return snapshot
+
+    def restore_task(self, snapshot: dict) -> None:
+        """把一条任务**原样改回**快照（保存失败时用；不写盘）。"""
+        tasks = self._data.get("tasks", [])
+        for index, task in enumerate(tasks):
+            if task.get("id") == snapshot.get("id"):
+                tasks[index] = copy.deepcopy(snapshot)
+                return
 
     def update_notes(self, task_id: str, notes: str) -> bool:
         return self.update(task_id, {"notes": notes})

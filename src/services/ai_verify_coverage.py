@@ -39,10 +39,12 @@ _EFFECT_FIELDS: dict[str, tuple[str, ...]] = {
                  "min_qty", "doses_per_unit", "min_doses", "instances", "membership",
                  "billing_type", "amount", "due_day", "installments", "runs_out_months",
                  "stock_target", "expires", "remind_before"),
-    "update_item": ("name", "category", "quantity", "unit", "location", "tags", "notes",
-                    "min_qty", "doses_per_unit", "min_doses", "instances", "membership",
-                    "billing_type", "amount", "due_day", "installments", "runs_out_months",
-                    "stock_target", "expires", "remind_before", "worn_days", "needs_wash"),
+    "update_item": ("name", "group", "category", "quantity", "status", "unit",
+                    "location", "tags", "notes", "min_qty", "min_doses",
+                    "doses_per_unit", "instances", "membership", "billing_type",
+                    "amount", "due_day", "installments", "runs_out",
+                    "runs_out_months", "stock_target", "expires", "remind_before",
+                    "worn_days", "needs_wash"),
     "consume": ("amount",),
     "add_task": ("title", "due", "course", "priority", "tags", "notes"),
     "add_course": ("name", "day", "weeks", "slots", "location", "teacher", "parity"),
@@ -77,7 +79,12 @@ _IMPLICIT_FIELDS: dict[str, tuple[str, ...]] = {
 
 _VERIFIED_FIELDS: dict[str, tuple[str, ...]] = {
     "add_item": ("name",),
-    "update_item": ("location", "quantity"),
+    "update_item": ("name", "group", "category", "quantity", "status",
+                      "unit", "location", "tags", "notes", "min_qty",
+                      "min_doses", "doses_per_unit", "instances", "membership",
+                      "billing_type", "amount", "due_day", "installments",
+                      "runs_out", "runs_out_months", "stock_target", "expires",
+                      "remind_before", "worn_days", "needs_wash"),
     "consume": ("amount",),
     "add_task": ("title",),
     "complete_task": ("status",),
@@ -106,6 +113,10 @@ _VERIFIED_FIELDS: dict[str, tuple[str, ...]] = {
     "master_mistake": ("mastered",),
     "study_set_target": ("date", "daily_goal"),
 }
+_IGNORED_EMPTY_UPDATE_FIELDS = frozenset({
+    "name", "category", "status", "unit", "location",
+    "runs_out", "expires", "membership", "billing_type",
+})
 
 
 @dataclass(frozen=True)
@@ -176,12 +187,20 @@ def coverage_of(operation: str, args: dict) -> tuple[int, int, tuple[str, ...]]:
             return 0, len(fields), ()
         checked = tuple(sorted(fields & set(_VERIFIED_FIELDS.get(operation, ()))))
         return len(checked), len(fields), checked
-    total = {f for f in _EFFECT_FIELDS.get(operation, ()) if f in (args or {})}
-    total |= set(_IMPLICIT_FIELDS.get(operation, ()))
+    total = _effect_fields(operation, args)
     if operation not in _CHECKS or not total:
         return 0, len(total), ()
     checked = tuple(sorted(set(_VERIFIED_FIELDS.get(operation, ())) & total))
     return len(checked), len(total), checked
+
+
+def _effect_fields(operation: str, args: dict) -> set[str]:
+    supplied = args or {}
+    fields = {field for field in _EFFECT_FIELDS.get(operation, ()) if field in supplied}
+    if operation == "update_item":
+        fields = {field for field in fields
+                  if field not in _IGNORED_EMPTY_UPDATE_FIELDS or supplied[field]}
+    return fields | set(_IMPLICIT_FIELDS.get(operation, ()))
 
 
 def check_ex(command: str, before: dict, result: str, data_dir: Path) -> Verdict:

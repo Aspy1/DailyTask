@@ -23,7 +23,14 @@ from src.ui.panels.routine_panel import RoutinePanel
 from src.ui.panels.settings_panel import SettingsPanel
 from src.ui.panels.study_panel import StudyPanel
 from src.ui.panels.task_panel import TaskPanel
-from src.ui.styles.theme import SIZE_BODY_S, SIZE_CAPTION, SIZE_SUBTITLE, get_colors
+from src.ui.styles.theme import (
+    MOTION,
+    SIZE_BODY_S,
+    SIZE_CAPTION,
+    SIZE_SUBTITLE,
+    get_colors,
+    surface_color,
+)
 from src.ui.widgets.course_detail_dialog import CourseDetailDialog
 from src.ui.widgets.schedule_view import ScheduleView
 
@@ -81,11 +88,11 @@ class MainWorkspace(QWidget):
         self._settings = settings
         self._plugin_manager = plugin_manager
 
-        c = get_colors()
         self.setObjectName("workspace")
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        # 切页时的容器底色 = `surfaces.transition`（必须与内容同色，否则换页会闪）
         self.setStyleSheet(
-            f"#workspace {{ background-color: {c['bg_root']}; }}")
+            f"#workspace {{ background-color: {surface_color('transition')}; }}")
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
@@ -159,28 +166,63 @@ class MainWorkspace(QWidget):
         layout.addWidget(hint)
         return page
 
-    def switch_to(self, key: str) -> None:
+    def switch_to(self, key: str, refresh: bool = True) -> None:
+        """切到某个面板。
+
+        顺序是 **刷新 → 定淡入起点 → 显示**，每一步都有理由：
+
+        1. **先刷再显示**：原来先 `setCurrentIndex()` 再 `_refresh()`，于是"显示出来的
+           第一帧"是上一轮的旧内容（首次进入就是空表格）→ 看着像闪一下空白。
+        2. **只在换页时淡入**，且只淡**内容区**（`panel.fade_target()`）：整块面板淡入会把
+           工具栏 / 页脚这些静态外框一起淡掉，切换看起来在"抖"。
+        3. 淡入起点是 `motion.switch_fade_from`（0.9）而不是 0：起点 0 让第一帧整块透明，
+           同样的空白帧换个地方出现而已。
+        4. 同一页重复 `switch_to` 不淡入（点两次同一导航项不该闪）。
+
+        `refresh=False` 给"切过去之后自己会刷"的调用方用（如 `show_ddl_tasks`）：
+        否则同一份数据刷两遍（先 `_refresh`、再 `show_ddl_highlight` 里再 `_refresh`）。
+        """
         idx = self._panel_map.get(key)
-        if idx is not None:
+        if idx is None:
+            return
+        panel = self._stack.widget(idx)
+        if refresh:
+            self._refresh_panel(panel)
+        if self._stack.currentIndex() != idx:
+            fade_in(self._fade_target(panel),
+                    duration=MOTION["duration_switch"],
+                    start=MOTION["switch_fade_from"])
             self._stack.setCurrentIndex(idx)
-            # Refresh the target panel
-            w = self._stack.widget(idx)
-            if hasattr(w, "_refresh") and callable(w._refresh):
-                w._refresh()
-            fade_in(w)          # 动效模板（Q-H16）：只淡入，不动几何
-            self.panel_changed.emit(key)
+        self.panel_changed.emit(key)      # 语义不变：无论是否换页都通知侧边栏
+
+    @staticmethod
+    def _refresh_panel(panel: QWidget) -> None:
+        """刷新面板（`_refresh` 是全仓约定入口；没有该方法的占位页跳过）。"""
+        refresh = getattr(panel, "_refresh", None)
+        if callable(refresh):
+            refresh()
+
+    @staticmethod
+    def _fade_target(panel: QWidget) -> QWidget:
+        """淡入的目标控件：面板可指定 `fade_target()`（内容区），默认整个面板。"""
+        target = getattr(panel, "fade_target", None)
+        return target() if callable(target) else panel
 
     def _on_view_course_tasks(self, course_name: str) -> None:
         dlg = CourseDetailDialog(self._dm, course_name, self)
         dlg.exec()
 
     def _on_task_focus(self, course_name: str) -> None:
-        self.switch_to("tasks")
+        # `refresh=False`：下面一定会刷一次（筛选或直接刷新），别白刷两遍
+        self.switch_to("tasks", refresh=False)
         if course_name:
             self._task_panel.filter_by_course(course_name)
+        else:
+            self._refresh_panel(self._task_panel)
 
     def show_ddl_tasks(self) -> None:
-        self.switch_to("tasks")
+        # 同上：`show_ddl_highlight()` 内部已经 `_refresh()` 过了
+        self.switch_to("tasks", refresh=False)
         self._task_panel.show_ddl_highlight()
 
     def _on_data_changed(self, action: str) -> None:
@@ -203,9 +245,8 @@ class MainWorkspace(QWidget):
 
     def refresh_theme(self) -> None:
         # 自身底色也是构造时写死的，换主题必须重刷（否则内容区留着旧主题色）
-        c = get_colors()
         self.setStyleSheet(
-            f"#workspace {{ background-color: {c['bg_root']}; }}")
+            f"#workspace {{ background-color: {surface_color('transition')}; }}")
         for attr in (
             "_task_panel", "_schedule_view",
             "_habit_panel", "_expense_panel", "_inventory_panel",

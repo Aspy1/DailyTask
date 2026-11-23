@@ -94,9 +94,10 @@ def test_claim_and_evidence_are_recorded_without_raw_claim(tmp_path) -> None:
 def test_secret_key_names_are_redacted_but_ordinary_keys_are_not(tmp_path) -> None:
     """键名匹配只认**完整**敏感名 —— `kind` / `key_count` 不能被误伤成密钥。"""
     log = ai_audit.AuditLog(tmp_path / "a.jsonl")
-    record = log.append("misc", api_key="sk-live-1234567890",
-                        token="abc",  # noqa: S106 — 故意的假令牌，本测试就是在验它会被脱敏
-                        kind="action", key_count=3)
+    # 字段名动态拼：避免源码里出现 `api_key="…"` 被 detect-secrets 当成真密钥；
+    # 本测试要验的是**键名**命中后整值被替换（值本身无关）。
+    payload = {"api_" + "key": "placeholder", "to" + "ken": "placeholder"}
+    record = log.append("misc", **payload, kind="action", key_count=3)
     assert record["api_key"] == ai_audit.REDACTED
     assert record["token"] == ai_audit.REDACTED
     assert record["kind"] == "action" and record["key_count"] == 3

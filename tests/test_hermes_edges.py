@@ -87,9 +87,14 @@ def test_bridge_delegates_to_running_application_receiver(sandbox, qapp) -> None
     from PySide6.QtNetwork import QLocalServer
 
     from scripts.actions import run_argv_in_process
+    from scripts.actions_core import _path
+    from src.services.ai_undo import SnapshotStore
     from src.services.single_instance import decode_request, encode_reply
 
     key = f"HermesDelegate-{os.getpid()}-{uuid.uuid4().hex}"
+    assert run_argv_in_process(["add_task", "--title=existing", "--due=2026-11-23"]).startswith("OK ")
+    task_file = _path("tasks.json")
+    initial = task_file.read_bytes()
     server = QLocalServer()
     assert server.listen(key)
     environment = {**os.environ, "LIFE_ASSISTANT_DATA_DIR": str(sandbox),
@@ -126,7 +131,9 @@ def test_bridge_delegates_to_running_application_receiver(sandbox, qapp) -> None
         result = json.loads(process.stdout.read())
         assert result["ok"] is True, result
         assert len(requests) == 1
-        assert requests[0][0] == "add_task"
+        assert requests[0][:2] == ["--commit-receipt", "add_task"]
+        assert SnapshotStore.for_data_dir(sandbox).undo(result["snapshot_id"])[0]
+        assert task_file.read_bytes() == initial
     finally:
         if process.poll() is None:
             process.kill()

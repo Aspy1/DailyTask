@@ -110,9 +110,21 @@ def test_secrets_check_is_silent_when_only_known(monkeypatch, tmp_path) -> None:
     assert cq.check_new_secrets() == []
 
 
-def test_secrets_check_reports_missing_tool(monkeypatch) -> None:
-    monkeypatch.setattr(cq, "run_secrets_scan", lambda: None)
-    assert cq.check_new_secrets() is None          # 未安装 → 调用方标注"跳过"
+def test_secrets_check_reports_unavailable_tool(monkeypatch) -> None:
+    """工具未安装 → `UNAVAILABLE`；跑过但结果不可信 → `VIOLATION`（不许当成通过）。"""
+    monkeypatch.setattr(cq, "_console_script", lambda name: None)
+    rep = cq.Report()
+    cq.report_secrets(rep)
+    assert rep.outcome("SECRETS") == cq.UNAVAILABLE
+
+    def gone() -> None:
+        raise cq.ToolUnavailable("输出无法解析")
+
+    monkeypatch.setattr(cq, "_console_script", lambda name: Path("detect-secrets"))
+    monkeypatch.setattr(cq, "run_secrets_scan", gone)
+    rep = cq.Report()
+    cq.report_secrets(rep)
+    assert rep.outcome("SECRETS") == cq.VIOLATION
 
 
 def test_baseline_is_not_behind_current_state() -> None:

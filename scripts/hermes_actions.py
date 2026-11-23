@@ -13,10 +13,20 @@ ROOT = Path(__file__).resolve().parent.parent
 if __package__ in (None, ""):
     sys.path.insert(0, str(ROOT))
 
-from scripts.actions import _build_action_namespace  # noqa: E402
+from scripts.actions import _build_action_namespace, build_parser  # noqa: E402
 from scripts.actions_core import ActionError, _validate_args  # noqa: E402
+from scripts.actions_receipt import RECEIPT_FLAG, unpack  # noqa: E402
 from scripts.hermes_plugin.tools import validate_request  # noqa: E402
 from src.models import semester_paths  # noqa: E402
+from src.models.inventory import (  # noqa: E402
+    ITEM_FIELDS,
+    RENEW_WARNING_DAYS,
+    SIDE_SCHOOL,
+    InventoryModel,
+    days_until,
+    membership_days_left,
+    renewal_due,
+)
 from src.services import ai_audit, ai_guard, ai_undo  # noqa: E402
 from src.services.paths import DATA_DIR_ENV, get_data_dir  # noqa: E402
 
@@ -32,6 +42,8 @@ COURSE_FIELDS = (
 PLAN_FIELDS = ("title", "time_slot", "type", "course_name", "note", "done")
 SEMESTER_FIELDS = ("id", "name", "start_date", "end_date", "total_weeks",
                    "exam_weeks", "period_count")
+INVENTORY_FIELDS = ("id", *ITEM_FIELDS, "remaining_doses", "created_at", "updated_at")
+MEMBERSHIP_FIELDS = ("username", "expires_on", "auto_renew", "renew_months")
 
 
 def _read_object(path: Path) -> dict:
@@ -72,6 +84,14 @@ def _semester_context(data_dir: Path) -> tuple[dict, dict, dict]:
 def _context(parameters: dict, data_dir: Path) -> dict:
     now = datetime.now().astimezone()
     day = parameters.get("date") or date.today().isoformat()
+    scope = parameters.get("scope", "planner")
+    if scope in ("inventory", "restock"):
+        inventory = _inventory_context(data_dir, now.date())
+        if scope == "restock":
+            return {"today": now.date().isoformat(),
+                    "reminders": inventory["reminders"],
+                    "renewal_warning_days": RENEW_WARNING_DAYS}
+        return {"today": now.date().isoformat(), **inventory}
     semester, courses, tasks = _semester_context(data_dir)
     logs = _read_object(data_dir / "daily_logs.json")
     plans = logs.get("plans") or {}
@@ -88,9 +108,79 @@ def _context(parameters: dict, data_dir: Path) -> dict:
     }
 
 
+def _inventory_context(data_dir: Path, today: date) -> dict:
+    """Build a read-only inventory projection and actionable reminder list."""
+    data = _read_object(data_dir / "inventory.json")
+    items = _rows(data.get("items"), INVENTORY_FIELDS)
+    projected: list[dict] = []
+    reminders: list[dict] = []
+    for item in items:
+        item["status"] = InventoryModel.effective_status(item, today)
+        membership = InventoryModel.membership_of(item)
+        item["membership"] = {key: membership[key] for key in MEMBERSHIP_FIELDS
+                                 if key in membership}
+        item["stock"] = InventoryModel.stock_text(item)
+        projected.append(item)
+        if InventoryModel.side_of(item) != SIDE_SCHOOL or item.get("ignore_low_stock"):
+            continue
+        if item["status"] not in ("不足", "需购"):
+            continue
+        if reminder := _inventory_reminder(item, today):
+            reminders.append(reminder)
+    return {"items": projected, "reminders": reminders,
+            "categories": _string_values(data.get("categories")),
+            "locations": _string_values(data.get("locations")),
+            "renewal_warning_days": RENEW_WARNING_DAYS}
+
+
+def _string_values(value: object) -> list[str]:
+    """Return only string values from an optional inventory vocabulary list."""
+    if not isinstance(value, list):
+        return []
+    return [item for item in value if isinstance(item, str)]
+
+
+def _inventory_reminder(item: dict, today: date) -> dict | None:
+    """Classify one due inventory entry without reading private membership contacts."""
+    membership = InventoryModel.membership_of(item)
+    expires_on = str(membership.get("expires_on") or "")
+    membership_days = membership_days_left(item, today)
+    if renewal_due(item, today):
+        return _reminder_record(item, "renewal", expires_on, membership_days,
+                                auto_renew=bool(membership.get("auto_renew")))
+    for field, reason, lead in (
+        ("runs_out_on", "estimated_depletion", RENEW_WARNING_DAYS),
+        ("expires_on", "product_expiry",
+         int(item.get("remind_before_days") or RENEW_WARNING_DAYS)),
+    ):
+        due_on = str(item.get(field) or "")
+        days_left = days_until(due_on, today)
+        if days_left is not None and days_left <= lead:
+            return _reminder_record(item, "restock", due_on, days_left, reason=reason)
+    return _reminder_record(item, "restock", "", None, reason="low_stock")
+
+
+def _reminder_record(item: dict, kind: str, due_on: str, days_left: int | None,
+                     **extra: object) -> dict:
+    """Return a minimal reminder row for Hermes without unrelated item details."""
+    return {"id": item.get("id", ""), "name": item.get("name", ""),
+            "type": kind, "status": item.get("status", ""),
+            "stock": item.get("stock", ""), "due_on": due_on,
+            "days_remaining": days_left, **extra}
+
+
 def _cli_arguments(action: str, parameters: dict) -> list[str]:
-    # Equals keeps option-like user text a single value, including '--due=...'.
-    options = [f"--{key}={value}" for key, value in parameters.items()]
+    # Use argparse's declared spellings (`--runs-out-months` vs `runs_out_months`),
+    # while equals keeps option-like user text a single literal value.
+    parser = build_parser()
+    subparsers = next(item for item in parser._actions
+                      if getattr(item, "choices", None) is not None)
+    action_parser = subparsers.choices[action]
+    option_names = {argument.dest: next(
+        (option for option in argument.option_strings if option.startswith("--")),
+        f"--{argument.dest.replace('_', '-')}",
+    ) for argument in action_parser._actions if argument.option_strings}
+    options = [f"{option_names[key]}={value}" for key, value in parameters.items()]
     namespace = _build_action_namespace([action, *options])
     _validate_args(action, namespace)
     return [action, *options]
@@ -102,7 +192,7 @@ def _execute_cli(argv: list[str], data_dir: Path, outcome: dict) -> str:
     environment["PYTHONIOENCODING"] = "utf-8"
     try:
         completed = subprocess.run(  # noqa: S603 - Fixed interpreter/script; allowlisted options, no shell.
-            [sys.executable, str(ROOT / "scripts" / "actions.py"), *argv],
+            [sys.executable, str(ROOT / "scripts" / "actions.py"), RECEIPT_FLAG, *argv],
             cwd=ROOT, env=environment, shell=False, capture_output=True,
             text=True, encoding="utf-8", timeout=CLI_TIMEOUT_SECONDS,
         )
@@ -122,6 +212,11 @@ def _execute_cli(argv: list[str], data_dir: Path, outcome: dict) -> str:
     if not result:
         outcome["uncertain"] = True
         return "ERROR actions CLI returned no receipt; query before retrying"
+    try:
+        result = unpack(result)
+    except ValueError:
+        outcome["uncertain"] = True
+        return "ERROR invalid CLI commit receipt; query before retrying"
     from src.services.single_instance import BAD_REPLY_MESSAGE, REFUSE_MESSAGE
 
     if result in (f"ERROR {REFUSE_MESSAGE}", f"ERROR {BAD_REPLY_MESSAGE}"):
@@ -170,7 +265,9 @@ def dispatch_request(request: object, *, data_dir: Path | None = None,
         parameters = validate_request(action, request["parameters"])
         selected = Path(data_dir).resolve() if data_dir is not None else get_data_dir()
         if action == "context":
-            return {"ok": True, "action": action, "message": "Current planner context",
+            scope = parameters.get("scope", "planner")
+            label = "inventory and reminders" if scope != "planner" else "planner context"
+            return {"ok": True, "action": action, "message": f"Current {label}",
                     "data": _context(parameters, selected)}
         return _write(action, parameters, selected, request_id or uuid.uuid4().hex)
     except (ActionError, ValueError, TypeError, OSError) as error:

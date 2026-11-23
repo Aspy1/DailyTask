@@ -31,6 +31,13 @@
   "panel.task.count": "{total} 个任务  {page}",
   "panel.task.days_left": "({days}天后)",
 
+  "panel.task.empty_title": "没有符合条件的作业",
+  "panel.task.empty_body": "换一个课程或时间筛选试试；新作业可以在日程里直接添加。",
+
+  "panel.task.save_failed_title": "没有保存成功",
+  "panel.task.save_failed_body": "{what}没有写进磁盘：文件可能被其它程序改动过。界面已恢复成磁盘上的状态，请重新操作。",
+  "panel.task.what_status": "作业状态",
+
   "panel.task.archive_line": "  • {name}  (截止: {due})",
   "panel.task.dialog_archived_title": "已归档",
   "panel.task.dialog_archived_empty": "暂无已归档任务。",

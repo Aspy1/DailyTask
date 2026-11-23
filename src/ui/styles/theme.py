@@ -56,6 +56,10 @@ CONTROLS: dict = _TOKENS_DATA["controls"]
 # 来历（2026-10-31 审查）：这些数字曾以 `setFixedWidth(184)` / `setMinimumWidth(420)`
 # 的形式散落在 20 个文件里（SIZE-LIT 44 处），改一个弹窗宽度要全局 grep。
 LAYOUT: dict = _TOKENS_DATA["layout"]
+# Motion durations/easing live here; animations.py must not carry literals.
+MOTION: dict = _TOKENS_DATA["motion"]
+# Surface roles map to color token names (not raw colors).
+SURFACES: dict = _TOKENS_DATA["surfaces"]
 # 输入类控件统一高度（一行一个字段；高度不一致会让文字被裁）
 FIELD_H = CONTROLS["field_height"]
 
@@ -91,6 +95,15 @@ def get_colors() -> dict:
     if _color_cache is None:
         _color_cache = TOKENS.get(_current_mode, TOKENS["light"])
     return _color_cache
+
+
+def surface_color(role: str) -> str:
+    """Resolve a surface role to the current theme's color value.
+
+    SURFACES holds token names, never raw color values; colors stay in one place,
+    so theme switching needs no call-site changes. Unknown roles raise KeyError.
+    """
+    return get_colors()[SURFACES[role]]
 
 
 def elide_text(text: str, font: QFont, max_width: int) -> str:
@@ -442,7 +455,7 @@ def build_theme(mode: str) -> str:
 
 QFrame[frameShape="4"] {{ border: none; background: transparent; color: transparent; }} /* HLine dividers */
 
-QMainWindow {{ background-color: {t["bg_root"]}; }}
+QMainWindow {{ background-color: {surface_color("page")}; }}
 
 /* ── Top nav bar ─────────────────────────── */
 #topNav {{ background-color: {t["nav_bg"]}; border-bottom: 1px solid {t["border"]}; }}
@@ -525,21 +538,21 @@ QScrollArea > QWidget > QWidget {{ background: transparent; }}
 QAbstractScrollArea::corner {{ background: transparent; }}
 
 /* ── Table ───────────────────────────────── */
-QTableWidget {{ background-color: {t["bg_root"]}; alternate-background-color: {t["table_alt"]}; color: {t["fg_primary"]}; gridline-color: {t["divider"]}; border: none; font-size: {SIZE_BODY_S}px; }}
-QHeaderView::section {{ background-color: {t["bg_surface"]}; color: {t["fg_secondary"]}; border: none; border-bottom: 1px solid {t["border"]}; padding: 8px 12px; font-weight: 600; font-size: {SIZE_BODY_S}px; }}
-QToolTip {{ background-color: {t["bg_elevated"]}; color: {t["fg_primary"]}; border: 1px solid {t["border_strong"]}; border-radius: 8px; padding: 6px 10px; font-size: {SIZE_CAPTION}px; }}
+QTableWidget {{ background-color: {surface_color("content")}; alternate-background-color: {surface_color("row_alt")}; color: {t["fg_primary"]}; gridline-color: {t["divider"]}; border: none; font-size: {SIZE_BODY_S}px; }}
+QHeaderView::section {{ background-color: {surface_color("chrome")}; color: {t["fg_secondary"]}; border: none; border-bottom: 1px solid {t["border"]}; padding: {LAYOUT["table_cell_pad_v"]}px {LAYOUT["table_cell_pad_h"]}px; min-height: {LAYOUT["table_header_height"]}px; font-weight: 600; font-size: {SIZE_BODY_S}px; }}
+QToolTip {{ background-color: {surface_color("elevated")}; color: {t["fg_primary"]}; border: 1px solid {t["border_strong"]}; border-radius: 8px; padding: 6px 10px; font-size: {SIZE_CAPTION}px; }}
 
 /* ── Named widgets ───────────────────────── */
-#fnTabs, #aiPanel, #courseBar, #courseFooter, #taskBar, #taskFooter {{ background-color: transparent; }}
-#courseBar, #taskBar {{ background-color: {t["bg_surface"]}; border-bottom: 1px solid {t["divider"]}; }}
-#courseFooter, #taskFooter {{ border-top: 1px solid {t["divider"]}; }}
+#fnTabs, #aiPanel {{ background-color: transparent; }}
+#courseBar, #taskBar {{ background-color: {surface_color("chrome")}; border-bottom: 1px solid {t["divider"]}; }}  /* static chrome shares the footer surface */
+#courseFooter, #taskFooter {{ background-color: {surface_color("chrome")}; border-top: 1px solid {t["divider"]}; }}
 #aiChat {{ background-color: {t["chat_bg"]}; border: none; }}
 #aiHeader {{ background-color: {t["sidebar_bg"]}; border-bottom: 1px solid {t["border"]}; }}
 #aiInputContainer {{ background-color: {t["sidebar_bg"]}; border-top: 1px solid {t["border"]}; }}
-#courseCount, #taskCount {{ color: {t["fg_hint"]}; font-size: {SIZE_TINY}px; border: none; }}
-#taskTable {{ background-color: {t["bg_root"]}; color: {t["fg_primary"]}; border: none; font-size: {SIZE_CAPTION}px; }}
-#taskTable::item {{ padding: 8px 12px; min-height: 32px; border-bottom: 1px solid {t["divider"]}; }}
-#taskTable::item:alternate {{ background-color: {t["table_alt"]}; }}
+#courseCount, #taskCount {{ color: {t["fg_hint"]}; font-size: {SIZE_TINY}px; border: none; }}  /* footer font size has one source (A5) */
+#taskTable {{ background-color: {surface_color("content")}; color: {t["fg_primary"]}; border: none; font-size: {SIZE_CAPTION}px; }}
+#taskTable::item {{ padding: {LAYOUT["table_cell_pad_v"]}px {LAYOUT["table_cell_pad_h"]}px; min-height: {LAYOUT["table_row_height"]}px; border-bottom: 1px solid {t["divider"]}; }}
+#taskTable::item:alternate {{ background-color: {surface_color("row_alt")}; }}
 """
 
 
