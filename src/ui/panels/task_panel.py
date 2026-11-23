@@ -451,14 +451,12 @@ class TaskPanel(QWidget):
             self._open_detail(str(self._row_tasks[row].get("id") or ""))
 
     def _on_check(self, task_id: str, checked: bool) -> None:
-        """勾选 → 提交 → 刷新。**提交成功才刷新和广播**（审计 2026-11-21 P1）。
-
-        旧实现先改内存再 `save()`，完全不看返回值：落盘被拒（磁盘被外部改过 /
-        文件损坏）时界面显示已完成、磁盘还是未完成，广播还会让别的面板按内存态重画。
-        失败时内存已回滚，这里照常重画（显示的就是磁盘上的状态）。
-        """
+        """Commit the checkbox change, then reflect the saved or restored state."""
+        rendered_rows = self._row_tasks
         commit_status(self._dm, task_id, checked, self)
-        self._refresh()
+        # The workspace may already have rebuilt the rows in the synchronous event.
+        if self._row_tasks is rendered_rows:
+            self._refresh()
 
     def _prev_page(self) -> None:
         if self._page > 0:

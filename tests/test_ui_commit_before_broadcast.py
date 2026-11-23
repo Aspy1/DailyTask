@@ -71,6 +71,26 @@ def test_checkbox_succeeds_and_broadcasts_after_commit(qapp, tmp_path) -> None:
     assert any("task" in event for event in events), events
 
 
+def test_checkbox_does_not_rebuild_rows_twice_when_event_refreshes(qapp, sandbox, monkeypatch) -> None:
+    dm = DataManager(sandbox)
+    task_id = _seed(dm)
+    panel = _panel(dm)
+    rebuild_rows = panel._rebuild_rows
+    renders = []
+
+    def count_rebuild() -> None:
+        renders.append(True)
+        rebuild_rows()
+
+    monkeypatch.setattr(panel, "_rebuild_rows", count_rebuild)
+    dm.data_changed.connect(lambda _: panel._refresh())
+    panel._on_check(task_id, True)
+
+    assert renders == [True]
+    assert panel._table.rowCount() == 0
+    assert _disk_status(sandbox, task_id) == "completed"
+
+
 def test_uncomplete_rolls_back_too(qapp, tmp_path) -> None:
     dm = DataManager(tmp_path)
     task_id = _seed(dm)
