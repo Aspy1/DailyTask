@@ -31,6 +31,7 @@ python -m venv .venv
 - 依赖声明：`requirements.txt`（直接依赖，兼容区间）→ `requirements.lock.txt`（精确锁定，用于复现）
 - 复现环境：`.venv\Scripts\python.exe -m pip install -r requirements.lock.txt`
 - 启动：`.venv\Scripts\python.exe main.py`
+- 体验与性能改造流程见 [桌面体验与性能改造操作手册](MD-files/PERFORMANCE_WORKFLOW.md)。
 
 ## 项目结构
 

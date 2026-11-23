@@ -1,0 +1,150 @@
+{
+  "_note": "性能基准原始输出（scripts/perf_bench.py archive）。含逐次样本，供复核中位/P95/尾部。",
+  "environment": {
+    "platform": "Windows-11-10.0.26300-SP0",
+    "python": "3.14.9",
+    "machine": "AMD64",
+    "cpu_count": 20,
+    "pyside6": "6.12.0",
+    "qt": "6.12.0",
+    "commit": "2afcf48"
+  },
+  "results": {
+    "steady": {
+      "eager": {
+        "root_pid": 41888,
+        "processes": 1,
+        "private_commit_mb": 126.4,
+        "per_process_mb": {
+          "41888": 126.4
+        },
+        "lazy": false,
+        "rounds": 5,
+        "forced": true,
+        "python_current_mb": 18.75,
+        "python_peak_mb": 19.24,
+        "snapshots": 5,
+        "per_round_mb": [
+          68.8,
+          84.4,
+          99.8,
+          114.1,
+          130.4
+        ]
+      },
+      "lazy": {
+        "root_pid": 37052,
+        "processes": 1,
+        "private_commit_mb": 126.1,
+        "per_process_mb": {
+          "37052": 126.1
+        },
+        "lazy": true,
+        "rounds": 5,
+        "forced": true,
+        "python_current_mb": 18.81,
+        "python_peak_mb": 19.29,
+        "snapshots": 5,
+        "per_round_mb": [
+          68.6,
+          84.2,
+          99.6,
+          114.2,
+          130.1
+        ]
+      },
+      "delta_mb": -0.3
+    },
+    "idle": {
+      "eager": {
+        "root_pid": 20748,
+        "processes": 1,
+        "private_commit_mb": 114.5,
+        "per_process_mb": {
+          "20748": 114.5
+        },
+        "lazy": false,
+        "rounds": 5,
+        "forced": false,
+        "python_current_mb": 18.28,
+        "python_peak_mb": 18.86,
+        "snapshots": 5,
+        "per_round_mb": [
+          66.3,
+          78.8,
+          92.1,
+          104.8,
+          118.5
+        ]
+      },
+      "lazy": {
+        "root_pid": 26020,
+        "processes": 1,
+        "private_commit_mb": 84.5,
+        "per_process_mb": {
+          "26020": 84.5
+        },
+        "lazy": true,
+        "rounds": 5,
+        "forced": false,
+        "python_current_mb": 17.22,
+        "python_peak_mb": 17.94,
+        "snapshots": 5,
+        "per_round_mb": [
+          57.7,
+          67.7,
+          75.9,
+          83.2,
+          91.7
+        ]
+      },
+      "delta_mb": -30.0
+    }
+  },
+  "raw_samples": {
+    "稳态·全构造": {
+      "n": 5,
+      "failures": 0,
+      "durations_ms": [
+        68.8,
+        84.4,
+        99.8,
+        114.1,
+        130.4
+      ]
+    },
+    "稳态·首屏延迟": {
+      "n": 5,
+      "failures": 0,
+      "durations_ms": [
+        68.6,
+        84.2,
+        99.6,
+        114.2,
+        130.1
+      ]
+    },
+    "起点·全构造": {
+      "n": 5,
+      "failures": 0,
+      "durations_ms": [
+        66.3,
+        78.8,
+        92.1,
+        104.8,
+        118.5
+      ]
+    },
+    "起点·首屏延迟": {
+      "n": 5,
+      "failures": 0,
+      "durations_ms": [
+        57.7,
+        67.7,
+        75.9,
+        83.2,
+        91.7
+      ]
+    }
+  }
+}

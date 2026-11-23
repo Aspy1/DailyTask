@@ -4,6 +4,7 @@
 > **本项目哪里不够现代**（审查表）、**改成了什么 / 怎么验证**（结果表）。
 > 视觉数值的唯一真值仍是 `design/tokens.json`；UI 规范入口是 `design/INDEX.md`。
 > 关联：`CODE_STANDARDS.md` Q-B7 / Q-H21 / Q-H22，`dev-logs/2026-11-01-*`。
+> 卡顿定位、Web UI 与数据库试验、上线和回滚见 [桌面体验与性能改造操作手册](PERFORMANCE_WORKFLOW.md)。
 
 ## 1. 审查方法
 

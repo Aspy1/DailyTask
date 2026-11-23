@@ -59,6 +59,10 @@ ui ──→ services ──→ models ──→ base(BaseJsonModel)
 12. `GitSync(repo=DATA_DIR.parent, data_dir)` + 连接 `data_changed` / `sync_status`
 13. `PluginManager(plugins_dir)` + `load_plugins()`（只扫描，不导入插件代码）
 14. **`MainWindow(...)`** —— 内部创建 `WeatherService`。设置里的 Hermes 控制只在用户点击时发起独立网关进程
+   - **面板按需构造**（2026-11-23，方案 A-1）：`MainWorkspace` 只立即构造首屏需要的
+     日程视图 / 占位页 / 设置页；其余 7 个面板用 `PanelSlot` 代理槽进栈，**首次进入才构造**
+     （`_panel_map` 的索引与键集不变）。构造前到达的事件由槽攒着，建好后补刷。
+     回退：环境变量 `LIFE_ASSISTANT_LAZY_PANELS=0` → 启动即全构造（与改造前一致）。
 15. `_setup_tray(icon)`（托盘先于窗口显示）
 16. `_window.show()`
 17. `_flash_timer` 初始化（**在 `show()` 之后**；因为 `_on_ddl_alert` 依赖它）
@@ -78,7 +82,12 @@ ui ──→ services ──→ models ──→ base(BaseJsonModel)
 
 **消费方**：
 - `MainWorkspace._on_data_changed` —— 按 `EVENT_PANELS` **显式映射**刷新（未登记事件保守全刷；
-  日程视图总是刷）
+  日程视图总是刷）。**默认同步**：用户点完 / 外部写入到达就当场刷新 ——
+  `tests/test_data_flow.py` 钉住"晚一拍是回归"这条语义。只有**批量事件**
+  （`ai_action` / `ai_undo`，一次操作连发多个）才走 `RefreshCoalescer` 合并成一次重绘。
+  三套标识符必须经表翻译（见 §9）：`KEY_TO_DOMAIN`（导航键→域名）、
+  `ATTR_TO_KEY`（属性名→导航键）、`EVENT_PANELS`（域名→面板集合）；
+  拿导航键直接比域名会**静默不刷**（`ERRORS #067`）。
 - `GitSync.on_data_changed` —— 启动 30s 防抖计时，随后 `git add -A -- <用户数据清单> && commit && push`
   （范围见 `git_sync.DATA_FILES` / `DATA_DIRS` —— **唯一清单**，自动与手动同步共用；
   手动同步**不再** `git add -A`，源码由开发时显式提交。派生文件不进库，见 `.gitignore`）
@@ -366,6 +375,26 @@ data/
   `tests/test_actions_validation.py`（`SPECS` ↔ CLI 参数白名单）把关。
   **AI 传错参数是必然而非偶然**：校验统一在 `run_in_process` / CLI 入口做，handler 里不要再兜底。
 - **新增插件**：`plugins/<name>/plugin.py` + `IsOpen.able`（约定见 `Q-N`/`PLAN I-13`）。
+- **新增延迟面板**：在 `main_workspace.py` 的 `_add_panels()` 里放**类**而不是实例，
+  并在 `ATTR_TO_KEY` / `KEY_TO_DOMAIN` 各补一行 —— 两张表都要有，否则"切页能进、
+  事件不刷"（`ERRORS #067`）；`tests/test_lazy_panels.py` 会逐键核对。
+
+### 9.1 性能原型（**未接线**，仅供后续评估）
+
+两者都**不在生产调用链上**，但都有测试守着；改动它们不需要动任何 UI 入口。
+
+| 原型 | 位置 | 结论 |
+|---|---|---|
+| 周视图 Web 页（方案 B） | `src/ui/widgets/week_web_prototype.py` | **不采用**：首帧 1.53 s（WebEngine 渲染进程冷启动），与"启动不能等"的目标冲突。换周注入本身 0.3 ms 极快，适合只读重绘面板 |
+| 作业 SQLite 存储（方案 C） | `src/services/task_store_sqlite.py` | **整体切换不批准**（按预算判定 2/4 达标：列表 −152%、导入 −43% 超预算）；**仅切写入批准**（单条完成 +100%）。判据见 `scripts/perf_sqlite_decision.py` |
+
+测量设施：`scripts/perf_bench.py`（合成档位 + 中位 / P95 / 失败数 + `archive()`）+
+`perf_baseline.py` / `perf_profile.py` / `perf_panel_bench.py` /
+`perf_panel_costs.py` / `perf_sqlite_bench.py` / `perf_week_web.py` /
+`perf_memory.py`（进程树私有提交量）/ `perf_sqlite_decision.py`（预算判据）。
+**原始样本归档在 `dev-logs/perf-data/`**（每份产物都带逐次耗时 + 环境指纹 + 提交号，
+清单见该目录的 `INDEX.md`；`tests/test_perf_artifacts.py` 守着"不许只有汇总"）。
+首轮结论见 `dev-logs/2026-11-23-性能改造对比报告.md`。
 
 ## 10. 已知架构债（指向权威清单）
 
@@ -377,6 +406,7 @@ data/
 | ID 生成两套并存（`len()+1` / max+1） | `CODE_STANDARDS Q-A1`/`Q-E2`、`PLAN` |
 | 盲捕获/静默吞异常 | `CODE_STANDARDS §I`（UI 层已改成**逐处** `# noqa: BLE001` + 理由，不再整目录豁免）|
 | 测试覆盖率 / 门禁状态 | **不记数**：以 CI 与 `scripts/check_quality.py` 的实时输出为准（写进文档必漂）|
+| 单条写入仍是整份 JSON 重写（10k 条约 168 ms） | `dev-logs/2026-11-23-性能改造对比报告.md` §3.3 |
 
 ## 11. 「今日提示」与到期/衣物判定（2026-10-18/19 新增）
 
