@@ -17,7 +17,9 @@
 import json
 import sqlite3
 from collections.abc import Iterator
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import closing
+from threading import Barrier
 
 import pytest
 
@@ -90,6 +92,29 @@ def test_complete_is_idempotent(db) -> None:
     task = next(t for t in store.list_tasks(db, "sem_001") if t["id"] == "t_0001")
     assert task["status"] == "completed"
     assert task["completed_at"] == "2026-03-01T10:00:00", "幂等：不再改第二次的时间"
+
+
+def test_independent_connections_only_complete_the_same_task_once(sandbox) -> None:
+    path = sandbox / "tasks.db"
+    with closing(store.connect(path)) as db:
+        store.import_tasks(db, "sem_001", _tasks(2))
+
+    start = Barrier(2, timeout=10)
+    stamps = ["2026-03-01T10:00:00", "2026-03-01T10:01:00"]
+
+    def complete(stamp: str) -> bool:
+        with closing(store.connect(path)) as db:
+            start.wait()
+            return store.complete_task(db, "sem_001", "t_0001", stamp)
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(complete, stamps))
+
+    assert results.count(True) == 1
+    with closing(store.connect(path)) as db:
+        task = next(t for t in store.list_tasks(db, "sem_001") if t["id"] == "t_0001")
+    assert task["status"] == "completed"
+    assert task["completed_at"] == stamps[results.index(True)]
 
 
 def test_reimport_does_not_duplicate(db) -> None:

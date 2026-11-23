@@ -39,4 +39,4 @@ dotnet build scripts/webview2_probe/WebView2Probe.csproj -c Release --nologo
 - **页面来源**。使用固定本地来源与打包资源，将生产 UI、样式和合成基准夹具分离。主机校验来源、消息格式和字段大小。外部导航交给系统浏览器，限制弹窗、下载和权限请求。 [加载本地内容](https://learn.microsoft.com/en-us/microsoft-edge/webview2/concepts/working-with-local-content) · [WebView2 安全实践](https://learn.microsoft.com/en-us/microsoft-edge/webview2/concepts/security)
 - **只读契约**。第一批消息包括页面就绪与渲染回执。宿主提供当前周的完整快照，按 `request_id` 和学期、周次版本丢弃旧响应。课程名称、地点和备注使用文本节点。周切换由宿主提供数据，随后在已加载页面内更新并单独测量该路径。
 - **启用方式**。先默认使用 Qt，实验开关按需创建单个 WebView2。Runtime 缺失、导航失败、响应超时或渲染进程失败时恢复 Qt 当前周。关闭视图只回收本应用创建的宿主与环境，避免影响共用浏览器进程。
-- **准入**。先通过两主题、窄窗口、高 DPI、键盘、离线及恢复验收。再对比首周和换周 P95、进程树内存、反复进入退出及崩溃恢复。预算依据这次实测的 Qt 基线，在接入生产前锁定。先合入只读周视图，编辑流程和其他页面另做验收。 [Microsoft 性能指南](https://learn.microsoft.com/en-us/microsoft-edge/webview2/concepts/performance)
+- **准入**。首次打开周视图的额外等待上限为 **250 ms**。在同一机器、同一数据和同一窗口条件下，从用户触发切换计时到周视图内容可见且可以交互，比较 WebView2 与原生 Qt 的 P95。若采用预热，额外验收应用冷启动和进程树内存。通过预算及两主题、窄窗口、高 DPI、键盘、离线和故障回退验收后，再接入可关闭的只读试点。当前嵌入探针一次到就绪标记约 2.52 秒，暂保留原生周视图。 [Microsoft 性能指南](https://learn.microsoft.com/en-us/microsoft-edge/webview2/concepts/performance)

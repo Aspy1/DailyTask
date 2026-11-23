@@ -1,5 +1,7 @@
-from datetime import datetime
+from datetime import date, datetime
 from types import SimpleNamespace
+
+import pytest
 
 from src.ui.widgets.schedule_focus import ScheduleFocus
 
@@ -38,3 +40,38 @@ def test_focus_replaces_finished_schedule_with_today_habits(qapp) -> None:
     pending.clear()
     widget.refresh(datetime(2026, 11, 23, 18))
     assert widget.isHidden()
+
+
+@pytest.mark.parametrize("hour, minute", [(0, 59), (1, 0)])
+def test_focus_respects_schedule_date_cutover(qapp, hour, minute) -> None:
+    requested_dates = []
+    courses = [_course("Morning", 1, "A101")]
+
+    def get_courses(day: date) -> list[dict]:
+        requested_dates.append(day)
+        return courses
+
+    widget = ScheduleFocus(SimpleNamespace(
+        courses=SimpleNamespace(get_courses_for_date=get_courses),
+        habits=SimpleNamespace(get_pending_today=lambda: [{"name": "Read"}]),
+    ))
+    now = datetime(2026, 11, 23, hour, minute)
+    widget.refresh(now)
+
+    if hour == 0:
+        assert requested_dates == []
+        assert widget.details.text() == "Read"
+    else:
+        assert requested_dates == [now.date()]
+        assert "Morning" in widget.details.text()
+
+
+def test_focus_limits_habit_preview_without_losing_pending_count(qapp) -> None:
+    habits = [{"name": name} for name in ("Read", "Stretch", "Walk", "Review")]
+    widget = ScheduleFocus(SimpleNamespace(
+        courses=SimpleNamespace(get_courses_for_date=lambda _: []),
+        habits=SimpleNamespace(get_pending_today=lambda: habits),
+    ))
+    widget.refresh(datetime(2026, 11, 23, 18))
+
+    assert widget.details.text() == "Read、Stretch、Walk等 4 项待完成"

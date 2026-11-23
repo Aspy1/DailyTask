@@ -13,6 +13,8 @@
 """
 
 
+from datetime import datetime
+
 import pytest
 
 from src.services.data_manager import DataManager
@@ -24,6 +26,7 @@ from src.ui.components.main_workspace import (
     KEY_TO_DOMAIN,
     MainWorkspace,
 )
+from src.ui.widgets import schedule_focus
 
 
 class _PluginManager:
@@ -162,3 +165,34 @@ def test_each_domain_refreshes_its_own_panel(sandbox, qapp, monkeypatch, lazy) -
 
     for _attr, key in ATTR_TO_KEY.items():
         assert hits.get(key, 0) >= 1, f"{key} 没有被自己的域名事件刷到"
+
+
+def test_home_focus_follows_semester_switch_and_habit_completion(sandbox, qapp, monkeypatch) -> None:
+    class FixedClock(datetime):
+        @classmethod
+        def now(cls, tz=None) -> datetime:
+            return cls(2026, 11, 23, 8, tzinfo=tz)
+
+    monkeypatch.setattr(schedule_focus, "datetime", FixedClock)
+    ws = _workspace(sandbox, monkeypatch, lazy=True)
+    dm = ws._dm
+    today = FixedClock.now().date()
+    semester = dm.create_semester("Classes", today)
+    dm.courses.add_course({"name": "Algorithms", "day_of_week": today.isoweekday(),
+                           "time_slots": [{"start": 1, "end": 1, "location": "A101"}]})
+    assert dm.courses.save()
+    habit = dm.habits.add_habit({"name": "Read", "schedule": {"type": "daily"}})
+    assert dm.habits.save()
+    dm.data_changed.emit("course")
+    focus = ws.schedule_view.focus_summary
+    assert "Algorithms" in focus.details.text()
+
+    blank = dm.create_semester("Empty", today)
+    assert dm.switch_semester(blank)
+    assert focus.details.text() == "Read"
+    dm.habits.log(habit, True)
+    assert dm.habits.save()
+    dm.data_changed.emit("habit")
+    assert focus.isHidden()
+    assert dm.switch_semester(semester)
+    assert "Algorithms" in focus.details.text()
