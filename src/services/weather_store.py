@@ -14,16 +14,19 @@
 读-改-写（记一次调用）走 `record_request()`（全程加锁）。
 """
 
+import contextlib
 import json
 import logging
 import os
 import threading
+import time
 from datetime import datetime
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
 _LOCK = threading.Lock()
+_REPLACE_RETRY_DELAYS = (0.01, 0.03, 0.07)
 
 
 def _try_parse(text: str) -> dict | None:
@@ -64,10 +67,17 @@ def write_json_atomic(path: Path, data: dict) -> None:
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        for delay in _REPLACE_RETRY_DELAYS:
+            try:
+                os.replace(tmp, path)
+                return
+            except PermissionError:
+                time.sleep(delay)
         os.replace(tmp, path)
     except OSError:
         logger.debug("写入天气文件失败：%s", path, exc_info=True)
-        return
+        with contextlib.suppress(OSError):
+            tmp.unlink(missing_ok=True)
 
 
 def _bump(bucket: dict, key: str, api_type: str) -> None:

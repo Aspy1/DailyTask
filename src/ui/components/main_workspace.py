@@ -14,6 +14,9 @@ from src.i18n.loader import tr
 from src.services.data_manager import DataManager
 from src.services.settings_manager import SettingsManager
 from src.ui.animations import fade_in
+from src.ui.components import panel_factory
+from src.ui.components.panel_factory import PanelSlot
+from src.ui.components.refresh_coalescer import RefreshCoalescer
 from src.ui.panels.course_panel import CoursePanel
 from src.ui.panels.exam_panel import ExamPanel
 from src.ui.panels.expense_panel import ExpensePanel
@@ -75,6 +78,40 @@ EVENT_PANELS: dict[str, frozenset[str]] = {
 }
 
 
+# **导航键 → 事件域名**：两者不是同一个词（`tasks` ↔ `task`、`daily` ↔ `habit`、
+# `routines` ↔ `routine`）。`EVENT_PANELS` 用的是**域名**，所以比对前必须先翻译 ——
+# 直接拿导航键去比会静默失效（只有 `inventory` 这种恰好相同的才会刷）。
+KEY_TO_DOMAIN: dict[str, str] = {
+    "tasks": "task",
+    "exams": "exam",
+    "daily": "habit",
+    "routines": "routine",
+    "study": "study",
+    "expenses": "expense",
+    "inventory": "inventory",
+}
+
+# 这些事件**走延迟合并**（一操作多广播的批量场景）：
+# `ai_action` 是 AI 一次批量写入、`ai_undo` 是跨文件还原 —— 两者都会连发多个事件。
+# 其余事件（单域变更 / external / semester）一律**同步刷**：
+# 用户点完就该看到结果，"晚一拍"是可见回归（`tests/test_data_flow.py` 钉住这条语义）。
+COALESCED_EVENTS = frozenset({"ai_action", "ai_undo"})
+
+
+# **属性名 ↔ 导航键**（不是同一个词：`tasks` ↔ `_task_panel`）。
+# 延迟构建靠它把"既有入口 `workspace._task_panel`"落到正确的代理槽上；
+# `tests/test_lazy_panels.py` 会核对"每个延迟键都有对应属性"。
+ATTR_TO_KEY: dict[str, str] = {
+    "_task_panel": "tasks",
+    "_exam_panel": "exams",
+    "_habit_panel": "daily",
+    "_routine_panel": "routines",
+    "_study_panel": "study",
+    "_expense_panel": "expenses",
+    "_inventory_panel": "inventory",
+}
+
+
 class MainWorkspace(QWidget):
     """Content area that switches between panels based on sidebar selection."""
 
@@ -100,21 +137,17 @@ class MainWorkspace(QWidget):
         self._stack = QStackedWidget()
         layout.addWidget(self._stack)
 
-        # ── Create all panels ──────────────────────────────────
-        # 课程表已并入日程（日/周切换），不再是独立面板 —— 见 ScheduleView.course_panel
-        self._schedule_view = ScheduleView(dm)
-        self._task_panel = TaskPanel(dm)
-        self._habit_panel = HabitPanel(dm)
-        self._routine_panel = RoutinePanel(dm)
-        self._exam_panel = ExamPanel(dm)
-        self._expense_panel = ExpensePanel(dm)
-        self._study_panel = StudyPanel(dm)
+        # ── 面板：首屏立即构造，其余**首次进入时**再建（方案 A-1）──────────
+        # 启动后用户只看得到「日程」，把 7 个面板的构建成本压在首帧之前是纯浪费
+        # （`MD-files/PERFORMANCE_WORKFLOW.md` §2.2「初始化多个面板」）。
+        # 对外入口 `self._task_panel` 等**保持不变**：首次访问即构造（见 `__getattr__`）。
+        # 回退：环境变量 `LIFE_ASSISTANT_LAZY_PANELS=0` → 全构造（与改造前一致）。
+        self._slots: dict[str, PanelSlot] = {}
+        self._built: dict[str, object] = {}
 
-        # Placeholder panels (will be replaced with real ones later)
-        self._inventory_panel = InventoryPanel(dm)
+        self._schedule_view = ScheduleView(dm)          # 首屏，必须立即构造
         self._meal_panel = self._placeholder(
             tr("workspace.meal.title"), tr("workspace.meal.desc"))
-
         self._settings_panel = SettingsPanel(settings, plugin_manager, dm)
 
         # ── Flat stack: index = nav key（顺序见 `_add_panels()`）──
@@ -124,25 +157,93 @@ class MainWorkspace(QWidget):
         self._schedule_view.course_panel.on_view_tasks(self._on_view_course_tasks)
         self._schedule_view.task_focus_requested.connect(self._on_task_focus)
 
+        self._coalescer = RefreshCoalescer(self._apply_refresh, self)
         dm.data_changed.connect(self._on_data_changed)
 
+    # ── 延迟构造的面板 ────────────────────────────────────────
+
+    def _lazy_panel(self, key: str) -> QWidget | None:
+        """取一个延迟面板（**首次调用即构造**）；未知键 → None。"""
+        slot = self._slots.get(key)
+        return slot.panel() if slot is not None else None
+
+    def __getattr__(self, name: str) -> object:
+        """`workspace._task_panel` 这类**既有入口**在首次访问时按需构造。
+
+        导航键（`tasks`）与属性名（`_task_panel`）**不是**同一个词（单复数/词形都不同），
+        所以走显式表 `ATTR_TO_KEY`。只处理表里登记的属性；
+        其它属性一律走正常失败（不能把拼写错误吞成 None）。
+        """
+        key = ATTR_TO_KEY.get(name)
+        slots = self.__dict__.get("_slots") or {}
+        if key is not None and key in slots:
+            return slots[key].panel()
+        # 回退模式（`LAZY_PANELS=0`）：面板是**直接构造**的，没有代理槽
+        built = self.__dict__.get("_built") or {}
+        if key is not None and key in built:
+            return built[key]
+        raise AttributeError(f"{type(self).__name__!r} object has no attribute {name!r}")
+
     def _add_panels(self) -> dict[str, int]:
-        """按**导航键顺序**把面板装进栈，返回 `key → index`（顺序即索引）。"""
+        """按**导航键顺序**把面板装进栈，返回 `key → index`（顺序即索引）。
+
+        延迟模式下装进栈的是 `PanelSlot`（空容器 + 构造回调），索引与键集不变。
+        """
         panels = [
-            ("schedule", self._schedule_view),     # 含 日/周 两页
-            ("tasks", self._task_panel),
-            ("exams", self._exam_panel),
-            ("daily", self._habit_panel),          # 习惯
-            ("routines", self._routine_panel),     # 近期安排（每日固定任务）
-            ("study", self._study_panel),          # 考研备考（11408）
-            ("expenses", self._expense_panel),
-            ("inventory", self._inventory_panel),
+            ("schedule", self._schedule_view),     # 含 日/周 两页（首屏，已构造）
+            ("tasks", TaskPanel),                  # 以下均延迟构造
+            ("exams", ExamPanel),
+            ("daily", HabitPanel),                 # 习惯
+            ("routines", RoutinePanel),            # 近期安排（每日固定任务）
+            ("study", StudyPanel),                 # 考研备考（11408）
+            ("expenses", ExpensePanel),
+            ("inventory", InventoryPanel),
             ("meals", self._meal_panel),
             ("settings", self._settings_panel),
         ]
-        for _key, panel in panels:
-            self._stack.addWidget(panel)
-        return {key: idx for idx, (key, _panel) in enumerate(panels)}
+        mapping: dict[str, int] = {}
+        for index, (key, factory) in enumerate(panels):
+            widget = (factory if not isinstance(factory, type)
+                      else self._slot_for(key, factory))
+            self._stack.addWidget(widget)
+            mapping[key] = index
+        return mapping
+
+    def _slot_for(self, key: str, factory: type) -> QWidget:
+        """为一个延迟面板建代理槽（`LAZY_PANELS=0` 时直接构造）。"""
+        def build() -> QWidget:
+            panel = factory(self._dm)
+            self._built[key] = panel
+            return panel
+
+        # ⚠ 读模块属性而不是 `from ... import LAZY_PANELS` 的值：
+        #   按值复制会在 import 时定型，运行期改开关（测试 / 回退）就失效了 ——
+        #   那会让"回退路径"从未被真正执行过。
+        if not panel_factory.LAZY_PANELS:
+            return build()
+        # 回调签名是 `(panel, event)`（槽持有面板实例，这里只按域名判断要不要刷）
+        slot = PanelSlot(key, build, lambda panel, event: self._refresh_by_panel(key, panel, event))
+        self._slots[key] = slot
+        return slot
+
+    def _panel_of(self, key: str) -> QWidget | None:
+        """延迟键 → 真面板（未构造时返回 None，不触发构造）。"""
+        return self._built.get(key)
+
+    def _refresh_by_panel(self, key: str, panel: QWidget, event: str) -> None:
+        """按**域名映射**刷新一个延迟面板（与 `_on_data_changed` 同一份 EVENT_PANELS）。
+
+        ⚠ 必须先把导航键翻译成域名：`EVENT_PANELS` 存的是 `task` / `exam`，
+        拿 `tasks` / `exams` 直接比会**静默不刷**（只有 `inventory` 恰好同名）。
+        """
+        domain = KEY_TO_DOMAIN.get(key)
+        if domain is not None and domain in EVENT_PANELS.get(event, ALL_PANELS):
+            self._refresh_panel(panel)
+
+    def _notify_panels(self, event: str) -> None:
+        """把事件转给所有延迟面板：没构造的先攒着（建好后补刷，事件不丢）。"""
+        for slot in self._slots.values():
+            slot.notify(event)
 
     def _placeholder(self, title: str, desc: str) -> QWidget:
         c = get_colors()
@@ -186,6 +287,16 @@ class MainWorkspace(QWidget):
         if idx is None:
             return
         panel = self._stack.widget(idx)
+        if isinstance(panel, PanelSlot):
+            # 首次进入 → 此刻才构造，并把栈里那一格**换成真面板**。
+            # 为什么必须替换而不是"装着槽"：`currentWidget()` 是既有契约
+            # （`test_routine_panel` 等直接比较），槽留在栈里会让它返回容器而不是面板。
+            real = panel.panel()
+            self._stack.removeWidget(panel)
+            self._stack.insertWidget(idx, real)
+            del self._slots[key]
+            panel.deleteLater()
+            panel = real
         if refresh:
             self._refresh_panel(panel)
         if self._stack.currentIndex() != idx:
@@ -226,32 +337,58 @@ class MainWorkspace(QWidget):
         self._task_panel.show_ddl_highlight()
 
     def _on_data_changed(self, action: str) -> None:
-        # 日程视图**总是**刷（课程块 / 事项行 / 计划都在它里面）
+        """数据事件 → 刷新。**默认同步**，只有批量事件走合并（方案 A-3）。
+
+        为什么默认同步：用户点完勾选 / 外部写入到达，界面必须**当场**更新；
+        把刷新推迟到下一轮事件循环是可见回归（`tests/test_data_flow.py` 钉住）。
+        合并只对"一次操作连发多个事件"的批量场景有价值 —— 目前是 AI 批量写入
+        与跨文件撤销（`ai_action` / `ai_undo`），它们逐个刷会把同一批数据重画多次。
+        """
+        if action not in COALESCED_EVENTS:
+            self._apply_refresh([action])
+            return
+        self._coalescer.request(action)
+
+    def _apply_refresh(self, events: list[str]) -> None:
+        """合并后的真正刷新：**先把事件并成一份要刷的面板集合**，再各刷一次。
+
+        逐事件分派会让同一面板被刷多次（`task` + `task_status` 都要刷作业面板）——
+        合并的意义就在这里：同一批数据只重画一遍。
+        """
         self._schedule_view._refresh()
-        # 显式映射（见 EVENT_PANELS）：没登记的事件保守**全刷** —— 不会漏，但浪费一次重绘，
-        # 且 `tests/test_data_events.py` 会红着提醒去登记（审查 2026-10-17 #6）
-        keys = EVENT_PANELS.get(action, ALL_PANELS)
-        for panel, key in (
-            (self._task_panel, "task"),
-            (self._expense_panel, "expense"),
-            (self._habit_panel, "habit"),
-            (self._routine_panel, "routine"),
-            (self._exam_panel, "exam"),
-            (self._inventory_panel, "inventory"),
-            (self._study_panel, "study"),
-        ):
-            if key in keys:
-                panel._refresh()
+        domains: set[str] = set()
+        include_unknown = False
+        for event in events:
+            mapped = EVENT_PANELS.get(event)
+            if mapped is None:
+                include_unknown = True          # 未登记事件 → 保守全刷
+                continue
+            domains |= mapped
+        if include_unknown:
+            domains |= ALL_PANELS
+        for key, slot in self._slots.items():
+            domain = KEY_TO_DOMAIN.get(key)
+            if domain is None:
+                continue
+            # 判断在这里做完，槽只负责"刷 or 攒着"（不再重复分派）
+            slot.notify(events[-1] if events else "", decided=domain in domains)
+        for key, panel in self._built.items():
+            if key not in self._slots and KEY_TO_DOMAIN.get(key) in domains:
+                self._refresh_panel(panel)
 
     def refresh_theme(self) -> None:
         # 自身底色也是构造时写死的，换主题必须重刷（否则内容区留着旧主题色）
         self.setStyleSheet(
             f"#workspace {{ background-color: {surface_color('transition')}; }}")
-        for attr in (
-            "_task_panel", "_schedule_view",
-            "_habit_panel", "_expense_panel", "_inventory_panel",
-            "_routine_panel", "_study_panel", "_meal_panel", "_settings_panel",
-        ):
+        # 已构造的延迟面板（没构造的建出来就是新主题，不必唤起来）
+        for slot in self._slots.values():
+            slot.refresh_theme()
+        for key, panel in self._built.items():
+            if key not in self._slots:
+                hook = getattr(panel, "refresh_theme", None)
+                if callable(hook):
+                    hook()
+        for attr in ("_schedule_view", "_meal_panel", "_settings_panel"):
             w = getattr(self, attr, None)
             if w is None:
                 continue

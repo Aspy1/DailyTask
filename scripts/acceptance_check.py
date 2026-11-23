@@ -131,7 +131,11 @@ def main() -> int:
     global SANDBOX, SHOTS
     ap = argparse.ArgumentParser()
     ap.add_argument("--keep", action="store_true", help="保留沙箱（默认保留，便于排查）")
-    ap.parse_args()
+    ap.add_argument(
+        "--platform", default="offscreen",
+        help="Qt 平台插件：`offscreen`（默认，CI/无人值守）或 `windows`（真实窗口，"
+             "手册 §4.4 要求复跑 DPI / 焦点 / 真实绘制）")
+    args = ap.parse_args()
 
     _configure_stdout()
     SANDBOX = Path(tempfile.mkdtemp(prefix="life_assistant_acceptance_"))
@@ -150,13 +154,13 @@ def main() -> int:
         force=True,
     )
 
-    os.environ["QT_QPA_PLATFORM"] = "offscreen"
+    os.environ["QT_QPA_PLATFORM"] = args.platform
     import src.app as app_module
 
     app_module.DATA_DIR = SANDBOX
     app_module.set_autostart = lambda enabled: None       # 不碰注册表
 
-    from PySide6.QtCore import QTimer
+    from PySide6.QtCore import QEventLoop, Qt, QTimer
     from PySide6.QtWidgets import QDialog, QMessageBox, QWidget
 
     from src.app import App
@@ -217,6 +221,55 @@ def main() -> int:
 
     mw = app._window
     ws = mw._workspace
+
+    # ── 真实渲染前提（手册 §4.4：离屏覆盖不到 DPI / 焦点 / 真实绘制）──
+    section("1b. 真实渲染前提（DPI / 焦点 / 绘制）")
+    screen = app.primaryScreen()
+    platform_name = app.platformName()
+    real_window = platform_name == "windows"
+    print(f"      平台={platform_name}  DPR={screen.devicePixelRatio()}  "
+          f"物理尺寸={screen.size().width()}x{screen.size().height()}")
+    check("主窗口有真实几何尺寸",
+          mw.width() > 0 and mw.height() > 0, f"{mw.width()}x{mw.height()}")
+    # DPI 缩放：控件按**逻辑像素**布局，换 DPR 不能出现负坐标或 0 宽
+    check("DPI 缩放下窗口尺寸有效", mw.width() >= 800 and mw.height() >= 500,
+          f"DPR={screen.devicePixelRatio()} → {mw.width()}x{mw.height()}")
+    # 焦点：键盘可达性 —— 真实窗口下才验证得到。
+    # ⚠ 不能只调 `activateWindow()` 就立刻断言：Windows 下激活要**事件循环转一轮**
+    #   才生效（实测 processEvents 空转仍为 False，跑 250ms 事件循环后为 True）。
+    mw.activateWindow()
+    mw.raise_()
+    _focus_loop = QEventLoop()
+    QTimer.singleShot(250, _focus_loop.quit)
+    _focus_loop.exec()
+    active = mw.isActiveWindow()
+    check("窗口可接受激活（真实窗口）", active or not real_window,
+          f"isActiveWindow={active}")
+    check("窗口有键盘焦点控件",
+          mw.focusWidget() is not None,
+          type(mw.focusWidget()).__name__ if mw.focusWidget() else "无焦点控件")
+    # 焦点链可遍历 = Tab 键真的能在控件间移动（离屏下这条没有意义）
+    node = mw.focusWidget()
+    traversable = False
+    for _ in range(12):
+        node = node.nextInFocusChain() if node is not None else None
+        if node is not None and node.focusPolicy() != Qt.FocusPolicy.NoFocus \
+                and node is not mw.focusWidget():
+            traversable = True
+            break
+    check("焦点链可遍历（Tab 可达）", traversable or not real_window,
+          "焦点链断裂" if not traversable else "可遍历")
+    # 真实绘制：抓窗口像素，确认不是全同色（离屏也能抓，但真实平台才走完整光栅化）
+    pixmap = mw.grab()
+    image = pixmap.toImage()
+    distinct = len({image.pixel(x, y)
+                    for x in range(0, image.width(), max(1, image.width() // 40))
+                    for y in range(0, image.height(), max(1, image.height() // 30))})
+    check("窗口已真实绘制（>8 种颜色）", distinct > 8, f"{distinct} 种取样色")
+    check("抓图尺寸与窗口一致",
+          abs(pixmap.width() - mw.width() * screen.devicePixelRatio()) <= 2,
+          f"pixmap {pixmap.width()} vs 窗口 {mw.width()}×DPR {screen.devicePixelRatio()}")
+
 
     # 若当前学期是空的（例如刚建的新学期），切到"有数据的学期"，
     # 否则课程/考试相关的检查会被跳过（验收要覆盖真实数据）
@@ -475,7 +528,6 @@ def main() -> int:
     section("16. 单实例（第二个实例应自动退出）")
     second = textwrap.dedent(f"""
         import os, sys
-        os.environ["QT_QPA_PLATFORM"] = "offscreen"
         sys.path.insert(0, {str(ROOT)!r})
         import src.app as app_module
         app_module.DATA_DIR = {str(SANDBOX)!r}
@@ -485,10 +537,13 @@ def main() -> int:
         print("SECONDARY" if app.is_secondary else "PRIMARY")
     """)
     try:
+        # 平台由 `main` 的 `--platform` 决定（真实窗口模式下子进程也必须同平台，
+        # 否则"第二实例"这件事根本没被验证到）
         # 参数是写死的解释器 + 固定代码串，无外部输入（S603 不适用）
         out = subprocess.run([sys.executable, "-c", second],  # noqa: S603
-                             capture_output=True, text=True,
-                             timeout=90, env={**os.environ, "QT_QPA_PLATFORM": "offscreen"})
+                             capture_output=True, text=True, timeout=90,
+                             env={**os.environ,
+                                  "QT_QPA_PLATFORM": os.environ.get("QT_QPA_PLATFORM", "offscreen")})
         check("第二个实例被识别为 secondary", "SECONDARY" in out.stdout,
               (out.stdout or out.stderr).strip()[-80:])
     except subprocess.TimeoutExpired:

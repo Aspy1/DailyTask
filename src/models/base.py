@@ -347,11 +347,23 @@ class BaseJsonModel:
             return "unreadable", None
 
     def atomic_write(self) -> None:
+        """`.tmp` → 备份 `.bak` → `os.replace`（原子替换）。
+
+        **编码只做一次、只写一次**（2026-11-23 性能改造，cProfile 证据见
+        `scripts/perf_profile.py`）：原来 `json.dump(..., indent=2)` 走纯 Python
+        编码器并**每几个字符 `write()` 一次** —— 10k 条 × 一次保存 ≈ 54 万次写调用，
+        占整次保存的 86%。改成先 `json.dumps` 再一次性写，输出字节完全相同
+        （`tests/test_save_encoding.py` 逐字节钉住，含 CRLF 与中文）。
+
+        ⚠ 换行保持平台默认（Windows 文本模式 = CRLF）：这批文件进 git，
+        换行风格变了会让整份文件在 diff 里重写。
+        """
         tmp_path = self.file_path.with_suffix(".tmp")
         bak_path = self.file_path.with_suffix(".bak")
         try:
+            payload = json.dumps(self._data, ensure_ascii=False, indent=2)
             with open(tmp_path, "w", encoding="utf-8") as f:
-                json.dump(self._data, f, ensure_ascii=False, indent=2)
+                f.write(payload)                 # 一次写：不再逐 token 调用
 
             if self.file_path.exists():
                 shutil.copy2(self.file_path, bak_path)
@@ -372,6 +384,9 @@ class BaseJsonModel:
         except Exception:
             if bak_path.exists() and not self.file_path.exists():
                 shutil.copy2(bak_path, self.file_path)
+            # 失败要**清理临时文件**：原来留一堆 `*.tmp` 在数据目录里（实测复现）
+            with contextlib.suppress(OSError):
+                tmp_path.unlink(missing_ok=True)
             raise
 
     @property

@@ -110,6 +110,26 @@ def test_concurrent_record_requests_keep_file_valid(tmp_path) -> None:
     assert not list(tmp_path.glob("*.tmp"))
 
 
+def test_record_request_retries_transient_replace_error(sandbox, monkeypatch) -> None:
+    path = sandbox / "weather_stats.json"
+    weather_store.record_request(path, "now")
+    replace = weather_store.os.replace
+    attempts = []
+
+    def temporarily_locked(source: Path, target: Path) -> None:
+        attempts.append(target)
+        if len(attempts) == 1:
+            raise PermissionError("Temporary sharing violation")
+        replace(source, target)
+
+    monkeypatch.setattr(weather_store.os, "replace", temporarily_locked)
+    weather_store.record_request(path, "7d")
+    assert attempts == [path, path]
+    stats = json.loads(path.read_text(encoding="utf-8"))
+    today = datetime.now().strftime("%Y-%m-%d")
+    assert stats["daily"][today]["total"] == 2
+
+
 # ── 启动路径守卫：设置面板读到损坏文件不能崩 ────────────────
 
 def test_settings_panel_survives_corrupted_stats(qapp, tmp_path, monkeypatch) -> None:

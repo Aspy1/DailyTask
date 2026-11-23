@@ -42,6 +42,42 @@ def test_acceptance_forces_utf8_console_output() -> None:
     assert "_configure_stdout()" in source
 
 
+def test_acceptance_can_run_on_the_real_window() -> None:
+    """⭐ 手册 §4.4 要求"在实际可见窗口复跑" —— 平台必须是**参数**，不能写死。
+
+    这里钉住的是"脚本不该替用户决定只在离屏跑"：原来 `QT_QPA_PLATFORM` 被硬编码成
+    `offscreen`，于是"真实窗口复跑"永远做不了（那成了脚本的假设，不是环境限制）。
+    """
+    source = inspect.getsource(ac.main)
+
+    assert '"--platform"' in source, "缺 --platform 参数"
+    assert 'os.environ["QT_QPA_PLATFORM"] = args.platform' in source, \
+        "平台必须来自参数"
+    assert 'os.environ["QT_QPA_PLATFORM"] = "offscreen"' not in source, \
+        "平台被写死了"
+
+
+def test_second_instance_subprocess_inherits_the_platform() -> None:
+    """真实窗口模式下，第二实例子进程必须同平台 —— 否则那条断言没验证到东西。"""
+    source = inspect.getsource(ac.main)
+
+    assert 'os.environ.get("QT_QPA_PLATFORM", "offscreen")' in source, \
+        "子进程没有沿用当前平台"
+    assert 'os.environ["QT_QPA_PLATFORM"] = "offscreen"\\n        sys.path' not in source, \
+        "子进程仍写死 offscreen"
+
+
+def test_real_render_section_covers_dpi_focus_and_paint() -> None:
+    """§1b 必须覆盖手册点名的四件事：DPI / 激活 / 焦点 / 真实绘制。"""
+    source = inspect.getsource(ac.main)
+
+    for token in ("devicePixelRatio", "isActiveWindow", "focusWidget",
+                  "nextInFocusChain", "grab()"):
+        assert token in source, f"§1b 缺 {token}"
+    # 激活要等一轮事件循环（Windows 下立刻断言会误报 False）
+    assert "QEventLoop" in source
+
+
 def test_configure_stdout_is_safe_to_call_twice(capsys) -> None:
     """可重复调用（测试环境已经替换过流，不能因此抛异常）。"""
     ac._configure_stdout()
