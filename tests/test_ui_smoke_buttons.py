@@ -32,6 +32,18 @@ def test_every_button_can_be_clicked() -> None:
     assert "buttons clicked: " in proc.stdout
 
 
+def _has_enough_colors(image, minimum: int) -> bool:
+    from PySide6.QtGui import QImage
+
+    rgba = image.convertToFormat(QImage.Format.Format_RGBA8888)
+    colors = set()
+    for pixel in rgba.constBits().cast("I"):
+        colors.add(pixel)
+        if len(colors) >= minimum:
+            return True
+    return False
+
+
 def test_screenshot_render_is_complete_and_nonblank(tmp_path) -> None:
     """截图集完整、非空；用 QImage 检查不是空白画布。"""
     from PySide6.QtGui import QImage
@@ -47,8 +59,6 @@ def test_screenshot_render_is_complete_and_nonblank(tmp_path) -> None:
         # 面板图必须覆盖窄窗口（990×638 起）；弹窗本身只有 320–600 宽
         min_w, min_h = (320, 240) if path.name.startswith("dialog-") else (900, 600)
         assert image.width() >= min_w and image.height() >= min_h, (path, image.size())
-        # 非空白：纯色画布只有 1 种颜色；小弹窗文字少，阈值放宽
-        colors = {image.pixel(x, y) for x in range(0, image.width(), 20)
-                  for y in range(0, image.height(), 20)}
+        # Sample the full raster so font metrics and alignment cannot hide thin content.
         min_colors = 8 if path.name.startswith("dialog-") else 20
-        assert len(colors) >= min_colors, (path, len(colors))
+        assert _has_enough_colors(image, min_colors), path

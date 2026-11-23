@@ -105,19 +105,21 @@ def test_unreadable_file_is_retried_next_round(qapp, tmp_path, monkeypatch) -> N
     dm = DataManager(tmp_path)
     _write(dm.tasks.file_path, ["原始"])
     dm.reload_all()
-    _write(dm.tasks.file_path, ["新的"])
+    _touch_after(dm.tasks.file_path, ["新的"], 0.05)
 
     real_read = type(dm.tasks.file_path).read_text
     calls = {"n": 0}
 
     def flaky(self, *args: object, **kwargs: object) -> str:
-        calls["n"] += 1
-        if calls["n"] <= 5:
-            raise PermissionError("被占用")
+        if self == dm.tasks.file_path:
+            calls["n"] += 1
+            if calls["n"] <= 5:
+                raise PermissionError("被占用")
         return real_read(self, *args, **kwargs)
 
     monkeypatch.setattr(type(dm.tasks.file_path), "read_text", flaky, raising=False)
     dm._auto_reload()
+    assert calls["n"] > 0
     assert [t["title"] for t in dm.tasks.tasks] == ["原始"], "读不出来时保留内存态"
 
     monkeypatch.undo()
